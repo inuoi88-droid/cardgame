@@ -7,6 +7,7 @@ import {
   RARITY_LABEL,
   analyzeCard,
   buildExport,
+  formatPoints,
   mergeImport,
   normalizeName,
   uniqueName,
@@ -125,7 +126,7 @@ export function CardListPage() {
               <CardView card={card} analysis={a} size="sm" onClick={() => navigate(`/cards/${encodeURIComponent(card.id)}`)} />
               <div className="card-grid__actions">
                 <span className="card-grid__pts">
-                  {a.points.total}/{a.points.cap}pt
+                  {formatPoints(a.points.total)}/{a.points.cap}pt
                 </span>
                 <button type="button" className="btn btn--small" onClick={() => duplicate(card)}>
                   複製

@@ -1,0 +1,2 @@
+release/*.html linguist-generated=true -diff
+src/engine/registry.generated.ts linguist-generated=true

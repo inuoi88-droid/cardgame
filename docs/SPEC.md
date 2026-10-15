@@ -271,3 +271,4 @@
 | 21 | 2026-10-15 | 実装判断 | ポイント内訳の式は、倍率が1でないものだけを「基礎 × 倍率（理由）」で表示し、端数が出たときは「= 4.2 → 切り上げ」のように丸め方を添える |
 | 22 | 2026-10-15 | 実装判断 | 効果の索引（`src/engine/registry.generated.ts`）は `scripts/gen-registry.mjs` が `npm run dev / test / build` の前に自動生成する。エンジンの import は `.ts` 拡張子付きで書き、Phase 3 の Edge Function（Deno）からもそのまま読めるようにする |
 | 23 | 2026-10-15 | 実装判断 | 動作環境は Node.js 22.12 以上（Vite 8 / Vitest 5 の要件） |
+| 24 | 2026-10-15 | 実装判断 | PCでの動作確認用に、JS と CSS を埋め込んだ HTML 1ファイル（`release/cardgame.html`）を `npm run build:single` で作る。ダブルクリックでブラウザが開き、インターネット不要。データはそのブラウザの localStorage に保存される。どこにも公開しない（公開方法は Phase 3 で確認する） |

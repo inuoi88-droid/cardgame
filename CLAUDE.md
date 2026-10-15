@@ -46,4 +46,7 @@ npm run dev        # 開発サーバー（索引を自動生成してから起�
 npm test           # Vitest
 npm run typecheck  # 型チェック（engine は DOM なしの設定でも確認）
 npm run build      # 型チェック + ビルド
+npm run build:single  # release/cardgame.html（ダブルクリックで開ける1ファイル版）を作り直す
 ```
+
+- フェーズの終わりや画面を変えたときは `npm run build:single` で `release/cardgame.html` を更新してコミットする（ユーザーはこのファイルで動作確認する）。

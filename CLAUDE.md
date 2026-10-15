@@ -22,11 +22,28 @@
 - **効果はレジストリ方式。** 定義データ（ポイント、使えるタイミング・対象・条件、テキスト生成）と処理関数を1ファイルにまとめて登録する。新しい効果は1ファイル追加すれば、エディター・ポイント計算・効果テキスト・対戦処理のすべてに反映される。
 - カードの種類、呪い判定、ポイント、効果テキストは保存しない。毎回エンジンで計算する。
 
-## よく使うコマンド
+## ファイル構成（Phase 1 時点）
+
+- `src/engine/` … ルールエンジン（純粋関数）
+  - `balance.ts` バランス数値 / `types.ts` 保存する型 / `options.ts` タイミング・対象・条件
+  - `define.ts` 定義の型 / `registry.ts` 定義の検索 / `registry.generated.ts` 自動生成の索引（手で編集しない）
+  - `defs/effects|modifiers|keywords|drawbacks/*.ts` … 効果などを1ファイル1つで定義
+  - `points.ts` ポイント計算 / `classify.ts` 種類・呪い判定 / `validate.ts` ルール検証 / `text.ts` 効果テキスト
+  - `analyze.ts` カード解析の入口 / `deck.ts` デッキ検証 / `io.ts` 書き出し・取り込み / `editing.ts` エディター用の補助
+  - `index.ts` 公開窓口（UI はここから読む）
+- `src/ui/` … React の画面。`store.ts` が localStorage を扱う
+- `src/samples.ts` … 作成例4枚
+- `tests/` … Vitest（作成例・違反ケース・デッキ・取り込み・レジストリ整合性・エンジンの純粋性）
+- `scripts/gen-registry.mjs` … 定義ファイルの索引を生成
+
+効果を追加するときは `src/engine/defs/effects/<id>.ts` を1ファイル作り、基礎ポイントを `balance.ts` に書く。
+
+## よく使うコマンド（Node.js 22.12 以上）
 
 ```
 npm install
-npm run dev      # 開発サーバー
-npm test         # Vitest
-npm run build    # 型チェック + ビルド
+npm run dev        # 開発サーバー（索引を自動生成してから起動）
+npm test           # Vitest
+npm run typecheck  # 型チェック（engine は DOM なしの設定でも確認）
+npm run build      # 型チェック + ビルド
 ```

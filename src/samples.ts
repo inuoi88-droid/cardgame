@@ -1,0 +1,56 @@
+/** 仕様の「作成例」4枚。カード一覧の「サンプルを追加」で使う */
+import type { CardDef } from './engine/index.ts';
+
+export const SAMPLE_CARDS: CardDef[] = [
+  {
+    v: 1,
+    id: 'sample-hinoko',
+    name: '火の粉',
+    icon: '🔥',
+    rarity: 'common',
+    cost: 1,
+    stats: null,
+    keywords: [],
+    effects: [
+      { id: 'damage', value: 2, timing: 'play', target: 'chosen', condition: null },
+      { id: 'burn', value: 0, timing: 'play', target: 'chosen', condition: null },
+    ],
+    drawbacks: [],
+  },
+  {
+    v: 1,
+    id: 'sample-dokuga-nezumi',
+    name: '毒牙ネズミ',
+    icon: '🐀',
+    rarity: 'common',
+    cost: 1,
+    stats: { attack: 1, hp: 2, defense: 0 },
+    keywords: [],
+    effects: [{ id: 'poison', value: 1, timing: 'attack', target: 'chosen', condition: null }],
+    drawbacks: [],
+  },
+  {
+    v: 1,
+    id: 'sample-todome',
+    name: 'とどめの一撃',
+    icon: '🗡️',
+    rarity: 'rare',
+    cost: 2,
+    stats: null,
+    keywords: [],
+    effects: [{ id: 'damage', value: 20, timing: 'play', target: 'chosen', condition: 'enemyPoisoned' }],
+    drawbacks: [],
+  },
+  {
+    v: 1,
+    id: 'sample-kyosenshi',
+    name: '狂戦士の契約',
+    icon: '💀',
+    rarity: 'legend',
+    cost: 1,
+    stats: null,
+    keywords: [],
+    effects: [{ id: 'strength', value: 5, timing: 'play', target: 'self', condition: null }],
+    drawbacks: [{ id: 'selfDamage', value: 4, timing: 'turnStart' }],
+  },
+];

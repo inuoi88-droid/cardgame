@@ -123,6 +123,12 @@ export function checkGameEnd(g: GameState): boolean {
 export function endGame(g: GameState, winner: PlayerId | null, reason: 'hp' | 'turnLimit' | 'concede'): void {
   g.phase = 'ended';
   g.result = { winner, reason };
+  // 処理の途中で決着したら、使っている途中のカードを捨て札に置いてから処理を打ち切る
+  for (const step of [...g.queue, ...(g.pending ? [g.pending.step] : [])]) {
+    if (step.t === 'cardDone' && !g.players.some((p) => p.board.some((m) => m.uid === step.card.uid))) {
+      g.players[step.card.owner].discard.push(step.card);
+    }
+  }
   g.queue = [];
   g.pending = null;
   const why =

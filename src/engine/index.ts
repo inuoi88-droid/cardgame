@@ -25,3 +25,4 @@ export {
   type ParsedImport,
 } from './io.ts';
 export * as battle from './battle/index.ts';
+export * as ai from './ai/index.ts';

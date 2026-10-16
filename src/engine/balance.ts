@@ -123,9 +123,9 @@ export const BALANCE = {
     defenseUp: { perValue: 4, maxValue: 3 },
     regen: { perValue: 4 },
 
-    draw: { perValue: 5, maxValue: 10 },
-    energy: { perValue: 9, maxValue: 3 },
-    savings: { perValue: 7, maxValue: 3 },
+    draw: { perValue: 5 },
+    energy: { perValue: 9 },
+    savings: { perValue: 7 },
     discount: { flat: 7 },
     search: { flat: 8 },
     recall: { flat: 8 },
@@ -139,7 +139,8 @@ export const BALANCE = {
     dispel: { flat: 12 },
 
     revive: { flat: 10, perValue: 5 },
-    duplicate: { flat: 12 },
+    /** keepRate：コピーがデッキに残る版の上乗せ率 */
+    duplicate: { flat: 12, keepRate: 0.5 },
     wipe: { flat: 25 },
     steal: { flat: 35 },
   },
@@ -180,10 +181,6 @@ export const BALANCE = {
     drawPerTurn: 5,
     firstPlayerFirstTurnEnergy: 2,
     maxTurns: 30,
-    boardSize: 5,
-    maxDrawPerTurn: 10,
-    maxEnergyGainPerTurn: 3,
-    cardPlayedTriggersPerTurn: 3,
     minMonsterDamage: 1,
     burnTurns: 3,
     burnDamage: 2,

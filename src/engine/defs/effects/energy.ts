@@ -9,7 +9,7 @@ export default defineEffect({
   group: 'resource',
   order: 51,
   summary: 'このターンのエナジー+N',
-  value: valueParam('エナジー', { default: 1, max: B.maxValue }),
+  value: valueParam('エナジー', { default: 1 }),
   targetRule: 'self',
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,

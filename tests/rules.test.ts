@@ -139,3 +139,13 @@ describe('丸め', () => {
     expect(BALANCE.card.pointsPerCost).toBe(10);
   });
 });
+
+describe('複製のコピーが残る版', () => {
+  it('残らない版は12pt、残る版は+50%で18pt', () => {
+    const v = (option?: string) =>
+      analyzeCard(card({ rarity: 'epic', cost: 1, effects: [fx({ id: 'duplicate', target: 'self', option })] })).points.lines[0]!.value;
+    expect(v()).toBe(12);
+    expect(v('temp')).toBe(12);
+    expect(v('keep')).toBe(18);
+  });
+});

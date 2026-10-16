@@ -1,17 +1,31 @@
 import { BALANCE } from '../../balance.ts';
-import { defineEffect } from '../../define.ts';
+import { defineEffect, optionOf } from '../../define.ts';
 
 const B = BALANCE.effects.duplicate;
+const option = {
+  label: 'コピー',
+  choices: [
+    { id: 'temp', label: '残らない（使うかターン終了で除外）' },
+    { id: 'keep', label: 'デッキに残る（その試合中）' },
+  ],
+  default: 'temp',
+};
+const keeps = (e: { option?: string }) => optionOf({ option }, e) === 'keep';
 
 export default defineEffect({
   id: 'duplicate',
   name: '複製',
   group: 'special',
   order: 71,
-  summary: '手札のカード1枚のコピーを手札に加える（エピック以上）',
+  summary: `手札のカード1枚のコピーを手札に加える（エピック以上。コピーが残る版は+${B.keepRate * 100}%）`,
+  option,
   targetRule: 'self',
   minRarity: 'epic',
-  basePoints: () => B.flat,
-  baseFormula: () => `${B.flat}`,
-  describe: () => '手札のカード1枚のコピーを手札に加える',
+  basePoints: (e) => (keeps(e) ? B.flat * (1 + B.keepRate) : B.flat),
+  baseFormula: (e) => (keeps(e) ? `${B.flat}×${1 + B.keepRate}` : `${B.flat}`),
+  describe: (e) =>
+    keeps(e)
+      ? '手札のカード1枚のコピーを手札に加える（コピーはこの試合のデッキに残る）'
+      : '手札のカード1枚のコピーを手札に加える（コピーは使うかターン終了で除外）',
+  shortValue: (e) => (keeps(e) ? '（残る）' : ''),
 });

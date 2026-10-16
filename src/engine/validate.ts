@@ -98,8 +98,8 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     }
     checkParam(out, 'EFFECT_VALUE', `${path}.value`, what, def.value, e.value);
     checkParam(out, 'EFFECT_HITS', `${path}.hits`, what, def.hits, e.hits);
-    if (def.option && !def.option.choices.some((c) => c.id === e.option)) {
-      out.push({ code: 'EFFECT_OPTION', path: `${path}.option`, message: `${what}の${def.option.label}を選んでください` });
+    if (def.option && e.option !== undefined && !def.option.choices.some((c) => c.id === e.option)) {
+      out.push({ code: 'EFFECT_OPTION', path: `${path}.option`, message: `${what}の${def.option.label}が正しくありません` });
     }
 
     const timing = TIMINGS[e.timing];

@@ -117,7 +117,7 @@ export function EffectRow({ effect, card, violations, onChange, onRemove }: Effe
           {def.option && (
             <label className="field">
               <span>{def.option.label}</span>
-              <select value={effect.option ?? ''} onChange={(e) => onChange({ ...effect, option: e.target.value })}>
+              <select value={effect.option ?? def.option.default} onChange={(e) => onChange({ ...effect, option: e.target.value })}>
                 {def.option.choices.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.label}

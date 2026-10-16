@@ -198,7 +198,7 @@ describe('入力値', () => {
 
   it('効果の数値が範囲外', () => {
     expectViolation(card({ cost: 1, effects: [fx({ id: 'damage', value: 0 })] }), 'EFFECT_VALUE');
-    expectViolation(card({ rarity: 'legend', cost: 2, effects: [fx({ id: 'energy', value: 4, target: 'self' })] }), 'EFFECT_VALUE');
+    expectViolation(card({ rarity: 'legend', cost: 2, effects: [fx({ id: 'energy', value: 31, target: 'self' })] }), 'EFFECT_VALUE');
     expectViolation(card({ rarity: 'rare', cost: 1, effects: [fx({ id: 'multiHit', value: 1, hits: 1 })] }), 'EFFECT_HITS');
   });
 
@@ -206,7 +206,8 @@ describe('入力値', () => {
     expectViolation(card({ effects: [fx({ id: 'nonexistent' })] }), 'EFFECT_UNKNOWN');
   });
 
-  it('サーチの種類が未指定', () => {
-    expectViolation(card({ rarity: 'rare', cost: 1, effects: [fx({ id: 'search', target: 'self' })] }), 'EFFECT_OPTION');
+  it('サーチの種類が正しくない（未指定なら初期値のモンスター）', () => {
+    expectViolation(card({ rarity: 'rare', cost: 1, effects: [fx({ id: 'search', target: 'self', option: 'dragon' })] }), 'EFFECT_OPTION');
+    expect(analyzeCard(card({ rarity: 'rare', cost: 1, effects: [fx({ id: 'search', target: 'self' })] })).valid).toBe(true);
   });
 });

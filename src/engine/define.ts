@@ -148,6 +148,11 @@ export function valueParam(label = 'N', opts: { min?: number; max?: number; defa
   };
 }
 
+/** 効果の追加指定（未設定なら定義の初期値） */
+export function optionOf(def: { option?: OptionSpec }, e: { option?: string }): string | undefined {
+  return e.option ?? def.option?.default;
+}
+
 /** インスタンスから N を取り出す（未設定なら 0） */
 export const n = (x: { value?: number }): number => x.value ?? 0;
 

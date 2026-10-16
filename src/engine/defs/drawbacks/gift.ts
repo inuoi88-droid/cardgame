@@ -11,4 +11,9 @@ export default defineDrawback({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: () => `相手が次のターンに${B.extraDraw}枚多く引く`,
+  battle: {
+    resolve(rt) {
+      rt.addNextTurn(rt.opponent, { draw: B.extraDraw });
+    },
+  },
 });

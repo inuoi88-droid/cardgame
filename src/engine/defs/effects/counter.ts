@@ -14,4 +14,9 @@ export default defineEffect({
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e) => `反撃${n(e)}を得る`,
+  battle: {
+    resolve(rt, e) {
+      for (const t of rt.targets) rt.addStatus(t, 'counter', n(e));
+    },
+  },
 });

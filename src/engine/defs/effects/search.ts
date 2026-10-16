@@ -1,5 +1,6 @@
 import { BALANCE } from '../../balance.ts';
 import { defineEffect, optionOf } from '../../define.ts';
+import { classifyCard } from '../../classify.ts';
 import { CARD_TYPE_LABEL } from '../../labels.ts';
 import { CARD_TYPES } from '../../types.ts';
 
@@ -20,4 +21,24 @@ export default defineEffect({
   baseFormula: () => `${B.flat}`,
   describe: (e) => `山札から${typeLabel(e)}のカードを1枚選んで手札に加える`,
   shortValue: (e) => typeLabel(e),
+  battle: {
+    choose(rt, e) {
+      const want = optionOf({ option }, e);
+      return {
+        prompt: `山札から手札に加える${typeLabel(e)}のカードを選んでください`,
+        options: rt
+          .player(rt.controller)
+          .deck.filter((c) => {
+            const def = rt.cardDef(c.cardId);
+            return def !== undefined && classifyCard(def) === want;
+          })
+          .map((c) => ({ id: c.uid, label: rt.cardName(c.cardId), cardId: c.cardId })),
+        min: 1,
+        max: 1,
+      };
+    },
+    resolve(rt, _e, picks) {
+      if (picks?.[0]) rt.takeFromDeck(rt.controller, picks[0]);
+    },
+  },
 });

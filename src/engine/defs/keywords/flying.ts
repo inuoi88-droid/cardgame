@@ -12,4 +12,5 @@ export default defineKeyword({
   formula: () => `${B.flat}`,
   displayName: () => '飛行',
   describe: () => '挑発を無視して攻撃できる',
+  battle: { flying: true },
 });

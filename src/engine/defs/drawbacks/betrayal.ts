@@ -13,4 +13,14 @@ export default defineDrawback({
   basePoints: () => B.fixed,
   baseFormula: () => `${B.fixed}（固定）`,
   describe: () => `召喚から${B.turns}ターン後、自分のプレイヤーを攻撃するようになる`,
+  battle: {
+    onBoardTurnStart(rt, _d, m) {
+      if (m.betraying) return;
+      m.counters.betrayal = (m.counters.betrayal ?? 0) + 1;
+      if (m.counters.betrayal >= B.turns) {
+        m.betraying = true;
+        rt.log(`「${rt.cardName(m.card.cardId)}」が裏切った（以後、持ち主を攻撃する）`);
+      }
+    },
+  },
 });

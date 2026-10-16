@@ -5,6 +5,7 @@
  * エディター・ポイント計算・効果テキストのすべてに反映される（索引は scripts/gen-registry.mjs が自動生成）。
  */
 import { BALANCE } from './balance.ts';
+import type { ChoiceSpec, EffectRuntime, Monster, TargetRef } from './battle/types.ts';
 import type { TargetRule } from './options.ts';
 import type {
   DrawbackInstance,
@@ -84,6 +85,13 @@ export interface EffectDef {
   describe(e: EffectInstance, ctx: DescribeContext): string;
   /** エディターの効果名の後ろに付ける数値表示（例：「2」「3×2」） */
   shortValue?(e: EffectInstance): string;
+  /** 対戦での処理 */
+  battle: {
+    /** 選択が要る効果（サーチ・回収など）は選択肢を返す。null なら選択なし */
+    choose?(rt: EffectRuntime, e: EffectInstance): ChoiceSpec | null;
+    /** 効果を処理する。picks は選んだ選択肢の ID */
+    resolve(rt: EffectRuntime, e: EffectInstance, picks?: string[]): void;
+  };
 }
 
 export interface ModifierDef {
@@ -111,6 +119,18 @@ export interface KeywordDef {
   displayName(k: KeywordInstance): string;
   /** 説明文 */
   describe(k: KeywordInstance): string;
+  /** 対戦での働き（封印されたモンスターでは働かない） */
+  battle: {
+    haste?: boolean;
+    attacksPerTurn?: number;
+    taunt?: boolean;
+    flying?: boolean;
+    trample?: boolean;
+    undying?: boolean;
+    stealthOnSummon?: boolean;
+    /** 持ち主のターン開始時 */
+    onTurnStart?(rt: EffectRuntime, k: KeywordInstance, monster: Monster): void;
+  };
 }
 
 export interface DrawbackDef {
@@ -129,6 +149,15 @@ export interface DrawbackDef {
   baseFormula(d: DrawbackInstance): string;
   /** テキスト（タイミングの前置きと句点は付けない） */
   describe(d: DrawbackInstance): string;
+  /** 対戦での処理（封印されても働く） */
+  battle: {
+    /** タイミングを選ぶデメリットの処理 */
+    resolve?(rt: EffectRuntime, d: DrawbackInstance): void;
+    /** 場にいる間、持ち主のターン開始時（維持費・裏切り） */
+    onBoardTurnStart?(rt: EffectRuntime, d: DrawbackInstance, monster: Monster): void;
+    /** 手札にある間、ターン終了時（寄生） */
+    onHandTurnEnd?(rt: EffectRuntime, d: DrawbackInstance): void;
+  };
 }
 
 export const defineEffect = (def: Omit<EffectDef, 'kind'>): EffectDef => ({ kind: 'effect', ...def });
@@ -158,3 +187,12 @@ export const n = (x: { value?: number }): number => x.value ?? 0;
 
 /** 「a×b」形式の式。値が1なら係数だけ */
 export const mulFormula = (...xs: number[]): string => xs.join('×');
+
+/** 対戦：効果を使ったプレイヤー自身 */
+export const me = (rt: EffectRuntime): TargetRef => ({ kind: 'player', player: rt.controller });
+
+/** 対戦：ダメージ効果のオプション */
+export const modsOf = (e: EffectInstance) => ({
+  pierce: e.mods?.includes('pierce') ?? false,
+  drain: e.mods?.includes('drain') ?? false,
+});

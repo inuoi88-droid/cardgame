@@ -14,4 +14,9 @@ export default defineEffect({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: () => `相手が次のターンに引く枚数−${amount}`,
+  battle: {
+    resolve(rt) {
+      rt.addNextTurn(rt.opponent, { draw: -amount });
+    },
+  },
 });

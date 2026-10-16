@@ -14,4 +14,9 @@ export default defineEffect({
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e) => `このターン、アタックのダメージ+${n(e)}`,
+  battle: {
+    resolve(rt, e) {
+      for (const t of rt.targets) rt.addStatus(t, 'focus', n(e));
+    },
+  },
 });

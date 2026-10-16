@@ -13,4 +13,9 @@ export default defineEffect({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: (_e, c) => `${c.target}を凍結させる`,
+  battle: {
+    resolve(rt) {
+      for (const t of rt.targets) rt.addStatus(t, 'freeze', 1);
+    },
+  },
 });

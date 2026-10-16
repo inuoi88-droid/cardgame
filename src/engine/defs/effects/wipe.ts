@@ -14,4 +14,9 @@ export default defineEffect({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: () => '自分の分も含め、場のモンスターをすべて破壊する',
+  battle: {
+    resolve(rt) {
+      for (const t of rt.targets) rt.destroy(t);
+    },
+  },
 });

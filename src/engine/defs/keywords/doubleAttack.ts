@@ -12,4 +12,5 @@ export default defineKeyword({
   formula: (_k, s) => `攻撃力${s.attack}×${B.perAttack}`,
   displayName: () => '二回攻撃',
   describe: () => '毎ターン2回攻撃できる',
+  battle: { attacksPerTurn: B.attacks },
 });

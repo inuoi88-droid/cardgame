@@ -14,4 +14,9 @@ export default defineEffect({
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e) => `シールド${n(e)}を得る`,
+  battle: {
+    resolve(rt, e) {
+      rt.gainShield(rt.controller, n(e));
+    },
+  },
 });

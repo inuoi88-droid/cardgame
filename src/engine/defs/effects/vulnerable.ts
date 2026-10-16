@@ -15,4 +15,9 @@ export default defineEffect({
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e, c) => `${c.target}に脆弱（${n(e)}ターン）を与える`,
   shortValue: (e) => `${n(e)}ターン`,
+  battle: {
+    resolve(rt, e) {
+      for (const t of rt.targets) rt.addStatus(t, 'vulnerable', n(e));
+    },
+  },
 });

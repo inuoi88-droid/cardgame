@@ -12,4 +12,5 @@ export default defineKeyword({
   formula: (_k, s) => `攻撃力${s.attack}×${B.perAttack}`,
   displayName: () => '速攻',
   describe: () => '召喚したターンから攻撃できる',
+  battle: { haste: true },
 });

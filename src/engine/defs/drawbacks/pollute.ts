@@ -12,4 +12,9 @@ export default defineDrawback({
   basePoints: (d) => B.perValue * n(d),
   baseFormula: (d) => `${n(d)}×${B.perValue}`,
   describe: (d) => `自分の山札にノイズを${n(d)}枚入れる`,
+  battle: {
+    resolve(rt, d) {
+      rt.addNoise(rt.controller, n(d));
+    },
+  },
 });

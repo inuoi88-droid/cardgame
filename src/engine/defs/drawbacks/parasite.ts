@@ -12,4 +12,9 @@ export default defineDrawback({
   basePoints: () => B.fixed,
   baseFormula: () => `${B.fixed}（固定）`,
   describe: () => `手札にある間、ターン終了時に自分に${B.damage}ダメージ`,
+  battle: {
+    onHandTurnEnd(rt) {
+      rt.selfDamage(B.damage);
+    },
+  },
 });

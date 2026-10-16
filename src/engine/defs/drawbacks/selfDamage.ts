@@ -12,4 +12,9 @@ export default defineDrawback({
   basePoints: (d) => B.perValue * n(d),
   baseFormula: (d) => `${n(d)}×${B.perValue}`,
   describe: (d) => `自分に${n(d)}ダメージ`,
+  battle: {
+    resolve(rt, d) {
+      rt.selfDamage(n(d));
+    },
+  },
 });

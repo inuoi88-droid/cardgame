@@ -13,4 +13,12 @@ export default defineEffect({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: () => '相手の永続効果を1つ消す',
+  battle: {
+    choose(rt) {
+      return { prompt: '消す相手の効果を選んでください', options: rt.dispelOptions(rt.opponent), min: 1, max: 1 };
+    },
+    resolve(rt, _e, picks) {
+      if (picks?.[0]) rt.dispel(rt.opponent, picks[0]);
+    },
+  },
 });

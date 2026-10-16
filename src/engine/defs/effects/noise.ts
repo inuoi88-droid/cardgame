@@ -14,4 +14,9 @@ export default defineEffect({
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e) => `相手の山札にノイズを${n(e)}枚混ぜる`,
+  battle: {
+    resolve(rt, e) {
+      rt.addNoise(rt.opponent, n(e));
+    },
+  },
 });

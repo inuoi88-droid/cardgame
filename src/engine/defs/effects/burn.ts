@@ -16,4 +16,9 @@ export default defineEffect({
   baseFormula: (e) => (n(e) > 0 ? `${B.flat}+${n(e)}×${B.perExtraTurn}` : `${B.flat}`),
   describe: (e, c) => `${c.target}にやけど（${turns(e)}ターン）を与える`,
   shortValue: (e) => (n(e) > 0 ? `${turns(e)}ターン` : ''),
+  battle: {
+    resolve(rt, e) {
+      for (const t of rt.targets) rt.addStatus(t, 'burn', turns(e));
+    },
+  },
 });

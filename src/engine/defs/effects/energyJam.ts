@@ -14,4 +14,9 @@ export default defineEffect({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: () => `相手の次のターンのエナジー−${amount}`,
+  battle: {
+    resolve(rt) {
+      rt.addNextTurn(rt.opponent, { energy: -amount });
+    },
+  },
 });

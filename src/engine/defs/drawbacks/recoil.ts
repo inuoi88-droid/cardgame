@@ -11,4 +11,9 @@ export default defineDrawback({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: () => `次のターンのエナジー−${B.energyLoss}`,
+  battle: {
+    resolve(rt) {
+      rt.addNextTurn(rt.controller, { energy: -B.energyLoss });
+    },
+  },
 });

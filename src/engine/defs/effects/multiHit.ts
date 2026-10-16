@@ -1,5 +1,5 @@
 import { BALANCE } from '../../balance.ts';
-import { defineEffect, n } from '../../define.ts';
+import { defineEffect, modsOf, n } from '../../define.ts';
 
 const B = BALANCE.effects.multiHit;
 const P = BALANCE.params;
@@ -20,4 +20,11 @@ export default defineEffect({
   baseFormula: (e) => `${n(e)}×${hits(e)}×${B.perValueHit}`,
   describe: (e, c) => `${c.target}に${c.modPrefix}${n(e)}ダメージを${hits(e)}回与える${c.modSuffix}`,
   shortValue: (e) => `${n(e)}×${hits(e)}`,
+  battle: {
+    resolve(rt, e) {
+      for (const t of rt.targets) {
+        for (let i = 0; i < hits(e); i++) rt.hit(t, n(e), modsOf(e));
+      }
+    },
+  },
 });

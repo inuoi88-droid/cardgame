@@ -13,4 +13,10 @@ export default defineDrawback({
   basePoints: () => B.fixed,
   baseFormula: () => `${B.fixed}（固定）`,
   describe: () => `場にいる間、自分のターン開始時に自分に${B.damage}ダメージ`,
+  battle: {
+    onBoardTurnStart(rt, _d, m) {
+      rt.log(`「${rt.cardName(m.card.cardId)}」の維持費`);
+      rt.selfDamage(B.damage);
+    },
+  },
 });

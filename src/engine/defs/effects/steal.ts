@@ -14,4 +14,9 @@ export default defineEffect({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: (_e, c) => `${c.target}を自分の場に移す`,
+  battle: {
+    resolve(rt) {
+      for (const t of rt.targets) rt.steal(t);
+    },
+  },
 });

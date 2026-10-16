@@ -12,4 +12,5 @@ export default defineKeyword({
   formula: () => `${B.flat}`,
   displayName: () => '不屈',
   describe: () => '一度だけ体力1で踏みとどまる',
+  battle: { undying: true },
 });

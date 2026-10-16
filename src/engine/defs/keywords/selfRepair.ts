@@ -13,4 +13,9 @@ export default defineKeyword({
   formula: (k) => `${n(k)}×${B.perValue}`,
   displayName: (k) => `自己修復${n(k)}`,
   describe: (k) => `自分のターン開始時に体力を${n(k)}回復する`,
+  battle: {
+    onTurnStart(rt, k, m) {
+      rt.heal({ kind: 'monster', uid: m.uid }, n(k));
+    },
+  },
 });

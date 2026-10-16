@@ -14,4 +14,9 @@ export default defineEffect({
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e) => `カードを${n(e)}枚引く`,
+  battle: {
+    resolve(rt, e) {
+      rt.draw(rt.controller, n(e));
+    },
+  },
 });

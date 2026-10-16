@@ -14,4 +14,9 @@ export default defineEffect({
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e) => `エナジーを${n(e)}得る`,
+  battle: {
+    resolve(rt, e) {
+      rt.gainEnergy(rt.controller, n(e));
+    },
+  },
 });

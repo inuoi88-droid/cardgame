@@ -28,4 +28,20 @@ export default defineEffect({
       ? '手札のカード1枚のコピーを手札に加える（コピーはこの試合のデッキに残る）'
       : '手札のカード1枚のコピーを手札に加える（コピーは使うかターン終了で除外）',
   shortValue: (e) => (keeps(e) ? '（残る）' : ''),
+  battle: {
+    choose(rt) {
+      return {
+        prompt: 'コピーする手札のカードを選んでください',
+        options: rt
+          .player(rt.controller)
+          .hand.filter((c) => rt.cardDef(c.cardId))
+          .map((c) => ({ id: c.uid, label: rt.cardName(c.cardId), cardId: c.cardId })),
+        min: 1,
+        max: 1,
+      };
+    },
+    resolve(rt, e, picks) {
+      if (picks?.[0]) rt.copyFromHand(rt.controller, picks[0], keeps(e));
+    },
+  },
 });

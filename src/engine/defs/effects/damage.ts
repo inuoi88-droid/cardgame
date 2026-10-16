@@ -1,5 +1,5 @@
 import { BALANCE } from '../../balance.ts';
-import { defineEffect, n, valueParam } from '../../define.ts';
+import { defineEffect, modsOf, n, valueParam } from '../../define.ts';
 
 const B = BALANCE.effects.damage;
 
@@ -16,4 +16,9 @@ export default defineEffect({
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e, c) => `${c.target}に${c.modPrefix}${n(e)}ダメージを与える${c.modSuffix}`,
+  battle: {
+    resolve(rt, e) {
+      for (const t of rt.targets) rt.hit(t, n(e), modsOf(e));
+    },
+  },
 });

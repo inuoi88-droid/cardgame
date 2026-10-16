@@ -12,4 +12,5 @@ export default defineKeyword({
   formula: () => `${B.flat}`,
   displayName: () => '隠密',
   describe: () => '召喚してから相手の次のターン終了まで攻撃対象にならない',
+  battle: { stealthOnSummon: true },
 });

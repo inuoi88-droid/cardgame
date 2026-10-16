@@ -13,4 +13,9 @@ export default defineEffect({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: (_e, c) => `${c.target}を持ち主の手札に戻す`,
+  battle: {
+    resolve(rt) {
+      for (const t of rt.targets) rt.bounce(t);
+    },
+  },
 });

@@ -1,0 +1,161 @@
+/** カードの使用とノイズの除外 */
+import { BALANCE } from '../balance.ts';
+import { classifyCard } from '../classify.ts';
+import { TIMINGS, isPowerTiming, type TargetRule } from '../options.ts';
+import { getEffect } from '../registry.ts';
+import type { CardDef } from '../types.ts';
+import { enqueue, log, newUid, other, playerRef } from './core.ts';
+import { enqueueCardTiming, enqueuePowers } from './triggers.ts';
+import { discardCard, summon } from './zones.ts';
+import { NOISE_CARD_ID, type CardInst, type Chosen, type GameState, type PlayerId, type PowerInst, type TargetRef } from './types.ts';
+
+/** 実際に払うコスト（凍結の+1、軽減の−） */
+export function effectiveCost(g: GameState, p: PlayerId, card: CardInst): number {
+  const def = g.cards[card.cardId];
+  if (!def) return 0;
+  const ps = g.players[p];
+  const tax = ps.turn.freezeTax ? BALANCE.battle.freezeCostIncrease : 0;
+  return Math.max(0, def.cost + tax - ps.discount * BALANCE.battle.discountAmount);
+}
+
+/** 使用時・召喚時の「選んだ1体」が必要な効果の作用先 */
+export function chosenRules(def: CardDef): { enemy: TargetRule[]; ally: boolean } {
+  const timing = def.stats ? 'summon' : 'play';
+  const enemy: TargetRule[] = [];
+  let ally = false;
+  for (const e of def.effects) {
+    if (e.timing !== timing || e.target !== 'chosen' || TIMINGS[timing].chosen !== 'manual') continue;
+    const rule = getEffect(e.id)?.targetRule;
+    if (rule === 'allyMonsterOne') ally = true;
+    else if (rule) enemy.push(rule);
+  }
+  return { enemy, ally };
+}
+
+/** 相手側の「選んだ1体」の候補（隠密は選べない） */
+export function enemyCandidates(g: GameState, p: PlayerId, rules: TargetRule[]): TargetRef[] {
+  if (rules.length === 0) return [];
+  const opp = other(p);
+  const monsters = g.players[opp].board.filter((m) => !m.stealth).map((m): TargetRef => ({ kind: 'monster', uid: m.uid }));
+  const allowPlayer = rules.some((r) => r === 'enemyAny');
+  return [...(allowPlayer ? [playerRef(opp)] : []), ...monsters];
+}
+
+/** 自分のモンスターの「選んだ1体」の候補（モンスターカードなら自分自身も選べる） */
+export function allyCandidates(g: GameState, p: PlayerId, card: CardInst): string[] {
+  const def = g.cards[card.cardId];
+  return [...g.players[p].board.map((m) => m.uid), ...(def?.stats ? [card.uid] : [])];
+}
+
+const sameRef = (a: TargetRef, b: TargetRef) =>
+  a.kind === 'player' ? b.kind === 'player' && a.player === b.player : b.kind === 'monster' && a.uid === b.uid;
+
+export function validatePlay(g: GameState, p: PlayerId, cardUid: string, chosen: Chosen | undefined): string | null {
+  const ps = g.players[p];
+  const card = ps.hand.find((c) => c.uid === cardUid);
+  if (!card) return 'そのカードは手札にありません';
+  if (card.cardId === NOISE_CARD_ID) return 'ノイズは使えません（コストを払って除外はできます）';
+  const def = g.cards[card.cardId];
+  if (!def) return 'カードの定義が見つかりません';
+  const cost = effectiveCost(g, p, card);
+  if (cost > ps.energy) return `エナジーが足りません（必要${cost}、残り${ps.energy}）`;
+  const rules = chosenRules(def);
+  const enemies = enemyCandidates(g, p, rules.enemy);
+  if (enemies.length > 0) {
+    if (!chosen?.enemy) return '対象を選んでください';
+    if (!enemies.some((t) => sameRef(t, chosen.enemy!))) return 'その対象は選べません';
+  } else if (chosen?.enemy) {
+    return '対象は選べません';
+  }
+  const allies = rules.ally ? allyCandidates(g, p, card) : [];
+  if (allies.length > 0) {
+    if (!chosen?.ally) return '自分のモンスターを選んでください';
+    if (!allies.includes(chosen.ally)) return 'そのモンスターは選べません';
+  } else if (chosen?.ally) {
+    return '自分のモンスターは選べません';
+  }
+  return null;
+}
+
+export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Chosen): void {
+  const ps = g.players[p];
+  const index = ps.hand.findIndex((c) => c.uid === cardUid);
+  const card = ps.hand[index]!;
+  const def = g.cards[card.cardId]!;
+  const cost = effectiveCost(g, p, card);
+  const before = ps.energy;
+  ps.energy -= cost;
+  const notes: string[] = [];
+  if (ps.turn.freezeTax) notes.push('凍結で+1');
+  if (ps.discount > 0) notes.push(`軽減で−${ps.discount}`);
+  ps.turn.freezeTax = false;
+  ps.discount = 0;
+  ps.turn.cardsPlayed += 1;
+  ps.hand.splice(index, 1);
+  log(
+    g,
+    0,
+    `${ps.name}は「${def.name}」を使った（コスト${cost}${notes.length ? `：${notes.join('、')}` : ''}、エナジー ${before}→${ps.energy}）`,
+    'action',
+  );
+
+  const protectKey = newUid(g, 'pk');
+  if (def.stats) {
+    summon(g, p, card, chosen, 1, protectKey);
+  } else {
+    const type = classifyCard(def);
+    const attackCard = type === 'attack' || type === 'powerAttack';
+    const src = { kind: 'card' as const, uid: card.uid, cardId: card.cardId, name: def.name, controller: p };
+    enqueueCardTiming(g, src, def, 'play', chosen, 1, { attackCard, protectKey });
+  }
+  enqueue(g, { t: 'cardDone', player: p, card, protectKey, depth: 1 });
+}
+
+/** カードの処理が終わったあと：捨て札・除外・パワーとして残す、そして「カードを使うたび」 */
+export function finishCard(g: GameState, p: PlayerId, card: CardInst, protectKey: string, depth: number): void {
+  const ps = g.players[p];
+  const def = g.cards[card.cardId];
+  delete g.protect[protectKey];
+  let newPower: PowerInst | undefined;
+  if (def && !def.stats) {
+    const type = classifyCard(def);
+    if (type === 'power' || type === 'powerAttack') {
+      newPower = {
+        uid: newUid(g, 'pw'),
+        cardId: card.cardId,
+        name: def.name,
+        effects: def.effects.filter((e) => isPowerTiming(e.timing, 'spell')).map((effect) => ({ effect, removed: false })),
+        drawbacks: def.drawbacks.filter((d) => isPowerTiming(d.timing, 'spell')),
+      };
+      if (newPower.effects.length > 0 || newPower.drawbacks.length > 0) {
+        ps.powers.push(newPower);
+        log(g, depth, `「${def.name}」はパワーとして場に残り、カードは除外された`);
+      } else {
+        log(g, depth, `「${def.name}」は除外された`);
+      }
+      ps.exile.push(card);
+    } else {
+      discardCard(g, card);
+    }
+  }
+  enqueuePowers(g, p, 'cardPlayed', depth, newPower?.uid);
+}
+
+/** ノイズの除外（カードを使ったことには数えない：決定事項 #45） */
+export function validateRemoveNoise(g: GameState, p: PlayerId, cardUid: string): string | null {
+  const ps = g.players[p];
+  const card = ps.hand.find((c) => c.uid === cardUid);
+  if (!card || card.cardId !== NOISE_CARD_ID) return 'そのノイズは手札にありません';
+  if (ps.energy < BALANCE.battle.noiseRemoveCost) return 'エナジーが足りません';
+  return null;
+}
+
+export function removeNoise(g: GameState, p: PlayerId, cardUid: string): void {
+  const ps = g.players[p];
+  const i = ps.hand.findIndex((c) => c.uid === cardUid);
+  const [card] = ps.hand.splice(i, 1);
+  ps.energy -= BALANCE.battle.noiseRemoveCost;
+  ps.exile.push(card!);
+  log(g, 0, `${ps.name}はエナジー${BALANCE.battle.noiseRemoveCost}を払ってノイズを除外した`, 'action');
+}
+

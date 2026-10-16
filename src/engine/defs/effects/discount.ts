@@ -14,4 +14,9 @@ export default defineEffect({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: () => `次に使うカードのコスト−${amount}`,
+  battle: {
+    resolve(rt) {
+      rt.addDiscount(rt.controller, 1);
+    },
+  },
 });

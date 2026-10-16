@@ -13,4 +13,9 @@ export default defineEffect({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: () => '自分の状態異常をすべて解除する',
+  battle: {
+    resolve(rt) {
+      rt.cleanse(rt.controller);
+    },
+  },
 });

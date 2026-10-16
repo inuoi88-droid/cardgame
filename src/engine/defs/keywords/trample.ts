@@ -12,4 +12,5 @@ export default defineKeyword({
   formula: () => `${B.flat}`,
   displayName: () => '貫通',
   describe: () => 'モンスターを倒して余ったダメージが相手プレイヤーに通る',
+  battle: { trample: true },
 });

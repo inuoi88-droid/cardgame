@@ -14,4 +14,9 @@ export default defineEffect({
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e) => `HPを${n(e)}回復する`,
+  battle: {
+    resolve(rt, e) {
+      for (const t of rt.targets) rt.heal(t, n(e));
+    },
+  },
 });

@@ -12,4 +12,5 @@ export default defineKeyword({
   formula: () => `${B.flat}`,
   displayName: () => '挑発',
   describe: () => '相手のモンスターはこのモンスターしか攻撃できない',
+  battle: { taunt: true },
 });

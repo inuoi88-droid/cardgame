@@ -24,3 +24,4 @@ export {
   type MergeResult,
   type ParsedImport,
 } from './io.ts';
+export * as battle from './battle/index.ts';

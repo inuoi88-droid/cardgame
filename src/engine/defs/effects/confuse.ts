@@ -13,4 +13,9 @@ export default defineEffect({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: (_e, c) => `${c.target}を混乱させる`,
+  battle: {
+    resolve(rt) {
+      for (const t of rt.targets) rt.addStatus(t, 'confuse', 1);
+    },
+  },
 });

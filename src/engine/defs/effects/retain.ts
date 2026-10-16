@@ -13,4 +13,9 @@ export default defineEffect({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: () => 'ターン終了時に手札を1枚残せる',
+  battle: {
+    resolve(rt) {
+      rt.addRetain(rt.controller, 1);
+    },
+  },
 });

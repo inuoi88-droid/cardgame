@@ -151,7 +151,7 @@ export const BALANCE = {
     taunt: { flat: 8 },
     flying: { flat: 6 },
     trample: { flat: 5 },
-    doubleAttack: { perAttack: 3 },
+    doubleAttack: { perAttack: 3, attacks: 2 },
     stealth: { flat: 5 },
     undying: { flat: 8 },
     selfRepair: { perValue: 3 },
@@ -179,6 +179,8 @@ export const BALANCE = {
     playerHp: 60,
     energyPerTurn: 3,
     drawPerTurn: 5,
+    /** マリガンで全部引き直すときの最低枚数 */
+    mulliganMinHand: 1,
     firstPlayerFirstTurnEnergy: 2,
     maxTurns: 30,
     minMonsterDamage: 1,

@@ -13,4 +13,9 @@ export default defineEffect({
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: () => '次に受けるダメージ1回を0にする',
+  battle: {
+    resolve(rt) {
+      for (const t of rt.targets) rt.addStatus(t, 'nullify', 1);
+    },
+  },
 });

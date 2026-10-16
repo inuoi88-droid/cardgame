@@ -14,4 +14,9 @@ export default defineEffect({
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e, c) => `${c.target}の攻撃力を+${n(e)}する`,
+  battle: {
+    resolve(rt, e) {
+      for (const t of rt.targets) rt.changeAttack(t, n(e));
+    },
+  },
 });

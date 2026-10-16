@@ -112,6 +112,7 @@ export function isEnded(g: GameState): boolean {
 /** HP が0以下のプレイヤーがいれば決着させる（両方なら引き分け） */
 export function checkGameEnd(g: GameState): boolean {
   if (g.phase === 'ended') return true;
+  if (g.holdEnd > 0) return false;
   const dead = g.players.map((p) => p.hp <= 0);
   if (!dead[0] && !dead[1]) return false;
   const winner: PlayerId | null = dead[0] && dead[1] ? null : dead[0] ? 1 : 0;

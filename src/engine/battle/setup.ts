@@ -57,6 +57,7 @@ export function createGame(config: GameConfig): CreateResult {
     cards: {},
     queue: [],
     qInsert: 0,
+    holdEnd: 0,
     pending: null,
     protect: {},
     result: null,

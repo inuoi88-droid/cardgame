@@ -192,6 +192,8 @@ export interface GameState {
   queue: Step[];
   /** キューに割り込ませる位置（処理中だけ使う） */
   qInsert: number;
+  /** 1つの効果を処理している間は決着を保留する（同時にHP0なら引き分けにするため） */
+  holdEnd: number;
   pending: PendingChoice | null;
   /** 浄化から守る毒・やけど（カードのデメリットで付いた分） */
   protect: Record<string, { poison: number; burn: number }>;

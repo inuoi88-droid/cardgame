@@ -2,7 +2,7 @@
 import { getDrawback, getEffect } from '../registry.ts';
 import { describeDrawback, describeEffect } from '../text.ts';
 import { checkCondition } from './conditions.ts';
-import { enqueue, log } from './core.ts';
+import { checkGameEnd, enqueue, log } from './core.ts';
 import { finishCard } from './play.ts';
 import { makeRuntime, resolveTargets } from './runtime.ts';
 import { retainOptions, runAutoAttacks, turnEndEffects, turnEndFinish } from './turn.ts';
@@ -83,7 +83,14 @@ function executeEffect(g: GameState, step: Extract<Step, { t: 'effect' }>): void
       }
     }
   }
-  def.battle.resolve(rt, step.effect, picks);
+  // 効果1つを処理し終えてから勝敗を判定する（全体ダメージで両者が同時にHP0なら引き分け）
+  g.holdEnd += 1;
+  try {
+    def.battle.resolve(rt, step.effect, picks);
+  } finally {
+    g.holdEnd -= 1;
+  }
+  checkGameEnd(g);
 }
 
 function executeDrawback(g: GameState, step: Extract<Step, { t: 'drawback' }>): void {

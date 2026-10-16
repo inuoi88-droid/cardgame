@@ -302,6 +302,7 @@ select:disabled {
   gap: 6px;
 }
 .nav-btn {
+  white-space: nowrap;
   font: inherit;
   color: var(--muted);
   background: transparent;
@@ -1296,6 +1297,16 @@ select:disabled {
   :root {
     --gutter: 12px;
   }
+  .topbar__title {
+    font-size: 0.92rem;
+  }
+  .topbar__nav {
+    gap: 2px;
+  }
+  .nav-btn {
+    padding: 6px 8px;
+    font-size: 0.85rem;
+  }
   .card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
@@ -1306,4 +1317,14 @@ select:disabled {
   .savebar .btn {
     padding: 8px 10px;
   }
+}
+
+/* モーダルの下に固定するボタン列 */
+.modal__foot {
+  position: sticky;
+  bottom: -14px;
+  margin: 0 -14px -14px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
 }

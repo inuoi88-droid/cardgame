@@ -51,9 +51,11 @@ interface ModalProps {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  /** false なら閉じるボタンを出さない（選ぶまで閉じられない画面） */
+  closable?: boolean;
 }
 
-export function Modal({ title, onClose, children }: ModalProps) {
+export function Modal({ title, onClose, children, closable = true }: ModalProps) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -62,13 +64,15 @@ export function Modal({ title, onClose, children }: ModalProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   return (
-    <div className="modal" onClick={onClose}>
+    <div className="modal" onClick={closable ? onClose : undefined}>
       <div className="modal__body" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref} onClick={(e) => e.stopPropagation()}>
         <div className="modal__head">
           <h2>{title}</h2>
-          <button type="button" className="btn btn--ghost" onClick={onClose} aria-label="閉じる">
-            ✕
-          </button>
+          {closable && (
+            <button type="button" className="btn btn--ghost" onClick={onClose} aria-label="閉じる">
+              ✕
+            </button>
+          )}
         </div>
         {children}
       </div>

@@ -2,6 +2,8 @@ import { CardEditorPage } from './pages/CardEditorPage.tsx';
 import { CardListPage } from './pages/CardListPage.tsx';
 import { DeckBuilderPage } from './pages/DeckBuilderPage.tsx';
 import { DeckListPage } from './pages/DeckListPage.tsx';
+import { BattlePage } from './pages/BattlePage.tsx';
+import { BattleSetupPage } from './pages/BattleSetupPage.tsx';
 import { navigate, useRoute } from './router.ts';
 import { useStore } from './store.ts';
 import { cx } from './util.ts';
@@ -9,7 +11,12 @@ import { cx } from './util.ts';
 export function App() {
   const route = useRoute();
   const { saveError } = useStore();
-  const section = route.page === 'decks' || route.page === 'deckEdit' ? 'decks' : 'cards';
+  const section =
+    route.page === 'decks' || route.page === 'deckEdit'
+      ? 'decks'
+      : route.page === 'battle' || route.page === 'battleSetup'
+        ? 'battle'
+        : 'cards';
 
   return (
     <div className="app">
@@ -22,6 +29,9 @@ export function App() {
           <button type="button" className={cx('nav-btn', section === 'decks' && 'is-active')} onClick={() => navigate('/decks')}>
             📚 デッキ
           </button>
+          <button type="button" className={cx('nav-btn', section === 'battle' && 'is-active')} onClick={() => navigate('/battle')}>
+            ⚔️ 対戦
+          </button>
         </nav>
       </header>
       {saveError && <div className="notice notice--ng">{saveError}</div>}
@@ -30,6 +40,8 @@ export function App() {
         {route.page === 'cardEdit' && <CardEditorPage id={route.id} />}
         {route.page === 'decks' && <DeckListPage />}
         {route.page === 'deckEdit' && <DeckBuilderPage id={route.id} />}
+        {route.page === 'battleSetup' && <BattleSetupPage />}
+        {route.page === 'battle' && <BattlePage />}
       </main>
     </div>
   );

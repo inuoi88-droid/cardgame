@@ -5,11 +5,14 @@ export type Route =
   | { page: 'cards' }
   | { page: 'cardEdit'; id: string | null }
   | { page: 'decks' }
-  | { page: 'deckEdit'; id: string | null };
+  | { page: 'deckEdit'; id: string | null }
+  | { page: 'battleSetup' }
+  | { page: 'battle' };
 
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   const [section, id] = parts;
+  if (section === 'battle') return id === 'play' ? { page: 'battle' } : { page: 'battleSetup' };
   if (section === 'decks') {
     if (id === undefined) return { page: 'decks' };
     return { page: 'deckEdit', id: id === 'new' ? null : id };

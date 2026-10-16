@@ -22,7 +22,7 @@
 - **効果はレジストリ方式。** 定義データ（ポイント、使えるタイミング・対象・条件、テキスト生成）と処理関数を1ファイルにまとめて登録する。新しい効果は1ファイル追加すれば、エディター・ポイント計算・効果テキスト・対戦処理のすべてに反映される。
 - カードの種類、呪い判定、ポイント、効果テキストは保存しない。毎回エンジンで計算する。
 
-## ファイル構成（Phase 1 時点）
+## ファイル構成（Phase 2 時点）
 
 - `src/engine/` … ルールエンジン（純粋関数）
   - `balance.ts` バランス数値 / `types.ts` 保存する型 / `options.ts` タイミング・対象・条件
@@ -31,12 +31,17 @@
   - `points.ts` ポイント計算 / `classify.ts` 種類・呪い判定 / `validate.ts` ルール検証 / `text.ts` 効果テキスト
   - `analyze.ts` カード解析の入口 / `deck.ts` デッキ検証 / `io.ts` 書き出し・取り込み / `editing.ts` エディター用の補助
   - `index.ts` 公開窓口（UI はここから読む）
-- `src/ui/` … React の画面。`store.ts` が localStorage を扱う
+  - `battle/` … 対戦エンジン。入口は `applyAction(state, action)`（apply.ts）。setup・turn・play・combat・damage・queue（解決キューと選択待ち）・runtime（効果ファイルに渡す道具）・legal（今できる行動）・view（相手の非公開情報を隠す）
+  - `ai/` … CPU。`Strategy` を差し替えられる。今は貪欲法（greedy.ts）と評価関数（evaluate.ts。重みは balance.ts ではなくここ）
+- `src/ui/` … React の画面。`store.ts` が localStorage を扱う。`battle/` と `pages/Battle*` が対戦画面
 - `src/samples.ts` … 作成例4枚
+- `src/presets.ts` … CPU 用プリセットデッキ3つ（毒・モンスター・呪い）
 - `tests/` … Vitest（作成例・違反ケース・デッキ・取り込み・レジストリ整合性・エンジンの純粋性）
 - `scripts/gen-registry.mjs` … 定義ファイルの索引を生成
 
-効果を追加するときは `src/engine/defs/effects/<id>.ts` を1ファイル作り、基礎ポイントを `balance.ts` に書く。
+効果を追加するときは `src/engine/defs/effects/<id>.ts` を1ファイル作り（定義・テキスト・対戦での処理 `battle.resolve`）、基礎ポイントを `balance.ts` に書く。
+
+対戦の状態は JSON にできる形を保つ。対戦ルールの確定事項は `docs/SPEC.md` の決定事項ログ #25 以降。
 
 ## よく使うコマンド（Node.js 22.12 以上）
 

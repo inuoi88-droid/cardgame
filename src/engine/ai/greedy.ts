@@ -63,5 +63,3 @@ export const greedyStrategy: Strategy = {
   },
 };
 
-/** 1ターンに CPU が行う行動の上限（念のため） */
-export const MAX_CPU_ACTIONS_PER_TURN = 100;

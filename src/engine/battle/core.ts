@@ -13,7 +13,16 @@ import {
   type Statuses,
   type Step,
   type TargetRef,
+  type TurnLimits,
 } from './types.ts';
+
+/** このターンの上限の数え（安全装置）。新しいターンなら0から数え直す */
+export function turnLimits(g: GameState, ps: PlayerState): TurnLimits {
+  if (!ps.limits || ps.limits.turnIndex !== g.turnIndex) {
+    ps.limits = { turnIndex: g.turnIndex, drawn: 0, energyGained: 0, noiseIn: 0 };
+  }
+  return ps.limits;
+}
 
 export const other = (p: PlayerId): PlayerId => (p === 0 ? 1 : 0);
 

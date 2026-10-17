@@ -137,6 +137,21 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     }
   });
 
+  // 1枚のカードのダメージの合計（値×回数）。どのタイミング・対象でも数える（決定事項 #64）
+  const damageMax = BALANCE.params.damagePerCardMax;
+  const damageTotal = card.effects.reduce((sum, e) => {
+    const def = getEffect(e.id);
+    if (!def?.isDamage) return sum;
+    return sum + (e.value ?? 0) * (def.hits ? (e.hits ?? 0) : 1);
+  }, 0);
+  if (damageTotal > damageMax) {
+    out.push({
+      code: 'DAMAGE_TOO_MUCH',
+      path: 'effects',
+      message: `1枚のカードのダメージ・連撃の合計（値×回数）は${damageMax}までです（いま${damageTotal}）`,
+    });
+  }
+
   // デメリット
   const seenDrawbacks = new Set<string>();
   card.drawbacks.forEach((d, i) => {

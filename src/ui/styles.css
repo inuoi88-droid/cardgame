@@ -968,6 +968,11 @@ select:disabled {
 .point-table__drawback .point-table__value {
   color: #ff9ab9;
 }
+/* デメリットのうち差し引けない分（合計に戻す） */
+.point-table__limit th,
+.point-table__limit .point-table__value {
+  color: #ffcf6e;
+}
 .point-table tfoot th,
 .point-table tfoot td {
   border-bottom: none;

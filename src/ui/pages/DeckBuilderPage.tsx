@@ -150,7 +150,7 @@ function Builder({ saved }: { saved: Deck | null }) {
             ))}
             <li>
               <span className="dot dot--curse" />
-              呪い {a.curseCount}（制限なし）
+              うち呪い {a.curseCount}
             </li>
           </ul>
         </div>

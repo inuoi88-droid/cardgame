@@ -1,7 +1,8 @@
 /** カードの移動：ドロー、召喚、ノイズ、バウンス、奪取、コピー、蘇生、解除 */
+import { BALANCE } from '../balance.ts';
 import { getEffect } from '../registry.ts';
 import { TIMINGS } from '../options.ts';
-import { cardName, emptyStatuses, findMonster, log, monsterLabel, newUid } from './core.ts';
+import { cardName, emptyStatuses, findMonster, log, monsterLabel, newUid, turnLimits } from './core.ts';
 import { keywordFlags } from './damage.ts';
 import { pick, randInt, shuffle } from './rng.ts';
 import { enqueueCardTiming } from './triggers.ts';
@@ -20,7 +21,15 @@ import {
 export function drawCards(g: GameState, p: PlayerId, count: number, depth: number): number {
   const ps = g.players[p];
   const names: string[] = [];
+  // 1ターンに引ける枚数の上限（対戦前の手札・マリガンは数えない）
+  const limits = g.phase === 'main' ? turnLimits(g, ps) : null;
+  const maxDraw = BALANCE.battle.maxDrawPerTurn;
+  let capped = false;
   for (let i = 0; i < count; i++) {
+    if (limits && limits.drawn >= maxDraw) {
+      capped = true;
+      break;
+    }
     if (ps.deck.length === 0) {
       if (ps.discard.length === 0) break;
       ps.deck = ps.discard;
@@ -31,7 +40,9 @@ export function drawCards(g: GameState, p: PlayerId, count: number, depth: numbe
     const card = ps.deck.shift()!;
     ps.hand.push(card);
     names.push(cardName(g, card.cardId));
+    if (limits) limits.drawn += 1;
   }
+  if (capped) log(g, depth, `${ps.name}はこのターンもう引けない（1ターン${maxDraw}枚まで）`, 'info');
   if (names.length > 0) {
     log(g, depth, `${ps.name}はカードを${names.length}枚引いた`, 'info');
     log(g, depth, `引いたカード：${names.join('、')}`, 'info', p);

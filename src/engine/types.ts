@@ -123,7 +123,8 @@ export interface PointLine {
   formula: string;
   /** 合計に加える値（コスト・デメリットは負） */
   value: number;
-  kind: 'stat' | 'keyword' | 'effect' | 'cost' | 'drawback';
+  /** limit：デメリットのうち差し引けない分を戻す行 */
+  kind: 'stat' | 'keyword' | 'effect' | 'cost' | 'drawback' | 'limit';
   /** effects / drawbacks / keywords の何番目か */
   index?: number;
 }
@@ -136,8 +137,10 @@ export interface PointSummary {
   cap: number;
   /** 上限までの残り（超過なら負） */
   remaining: number;
-  /** デメリットの合計（正の数） */
+  /** デメリットの合計（正の数。呪いの条件に使う） */
   drawbackTotal: number;
+  /** デメリットのうち、合計から実際に差し引いた分 */
+  drawbackOffset: number;
 }
 
 export interface CardText {

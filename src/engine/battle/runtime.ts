@@ -2,7 +2,7 @@
 import { BALANCE } from '../balance.ts';
 import { TIMINGS, type TargetRule } from '../options.ts';
 import type { EffectInstance, TimingId } from '../types.ts';
-import { cardName, findMonster, log, monsterLabel, other, playerRef, targetExists } from './core.ts';
+import { cardName, findMonster, log, monsterLabel, other, playerRef, targetExists, turnLimits } from './core.ts';
 import { addStatus, cleanse, dealDamage, destroyMonster, heal } from './damage.ts';
 import { pick } from './rng.ts';
 import {
@@ -72,6 +72,8 @@ export interface RuntimeOpts {
   protectKey?: string;
 }
 
+const B = BALANCE.battle;
+
 export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], opts: RuntimeOpts): EffectRuntime {
   const me = src.controller;
   const depth = opts.depth;
@@ -117,18 +119,43 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
     },
     gainEnergy(p, amount) {
       const ps = g.players[p];
-      ps.energy += amount;
-      log(g, depth, `${ps.name}はエナジーを${amount}得た（エナジー${ps.energy}）`);
+      // 1ターンに増やせるエナジーの上限（安全装置）
+      const limits = turnLimits(g, ps);
+      const gain = Math.max(0, Math.min(amount, B.maxEnergyGainPerTurn - limits.energyGained));
+      limits.energyGained += gain;
+      ps.energy += gain;
+      if (gain < amount) {
+        log(g, depth, `${ps.name}はエナジーを${gain}得た（1ターン+${B.maxEnergyGainPerTurn}まで。エナジー${ps.energy}）`);
+      } else {
+        log(g, depth, `${ps.name}はエナジーを${gain}得た（エナジー${ps.energy}）`);
+      }
     },
     addNextTurn(p, delta) {
       const ps = g.players[p];
-      if (delta.draw) ps.next.draw += delta.draw;
-      if (delta.energy) ps.next.energy += delta.energy;
+      let { draw = 0, energy = 0 } = delta;
+      // 相手の妨害で減らせる量には上限がある（重ねてもロックにならないように）
+      let capped = false;
+      if (p !== me && energy < 0) {
+        const room = Math.max(0, B.maxEnergyJamPerTurn - (ps.next.jamEnergy ?? 0));
+        if (-energy > room) capped = true;
+        energy = -Math.min(-energy, room);
+        ps.next.jamEnergy = (ps.next.jamEnergy ?? 0) - energy;
+      }
+      if (p !== me && draw < 0) {
+        const room = Math.max(0, B.maxDrawJamPerTurn - (ps.next.jamDraw ?? 0));
+        if (-draw > room) capped = true;
+        draw = -Math.min(-draw, room);
+        ps.next.jamDraw = (ps.next.jamDraw ?? 0) - draw;
+      }
+      if (draw) ps.next.draw += draw;
+      if (energy) ps.next.energy += energy;
       const parts = [
-        delta.draw ? `引く枚数${delta.draw > 0 ? '+' : '−'}${Math.abs(delta.draw)}` : '',
-        delta.energy ? `エナジー${delta.energy > 0 ? '+' : '−'}${Math.abs(delta.energy)}` : '',
+        draw ? `引く枚数${draw > 0 ? '+' : '−'}${Math.abs(draw)}` : '',
+        energy ? `エナジー${energy > 0 ? '+' : '−'}${Math.abs(energy)}` : '',
       ].filter(Boolean);
-      log(g, depth, `${ps.name}の次のターン：${parts.join('、')}`);
+      const note = capped ? `（妨害は1ターンにエナジー−${B.maxEnergyJamPerTurn}・引く枚数−${B.maxDrawJamPerTurn}まで）` : '';
+      if (parts.length > 0) log(g, depth, `${ps.name}の次のターン：${parts.join('、')}${note}`);
+      else if (capped) log(g, depth, `${ps.name}はこれ以上妨害されない${note}`);
     },
     addDiscount(p, amount) {
       const ps = g.players[p];
@@ -144,7 +171,15 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       drawCards(g, p, count, depth);
     },
     addNoise(p, count) {
-      addNoise(g, p, count, depth);
+      // 相手の山札に入れるノイズは、1ターンに受け取る枚数に上限がある（自分のデメリットの汚染は制限しない）
+      let n = count;
+      if (p !== me) {
+        const limits = turnLimits(g, g.players[p]);
+        n = Math.max(0, Math.min(count, B.maxNoiseReceivedPerTurn - limits.noiseIn));
+        limits.noiseIn += n;
+        if (n < count) log(g, depth, `ノイズは1ターンに${B.maxNoiseReceivedPerTurn}枚までしか入らない`);
+      }
+      if (n > 0) addNoise(g, p, n, depth);
     },
     discardRandom(p, count) {
       discardRandom(g, p, count, depth);

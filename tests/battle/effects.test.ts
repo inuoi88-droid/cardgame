@@ -87,12 +87,17 @@ describe('発動タイミング', () => {
     expect(monster(g, a)!.hp).toBe(3);
   });
 
-  it('カードを使うたび：パワー自身には反応せず、回数制限はない', () => {
+  it('カードを使うたび：パワー自身には反応せず、1ターン3回まで（次のターンはまた3回）', () => {
     let g = rich(startGame());
     g = play(g, giveCard(g, 0, legend([fx({ id: 'damage', value: 1, timing: 'cardPlayed', target: 'enemyPlayer' })])));
     expect(g.players[1].hp).toBe(60);
     for (let i = 0; i < 5; i++) g = play(g, giveCard(g, 0, legend([fx({ id: 'shield', value: 1, target: 'self' })])));
-    expect(g.players[1].hp).toBe(55);
+    expect(g.players[1].hp).toBe(57);
+    expect(g.log.some((e) => e.text.includes('1ターン3回まで'))).toBe(true);
+    g = endTurn(endTurn(g));
+    g = rich(g);
+    for (let i = 0; i < 4; i++) g = play(g, giveCard(g, 0, legend([fx({ id: 'shield', value: 1, target: 'self' })])));
+    expect(g.players[1].hp).toBe(54);
   });
 
   it('自分のターン終了時（パワー）', () => {

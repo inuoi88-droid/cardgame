@@ -1,4 +1,7 @@
-/** ポイント計算。合計 = ステータス + キーワード + 効果 − コスト×10 − デメリット */
+/**
+ * ポイント計算。合計 = ステータス + キーワード + 効果 − コスト×10 − デメリット。
+ * デメリットで差し引けるのはレアリティ上限まで。コスト0のカードは差し引けない（決定事項 #64）
+ */
 import { BALANCE } from './balance.ts';
 import { cardBase } from './classify.ts';
 import { formatMultiplier } from './labels.ts';
@@ -138,7 +141,25 @@ export function calculatePoints(card: CardDef): PointSummary {
     lines.push({ kind: 'drawback', index, label: drawbackLabel(d, base), formula: p.formula, value: -p.value + 0 });
   });
 
-  const total = lines.reduce((s, l) => s + l.value, 0);
   const cap = BALANCE.rarity[card.rarity]?.cap ?? 0;
-  return { lines, total, cap, remaining: cap - total, drawbackTotal };
+  const limit = drawbackOffsetLimit(card.cost, cap);
+  const drawbackOffset = Math.min(drawbackTotal, limit);
+  if (drawbackTotal > drawbackOffset) {
+    const why = limit === 0 ? `コスト${BALANCE.curse.minCostForOffset}未満のカードは差し引けない` : `差し引けるのは${limit}ptまで`;
+    lines.push({
+      kind: 'limit',
+      label: 'デメリットの差し引き上限',
+      formula: `${drawbackTotal} − ${drawbackOffset}（${why}）`,
+      value: drawbackTotal - drawbackOffset,
+    });
+  }
+
+  const total = lines.reduce((s, l) => s + l.value, 0);
+  return { lines, total, cap, remaining: cap - total, drawbackTotal, drawbackOffset };
+}
+
+/** デメリットで差し引けるポイントの上限 */
+export function drawbackOffsetLimit(cost: number, cap: number): number {
+  const C = BALANCE.curse;
+  return cost < C.minCostForOffset ? 0 : Math.floor(cap * C.maxOffsetRate);
 }

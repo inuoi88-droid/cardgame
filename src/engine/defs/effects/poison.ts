@@ -9,7 +9,7 @@ export default defineEffect({
   group: 'status',
   order: 30,
   summary: '毒Nを与える（ターン開始時に毒の数だけダメージ。その後1減る）',
-  value: valueParam('毒', { default: 1 }),
+  value: valueParam('毒', { default: 1, max: B.maxValue }),
   targetRule: 'enemyAny',
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,

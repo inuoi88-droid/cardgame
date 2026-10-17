@@ -79,11 +79,8 @@ export function analyzeDeck(deck: Deck, cardsById: ReadonlyMap<string, CardDef>)
     if (!a.valid) {
       out.push({ code: 'DECK_INVALID_CARD', path, message: `「${card.name}」はルール違反のため使えません（カードを直してください）` });
     }
-    // 呪いカードには枚数制限がない
-    if (a.isCurse) {
-      curseCount += entry.count;
-      return;
-    }
+    // 呪いカードも、元のレアリティの枚数制限に従う（決定事項 #64）
+    if (a.isCurse) curseCount += entry.count;
     if (!(RARITIES as readonly string[]).includes(card.rarity)) return;
     byRarity[card.rarity] += entry.count;
     const key = normalizeName(card.name);

@@ -57,11 +57,13 @@ describe('デッキ', () => {
     expect(codes(analyzeDeck(...deckOf([[a, 1], [b, 1], [common, 28]])).violations)).toEqual(['DECK_SAME_NAME']);
   });
 
-  it('呪いカードには枚数制限がない（呪いレジェンド10枚でもよい）', () => {
-    const a = analyzeDeck(...deckOf([[curseLegend, 10], [common, 20]]));
-    expect(a.valid).toBe(true);
-    expect(a.curseCount).toBe(10);
-    expect(a.rarityRows.find((r) => r.rarity === 'legend')!.count).toBe(0);
+  it('呪いカードも元のレアリティの枚数制限に従う（決定事項 #64）', () => {
+    const one = analyzeDeck(...deckOf([[curseLegend, 1], [common, 29]]));
+    expect(one.valid).toBe(true);
+    expect(one.curseCount).toBe(1);
+    expect(one.rarityRows.find((r) => r.rarity === 'legend')!.count).toBe(1);
+    const ten = analyzeDeck(...deckOf([[curseLegend, 10], [common, 20]]));
+    expect(codes(ten.violations).sort()).toEqual(['DECK_RARITY_LIMIT', 'DECK_SAME_NAME']);
   });
 
   it('ルール違反のカードが入っていると作れない', () => {

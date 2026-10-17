@@ -97,7 +97,7 @@ const curses = preset('curses', '呪いの契約', '自分を傷つける代わ�
       effects: [fx({ id: 'damage', value: 8 })],
       drawbacks: [{ id: 'selfDamage', value: 4, timing: 'play' }],
     }),
-    6,
+    8,
   ],
   [
     c('noroikishi', '呪われた騎士', '🧟', 'rare', 2, {
@@ -110,8 +110,8 @@ const curses = preset('curses', '呪いの契約', '自分を傷つける代わ�
     5,
   ],
   [
-    c('akuma', '悪魔の取引', '😈', 'epic', 0, {
-      effects: [fx({ id: 'draw', value: 3, target: 'self' }), fx({ id: 'energy', value: 1, target: 'self' })],
+    c('akuma', '悪魔の取引', '😈', 'epic', 1, {
+      effects: [fx({ id: 'draw', value: 3, target: 'self' }), fx({ id: 'energy', value: 2, target: 'self' })],
       drawbacks: [
         { id: 'recoil', timing: 'play' },
         { id: 'selfDamage', value: 2, timing: 'play' },
@@ -124,7 +124,7 @@ const curses = preset('curses', '呪いの契約', '自分を傷つける代わ�
       effects: [fx({ id: 'strength', value: 5, target: 'self' })],
       drawbacks: [{ id: 'selfDamage', value: 4, timing: 'turnStart' }],
     }),
-    2,
+    1,
   ],
   [
     c('majuu', '裏切りの魔獣', '👹', 'legend', 2, {
@@ -136,7 +136,7 @@ const curses = preset('curses', '呪いの契約', '自分を傷つける代わ�
         { id: 'selfPoison', value: 2, timing: 'summon' },
       ],
     }),
-    2,
+    1,
   ],
   [
     c('ikenie', '生贄の儀式', '🕯️', 'rare', 1, {

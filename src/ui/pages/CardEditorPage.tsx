@@ -222,8 +222,9 @@ function Editor({ saved }: { saved: CardDef | null }) {
           <section className="panel panel--drawback">
             <h2>デメリット（呪い）</h2>
             <p className="hint">
-              デメリットを1つでも付けると呪いカードになります。呪いカードはデッキの枚数制限がありませんが、デメリットの合計が上限（
-              {BALANCE.rarity[card.rarity].cap}pt）以上必要です。同じデメリットは1回までです。
+              デメリットを1つでも付けると呪いカードになります。デメリットの合計が上限（{BALANCE.rarity[card.rarity].cap}pt）以上必要で、
+              合計から差し引けるのも上限（{BALANCE.rarity[card.rarity].cap}pt）までです。コスト{BALANCE.curse.minCostForOffset}
+              未満のカードは差し引けません。デッキの枚数制限は元のレアリティと同じです。同じデメリットは1回までです。
             </p>
             {card.drawbacks.map((d, i) => (
               <DrawbackRow

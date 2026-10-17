@@ -25,6 +25,17 @@ export const BALANCE = {
     size: 30,
   },
 
+  /**
+   * 呪いカード（決定事項 #64）。デメリットで差し引けるポイントには上限がある。
+   * 上限を超えたデメリットはカードを弱くするだけで、効果を強くする役には立たない。
+   */
+  curse: {
+    /** デメリットで差し引けるポイントの上限（レアリティ上限に対する倍率） */
+    maxOffsetRate: 1,
+    /** このコスト未満のカードは、デメリットで差し引けない（エナジーなしで使えるカードを強くしすぎない） */
+    minCostForOffset: 1,
+  },
+
   /** モンスターのステータス */
   stats: {
     attackPoints: 3,
@@ -92,7 +103,9 @@ export const BALANCE = {
     valueMin: 1,
     valueMax: 30,
     hitsMin: 2,
-    hitsMax: 10,
+    hitsMax: 5,
+    /** 1枚のカードのダメージ・連撃の合計（値×回数）の上限（決定事項 #64） */
+    damagePerCardMax: 30,
   },
 
   /** 効果の基礎ポイント */
@@ -108,7 +121,8 @@ export const BALANCE = {
     cleanse: { flat: 6 },
     repair: { perValue: 1 },
 
-    poison: { perValue: 3 },
+    /** 毒は残り続けて合計ダメージが大きくなるので、1つの効果で与えられる値に上限を置く */
+    poison: { perValue: 3, maxValue: 10 },
     burn: { flat: 10, perExtraTurn: 3, maxExtraTurns: 10 },
     freeze: { flat: 12 },
     weak: { perValue: 4 },
@@ -205,6 +219,19 @@ export const BALANCE = {
     drawJamAmount: 1,
     energyJamAmount: 1,
     drainRate: 0.5,
+    /** 安全装置（決定事項 #64。#44 の「上限なし」を取り消し、元の仕様に戻す） */
+    /** 1ターンに引けるのは合計この枚数まで（ターン開始時の5枚を含む） */
+    maxDrawPerTurn: 10,
+    /** 1ターンに増やせるエナジーの合計（エナジー効果と貯金） */
+    maxEnergyGainPerTurn: 3,
+    /** 「カードを使うたび」が発動するのは、パワー1つにつき1ターンにこの回数まで */
+    maxCardPlayedTriggersPerTurn: 3,
+    /** 相手の効果で減らされる、次のターンのエナジーの上限 */
+    maxEnergyJamPerTurn: 1,
+    /** 相手の効果で減らされる、次のターンに引く枚数の上限 */
+    maxDrawJamPerTurn: 2,
+    /** 相手の効果で自分の山札に入れられるノイズは、1ターンにこの枚数まで */
+    maxNoiseReceivedPerTurn: 3,
   },
 } as const;
 

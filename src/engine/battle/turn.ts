@@ -1,7 +1,7 @@
 /** ターンの開始と終了（処理順は決定事項 #28） */
 import { BALANCE } from '../balance.ts';
 import { getDrawback, getKeyword } from '../registry.ts';
-import { checkGameEnd, endGame, enqueue, log, monsterLabel, other, playerRef, sourceOfMonster, isEnded } from './core.ts';
+import { checkGameEnd, endGame, enqueue, log, monsterLabel, other, playerRef, sourceOfMonster, isEnded, turnLimits } from './core.ts';
 import { autoAttackTarget, attacksPerTurn, performAttack } from './combat.ts';
 import { dealDamage, heal } from './damage.ts';
 import { randInt } from './rng.ts';
@@ -71,20 +71,23 @@ export function startTurn(g: GameState, p: PlayerId): void {
     }
   }
 
-  // エナジー（持ち越さない：決定事項 #25）
+  // エナジー（持ち越さない：決定事項 #25）。貯金で増える分も1ターンの増加の上限に数える（決定事項 #64）
   const base = p === g.first && ps.turnsTaken === 1 ? B.firstPlayerFirstTurnEnergy : B.energyPerTurn;
-  ps.energy = Math.max(0, base + ps.next.energy);
+  const limits = turnLimits(g, ps);
+  const carried = ps.next.energy > 0 ? Math.min(ps.next.energy, B.maxEnergyGainPerTurn) : ps.next.energy;
+  if (carried > 0) limits.energyGained += carried;
+  ps.energy = Math.max(0, base + carried);
+  const capNote = carried < ps.next.energy ? `、増加は+${B.maxEnergyGainPerTurn}まで` : '';
   log(
     g,
     1,
-    `${ps.name}のエナジー：${ps.energy}${ps.next.energy ? `（基本${base}${ps.next.energy > 0 ? '+' : '−'}${Math.abs(ps.next.energy)}）` : ''}`,
+    `${ps.name}のエナジー：${ps.energy}${carried ? `（基本${base}${carried > 0 ? '+' : '−'}${Math.abs(carried)}${capNote}）` : ''}`,
     'info',
   );
-  ps.next.energy = 0;
 
   // ドロー（1ターン目は対戦開始時に配った手札を使う：決定事項 #47）
   const drawCount = ps.turnsTaken === 1 ? Math.max(0, ps.next.draw) : Math.max(0, B.drawPerTurn + ps.next.draw);
-  ps.next.draw = 0;
+  ps.next = { draw: 0, energy: 0 };
   drawCards(g, p, drawCount, 1);
 
   // 「自分のターン開始時」：パワー → 場のモンスター（左から）。その後、混乱・裏切りの自動攻撃

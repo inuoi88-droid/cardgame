@@ -82,6 +82,16 @@ export interface PowerInst {
   effects: { effect: EffectInstance; removed: boolean }[];
   /** パワー用タイミングのデメリット（解除できない） */
   drawbacks: DrawbackInstance[];
+  /** 「カードを使うたび」が発動した回数（通算ターンごと。安全装置） */
+  triggers?: { turnIndex: number; count: number };
+}
+
+/** 1ターンの上限を数える（安全装置：決定事項 #64）。turnIndex が変わったら数え直す */
+export interface TurnLimits {
+  turnIndex: number;
+  drawn: number;
+  energyGained: number;
+  noiseIn: number;
 }
 
 export interface PlayerState {
@@ -97,8 +107,10 @@ export interface PlayerState {
   board: Monster[];
   powers: PowerInst[];
   status: Statuses;
-  /** 次の自分のターンへの持ち越し（貯金・反動・妨害・施し） */
-  next: { draw: number; energy: number };
+  /** 次の自分のターンへの持ち越し（貯金・反動・妨害・施し）。jam* は相手の妨害で減らされた量（上限あり） */
+  next: { draw: number; energy: number; jamDraw?: number; jamEnergy?: number };
+  /** 1ターンの上限の数え（無ければ0から） */
+  limits?: TurnLimits;
   /** このターンの記録 */
   turn: { cardsPlayed: number; retain: number; freezeTax: boolean };
   /** 次に使うカードのコスト軽減（使うまで残る） */

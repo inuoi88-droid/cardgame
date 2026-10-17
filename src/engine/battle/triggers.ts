@@ -1,6 +1,7 @@
 /** 発動タイミングごとに、効果・デメリットを解決キューに積む */
+import { BALANCE } from '../balance.ts';
 import type { CardDef, TimingId } from '../types.ts';
-import { enqueue, newUid } from './core.ts';
+import { enqueue, log, newUid } from './core.ts';
 import type { Chosen, GameState, PlayerId, PowerInst, SourceRef } from './types.ts';
 
 interface FireOpts {
@@ -45,6 +46,17 @@ export function enqueuePowers(g: GameState, p: PlayerId, timing: TimingId, depth
     const effects = power.effects.filter((x) => !x.removed && x.effect.timing === timing).map((x) => x.effect);
     const drawbacks = power.drawbacks.filter((d) => d.timing === timing);
     if (effects.length === 0 && drawbacks.length === 0) continue;
+    // 「カードを使うたび」はパワー1つにつき1ターンに規定回数まで（安全装置：決定事項 #64）
+    if (timing === 'cardPlayed') {
+      const max = BALANCE.battle.maxCardPlayedTriggersPerTurn;
+      const t = power.triggers?.turnIndex === g.turnIndex ? power.triggers : { turnIndex: g.turnIndex, count: 0 };
+      power.triggers = t;
+      t.count += 1;
+      if (t.count > max) {
+        if (t.count === max + 1) log(g, depth, `「${power.name}」の「カードを使うたび」はこのターンもう発動しない（1ターン${max}回まで）`, 'info');
+        continue;
+      }
+    }
     const src = powerSource(power, p);
     const protectKey = newUid(g, 'pk');
     for (const drawback of drawbacks) enqueue(g, { t: 'drawback', src, drawback, protectKey, depth });

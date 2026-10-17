@@ -56,7 +56,7 @@ export function applyAction(state: GameState, a: Action): ApplyResult {
   g.qInsert = 0;
   switch (a.type) {
     case 'concede':
-      concede(g, a.player);
+      concede(g, a.player, a.reason);
       break;
     case 'mulligan':
       mulligan(g, a.player, a.mode, a.cardUids);

@@ -174,7 +174,8 @@ export interface LogEntry {
 
 export interface GameResult {
   winner: PlayerId | null;
-  reason: 'hp' | 'turnLimit' | 'concede';
+  /** timeout：オンライン対戦で続けて時間切れになった */
+  reason: 'hp' | 'turnLimit' | 'concede' | 'timeout';
 }
 
 export interface GameState {
@@ -211,7 +212,7 @@ export type Action =
   | { type: 'removeNoise'; player: PlayerId; cardUid: string }
   | { type: 'choose'; player: PlayerId; picks: string[] }
   | { type: 'endTurn'; player: PlayerId }
-  | { type: 'concede'; player: PlayerId };
+  | { type: 'concede'; player: PlayerId; reason?: 'timeout' };
 
 export type ApplyResult = { ok: true; state: GameState } | { ok: false; error: string };
 

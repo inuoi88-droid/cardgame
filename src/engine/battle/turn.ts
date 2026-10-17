@@ -190,8 +190,8 @@ export function turnEndFinish(g: GameState, p: PlayerId, kept: string[]): void {
   startTurn(g, other(p));
 }
 
-export function concede(g: GameState, p: PlayerId): void {
-  log(g, 0, `${g.players[p].name}は降参した`, 'action');
-  endGame(g, other(p), 'concede');
+export function concede(g: GameState, p: PlayerId, reason?: 'timeout'): void {
+  log(g, 0, reason === 'timeout' ? `${g.players[p].name}は続けて時間切れになった` : `${g.players[p].name}は降参した`, 'action');
+  endGame(g, other(p), reason ?? 'concede');
 }
 

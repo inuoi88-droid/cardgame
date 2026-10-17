@@ -3,6 +3,7 @@ import { BALANCE } from '../balance.ts';
 import type { CardDef } from '../types.ts';
 import {
   NOISE_CARD_ID,
+  type GameResult,
   type GameState,
   type LogEntry,
   type Monster,
@@ -120,7 +121,7 @@ export function checkGameEnd(g: GameState): boolean {
   return true;
 }
 
-export function endGame(g: GameState, winner: PlayerId | null, reason: 'hp' | 'turnLimit' | 'concede'): void {
+export function endGame(g: GameState, winner: PlayerId | null, reason: GameResult['reason']): void {
   g.phase = 'ended';
   g.result = { winner, reason };
   // 処理の途中で決着したら、使っている途中のカードを捨て札に置いてから処理を打ち切る
@@ -136,7 +137,9 @@ export function endGame(g: GameState, winner: PlayerId | null, reason: 'hp' | 't
       ? `${BALANCE.battle.maxTurns}ターンが経過した`
       : reason === 'concede'
         ? '降参した'
-        : 'HPが0になった';
+        : reason === 'timeout'
+          ? '続けて時間切れになった'
+          : 'HPが0になった';
   log(g, 0, winner === null ? `引き分け（${why}）` : `${g.players[winner].name}の勝ち（${why}）`, 'result');
 }
 

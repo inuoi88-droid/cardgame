@@ -174,6 +174,16 @@ export const BALANCE = {
     betrayal: { fixed: 12, turns: 3 },
   },
 
+  /** オンライン対戦（決定事項 #57） */
+  online: {
+    /** 1ターンの制限時間（秒） */
+    turnSeconds: 90,
+    /** マリガンの制限時間（秒） */
+    mulliganSeconds: 90,
+    /** 続けて時間切れになったら負けになる回数 */
+    timeoutLoseCount: 3,
+  },
+
   /** 対戦ルール（Phase 2 で使う。効果テキストにも出てくる） */
   battle: {
     playerHp: 60,

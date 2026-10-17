@@ -77,6 +77,8 @@ describe('エンジンの純粋性', () => {
     }
   };
   walk(join(__dirname, '..', 'src', 'engine'));
+  // オンライン対戦のサーバー処理も同じエンジンで動くので、同じ決まりを守る
+  walk(join(__dirname, '..', 'src', 'online'));
 
   it.each([
     ['Math.random', /Math\.random/],
@@ -85,7 +87,7 @@ describe('エンジンの純粋性', () => {
     ['window', /\bwindow\./],
     ['document', /\bdocument\./],
     ['react', /from ['"]react/],
-  ])('src/engine は %s を使わない', (_name, pattern) => {
+  ])('src/engine と src/online は %s を使わない', (_name, pattern) => {
     const offenders = files.filter((f) => pattern.test(readFileSync(f, 'utf8')));
     expect(offenders).toEqual([]);
   });

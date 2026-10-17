@@ -1,5 +1,5 @@
 {
-  "//": "ルールエンジンが DOM やブラウザ API に依存していないことを型チェックで保証する",
+  "//": "ルールエンジンとサーバー処理が DOM やブラウザ API に依存していないことを型チェックで保証する",
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
@@ -16,5 +16,5 @@
     "noEmit": true,
     "types": []
   },
-  "include": ["src/engine"]
+  "include": ["src/engine", "src/online"]
 }

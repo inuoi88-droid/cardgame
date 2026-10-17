@@ -2,6 +2,10 @@
 
 全カードをプレイヤーが自作して戦う、1対1の対戦カードゲーム。仕様は [docs/SPEC.md](docs/SPEC.md)。
 
+## ブラウザで遊ぶ
+
+https://cardgame-swart.vercel.app （スマホでもPCでも。オンライン対戦の相手にはこの URL を送ってください）
+
 ## PCで遊ぶ（インストール不要）
 
 1. [`release/cardgame.html`](release/cardgame.html) をダウンロードします（GitHub ではファイルを開いて「Download raw file」ボタン）。
@@ -54,4 +58,4 @@ npm run build:single
    Supabase CLI なら `supabase functions deploy cardgame --no-verify-jwt --project-ref hefydmrqrdumpifbqlfp`。
 3. 表を変えるときは `supabase/migrations/` に SQL を足して適用します（ability-debate と共用のため、`cardgame` スキーマの外には触れません）。
 
-公開は Vercel（`vercel.json`）。push すると自動で更新されます。
+公開は Vercel（チーム sochi のプロジェクト「cardgame」、設定は `vercel.json`）。GitHub のこのブランチに push すると自動で更新されます。

@@ -310,3 +310,4 @@
 | 60 | 2026-10-17 | 実装判断 | マリガンと降参は相手の動きに左右されない行動なので、送り主が見ていた版が古くても、今の状態で検証できれば受け付ける（両者が同時にマリガンしても断られない）。ブラウザは4秒ごとに状態を取りに行き（接続中の目印も兼ねる）、Realtime の「版が上がった」通知が来たらすぐ取りに行く。通知が届かない環境でも定期取得だけで遊べる。メニューは「カード・デッキ・CPU戦・オンライン」の4つ |
 | 61 | 2026-10-17 | 実装判断 | Edge Function の中身（engine.js）は `npm run build:server` で src/online とエンジンから作り、リポジトリに入れる。MCP からデプロイするときは、push 済みのコミットに固定した raw.githubusercontent.com の engine.js を `export *` する1行のファイルを engine.js として送る（index.ts はリポジトリのものと同じ）。公開は Vercel で、設定は vercel.json（npm run build、出力 dist） |
 | 62 | 2026-10-17 | 実装判断 | Edge Function は DB と同じ東京（ap-northeast-1）で動かす（呼び出し URL に forceFunctionRegion を付ける）。遠い地域で動くと、DB とのやりとりのたびに往復が増えて1回の通信が数秒かかるため |
+| 63 | 2026-10-17 | 実装判断 | Vercel のプロジェクト「cardgame」（チーム sochi）を GitHub と連携して作成。本番ブランチは claude/card-game-battle-system-tfb8gr（リポジトリの既定ブランチ）で、push すると https://cardgame-swart.vercel.app が更新される |

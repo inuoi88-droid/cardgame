@@ -4,6 +4,8 @@ import { DeckBuilderPage } from './pages/DeckBuilderPage.tsx';
 import { DeckListPage } from './pages/DeckListPage.tsx';
 import { BattlePage } from './pages/BattlePage.tsx';
 import { BattleSetupPage } from './pages/BattleSetupPage.tsx';
+import { OnlineBattlePage } from './pages/OnlineBattlePage.tsx';
+import { OnlineLobbyPage } from './pages/OnlineLobbyPage.tsx';
 import { navigate, useRoute } from './router.ts';
 import { useStore } from './store.ts';
 import { cx } from './util.ts';
@@ -16,7 +18,9 @@ export function App() {
       ? 'decks'
       : route.page === 'battle' || route.page === 'battleSetup'
         ? 'battle'
-        : 'cards';
+        : route.page === 'online' || route.page === 'onlineBattle'
+          ? 'online'
+          : 'cards';
 
   return (
     <div className="app">
@@ -30,7 +34,10 @@ export function App() {
             📚 デッキ
           </button>
           <button type="button" className={cx('nav-btn', section === 'battle' && 'is-active')} onClick={() => navigate('/battle')}>
-            ⚔️ 対戦
+            🤖 CPU戦
+          </button>
+          <button type="button" className={cx('nav-btn', section === 'online' && 'is-active')} onClick={() => navigate('/online')}>
+            🌐 オンライン
           </button>
         </nav>
       </header>
@@ -42,6 +49,8 @@ export function App() {
         {route.page === 'deckEdit' && <DeckBuilderPage id={route.id} />}
         {route.page === 'battleSetup' && <BattleSetupPage />}
         {route.page === 'battle' && <BattlePage />}
+        {route.page === 'online' && <OnlineLobbyPage code={route.code} />}
+        {route.page === 'onlineBattle' && <OnlineBattlePage />}
       </main>
     </div>
   );

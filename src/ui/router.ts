@@ -7,11 +7,17 @@ export type Route =
   | { page: 'decks' }
   | { page: 'deckEdit'; id: string | null }
   | { page: 'battleSetup' }
-  | { page: 'battle' };
+  | { page: 'battle' }
+  | { page: 'online'; code: string | null }
+  | { page: 'onlineBattle' };
 
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
-  const [section, id] = parts;
+  const [section, id, extra] = parts;
+  if (section === 'online') {
+    if (id === 'play') return { page: 'onlineBattle' };
+    return { page: 'online', code: id === 'join' && extra ? extra : null };
+  }
   if (section === 'battle') return id === 'play' ? { page: 'battle' } : { page: 'battleSetup' };
   if (section === 'decks') {
     if (id === undefined) return { page: 'decks' };

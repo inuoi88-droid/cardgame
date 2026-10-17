@@ -252,6 +252,23 @@ describe('本人確認・手番・同時送信', () => {
     expect(s.room!.state!.active).toBe(active);
   });
 
+  it('マリガンは両者が同じ版を見て同時に送っても、どちらも受け付ける', () => {
+    const { s } = started();
+    const version = s.room!.version;
+    ok(s.send(actionReq(HOST, version, { type: 'mulligan', player: 0, mode: 'keep' }), { tokenHash: HOST, now: T0 + 2000 }));
+    const v = ok(s.send(actionReq(GUEST, version, { type: 'mulligan', player: 1, mode: 'keep' }), { tokenHash: GUEST, now: T0 + 2001 }));
+    expect(v.view!.phase).toBe('main');
+    expect(v.timeouts).toEqual([0, 0]);
+  });
+
+  it('降参は古い版を見ていても受け付ける', () => {
+    const { s, now } = playing();
+    const g = s.room!.state!;
+    const opp = battle.other(g.active);
+    const v = ok(s.send(actionReq(tokenOf(opp), 1, { type: 'concede', player: opp }), { tokenHash: tokenOf(opp), now }));
+    expect(v.view!.result).toMatchObject({ winner: g.active, reason: 'concede' });
+  });
+
   it('行動が通ると版が上がり、通知する', () => {
     const { s, now } = playing();
     const before = { version: s.room!.version, notified: s.notified };

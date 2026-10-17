@@ -1297,14 +1297,23 @@ select:disabled {
   :root {
     --gutter: 12px;
   }
+  /* タイトルの下にメニューを1列で並べる */
+  .topbar {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
   .topbar__title {
     font-size: 0.92rem;
   }
   .topbar__nav {
     gap: 2px;
+    width: 100%;
+    justify-content: space-between;
   }
   .nav-btn {
-    padding: 6px 8px;
+    padding: 5px 8px;
     font-size: 0.85rem;
   }
   .card-grid {
@@ -1327,4 +1336,60 @@ select:disabled {
   padding: 10px 14px;
   background: var(--panel);
   border-top: 1px solid var(--line);
+}
+
+/* オンライン対戦 */
+.online-entry {
+  display: grid;
+  gap: 18px;
+}
+@media (min-width: 640px) {
+  .online-entry {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.online-entry h2 {
+  margin-top: 0;
+}
+.online-code-input {
+  font-size: 1.4rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.online-wait {
+  text-align: center;
+}
+.online-wait .btn-row {
+  justify-content: center;
+}
+.online-wait__code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 2.6rem;
+  font-weight: bold;
+  letter-spacing: 0.2em;
+  margin: 16px 0;
+  user-select: all;
+}
+.online-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+.online-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: normal;
+  white-space: nowrap;
+}
+.online-chip--ng {
+  border-color: rgba(255, 93, 110, 0.6);
+  color: #ffc2c9;
+  background: var(--ng-bg);
 }

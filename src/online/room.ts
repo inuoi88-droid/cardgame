@@ -160,14 +160,18 @@ function advance(room: RoomRecord, seats: Seat[], next: GameState, now: number, 
   };
 }
 
+/** 相手の動きと関係なく、いつ送っても意味が変わらない行動（両者が同時に送るマリガンなど） */
+const ORDER_FREE: ReadonlySet<Action['type']> = new Set(['mulligan', 'concede']);
+
 /**
  * プレイヤーの行動。先に applyTimeouts() を済ませた部屋に対して呼ぶ。
  * 送り主が見ていた版が今の版と違えば（相手が先に動いた・時間切れが起きた）やり直してもらう。
+ * ただしマリガンと降参は、今の状態で検証できれば受け付ける。
  */
 export function handleAction(room: RoomRecord, seat: PlayerId, version: number, action: Action, now: number): Result<RoomRecord> {
   if (room.status !== 'playing' || !room.state) return fail('対戦中ではありません', 'invalid');
   if (action.player !== seat) return fail('自分の行動ではありません', 'auth');
-  if (version !== room.version) return fail('状態が更新されました。もう一度操作してください', 'version');
+  if (version !== room.version && !ORDER_FREE.has(action.type)) return fail('状態が更新されました。もう一度操作してください', 'version');
   const r = applyAction(room.state, action);
   if (!r.ok) return fail(r.error, 'invalid');
   // 自分で動いたら、続けて時間切れになった回数は0に戻す

@@ -3,7 +3,7 @@
  * 表示は viewFor() で相手の非公開情報を隠した状態（view）から作り、行動は onAction で親に渡す。
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { battle, type CardDef } from '../../engine/index.ts';
+import { BALANCE, battle, type CardDef } from '../../engine/index.ts';
 import { CardView } from '../components/CardView.tsx';
 import { Modal } from '../components/controls.tsx';
 import { cx } from '../util.ts';
@@ -424,9 +424,9 @@ function ResultDialog({ result, me, onHide, children }: { result: battle.GameRes
   const title = result.winner === null ? '引き分け' : result.winner === me ? 'あなたの勝ち！' : 'あなたの負け…';
   const why =
     result.reason === 'turnLimit'
-      ? '30ターンが経過しました'
+      ? `両者が${BALANCE.battle.maxTurns}ターンを終えました`
       : result.reason === 'timeout'
-        ? '3回続けて時間切れになりました'
+        ? `${result.winner === me ? '相手が' : ''}${BALANCE.online.timeoutLoseCount}回続けて時間切れになりました`
         : result.reason === 'concede'
           ? '降参で決着しました'
           : 'HPが0になりました';

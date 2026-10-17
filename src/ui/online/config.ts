@@ -4,7 +4,9 @@
  */
 export const SUPABASE_URL = 'https://hefydmrqrdumpifbqlfp.supabase.co';
 export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_qK8Kaict2u9sttUfYd0Zqw_3cPmvpZt';
-export const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/cardgame`;
+/** DB と同じ東京で動かす（遠い地域で動くと、DB とのやりとりのたびに往復が増えて遅くなる） */
+export const FUNCTION_REGION = 'ap-northeast-1';
+export const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/cardgame?forceFunctionRegion=${FUNCTION_REGION}`;
 
 /** 状態を取りに行く間隔（接続中の目印も兼ねる）。通知が届かなくても、この間隔で最新になる */
 export const POLL_MS = 4000;

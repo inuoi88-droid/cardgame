@@ -22,7 +22,7 @@
 - **効果はレジストリ方式。** 定義データ（ポイント、使えるタイミング・対象・条件、テキスト生成）と処理関数を1ファイルにまとめて登録する。新しい効果は1ファイル追加すれば、エディター・ポイント計算・効果テキスト・対戦処理のすべてに反映される。
 - カードの種類、呪い判定、ポイント、効果テキストは保存しない。毎回エンジンで計算する。
 
-## ファイル構成（Phase 2 時点）
+## ファイル構成（Phase 3 時点）
 
 - `src/engine/` … ルールエンジン（純粋関数）
   - `balance.ts` バランス数値 / `types.ts` 保存する型 / `options.ts` タイミング・対象・条件
@@ -33,10 +33,14 @@
   - `index.ts` 公開窓口（UI はここから読む）
   - `battle/` … 対戦エンジン。入口は `applyAction(state, action)`（apply.ts）。setup・turn・play・combat・damage・queue（解決キューと選択待ち）・runtime（効果ファイルに渡す道具）・legal（今できる行動）・view（相手の非公開情報を隠す）
   - `ai/` … CPU。`Strategy` を差し替えられる。今は貪欲法（greedy.ts）と評価関数（evaluate.ts。重みは balance.ts ではなくここ）
-- `src/ui/` … React の画面。`store.ts` が localStorage を扱う。`battle/` と `pages/Battle*` が対戦画面
+- `src/online/` … オンライン対戦のサーバー処理（純粋関数。engine と同じ決まり：DOM・Date・Math.random を使わない）
+  - `codes.ts` 部屋コード・名前 / `protocol.ts` 送受信の形と検証 / `room.ts` 部屋の作成・入室・行動・時間切れ・各席への見え方
+  - `server.ts` 1回の送信の処理 / `http.ts` 受付（DB・時刻・乱数・ハッシュ・通知は外から渡す）/ `index.ts` 公開窓口
+- `supabase/` … `migrations/`（専用スキーマ `cardgame` の rooms）と `functions/cardgame/`（Deno の Edge Function。`engine.js` は `npm run build:server` の生成物）
+- `src/ui/` … React の画面。`store.ts` が localStorage を扱う。`battle/BattleBoard.tsx` が対戦画面の本体（CPU 戦とオンラインで共用）。`pages/Battle*` が CPU 戦、`pages/Online*` と `online/`（通信・Realtime・再接続）がオンライン対戦
 - `src/samples.ts` … 作成例4枚
 - `src/presets.ts` … CPU 用プリセットデッキ3つ（毒・モンスター・呪い）
-- `tests/` … Vitest（作成例・違反ケース・デッキ・取り込み・レジストリ整合性・エンジンの純粋性）
+- `tests/` … Vitest（作成例・違反ケース・デッキ・取り込み・レジストリ整合性・エンジンの純粋性・対戦・オンラインのサーバー処理）
 - `scripts/gen-registry.mjs` … 定義ファイルの索引を生成
 
 効果を追加するときは `src/engine/defs/effects/<id>.ts` を1ファイル作り（定義・テキスト・対戦での処理 `battle.resolve`）、基礎ポイントを `balance.ts` に書く。
@@ -52,6 +56,9 @@ npm test           # Vitest
 npm run typecheck  # 型チェック（engine は DOM なしの設定でも確認）
 npm run build      # 型チェック + ビルド
 npm run build:single  # release/cardgame.html（ダブルクリックで開ける1ファイル版）を作り直す
+npm run build:server  # supabase/functions/cardgame/engine.js（Edge Function 用の1ファイル）を作り直す
 ```
 
 - フェーズの終わりや画面を変えたときは `npm run build:single` で `release/cardgame.html` を更新してコミットする（ユーザーはこのファイルで動作確認する）。
+- `src/online` かエンジンを変えたら `npm run build:server` → コミット・push → Edge Function「cardgame」を再デプロイする（Supabase プロジェクト ability-debate `hefydmrqrdumpifbqlfp`、verify_jwt なし）。MCP でデプロイするときは、`index.ts` はそのまま、`engine.js` は push 済みコミットの raw.githubusercontent.com の URL を `export *` する1行にする（決定事項 #61）。
+- Supabase は ability-debate と共用。触ってよいのは `cardgame` スキーマと Edge Function「cardgame」だけ。

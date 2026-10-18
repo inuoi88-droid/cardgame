@@ -9,7 +9,7 @@ export default defineEffect({
   group: 'status',
   order: 34,
   summary: `Nターンの間、受けるダメージ+${BALANCE.battle.vulnerableRate * 100}%`,
-  value: countParam('ターン数', { default: 1 }),
+  value: countParam('ターン数', { default: 1, max: B.maxValue }),
   targetRule: 'enemyAny',
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,

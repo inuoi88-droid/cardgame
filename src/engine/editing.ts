@@ -51,7 +51,7 @@ export function fitEffect(e: EffectInstance, base: CardBase): EffectInstance {
   const timing = mapTiming(e.timing, base);
   const targets = allowedTargets(def.targetRule, timing);
   const target = targets.includes(e.target) ? e.target : targets[0]!;
-  const condition = e.condition !== null && conditionsFor(timing).includes(e.condition) ? e.condition : null;
+  const condition = e.condition !== null && conditionsFor(timing, base).includes(e.condition) ? e.condition : null;
   const next: EffectInstance = { ...e, timing, target, condition };
   if (!def.allowsMods) delete next.mods;
   return next;
@@ -77,7 +77,7 @@ export function changeEffectType(e: EffectInstance, effectId: string, base: Card
 export function fitDrawback(d: DrawbackInstance, base: CardBase): DrawbackInstance {
   const def = getDrawback(d.id);
   if (!def) return d;
-  if (def.fixedPoints !== undefined) return { ...d, timing: null };
+  if (def.fixed) return { ...d, timing: null };
   return { ...d, timing: mapTiming(d.timing ?? defaultTiming(base), base) };
 }
 

@@ -9,7 +9,7 @@ export default defineEffect({
   group: 'disrupt',
   order: 64,
   summary: '相手モンスター1体の攻撃力−N（永続、最低0）',
-  value: valueParam('低下量', { default: 1 }),
+  value: valueParam('低下量', { default: 1, max: B.maxValue }),
   targetRule: 'enemyMonsterOne',
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,

@@ -1,26 +1,32 @@
 /**
- * ポイント計算。合計 = ステータス + キーワード + 効果 − コスト×10 − デメリット。
+ * ポイント計算。合計 = ステータス + キーワード + 効果 − コストの差し引き − デメリット。
+ * コストの差し引きはコストごとの表（決定事項 #67）。コスト0のカードはレアリティ上限が下がる。
  * デメリットで差し引けるのはレアリティ上限まで。コスト0のカードは差し引けない（決定事項 #64）
  */
 import { BALANCE } from './balance.ts';
 import { cardBase } from './classify.ts';
+import type { PointCard } from './define.ts';
 import { formatMultiplier } from './labels.ts';
 import { ceilPoints, floorPoints, round2 } from './math.ts';
 import {
   CONDITIONS,
+  DEFAULT_ATTACK_PROFILE,
   TIMINGS,
   conditionMultiplier,
   defaultTiming,
   targetLabel,
   targetMultiplier,
   timingMultiplier,
+  type AttackProfile,
 } from './options.ts';
 import { getDrawback, getEffect, getKeyword, getModifier } from './registry.ts';
-import type { CardBase, CardDef, DrawbackInstance, EffectInstance, PointLine, PointSummary } from './types.ts';
+import type { CardBase, CardDef, DrawbackInstance, EffectInstance, KeywordInstance, PointLine, PointSummary } from './types.ts';
 
 export interface Factor {
   label: string;
   value: number;
+  /** 式に出す文字（省略なら value をそのまま。例：「2.0×2+1.0」） */
+  text?: string;
 }
 
 export interface EffectPoints {
@@ -48,14 +54,48 @@ function buildFormula(baseFormula: string, base: number, factors: Factor[], raw:
   const body =
     shown.length === 0
       ? baseFormula
-      : [String(round2(base)), ...shown.map((f) => `${formatMultiplier(f.value)}（${f.label}）`)].join(' × ');
+      : [String(round2(base)), ...shown.map((f) => `${f.text ?? formatMultiplier(f.value)}（${f.label}）`)].join(' × ');
   return Number.isInteger(round2(raw)) ? body : `${body} = ${round2(raw)} → ${rounding}`;
 }
 
+/** モンスターの攻撃のしかた（キーワードから。「攻撃するたび」の倍率に使う） */
+export function attackProfile(keywords: readonly KeywordInstance[]): AttackProfile {
+  let attacks = DEFAULT_ATTACK_PROFILE.attacks;
+  let haste = DEFAULT_ATTACK_PROFILE.haste;
+  for (const k of keywords) {
+    const b = getKeyword(k.id)?.battle;
+    if (!b) continue;
+    if (b.attacksPerTurn !== undefined) attacks = Math.max(attacks, b.attacksPerTurn);
+    if (b.haste) haste = true;
+  }
+  return { attacks, haste };
+}
+
+/** タイミングの倍率の項（「攻撃するたび」は攻撃回数と速攻を式と理由に出す） */
+function timingFactor(timing: keyof typeof TIMINGS, base: CardBase, card: PointCard): Factor {
+  const t = TIMINGS[timing];
+  if (timing !== 'attack' || base !== 'monster') return { label: t.label, value: timingMultiplier(timing, base) };
+  const profile = attackProfile(card.keywords);
+  const value = timingMultiplier(timing, base, profile);
+  const T = BALANCE.timing;
+  const names: string[] = [t.label];
+  let text = formatMultiplier(T.attack);
+  if (profile.attacks !== 1) {
+    text += `×${profile.attacks}`;
+    names.push(getKeyword('doubleAttack')?.name ?? '二回攻撃');
+  }
+  if (profile.haste) {
+    text += `+${formatMultiplier(T.attackHasteBonus)}`;
+    names.push(getKeyword('haste')?.name ?? '速攻');
+  }
+  return { label: names.join('・'), value, text: profile.attacks === 1 && !profile.haste ? undefined : text };
+}
+
 /** 効果1つのポイント：基礎ポイント ×（1 + オプション）× タイミング × 対象 × 条件 → 切り上げ */
-export function effectPoints(e: EffectInstance, base: CardBase): EffectPoints {
+export function effectPoints(e: EffectInstance, card: PointCard): EffectPoints {
   const def = getEffect(e.id);
   if (!def) return { base: 0, factors: [], raw: 0, value: 0, formula: '0' };
+  const base = cardBase(card);
   const b = def.basePoints(e);
   const factors: Factor[] = [];
 
@@ -64,9 +104,9 @@ export function effectPoints(e: EffectInstance, base: CardBase): EffectPoints {
   if (modDefs.length > 0) {
     factors.push({ label: modDefs.map((m) => m.name).join('・'), value: 1 + modDefs.reduce((s, m) => s + m.rate, 0) });
   }
-  if (TIMINGS[e.timing]) factors.push({ label: TIMINGS[e.timing].label, value: timingMultiplier(e.timing, base) });
+  if (TIMINGS[e.timing]) factors.push(timingFactor(e.timing, base, card));
   if (BALANCE.target[e.target] !== undefined) {
-    factors.push({ label: targetLabel(e.target, def.targetRule, e.timing), value: targetMultiplier(e.target) });
+    factors.push({ label: targetLabel(e.target, def.targetRule, e.timing), value: targetMultiplier(e.target, def.targetRule) });
   }
   if (e.condition && CONDITIONS[e.condition]) {
     factors.push({ label: CONDITIONS[e.condition].label, value: conditionMultiplier(e.condition) });
@@ -77,17 +117,18 @@ export function effectPoints(e: EffectInstance, base: CardBase): EffectPoints {
 }
 
 /** デメリット1つのポイント（正の数）：基礎ポイント × タイミング → 切り捨て。固定値のものはそのまま */
-export function drawbackPoints(d: DrawbackInstance, base: CardBase): DrawbackPoints {
+export function drawbackPoints(d: DrawbackInstance, card: PointCard): DrawbackPoints {
   const def = getDrawback(d.id);
   if (!def) return { base: 0, factors: [], raw: 0, value: 0, formula: '0' };
-  const b = def.basePoints(d);
-  if (def.fixedPoints !== undefined) {
-    return { base: b, factors: [], raw: def.fixedPoints, value: def.fixedPoints, formula: def.baseFormula(d) };
+  const base = cardBase(card);
+  const b = def.basePoints(d, card);
+  if (def.fixed) {
+    return { base: b, factors: [], raw: b, value: floorPoints(b), formula: def.baseFormula(d, card) };
   }
   const factors: Factor[] = [];
-  if (d.timing && TIMINGS[d.timing]) factors.push({ label: TIMINGS[d.timing].label, value: timingMultiplier(d.timing, base) });
+  if (d.timing && TIMINGS[d.timing]) factors.push(timingFactor(d.timing, base, card));
   const raw = factors.reduce((x, f) => x * f.value, b);
-  return { base: b, factors, raw, value: floorPoints(raw), formula: buildFormula(def.baseFormula(d), b, factors, raw, '切り捨て') };
+  return { base: b, factors, raw, value: floorPoints(raw), formula: buildFormula(def.baseFormula(d, card), b, factors, raw, '切り捨て') };
 }
 
 /** 内訳に出す効果名（例：「攻撃するたび 毒1」） */
@@ -104,6 +145,17 @@ export function drawbackLabel(d: DrawbackInstance, base: CardBase): string {
   if (!def) return `不明なデメリット（${d.id}）`;
   const timing = d.timing && d.timing !== defaultTiming(base) && TIMINGS[d.timing] ? `${TIMINGS[d.timing].label} ` : '';
   return `${timing}${def.name}${def.value ? (d.value ?? 0) : ''}`;
+}
+
+/** コストの差し引き（表にないコストは0。範囲外は validate が弾く） */
+export function costPoints(cost: number): number {
+  return BALANCE.card.costPoints[cost] ?? 0;
+}
+
+/** レアリティの上限。コスト0のカードは下がる（決定事項 #67） */
+export function rarityCap(rarity: CardDef['rarity'], cost: number): number {
+  const cap = BALANCE.rarity[rarity]?.cap ?? 0;
+  return cost === 0 ? Math.max(0, cap - BALANCE.card.cost0CapPenalty) : cap;
 }
 
 export function calculatePoints(card: CardDef): PointSummary {
@@ -125,23 +177,23 @@ export function calculatePoints(card: CardDef): PointSummary {
   }
 
   card.effects.forEach((e, index) => {
-    const p = effectPoints(e, base);
+    const p = effectPoints(e, card);
     lines.push({ kind: 'effect', index, label: effectLabel(e, base), formula: p.formula, value: p.value });
   });
 
-  if (card.cost !== 0) {
-    const per = BALANCE.card.pointsPerCost;
-    lines.push({ kind: 'cost', label: `コスト${card.cost}`, formula: `${card.cost}×−${per}`, value: -card.cost * per });
+  const costPt = costPoints(card.cost);
+  if (costPt !== 0) {
+    lines.push({ kind: 'cost', label: `コスト${card.cost}`, formula: `−${costPt}`, value: -costPt });
   }
 
   let drawbackTotal = 0;
   card.drawbacks.forEach((d, index) => {
-    const p = drawbackPoints(d, base);
+    const p = drawbackPoints(d, card);
     drawbackTotal += p.value;
     lines.push({ kind: 'drawback', index, label: drawbackLabel(d, base), formula: p.formula, value: -p.value + 0 });
   });
 
-  const cap = BALANCE.rarity[card.rarity]?.cap ?? 0;
+  const cap = rarityCap(card.rarity, card.cost);
   const limit = drawbackOffsetLimit(card.cost, cap);
   const drawbackOffset = Math.min(drawbackTotal, limit);
   if (drawbackTotal > drawbackOffset) {

@@ -8,6 +8,7 @@ import { BALANCE } from './balance.ts';
 import type { ChoiceSpec, EffectRuntime, Monster, TargetRef } from './battle/types.ts';
 import type { TargetRule } from './options.ts';
 import type {
+  CardDef,
   DrawbackInstance,
   EffectInstance,
   KeywordInstance,
@@ -15,6 +16,9 @@ import type {
   Rarity,
   Stats,
 } from './types.ts';
+
+/** ポイント計算に要るカードの情報（土台はステータスの有無で決まる。キーワードは「攻撃するたび」の倍率に使う） */
+export type PointCard = Pick<CardDef, 'stats' | 'keywords'>;
 
 export interface ParamSpec {
   /** 入力欄の名前 */
@@ -144,11 +148,11 @@ export interface DrawbackDef {
   value?: ParamSpec;
   /** モンスターにしか付けられない */
   monsterOnly?: boolean;
-  /** 倍率込みの固定値（あればタイミングを選ばない） */
-  fixedPoints?: number;
-  /** 倍率を掛ける前のポイント（正の数） */
-  basePoints(d: DrawbackInstance): number;
-  baseFormula(d: DrawbackInstance): string;
+  /** 倍率込みの固定値（タイミングを選ばず、basePoints がそのままポイントになる） */
+  fixed?: boolean;
+  /** 倍率を掛ける前のポイント（正の数）。card はステータスを見るデメリット（裏切り）が使う */
+  basePoints(d: DrawbackInstance, card: PointCard): number;
+  baseFormula(d: DrawbackInstance, card: PointCard): string;
   /** テキスト（タイミングの前置きと句点は付けない） */
   describe(d: DrawbackInstance): string;
   /** 対戦での処理（封印されても働く） */

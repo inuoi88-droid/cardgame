@@ -8,7 +8,7 @@ export default defineDrawback({
   name: '寄生',
   order: 9,
   summary: `手札にある間、ターン終了時に自分に${B.damage}ダメージ（倍率込みの固定値）`,
-  fixedPoints: B.fixed,
+  fixed: true,
   basePoints: () => B.fixed,
   baseFormula: () => `${B.fixed}（固定）`,
   describe: () => `手札にある間、ターン終了時に自分に${B.damage}ダメージ`,

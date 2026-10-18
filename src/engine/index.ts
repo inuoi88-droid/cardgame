@@ -3,14 +3,14 @@ export * from './types.ts';
 export { BALANCE } from './balance.ts';
 export { analyzeCard } from './analyze.ts';
 export { cardBase, classifyCard, isCurseCard, rarityRank } from './classify.ts';
-export { calculatePoints, effectPoints, drawbackPoints } from './points.ts';
+export { calculatePoints, effectPoints, drawbackPoints, attackProfile, costPoints, rarityCap } from './points.ts';
 export { describeCard, describeEffect, describeDrawback } from './text.ts';
 export * from './labels.ts';
 export * from './options.ts';
 export * from './registry.ts';
 export * from './editing.ts';
 export { fromBaseScale, scaleCardValues, stampScale, toCurrentScale } from './scaling.ts';
-export type { EffectDef, KeywordDef, DrawbackDef, ModifierDef, ParamSpec, OptionSpec, EffectGroup } from './define.ts';
+export type { EffectDef, KeywordDef, DrawbackDef, ModifierDef, ParamSpec, OptionSpec, EffectGroup, PointCard } from './define.ts';
 export { EFFECT_GROUPS } from './define.ts';
 export { analyzeDeck, isNameTaken, normalizeName, uniqueName, type DeckAnalysis, type RarityRow } from './deck.ts';
 export {

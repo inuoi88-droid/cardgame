@@ -119,7 +119,7 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
       const cond = CONDITIONS[e.condition];
       if (!cond) {
         out.push({ code: 'EFFECT_CONDITION', path: `${path}.condition`, message: `${what}の条件が正しくありません` });
-      } else if (!conditionsFor(e.timing).includes(e.condition)) {
+      } else if (!conditionsFor(e.timing, base).includes(e.condition)) {
         out.push({
           code: 'EFFECT_CONDITION',
           path: `${path}.condition`,
@@ -168,7 +168,7 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
       out.push({ code: 'DRAWBACK_MONSTER_ONLY', path, message: `${what}はモンスター専用です` });
     }
     checkParam(out, 'DRAWBACK_VALUE', `${path}.value`, what, def.value, d.value);
-    if (def.fixedPoints !== undefined) {
+    if (def.fixed) {
       if (d.timing !== null) {
         out.push({ code: 'DRAWBACK_TIMING', path: `${path}.timing`, message: `${what}は発動タイミングを選べません` });
       }

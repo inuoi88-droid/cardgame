@@ -166,7 +166,9 @@ function Editor({ saved }: { saved: CardDef | null }) {
                 invalid={exactViolations('cost').length > 0}
                 onChange={(cost) => update({ cost })}
               />
-              <small className="hint">コスト1につき −{BALANCE.card.pointsPerCost}pt</small>
+              <small className="hint">
+                コスト0〜{BALANCE.card.costMax}で −{BALANCE.card.costPoints.join('／−')}pt（コスト0は上限−{BALANCE.card.cost0CapPenalty}pt）
+              </small>
             </div>
           </section>
 

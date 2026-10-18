@@ -1,4 +1,4 @@
-// 実際の倍率で確かめる（インフレ倍率 #65・予算倍率 #66）。ほかのテストは倍率1（元の仕様の数字）で動く
+// 実際の倍率で確かめる（倍率20、決定事項 #67）。ほかのテストは倍率1（元の仕様の数字）で動く
 import { describe, expect, it } from 'vitest';
 import { BALANCE, ai, analyzeCard, battle, getEffect, newCard, DEFAULT_STATS, parseCard } from '../src/engine/index.ts';
 import { PRESET_DECKS } from '../src/presets.ts';
@@ -13,46 +13,55 @@ const parsed = (x: unknown) => {
 };
 
 describe('倍率', () => {
-  it('インフレ10倍・予算2倍：量は20倍、予算（上限・コスト）も20倍、効果やキーワードの固定ポイントは10倍', () => {
-    expect(BALANCE.scale).toBe(10);
+  it('倍率20：量もポイント（上限・コスト・固定ポイント・デメリット）も同じ20倍', () => {
+    expect(BALANCE.scale).toBe(20);
     expect(BALANCE.amountScale).toBe(20);
     expect(BALANCE.battle.playerHp).toBe(1200);
     expect(Object.values(BALANCE.rarity).map((r) => r.cap)).toEqual([100, 160, 240, 360]);
     expect(Object.values(BALANCE.rarity).map((r) => r.maxEffects)).toEqual([3, 4, 4, 4]);
-    expect(BALANCE.card.pointsPerCost).toBe(200);
+    expect(BALANCE.card.costPoints).toEqual([0, 200, 400, 640, 900, 1160]);
+    expect(BALANCE.card.cost0CapPenalty).toBe(40);
     expect(BALANCE.keywords.flying.flat).toBe(60);
-    expect(BALANCE.effects.draw.perValue).toBe(50);
-    // デメリットは予算と同じだけ増える（呪いの作りやすさは変えない）
-    expect(BALANCE.drawbacks.gift.flat).toBe(80);
+    expect(BALANCE.effects.draw.perValue).toBe(80);
+    expect(BALANCE.effects.burn.flat).toBe(200);
+    expect(BALANCE.drawbacks.gift.flat).toBe(60);
+    // 量1あたりのポイントは変わらない
+    expect(BALANCE.effects.damage.perValue).toBe(2);
+    expect(BALANCE.stats.attackPoints).toBe(3);
     // 枚数・エナジー・ターン数は変わらない
     expect(BALANCE.battle).toMatchObject({ energyPerTurn: 3, drawPerTurn: 5, maxTurns: 30, burnTurns: 3 });
     expect(BALANCE.params.hitsMax).toBe(5);
+    expect(BALANCE.effects.weak.maxValue).toBe(3);
+    expect(BALANCE.rarity.rare.deckLimit).toBe(8);
   });
 
   it('作成例4枚は数字が20倍になり、どれも作れる', () => {
     const hinoko = analyzeCard(sample('hinoko'));
     expect(sample('hinoko').effects[0]!.value).toBe(40);
     expect(hinoko.text.effects[0]).toBe('相手1体に40ダメージを与える。');
-    // ダメージ40（80pt）＋やけど100pt − コスト200pt
-    expect(hinoko.points.total).toBe(-20);
+    // ダメージ40（80pt）＋やけど200pt − コスト200pt
+    expect(hinoko.points.total).toBe(80);
+    expect(hinoko.points.cap).toBe(100);
 
     const nezumi = analyzeCard(sample('dokuga-nezumi'));
     expect(sample('dokuga-nezumi').stats).toEqual({ attack: 20, hp: 40, defense: 0 });
     expect(nezumi.points.total).toBe(60);
 
-    expect(analyzeCard(sample('todome')).points.total).toBe(80);
+    // ダメージ400（800pt）×0.7 − コスト400pt
+    expect(analyzeCard(sample('todome')).points.total).toBe(160);
 
     const kyosenshi = analyzeCard(sample('kyosenshi'));
-    expect(kyosenshi.points.total).toBe(240);
-    expect(kyosenshi.points.drawbackTotal).toBe(360);
+    expect(kyosenshi.points.total).toBe(340);
+    expect(kyosenshi.points.drawbackTotal).toBe(480);
+    expect(kyosenshi.points.drawbackOffset).toBe(360);
 
     const all = ['hinoko', 'dokuga-nezumi', 'todome', 'kyosenshi'].map((id) => analyzeCard(sample(id)));
     for (const a of all) expect(a.valid).toBe(true);
     expect(all.map((a) => a.cardType)).toEqual(['attack', 'monster', 'attack', 'power']);
   });
 
-  it('予算が増えた分、キーワードや効果を1枚に多く積める', () => {
-    // コモン・コスト1（予算300pt）：飛行60 ＋ 攻撃するたび毒20（240pt…は多いので毒10＝60）＋ 攻撃力20・体力60
+  it('コモン・コスト1（予算300pt）に、キーワードと効果を積める', () => {
+    // 飛行60 ＋ 攻撃するたび毒10（30×2.0＝60）＋ 攻撃力20（60）・体力60（120）
     const c = card({
       rarity: 'common',
       cost: 1,
@@ -76,6 +85,7 @@ describe('倍率', () => {
     expect(newCard('n').scale).toBe(20);
     expect(getEffect('damage')!.value!.default).toBe(40);
     expect(getEffect('draw')!.value!.default).toBe(1);
+    expect(getEffect('bounce')!.value!.default).toBe(1);
     expect(getEffect('multiHit')!.hits!.max).toBe(5);
   });
 });
@@ -122,8 +132,8 @@ describe('保存してあったカードの移行', () => {
     expect(parsed(JSON.parse(JSON.stringify(once)))).toEqual(once);
   });
 
-  it('前に作れたカードは、移行しても作れる（予算が増えた分だけ余る）', () => {
-    // 前の版（10倍）でコモン上限ちょうどだった「ダメージ20＋やけど」（40 + 100 − 100 = 40 / 50）
+  it('前の版（10倍）のカードは、移行しても新しい価格表で計算される', () => {
+    // 前の版（10倍）のコモン「ダメージ20＋やけど」。移行後は 80 + 200 − 200 = 80 / 100
     const fire = parsed({
       ...card({
         effects: [
@@ -136,7 +146,7 @@ describe('保存してあったカードの移行', () => {
     expect(fire.effects[0]!.value).toBe(40);
     const a = analyzeCard(fire);
     expect(a.valid).toBe(true);
-    expect(a.points.remaining).toBe(120);
+    expect(a.points.remaining).toBe(20);
   });
 });
 

@@ -17,12 +17,12 @@ export default defineEffect({
   name: '複製',
   group: 'special',
   order: 71,
-  summary: `手札のカード1枚のコピーを手札に加える（エピック以上。コピーが残る版は+${B.keepRate * 100}%）`,
+  summary: `手札のカード1枚のコピーを手札に加える（エピック以上。コピーが残る版は${B.flatKeep}pt）`,
   option,
   targetRule: 'self',
   minRarity: 'epic',
-  basePoints: (e) => (keeps(e) ? B.flat * (1 + B.keepRate) : B.flat),
-  baseFormula: (e) => (keeps(e) ? `${B.flat}×${1 + B.keepRate}` : `${B.flat}`),
+  basePoints: (e) => (keeps(e) ? B.flatKeep : B.flat),
+  baseFormula: (e) => (keeps(e) ? `${B.flatKeep}` : `${B.flat}`),
   describe: (e) =>
     keeps(e)
       ? '手札のカード1枚のコピーを手札に加える（コピーはこの試合のデッキに残る）'

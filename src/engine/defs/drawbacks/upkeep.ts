@@ -9,7 +9,7 @@ export default defineDrawback({
   order: 8,
   summary: `自分のターン開始時に自分に${B.damage}ダメージ（モンスター専用・倍率込みの固定値）`,
   monsterOnly: true,
-  fixedPoints: B.fixed,
+  fixed: true,
   basePoints: () => B.fixed,
   baseFormula: () => `${B.fixed}（固定）`,
   describe: () => `場にいる間、自分のターン開始時に自分に${B.damage}ダメージ`,

@@ -76,7 +76,21 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
   },
 };
 
-export function timingMultiplier(timing: TimingId, base: CardBase): number {
+/** 「攻撃するたび」の倍率に要る、モンスターの攻撃のしかた（キーワードから決まる。points.ts の attackProfile） */
+export interface AttackProfile {
+  /** 1ターンの攻撃回数（二回攻撃なら2） */
+  attacks: number;
+  /** 速攻があるか */
+  haste: boolean;
+}
+
+export const DEFAULT_ATTACK_PROFILE: AttackProfile = { attacks: 1, haste: false };
+
+/**
+ * タイミングの倍率。「攻撃するたび」は攻撃回数を掛け、速攻なら足す（決定事項 #68）。
+ * attack を省略すると攻撃1回・速攻なしとして計算する
+ */
+export function timingMultiplier(timing: TimingId, base: CardBase, attack: AttackProfile = DEFAULT_ATTACK_PROFILE): number {
   const t = BALANCE.timing;
   switch (timing) {
     case 'play':
@@ -88,7 +102,7 @@ export function timingMultiplier(timing: TimingId, base: CardBase): number {
     case 'damaged':
       return t.damaged;
     case 'attack':
-      return t.attack;
+      return t.attack * attack.attacks + (attack.haste ? t.attackHasteBonus : 0);
     case 'turnStart':
       return base === 'monster' ? t.turnStartMonster : t.turnStartPower;
     case 'turnEnd':
@@ -128,7 +142,14 @@ export type TargetRule =
   | 'self'
   | 'board';
 
-export function targetMultiplier(target: TargetId): number {
+/** モンスターにしか作用しない効果か（処刑・封印・混乱・バウンスなど） */
+export function isMonsterOnlyRule(rule: TargetRule): boolean {
+  return rule === 'enemyMonster' || rule === 'enemyMonsterOne';
+}
+
+/** 対象の倍率。「敵味方すべて」はモンスター限定の効果だと高い（決定事項 #68）。rule を省略すると通常の倍率 */
+export function targetMultiplier(target: TargetId, rule?: TargetRule): number {
+  if (target === 'everyone' && rule !== undefined && isMonsterOnlyRule(rule)) return BALANCE.targetMonsterOnly.everyone;
   return BALANCE.target[target];
 }
 
@@ -190,7 +211,7 @@ export function targetLabel(target: TargetId, rule: TargetRule, timing: TimingId
 /** 効果テキストで使う対象の呼び方（「相手1体」「相手モンスター全体」など） */
 export function targetNoun(target: TargetId, rule: TargetRule, timing: TimingId): string {
   const chosen = TIMINGS[timing].chosen;
-  const monsterOnly = rule === 'enemyMonster' || rule === 'enemyMonsterOne';
+  const monsterOnly = isMonsterOnlyRule(rule);
   switch (target) {
     case 'chosen':
       if (rule === 'allyMonsterOne') return '自分のモンスター1体';
@@ -217,6 +238,7 @@ export function targetNoun(target: TargetId, rule: TargetRule, timing: TimingId)
 
 // ---------------------------------------------------------------- 条件
 
+/** エディターの見出し用のまとまり（倍率は条件ごとに balance.ts に持つ。決定事項 #68） */
 export type ConditionTier = 'loose' | 'normal' | 'strict';
 
 export const CONDITION_TIER_LABEL: Record<ConditionTier, string> = {
@@ -233,6 +255,8 @@ export interface ConditionDef {
   textPrefix: string;
   /** 選べるタイミング（null ならすべて） */
   timings: readonly TimingId[] | null;
+  /** パワー（モンスター以外のターン開始時／終了時）では選べない（決定事項 #68 R11） */
+  notForPower?: boolean;
 }
 
 const cp = BALANCE.conditionParams;
@@ -245,12 +269,14 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     textPrefix: '自分の場にモンスターがいれば、',
     timings: null,
   },
-  enemyHpHigher: {
-    id: 'enemyHpHigher',
+  smallHand: {
+    id: 'smallHand',
     tier: 'loose',
-    label: '相手のHPが自分より多い',
-    textPrefix: '相手のHPが自分より多ければ、',
+    label: `手札が${cp.smallHandMax}枚以下`,
+    textPrefix: `手札が${cp.smallHandMax}枚以下なら、`,
     timings: null,
+    // ターン開始時は引いた直後なので満たせず、終了時のパワーも実質満たせない
+    notForPower: true,
   },
   enemyPoisoned: {
     id: 'enemyPoisoned',
@@ -259,18 +285,32 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     textPrefix: '相手が毒状態なら、',
     timings: null,
   },
-  lowHp: {
-    id: 'lowHp',
+  nthCard: {
+    id: 'nthCard',
     tier: 'normal',
-    label: '自分のHPが半分以下',
-    textPrefix: '自分のHPが半分以下なら、',
+    label: `このターン${cp.nthCardOrLater}枚目以降に使う`,
+    textPrefix: `このターン${cp.nthCardOrLater}枚目以降なら、`,
+    timings: ['play', 'summon', 'cardPlayed'],
+  },
+  manyMonsters: {
+    id: 'manyMonsters',
+    tier: 'normal',
+    label: `自分の場にモンスターが${cp.manyMonstersMin}体以上`,
+    textPrefix: `自分の場にモンスターが${cp.manyMonstersMin}体以上いれば、`,
     timings: null,
   },
-  smallHand: {
-    id: 'smallHand',
+  enemyHpHigher: {
+    id: 'enemyHpHigher',
     tier: 'normal',
-    label: `手札が${cp.smallHandMax}枚以下`,
-    textPrefix: `手札が${cp.smallHandMax}枚以下なら、`,
+    label: '相手のHPが自分より多い',
+    textPrefix: '相手のHPが自分より多ければ、',
+    timings: null,
+  },
+  lowHp: {
+    id: 'lowHp',
+    tier: 'strict',
+    label: '自分のHPが半分以下',
+    textPrefix: '自分のHPが半分以下なら、',
     timings: null,
   },
   enemyPoisonBurn: {
@@ -280,30 +320,20 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     textPrefix: '相手が毒とやけどの両方の状態なら、',
     timings: null,
   },
-  nthCard: {
-    id: 'nthCard',
-    tier: 'strict',
-    label: `このターン${cp.nthCardOrLater}枚目以降に使う`,
-    textPrefix: `このターン${cp.nthCardOrLater}枚目以降なら、`,
-    timings: ['play', 'summon', 'cardPlayed'],
-  },
-  manyMonsters: {
-    id: 'manyMonsters',
-    tier: 'strict',
-    label: `自分の場にモンスターが${cp.manyMonstersMin}体以上`,
-    textPrefix: `自分の場にモンスターが${cp.manyMonstersMin}体以上いれば、`,
-    timings: null,
-  },
 };
 
+/** 条件の倍率（条件ごとの値。決定事項 #68） */
 export function conditionMultiplier(condition: ConditionId | null): number {
   if (condition === null) return 1;
-  return BALANCE.condition[CONDITIONS[condition].tier];
+  return BALANCE.condition[condition];
 }
 
-export function conditionsFor(timing: TimingId): ConditionId[] {
+/** このタイミング（と土台）で選べる条件 */
+export function conditionsFor(timing: TimingId, base: CardBase): ConditionId[] {
+  const power = isPowerTiming(timing, base);
   return (Object.keys(CONDITIONS) as ConditionId[]).filter((id) => {
-    const t = CONDITIONS[id].timings;
-    return t === null || t.includes(timing);
+    const c = CONDITIONS[id];
+    if (power && c.notForPower) return false;
+    return c.timings === null || c.timings.includes(timing);
   });
 }

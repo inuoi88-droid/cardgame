@@ -217,10 +217,15 @@ describe('選択が要る効果', () => {
 });
 
 describe('相手モンスターへの効果', () => {
-  it('バウンス：持ち主の手札に戻す', () => {
+  it('バウンス：コストN以下のモンスターだけ持ち主の手札に戻す', () => {
     let g = rich(startGame());
     const d = putMonster(g, 1, unit(3, 3));
-    g = play(g, giveCard(g, 0, legend([fx({ id: 'bounce' })])), { enemy: M(d) });
+    // コスト0以下 → コスト1のモンスターは戻せない
+    g = play(g, giveCard(g, 0, legend([fx({ id: 'bounce', value: 0 })])), { enemy: M(d) });
+    expect(g.players[1].hand.some((c) => c.uid === d)).toBe(false);
+    expect(g.players[1].board.some((m) => m.uid === d)).toBe(true);
+    expect(g.log.some((e) => e.text.includes('戻せない'))).toBe(true);
+    g = play(g, giveCard(g, 0, legend([fx({ id: 'bounce', value: 1 })])), { enemy: M(d) });
     expect(g.players[1].hand.some((c) => c.uid === d)).toBe(true);
   });
 

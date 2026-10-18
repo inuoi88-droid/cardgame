@@ -29,25 +29,25 @@ describe('デッキ', () => {
     expect(codes(analyzeDeck(...deckOf([[common, 31]])).violations)).toEqual(['DECK_SIZE']);
   });
 
-  it('レアは計16枚まで、同名5枚まで', () => {
-    const ok = deckOf([[rare(1), 5], [rare(2), 5], [rare(3), 5], [rare(4), 1], [common, 14]]);
+  it('レアは計8枚まで、同名3枚まで（決定事項 #67）', () => {
+    const ok = deckOf([[rare(1), 3], [rare(2), 3], [rare(3), 2], [common, 22]]);
     expect(analyzeDeck(...ok).valid).toBe(true);
-    const over = deckOf([[rare(1), 5], [rare(2), 5], [rare(3), 5], [rare(4), 2], [common, 13]]);
+    const over = deckOf([[rare(1), 3], [rare(2), 3], [rare(3), 3], [common, 21]]);
     expect(codes(analyzeDeck(...over).violations)).toEqual(['DECK_RARITY_LIMIT']);
-    const sameName = deckOf([[rare(1), 6], [common, 24]]);
+    const sameName = deckOf([[rare(1), 4], [common, 26]]);
     expect(codes(analyzeDeck(...sameName).violations)).toEqual(['DECK_SAME_NAME']);
   });
 
-  it('エピックは計8枚まで、同名3枚まで', () => {
-    expect(analyzeDeck(...deckOf([[epic(1), 3], [epic(2), 3], [epic(3), 2], [common, 22]])).valid).toBe(true);
-    expect(codes(analyzeDeck(...deckOf([[epic(1), 3], [epic(2), 3], [epic(3), 3], [common, 21]])).violations)).toEqual(['DECK_RARITY_LIMIT']);
-    expect(codes(analyzeDeck(...deckOf([[epic(1), 4], [common, 26]])).violations)).toEqual(['DECK_SAME_NAME']);
+  it('エピックは計4枚まで、同名2枚まで', () => {
+    expect(analyzeDeck(...deckOf([[epic(1), 2], [epic(2), 2], [common, 26]])).valid).toBe(true);
+    expect(codes(analyzeDeck(...deckOf([[epic(1), 2], [epic(2), 2], [epic(3), 1], [common, 25]])).violations)).toEqual(['DECK_RARITY_LIMIT']);
+    expect(codes(analyzeDeck(...deckOf([[epic(1), 3], [common, 27]])).violations)).toEqual(['DECK_SAME_NAME']);
   });
 
-  it('レジェンドは計4枚まで、同名1枚まで', () => {
-    expect(analyzeDeck(...deckOf([[legend(1), 1], [legend(2), 1], [legend(3), 1], [legend(4), 1], [common, 26]])).valid).toBe(true);
-    const five = deckOf([[legend(1), 1], [legend(2), 1], [legend(3), 1], [legend(4), 1], [legend(5), 1], [common, 25]]);
-    expect(codes(analyzeDeck(...five).violations)).toEqual(['DECK_RARITY_LIMIT']);
+  it('レジェンドは計2枚まで、同名1枚まで', () => {
+    expect(analyzeDeck(...deckOf([[legend(1), 1], [legend(2), 1], [common, 28]])).valid).toBe(true);
+    const three = deckOf([[legend(1), 1], [legend(2), 1], [legend(3), 1], [common, 27]]);
+    expect(codes(analyzeDeck(...three).violations)).toEqual(['DECK_RARITY_LIMIT']);
     expect(codes(analyzeDeck(...deckOf([[legend(1), 2], [common, 28]])).violations)).toEqual(['DECK_SAME_NAME']);
   });
 

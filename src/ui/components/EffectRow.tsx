@@ -1,12 +1,13 @@
 /** 効果1つ・デメリット1つの入力欄。選択肢はカードの種類・レアリティ・効果に応じて絞る */
 import {
-  BALANCE,
   CONDITIONS,
   CONDITION_TIER_LABEL,
   EFFECT_GROUPS,
   RARITY_LABEL,
   TIMINGS,
   allowedTargets,
+  attackProfile,
+  conditionMultiplier,
   availableDrawbacks,
   availableEffects,
   cardBase,
@@ -56,9 +57,10 @@ export function EffectRow({ effect, card, violations, onChange, onRemove }: Effe
   const base = cardBase(card);
   const def = getEffect(effect.id);
   const available = new Set(availableEffects(card.rarity).map((d) => d.id));
-  const p = effectPoints(effect, base);
+  const p = effectPoints(effect, card);
   const targets = def ? allowedTargets(def.targetRule, effect.timing) : [];
-  const conditions = conditionsFor(effect.timing);
+  const conditions = conditionsFor(effect.timing, base);
+  const attack = attackProfile(card.keywords);
   const has = (path: string) => violations.some((v) => v.path?.endsWith(path));
 
   return (
@@ -136,7 +138,7 @@ export function EffectRow({ effect, card, violations, onChange, onRemove }: Effe
           <select value={effect.timing} onChange={(e) => onChange(fitEffect({ ...effect, timing: e.target.value as TimingId }, base))}>
             {timingsFor(base).map((t) => (
               <option key={t} value={t}>
-                {TIMINGS[t].label}（×{formatMultiplier(timingMultiplier(t, base))}）
+                {TIMINGS[t].label}（×{formatMultiplier(timingMultiplier(t, base, attack))}）
               </option>
             ))}
             {!timingsFor(base).includes(effect.timing) && <option value={effect.timing}>{TIMINGS[effect.timing]?.label}（使えません）</option>}
@@ -152,7 +154,7 @@ export function EffectRow({ effect, card, violations, onChange, onRemove }: Effe
             >
               {targets.map((t) => (
                 <option key={t} value={t}>
-                  {targetLabel(t, def.targetRule, effect.timing)}（×{formatMultiplier(targetMultiplier(t))}）
+                  {targetLabel(t, def.targetRule, effect.timing)}（×{formatMultiplier(targetMultiplier(t, def.targetRule))}）
                 </option>
               ))}
               {!targets.includes(effect.target) && <option value={effect.target}>（選べない対象）</option>}
@@ -167,12 +169,12 @@ export function EffectRow({ effect, card, violations, onChange, onRemove }: Effe
           >
             <option value="">なし（×1.0）</option>
             {TIERS.map((tier) => (
-              <optgroup key={tier} label={`${CONDITION_TIER_LABEL[tier]}（×${formatMultiplier(BALANCE.condition[tier])}）`}>
+              <optgroup key={tier} label={CONDITION_TIER_LABEL[tier]}>
                 {conditions
                   .filter((c) => CONDITIONS[c].tier === tier)
                   .map((c) => (
                     <option key={c} value={c}>
-                      {CONDITIONS[c].label}
+                      {CONDITIONS[c].label}（×{formatMultiplier(conditionMultiplier(c))}）
                     </option>
                   ))}
               </optgroup>
@@ -229,7 +231,8 @@ interface DrawbackRowProps {
 export function DrawbackRow({ drawback, card, violations, onChange, onRemove }: DrawbackRowProps) {
   const base = cardBase(card);
   const def = getDrawback(drawback.id);
-  const p = drawbackPoints(drawback, base);
+  const p = drawbackPoints(drawback, card);
+  const attack = attackProfile(card.keywords);
   const others = card.drawbacks.filter((d) => d !== drawback);
   const choosable = new Set(availableDrawbacks({ ...card, drawbacks: others }).map((d) => d.id));
   const has = (path: string) => violations.some((v) => v.path?.endsWith(path));
@@ -268,7 +271,7 @@ export function DrawbackRow({ drawback, card, violations, onChange, onRemove }: 
             onChange={(v) => onChange({ ...drawback, value: v })}
           />
         )}
-        {def && def.fixedPoints === undefined && (
+        {def && !def.fixed && (
           <label className={cx('field', has('.timing') && 'field--invalid')}>
             <span>タイミング</span>
             <select
@@ -277,13 +280,13 @@ export function DrawbackRow({ drawback, card, violations, onChange, onRemove }: 
             >
               {timingsFor(base).map((t) => (
                 <option key={t} value={t}>
-                  {TIMINGS[t].label}（×{formatMultiplier(timingMultiplier(t, base))}）
+                  {TIMINGS[t].label}（×{formatMultiplier(timingMultiplier(t, base, attack))}）
                 </option>
               ))}
             </select>
           </label>
         )}
-        {def && def.fixedPoints !== undefined && <p className="hint">倍率込みの固定値です（タイミングは選べません）</p>}
+        {def && def.fixed && <p className="hint">倍率込みの固定値です（タイミングは選べません）</p>}
       </div>
       <p className="row-card__text row-card__text--drawback">{describeDrawback(drawback)}</p>
       <p className="row-card__formula">

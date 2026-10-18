@@ -71,18 +71,18 @@ const poison = preset('poison', '毒沼の魔女', '毒をばらまき、毒状�
   ],
   [c('gedoku', '解毒の薬', '🧪', 'common', 1, { effects: [fx({ id: 'shield', value: 6, target: 'self' }), fx({ id: 'heal', value: 2, target: 'self' })] }), 3],
   [c('todome', 'とどめの一撃', '⚔️', 'rare', 2, { effects: [fx({ id: 'damage', value: 20, condition: 'enemyPoisoned' })] }), 3],
-  [c('numachi', '毒の沼地', '🫧', 'rare', 1, { effects: [fx({ id: 'poison', value: 2, timing: 'turnStart', target: 'enemyPlayer' })] }), 2],
+  [c('numachi', '毒の沼地', '🫧', 'rare', 2, { effects: [fx({ id: 'poison', value: 2, timing: 'turnStart', target: 'enemyPlayer' })] }), 2],
   [c('dokuyaiba', '毒の刃', '🔪', 'epic', 2, { effects: [fx({ id: 'damage', value: 8 }), fx({ id: 'poison', value: 5 })] }), 1],
 ]);
 
 // ---------------------------------------------------------------- モンスター中心
 const beasts = preset('beasts', '獣の群れ', 'モンスターを並べて数で押し切る', [
-  [c('inu', '野良犬', '🐕', 'common', 1, { stats: { attack: 2, hp: 2, defense: 0 } }), 6],
+  [c('inu', '野良犬', '🐕', 'common', 1, { stats: { attack: 2, hp: 2, defense: 0 } }), 7],
   [c('taka', '鷹', '🦅', 'common', 1, { stats: { attack: 1, hp: 1, defense: 0 }, keywords: [{ id: 'flying' }] }), 4],
   [c('tate', '盾の兵士', '🛡️', 'common', 2, { stats: { attack: 1, hp: 5, defense: 1 }, keywords: [{ id: 'taunt' }] }), 4],
   [c('ookami', '狼', '🐺', 'common', 2, { stats: { attack: 3, hp: 3, defense: 0 }, keywords: [{ id: 'haste' }] }), 6],
   [c('gourei', '号令', '📯', 'common', 0, { effects: [fx({ id: 'attackUp', value: 1 })] }), 3],
-  [c('kuma', '大熊', '🐻', 'rare', 3, { stats: { attack: 5, hp: 6, defense: 1 }, keywords: [{ id: 'trample' }] }), 4],
+  [c('kuma', '大熊', '🐻', 'rare', 3, { stats: { attack: 5, hp: 6, defense: 1 }, keywords: [{ id: 'trample' }] }), 3],
   [
     c('osa', '群れの長', '🦁', 'epic', 2, {
       stats: { attack: 2, hp: 4, defense: 0 },
@@ -110,17 +110,17 @@ const curses = preset('curses', '呪いの契約', '自分を傷つける代わ�
         { id: 'selfDamage', value: 3, timing: 'summon' },
       ],
     }),
-    5,
+    3,
   ],
   [
     c('akuma', '悪魔の取引', '😈', 'epic', 1, {
       effects: [fx({ id: 'draw', value: 3, target: 'self' }), fx({ id: 'energy', value: 2, target: 'self' })],
       drawbacks: [
         { id: 'recoil', timing: 'play' },
-        { id: 'selfDamage', value: 2, timing: 'play' },
+        { id: 'selfDamage', value: 3, timing: 'play' },
       ],
     }),
-    3,
+    2,
   ],
   [
     c('kyosenshi', '狂戦士の契約', '💀', 'legend', 1, {
@@ -147,12 +147,13 @@ const curses = preset('curses', '呪いの契約', '自分を傷つける代わ�
       drawbacks: [
         { id: 'discardRandom', timing: 'play' },
         { id: 'gift', timing: 'play' },
+        { id: 'selfDamage', value: 2, timing: 'play' },
       ],
     }),
     3,
   ],
-  [c('hinoko', '火の粉', '🔥', 'common', 1, { effects: [fx({ id: 'damage', value: 2 }), fx({ id: 'burn', value: 0 })] }), 4],
-  [c('yaminotate', '闇の盾', '🌑', 'common', 1, { effects: [fx({ id: 'shield', value: 6, target: 'self' })] }), 5],
+  [c('hinoko', '火の粉', '🔥', 'common', 1, { effects: [fx({ id: 'damage', value: 2 }), fx({ id: 'burn', value: 0 })] }), 5],
+  [c('yaminotate', '闇の盾', '🌑', 'common', 1, { effects: [fx({ id: 'shield', value: 6, target: 'self' })] }), 7],
 ]);
 
 export const PRESET_DECKS: readonly PresetDeck[] = [poison, beasts, curses];

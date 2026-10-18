@@ -62,7 +62,7 @@ describe('レジストリ', () => {
       const d = createDrawback(def.id, def.monsterOnly ? 'monster' : 'spell');
       expect(describeDrawback(d)).toMatch(/。$/);
       expect(describeDrawback(d)).not.toContain('undefined');
-      expect(def.basePoints(d)).toBeGreaterThan(0);
+      expect(def.basePoints(d, { stats: { attack: 1, hp: 1, defense: 0 }, keywords: [] })).toBeGreaterThan(0);
     }
   });
 });

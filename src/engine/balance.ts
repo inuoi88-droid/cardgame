@@ -3,33 +3,38 @@
  * 数値はすべて仮。テストプレイで調整する。
  * ここ以外のコードに、ポイント・倍率・上限・HP などの数値を直接書かないこと。
  *
- * x(…) はインフレ倍率（scale.ts）を掛けた値。HP・ダメージなどの量と、ポイントの上限・コスト・固定ポイントに付ける。
- * 量1あたりのポイント（ダメージ1につき2pt など）は、量とポイントの両方が同じ倍率で増えるので掛けない。
- * 枚数・エナジー・ターン数1あたりのポイントには掛ける。
+ * 倍率（scale.ts）の付け方：
+ * - big(…)：量（HP・ダメージ・攻撃力・毒など）と、ポイントの予算（レアリティ上限・コスト1あたり）。インフレ倍率×予算倍率
+ * - x(…)：効果・キーワードの固定ポイント、枚数やターン数1あたりのポイント。インフレ倍率だけ（予算に比べて安くなる）
+ * - 量1あたりのポイント（ダメージ1につき2pt など）は、量と予算が同じ倍率で増えるので掛けない
+ * - 枚数・エナジー・ターン数・回数には掛けない
  */
-import { SCALE } from './scale.ts';
+import { BUDGET, SCALE } from './scale.ts';
 
 const x = (n: number): number => n * SCALE;
+const big = (n: number): number => n * SCALE * BUDGET;
 
 export const BALANCE = {
-  /** インフレ倍率（決定事項 #65） */
+  /** インフレ倍率（決定事項 #65）。エディターの−／＋の幅にも使う */
   scale: SCALE,
+  /** 量の倍率（インフレ倍率×予算倍率、決定事項 #66）。カードに記録する scale もこれ */
+  amountScale: SCALE * BUDGET,
 
   /** カード作成の基本ルール */
   card: {
     costMin: 0,
     costMax: 5,
     /** コスト1あたりに引くポイント */
-    pointsPerCost: x(10),
+    pointsPerCost: big(10),
     nameMaxLength: 16,
   },
 
   /** レアリティごとの上限。deckLimit / perNameLimit が null なら制限なし */
   rarity: {
-    common: { cap: x(5), maxEffects: 2, deckLimit: null, perNameLimit: null },
-    rare: { cap: x(8), maxEffects: 3, deckLimit: 16, perNameLimit: 5 },
-    epic: { cap: x(12), maxEffects: 3, deckLimit: 8, perNameLimit: 3 },
-    legend: { cap: x(18), maxEffects: 3, deckLimit: 4, perNameLimit: 1 },
+    common: { cap: big(5), maxEffects: 3, deckLimit: null, perNameLimit: null },
+    rare: { cap: big(8), maxEffects: 4, deckLimit: 16, perNameLimit: 5 },
+    epic: { cap: big(12), maxEffects: 4, deckLimit: 8, perNameLimit: 3 },
+    legend: { cap: big(18), maxEffects: 4, deckLimit: 4, perNameLimit: 1 },
   },
 
   deck: {
@@ -53,11 +58,11 @@ export const BALANCE = {
     hpPoints: 2,
     defensePoints: 4,
     attackMin: 0,
-    attackMax: x(30),
+    attackMax: big(30),
     hpMin: 1,
-    hpMax: x(50),
+    hpMax: big(50),
     defenseMin: 0,
-    defenseMax: x(3),
+    defenseMax: big(3),
   },
 
   /** 発動タイミングの倍率 */
@@ -112,13 +117,13 @@ export const BALANCE = {
   /** 効果の数値 N の入力範囲（効果ごとの上書きは effects 側の maxValue）。value は量、count は枚数・ターン数・エナジー */
   params: {
     valueMin: 1,
-    valueMax: x(30),
+    valueMax: big(30),
     countMin: 1,
     countMax: 30,
     hitsMin: 2,
     hitsMax: 5,
     /** 1枚のカードのダメージ・連撃の合計（値×回数）の上限（決定事項 #64） */
-    damagePerCardMax: x(30),
+    damagePerCardMax: big(30),
   },
 
   /** 効果の基礎ポイント */
@@ -135,7 +140,7 @@ export const BALANCE = {
     repair: { perValue: 1 },
 
     /** 毒は残り続けて合計ダメージが大きくなるので、1つの効果で与えられる値に上限を置く */
-    poison: { perValue: 3, maxValue: x(10) },
+    poison: { perValue: 3, maxValue: big(10) },
     burn: { flat: x(10), perExtraTurn: x(3), maxExtraTurns: 10 },
     freeze: { flat: x(12) },
     /** 弱体・脆弱の N はターン数 */
@@ -148,7 +153,7 @@ export const BALANCE = {
     strength: { perValue: 8 },
     focus: { perValue: 2 },
     attackUp: { perValue: 3 },
-    defenseUp: { perValue: 4, maxValue: x(3) },
+    defenseUp: { perValue: 4, maxValue: big(3) },
     regen: { perValue: 4 },
 
     draw: { perValue: x(5) },
@@ -189,19 +194,20 @@ export const BALANCE = {
   /**
    * デメリットのポイント（正の数で持ち、合計から引く）。
    * fixed は倍率込みの固定値。
+   * 固定ポイントにも予算倍率を掛ける（big）。効果・キーワードと違い、デメリットは安くしない（呪いの条件「デメリット合計が上限以上」の満たしやすさを変えないため。決定事項 #66）
    */
   drawbacks: {
     selfDamage: { perValue: 1.5 },
     selfPoison: { perValue: 2 },
-    selfBurn: { flat: x(7) },
-    discardRandom: { flat: x(5), count: 1 },
-    recoil: { flat: x(10), energyLoss: 1 },
+    selfBurn: { flat: big(7) },
+    discardRandom: { flat: big(5), count: 1 },
+    recoil: { flat: big(10), energyLoss: 1 },
     /** 汚染の N はノイズの枚数 */
-    pollute: { perValue: x(3) },
-    gift: { flat: x(4), extraDraw: 1 },
-    upkeep: { fixed: x(4), damage: x(1) },
-    parasite: { fixed: x(5), damage: x(2) },
-    betrayal: { fixed: x(12), turns: 3 },
+    pollute: { perValue: big(3) },
+    gift: { flat: big(4), extraDraw: 1 },
+    upkeep: { fixed: big(4), damage: big(1) },
+    parasite: { fixed: big(5), damage: big(2) },
+    betrayal: { fixed: big(12), turns: 3 },
   },
 
   /** オンライン対戦（決定事項 #57） */
@@ -216,16 +222,16 @@ export const BALANCE = {
 
   /** 対戦ルール（Phase 2 で使う。効果テキストにも出てくる） */
   battle: {
-    playerHp: x(60),
+    playerHp: big(60),
     energyPerTurn: 3,
     drawPerTurn: 5,
     /** マリガンで全部引き直すときの最低枚数 */
     mulliganMinHand: 1,
     firstPlayerFirstTurnEnergy: 2,
     maxTurns: 30,
-    minMonsterDamage: x(1),
+    minMonsterDamage: big(1),
     burnTurns: 3,
-    burnDamage: x(2),
+    burnDamage: big(2),
     burnHealRate: 0.5,
     weakRate: 0.25,
     vulnerableRate: 0.5,
@@ -236,10 +242,10 @@ export const BALANCE = {
     energyJamAmount: 1,
     drainRate: 0.5,
     /** 毒・再生がターン開始時の処理のあとに減る量 */
-    poisonDecay: x(1),
-    regenDecay: x(1),
+    poisonDecay: big(1),
+    regenDecay: big(1),
     /** 不屈で踏みとどまるときの体力 */
-    undyingHp: x(1),
+    undyingHp: big(1),
     /** 安全装置（決定事項 #64。#44 の「上限なし」を取り消し、元の仕様に戻す） */
     /** 1ターンに引けるのは合計この枚数まで（ターン開始時の5枚を含む） */
     maxDrawPerTurn: 10,

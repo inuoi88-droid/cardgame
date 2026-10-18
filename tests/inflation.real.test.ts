@@ -1,42 +1,68 @@
-// 実際のインフレ倍率で確かめる（決定事項 #65）。ほかのテストは倍率1（元の仕様の数字）で動く
+// 実際の倍率で確かめる（インフレ倍率 #65・予算倍率 #66）。ほかのテストは倍率1（元の仕様の数字）で動く
 import { describe, expect, it } from 'vitest';
 import { BALANCE, ai, analyzeCard, battle, getEffect, newCard, DEFAULT_STATS, parseCard, type CardDef } from '../src/engine/index.ts';
 import { PRESET_DECKS } from '../src/presets.ts';
 import { SAMPLE_CARDS } from '../src/samples.ts';
 import { card } from './helpers.ts';
 
-const S = BALANCE.scale;
 const sample = (id: string) => SAMPLE_CARDS.find((c) => c.id === `sample-${id}`)!;
+const parsed = (x: unknown) => {
+  const r = parseCard(x);
+  if (!r.ok) throw new Error(r.error);
+  return r.value;
+};
 
-describe('インフレ倍率', () => {
-  it('倍率は10。HP・上限・コストのポイントが10倍', () => {
-    expect(S).toBe(10);
-    expect(BALANCE.battle.playerHp).toBe(600);
-    expect(Object.values(BALANCE.rarity).map((r) => r.cap)).toEqual([50, 80, 120, 180]);
-    expect(BALANCE.card.pointsPerCost).toBe(100);
+describe('倍率', () => {
+  it('インフレ10倍・予算2倍：量は20倍、予算（上限・コスト）も20倍、効果やキーワードの固定ポイントは10倍', () => {
+    expect(BALANCE.scale).toBe(10);
+    expect(BALANCE.amountScale).toBe(20);
+    expect(BALANCE.battle.playerHp).toBe(1200);
+    expect(Object.values(BALANCE.rarity).map((r) => r.cap)).toEqual([100, 160, 240, 360]);
+    expect(Object.values(BALANCE.rarity).map((r) => r.maxEffects)).toEqual([3, 4, 4, 4]);
+    expect(BALANCE.card.pointsPerCost).toBe(200);
+    expect(BALANCE.keywords.flying.flat).toBe(60);
+    expect(BALANCE.effects.draw.perValue).toBe(50);
+    // デメリットは予算と同じだけ増える（呪いの作りやすさは変えない）
+    expect(BALANCE.drawbacks.gift.flat).toBe(80);
     // 枚数・エナジー・ターン数は変わらない
     expect(BALANCE.battle).toMatchObject({ energyPerTurn: 3, drawPerTurn: 5, maxTurns: 30, burnTurns: 3 });
     expect(BALANCE.params.hitsMax).toBe(5);
   });
 
-  it('作成例4枚は数字が10倍になり、ポイントも10倍で同じ判定', () => {
+  it('作成例4枚は数字が20倍になり、どれも作れる', () => {
     const hinoko = analyzeCard(sample('hinoko'));
-    expect(sample('hinoko').effects[0]!.value).toBe(20);
-    expect(hinoko.points.total).toBe(40);
-    expect(hinoko.text.effects[0]).toBe('相手1体に20ダメージを与える。');
+    expect(sample('hinoko').effects[0]!.value).toBe(40);
+    expect(hinoko.text.effects[0]).toBe('相手1体に40ダメージを与える。');
+    // ダメージ40（80pt）＋やけど100pt − コスト200pt
+    expect(hinoko.points.total).toBe(-20);
 
     const nezumi = analyzeCard(sample('dokuga-nezumi'));
-    expect(sample('dokuga-nezumi').stats).toEqual({ attack: 10, hp: 20, defense: 0 });
-    expect(nezumi.points.total).toBe(30);
+    expect(sample('dokuga-nezumi').stats).toEqual({ attack: 20, hp: 40, defense: 0 });
+    expect(nezumi.points.total).toBe(60);
 
-    const todome = analyzeCard(sample('todome'));
-    expect(todome.points.total).toBe(40);
+    expect(analyzeCard(sample('todome')).points.total).toBe(80);
 
     const kyosenshi = analyzeCard(sample('kyosenshi'));
-    expect(kyosenshi.points.total).toBe(120);
-    expect(kyosenshi.points.drawbackTotal).toBe(180);
-    for (const a of [hinoko, nezumi, todome, kyosenshi]) expect(a.valid).toBe(true);
-    expect([hinoko, nezumi, todome, kyosenshi].map((a) => a.cardType)).toEqual(['attack', 'monster', 'attack', 'power']);
+    expect(kyosenshi.points.total).toBe(240);
+    expect(kyosenshi.points.drawbackTotal).toBe(360);
+
+    const all = ['hinoko', 'dokuga-nezumi', 'todome', 'kyosenshi'].map((id) => analyzeCard(sample(id)));
+    for (const a of all) expect(a.valid).toBe(true);
+    expect(all.map((a) => a.cardType)).toEqual(['attack', 'monster', 'attack', 'power']);
+  });
+
+  it('予算が増えた分、キーワードや効果を1枚に多く積める', () => {
+    // コモン・コスト1（予算300pt）：飛行60 ＋ 攻撃するたび毒20（240pt…は多いので毒10＝60）＋ 攻撃力20・体力60
+    const c = card({
+      rarity: 'common',
+      cost: 1,
+      stats: { attack: 20, hp: 60, defense: 0 },
+      keywords: [{ id: 'flying' }],
+      effects: [{ id: 'poison', value: 10, timing: 'attack', target: 'chosen', condition: null }],
+    });
+    const a = analyzeCard(c);
+    expect(a.points.total).toBe(60 + 120 + 60 + 60 - 200);
+    expect(a.valid).toBe(true);
   });
 
   it('プリセット3つはこの倍率でもルールを守る', () => {
@@ -45,10 +71,10 @@ describe('インフレ倍率', () => {
     }
   });
 
-  it('エディターの初期値：量は10倍、枚数などはそのまま', () => {
-    expect(DEFAULT_STATS).toEqual({ attack: 10, hp: 10, defense: 0 });
-    expect(newCard('n').scale).toBe(10);
-    expect(getEffect('damage')!.value!.default).toBe(20);
+  it('エディターの初期値：量は20倍、枚数などはそのまま', () => {
+    expect(DEFAULT_STATS).toEqual({ attack: 20, hp: 20, defense: 0 });
+    expect(newCard('n').scale).toBe(20);
+    expect(getEffect('damage')!.value!.default).toBe(40);
     expect(getEffect('draw')!.value!.default).toBe(1);
     expect(getEffect('multiHit')!.hits!.max).toBe(5);
   });
@@ -72,49 +98,50 @@ describe('保存してあったカードの移行', () => {
     drawbacks: [{ id: 'selfDamage', value: 3, timing: 'summon' }],
   };
 
-  it('倍率の印がないカードは、量だけ10倍にする（回数・枚数・延長ターンはそのまま）', () => {
-    const r = parseCard(old);
-    expect(r.ok).toBe(true);
-    const c = (r as { value: CardDef }).value;
-    expect(c.scale).toBe(10);
-    expect(c.stats).toEqual({ attack: 30, hp: 40, defense: 10 });
-    expect(c.keywords[0]!.value).toBe(20);
+  it('倍率の印がないカード（最初の版）は、量だけ20倍にする（回数・枚数・延長ターンはそのまま）', () => {
+    const c = parsed(old);
+    expect(c.scale).toBe(20);
+    expect(c.stats).toEqual({ attack: 60, hp: 80, defense: 20 });
+    expect(c.keywords[0]!.value).toBe(40);
     expect(c.effects.map((e) => [e.value, e.hits])).toEqual([
-      [20, 3],
+      [40, 3],
       [2, undefined],
       [1, undefined],
     ]);
-    expect(c.drawbacks[0]!.value).toBe(30);
+    expect(c.drawbacks[0]!.value).toBe(60);
+  });
+
+  it('10倍の印があるカード（予算2倍の前の版）は、量を2倍にする', () => {
+    const c = parsed({ ...old, scale: 10, stats: { attack: 30, hp: 40, defense: 10 } });
+    expect(c.scale).toBe(20);
+    expect(c.stats).toEqual({ attack: 60, hp: 80, defense: 20 });
   });
 
   it('今の倍率の印があるカードは変えない（2回読んでも同じ）', () => {
-    const once = (parseCard(old) as { value: CardDef }).value;
-    const twice = (parseCard(JSON.parse(JSON.stringify(once))) as { value: CardDef }).value;
-    expect(twice).toEqual(once);
+    const once = parsed(old);
+    expect(parsed(JSON.parse(JSON.stringify(once)))).toEqual(once);
   });
 
-  it('移行しても、前に作れたカードは作れて、作れなかったカードは作れない', () => {
-    // 作成例の違反ケース：コモンで「ダメージ2＋やけど」は4pt で作れ、「ダメージ3＋やけど」は6pt で超過
-    const fire = (damage: number) =>
-      (
-        parseCard(
-          card({
-            effects: [
-              { id: 'damage', value: damage, timing: 'play', target: 'chosen', condition: null },
-              { id: 'burn', value: 0, timing: 'play', target: 'chosen', condition: null },
-            ],
-          }),
-        ) as { value: CardDef }
-      ).value;
-    expect(analyzeCard(fire(2)).points.total).toBe(40);
-    expect(analyzeCard(fire(2)).valid).toBe(true);
-    expect(analyzeCard(fire(3)).points.total).toBe(60);
-    expect(analyzeCard(fire(3)).valid).toBe(false);
+  it('前に作れたカードは、移行しても作れる（予算が増えた分だけ余る）', () => {
+    // 前の版（10倍）でコモン上限ちょうどだった「ダメージ20＋やけど」（40 + 100 − 100 = 40 / 50）
+    const fire = parsed({
+      ...card({
+        effects: [
+          { id: 'damage', value: 20, timing: 'play', target: 'chosen', condition: null },
+          { id: 'burn', value: 0, timing: 'play', target: 'chosen', condition: null },
+        ],
+      }),
+      scale: 10,
+    });
+    expect(fire.effects[0]!.value).toBe(40);
+    const a = analyzeCard(fire);
+    expect(a.valid).toBe(true);
+    expect(a.points.remaining).toBe(120);
   });
 });
 
 describe('この倍率での対戦', () => {
-  it('毒は毎ターン10ずつ減る', () => {
+  it('HP は1200、毒は毎ターン20ずつ減る', () => {
     const [A, B] = PRESET_DECKS as [(typeof PRESET_DECKS)[number], (typeof PRESET_DECKS)[number]];
     const r = battle.createGame({
       seed: 3,
@@ -131,12 +158,12 @@ describe('この倍率での対戦', () => {
       if (!m.ok) throw new Error(m.error);
       g = m.state;
     }
-    expect(g.players[1].hp).toBe(600);
-    g.players[1].status.poison = 25;
+    expect(g.players[1].hp).toBe(1200);
+    g.players[1].status.poison = 50;
     const end = battle.applyAction(g, { type: 'endTurn', player: 0 });
     if (!end.ok) throw new Error(end.error);
-    expect(end.state.players[1].hp).toBe(575);
-    expect(end.state.players[1].status.poison).toBe(15);
+    expect(end.state.players[1].hp).toBe(1150);
+    expect(end.state.players[1].status.poison).toBe(30);
   });
 
   it('CPU 同士がプリセットで最後まで対戦できる', () => {

@@ -175,7 +175,7 @@ export function valueParam(label = 'N', opts: { min?: number; max?: number; defa
     label,
     min: opts.min ?? BALANCE.params.valueMin,
     max: opts.max ?? BALANCE.params.valueMax,
-    default: (opts.default ?? 1) * BALANCE.scale,
+    default: (opts.default ?? 1) * BALANCE.amountScale,
     scaled: true,
   };
 }

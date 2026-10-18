@@ -48,17 +48,17 @@ describe('ポイント', () => {
 });
 
 describe('安全装置', () => {
-  it('コモンの効果は2つまで', () => {
-    expectViolation(
-      card({ cost: 2, effects: [fx({ id: 'damage', value: 1 }), fx({ id: 'damage', value: 1 }), fx({ id: 'damage', value: 1 })] }),
-      'EFFECT_TOO_MANY',
-    );
+  // 決定事項 #66：コモン3つ・レア以上4つ（仕様の「コモン2つ・それ以外3つ」から1つずつ増やした）
+  const ones = (n: number) => Array.from({ length: n }, () => fx({ id: 'damage', value: 1 }));
+
+  it('コモンの効果は3つまで', () => {
+    expect(analyzeCard(card({ cost: 1, effects: ones(3) })).valid).toBe(true);
+    expectViolation(card({ cost: 2, effects: ones(4) }), 'EFFECT_TOO_MANY');
   });
 
-  it('レア以上の効果は3つまで', () => {
-    const three = [fx({ id: 'damage', value: 1 }), fx({ id: 'damage', value: 1 }), fx({ id: 'damage', value: 1 })];
-    expect(analyzeCard(card({ rarity: 'rare', cost: 1, effects: three })).valid).toBe(true);
-    expectViolation(card({ rarity: 'rare', cost: 2, effects: [...three, fx({ id: 'damage', value: 1 })] }), 'EFFECT_TOO_MANY');
+  it('レア以上の効果は4つまで', () => {
+    expect(analyzeCard(card({ rarity: 'rare', cost: 1, effects: ones(4) })).valid).toBe(true);
+    expectViolation(card({ rarity: 'rare', cost: 2, effects: ones(5) }), 'EFFECT_TOO_MANY');
   });
 
   it('キーワード・デメリット・防御無視は効果の数に含めない', () => {

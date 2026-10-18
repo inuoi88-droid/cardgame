@@ -1,11 +1,13 @@
 /**
- * インフレ倍率（決定事項 #65）に合わせたカードの数値の変換。
+ * 量の倍率（インフレ倍率×予算倍率。決定事項 #65・#66）に合わせたカードの数値の変換。
  * カードには、値を書いたときの倍率（scale。省略は1）を持たせる。今の倍率と違うカードを読み込んだら、
  * 「量」（ステータスと、量の入力欄を持つ効果・キーワード・デメリットの値）に倍率の比を掛けて今の倍率にそろえる。
  */
-import { SCALE } from './scale.ts';
+import { BALANCE } from './balance.ts';
 import { getDrawback, getEffect, getKeyword } from './registry.ts';
 import type { CardDef } from './types.ts';
+
+const SCALE = BALANCE.amountScale;
 
 const mul = (v: number | undefined, f: number): number | undefined => (v === undefined ? undefined : Math.round(v * f));
 

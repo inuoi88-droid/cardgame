@@ -8,8 +8,8 @@ import { other } from '../battle/core.ts';
 import { HIDDEN_CARD_ID } from '../battle/view.ts';
 import { NOISE_CARD_ID, type GameState, type Monster, type PlayerId, type PlayerState } from '../battle/types.ts';
 
-/** HP などの量はインフレ倍率で大きくなるので、枚数・ターン・回数に付く重みにも同じ倍率を掛ける */
-const S = BALANCE.scale;
+/** HP などの量は倍率で大きくなるので、枚数・ターン・回数に付く重みにも同じ倍率を掛ける */
+const S = BALANCE.amountScale;
 
 export const WEIGHTS = {
   win: 100000,

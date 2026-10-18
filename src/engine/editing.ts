@@ -10,7 +10,7 @@ import { getDrawback, getEffect, listDrawbacks, listEffects } from './registry.t
 import { stampScale } from './scaling.ts';
 import type { CardBase, CardDef, DrawbackInstance, EffectInstance, Rarity, Stats, TimingId } from './types.ts';
 
-export const DEFAULT_STATS: Stats = { attack: 1 * BALANCE.scale, hp: 1 * BALANCE.scale, defense: 0 };
+export const DEFAULT_STATS: Stats = { attack: 1 * BALANCE.amountScale, hp: 1 * BALANCE.amountScale, defense: 0 };
 
 export function newCard(id: string): CardDef {
   return stampScale({

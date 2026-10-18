@@ -1,7 +1,7 @@
-/** 仕様の「作成例」4枚。カード一覧の「サンプルを追加」で使う */
-import type { CardDef } from './engine/index.ts';
+/** 仕様の「作成例」4枚。カード一覧の「サンプルを追加」で使う。数値は仕様どおり倍率1で書き、インフレ倍率を掛けて使う */
+import { fromBaseScale, type CardDef } from './engine/index.ts';
 
-export const SAMPLE_CARDS: CardDef[] = [
+const BASE_SAMPLES: CardDef[] = [
   {
     v: 1,
     id: 'sample-hinoko',
@@ -54,3 +54,5 @@ export const SAMPLE_CARDS: CardDef[] = [
     drawbacks: [{ id: 'selfDamage', value: 4, timing: 'turnStart' }],
   },
 ];
+
+export const SAMPLE_CARDS: CardDef[] = BASE_SAMPLES.map(fromBaseScale);

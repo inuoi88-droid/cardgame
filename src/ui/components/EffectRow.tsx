@@ -39,7 +39,7 @@ import {
   type TimingId,
   type Violation,
 } from '../../engine/index.ts';
-import { cx } from '../util.ts';
+import { cx, stepOf } from '../util.ts';
 import { Stepper, Violations } from './controls.tsx';
 
 interface EffectRowProps {
@@ -100,6 +100,7 @@ export function EffectRow({ effect, card, violations, onChange, onRemove }: Effe
               value={effect.value}
               min={def.value.min}
               max={def.value.max}
+              step={stepOf(def.value)}
               invalid={has('.value')}
               onChange={(v) => onChange({ ...effect, value: v })}
             />
@@ -262,6 +263,7 @@ export function DrawbackRow({ drawback, card, violations, onChange, onRemove }: 
             value={drawback.value}
             min={def.value.min}
             max={def.value.max}
+            step={stepOf(def.value)}
             invalid={has('.value')}
             onChange={(v) => onChange({ ...drawback, value: v })}
           />

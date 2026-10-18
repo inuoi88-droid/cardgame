@@ -26,7 +26,7 @@ import { EmojiPicker } from '../components/EmojiPicker.tsx';
 import { PointPanel } from '../components/PointPanel.tsx';
 import { navigate } from '../router.ts';
 import { NEW_DRAFT, actions, cardDrafts, useStore } from '../store.ts';
-import { cx, uuid } from '../util.ts';
+import { cx, uuid, stepOf } from '../util.ts';
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -302,9 +302,9 @@ function MonsterFields({ card, stats, setCard, violations }: MonsterFieldsProps)
   return (
     <>
       <div className="stats-grid">
-        <Stepper label={`攻撃力（${S.attackPoints}pt）`} value={stats.attack} min={S.attackMin} max={S.attackMax} invalid={bad('stats.attack')} onChange={(attack) => setStats({ attack })} />
-        <Stepper label={`体力（${S.hpPoints}pt）`} value={stats.hp} min={S.hpMin} max={S.hpMax} invalid={bad('stats.hp')} onChange={(hp) => setStats({ hp })} />
-        <Stepper label={`守備力（${S.defensePoints}pt）`} value={stats.defense} min={S.defenseMin} max={S.defenseMax} invalid={bad('stats.defense')} onChange={(defense) => setStats({ defense })} />
+        <Stepper label={`攻撃力（${S.attackPoints}pt）`} value={stats.attack} min={S.attackMin} max={S.attackMax} step={BALANCE.scale} invalid={bad('stats.attack')} onChange={(attack) => setStats({ attack })} />
+        <Stepper label={`体力（${S.hpPoints}pt）`} value={stats.hp} min={S.hpMin} max={S.hpMax} step={BALANCE.scale} invalid={bad('stats.hp')} onChange={(hp) => setStats({ hp })} />
+        <Stepper label={`守備力（${S.defensePoints}pt）`} value={stats.defense} min={S.defenseMin} max={S.defenseMax} step={BALANCE.scale} invalid={bad('stats.defense')} onChange={(defense) => setStats({ defense })} />
       </div>
       <h3>キーワード</h3>
       <div className="kw-grid">
@@ -324,6 +324,7 @@ function MonsterFields({ card, stats, setCard, violations }: MonsterFieldsProps)
                   value={inst.value}
                   min={def.value.min}
                   max={def.value.max}
+                  step={stepOf(def.value)}
                   onChange={(value) =>
                     setCard((c) => ({ ...c, keywords: c.keywords.map((k) => (k.id === def.id ? { ...k, value } : k)) }))
                   }

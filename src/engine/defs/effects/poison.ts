@@ -8,7 +8,7 @@ export default defineEffect({
   name: '毒',
   group: 'status',
   order: 30,
-  summary: '毒Nを与える（ターン開始時に毒の数だけダメージ。その後1減る）',
+  summary: `毒Nを与える（ターン開始時に毒の数だけダメージ。その後${BALANCE.battle.poisonDecay}減る）`,
   value: valueParam('毒', { default: 1, max: B.maxValue }),
   targetRule: 'enemyAny',
   basePoints: (e) => B.perValue * n(e),

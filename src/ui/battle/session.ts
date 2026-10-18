@@ -7,7 +7,8 @@ export const HUMAN: battle.PlayerId = 0;
 export const CPU: battle.PlayerId = 1;
 
 export interface BattleSession {
-  v: 1;
+  /** 2：インフレ倍率の導入後（決定事項 #65）。それより前の対戦の途中データは読まない */
+  v: 2;
   state: battle.GameState;
   /** 同じ組み合わせでもう一度遊ぶための情報 */
   setup: { myDeckName: string; cpuDeckName: string; myDeck: Deck; myCards: CardDef[]; cpuDeck: Deck; cpuCards: CardDef[] };
@@ -18,7 +19,7 @@ export function loadSession(): BattleSession | null {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const s = JSON.parse(raw) as BattleSession;
-    return s && s.v === 1 && s.state?.v === 1 ? s : null;
+    return s && s.v === 2 && s.state?.v === 1 ? s : null;
   } catch {
     return null;
   }
@@ -50,7 +51,7 @@ export function startSession(setup: BattleSession['setup']): { ok: true; session
     ],
   });
   if (!r.ok) return r;
-  const session: BattleSession = { v: 1, state: r.state, setup };
+  const session: BattleSession = { v: 2, state: r.state, setup };
   saveSession(session);
   return { ok: true, session };
 }

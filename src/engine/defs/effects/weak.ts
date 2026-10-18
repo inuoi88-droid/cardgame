@@ -1,5 +1,5 @@
 import { BALANCE } from '../../balance.ts';
-import { defineEffect, n, valueParam } from '../../define.ts';
+import { defineEffect, n, countParam } from '../../define.ts';
 
 const B = BALANCE.effects.weak;
 
@@ -9,7 +9,7 @@ export default defineEffect({
   group: 'status',
   order: 33,
   summary: `Nターンの間、与えるダメージ−${BALANCE.battle.weakRate * 100}%`,
-  value: valueParam('ターン数', { default: 1 }),
+  value: countParam('ターン数', { default: 1 }),
   targetRule: 'enemyAny',
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,

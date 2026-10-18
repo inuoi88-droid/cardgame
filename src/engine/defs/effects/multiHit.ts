@@ -1,5 +1,5 @@
 import { BALANCE } from '../../balance.ts';
-import { defineEffect, modsOf, n } from '../../define.ts';
+import { defineEffect, modsOf, n, valueParam } from '../../define.ts';
 
 const B = BALANCE.effects.multiHit;
 const P = BALANCE.params;
@@ -11,7 +11,7 @@ export default defineEffect({
   group: 'damage',
   order: 11,
   summary: 'N点ダメージをM回与える（守備力で毎回軽減される）',
-  value: { label: 'ダメージ', min: P.valueMin, max: P.valueMax, default: 1 },
+  value: valueParam('ダメージ', { default: 1 }),
   hits: { label: '回数', min: P.hitsMin, max: P.hitsMax, default: P.hitsMin },
   targetRule: 'enemyAny',
   isDamage: true,

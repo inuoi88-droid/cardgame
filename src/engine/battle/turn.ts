@@ -41,13 +41,13 @@ export function startTurn(g: GameState, p: PlayerId): void {
   // 毒（シールド・無効化を貫通）
   if (ps.status.poison > 0) {
     dealDamage(g, playerRef(p), ps.status.poison, { kind: 'poison', source: null, depth: 1 });
-    ps.status.poison -= 1;
+    ps.status.poison = Math.max(0, ps.status.poison - B.poisonDecay);
     if (isEnded(g)) return;
   }
   for (const m of [...ps.board]) {
     if (m.status.poison > 0) {
       const n = m.status.poison;
-      m.status.poison -= 1;
+      m.status.poison = Math.max(0, m.status.poison - B.poisonDecay);
       dealDamage(g, { kind: 'monster', uid: m.uid }, n, { kind: 'poison', source: null, depth: 1 });
       if (isEnded(g)) return;
     }
@@ -56,7 +56,7 @@ export function startTurn(g: GameState, p: PlayerId): void {
   // 再生
   if (ps.status.regen > 0) {
     heal(g, playerRef(p), ps.status.regen, 1);
-    ps.status.regen -= 1;
+    ps.status.regen = Math.max(0, ps.status.regen - B.regenDecay);
   }
 
   // 維持費・裏切りの経過（封印されても働く）、自己修復

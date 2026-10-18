@@ -144,9 +144,9 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
   if (before - amount <= 0) {
     if (keywordFlags(g, m).undying && !m.undyingUsed) {
       m.undyingUsed = true;
-      m.hp = 1;
-      log(g, opts.depth, `${label}に${kindLabel}${amount}ダメージ${detail}：不屈で体力1で踏みとどまった`, 'damage');
-      return { hpLost: before - 1, overflow: 0, destroyed: false };
+      m.hp = Math.min(before, BALANCE.battle.undyingHp);
+      log(g, opts.depth, `${label}に${kindLabel}${amount}ダメージ${detail}：不屈で体力${m.hp}で踏みとどまった`, 'damage');
+      return { hpLost: before - m.hp, overflow: 0, destroyed: false };
     }
     m.hp = 0;
     log(g, opts.depth, `${label}に${kindLabel}${amount}ダメージ${detail}：体力 ${before}→0`, 'damage');

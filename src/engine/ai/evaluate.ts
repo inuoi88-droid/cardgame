@@ -8,6 +8,9 @@ import { other } from '../battle/core.ts';
 import { HIDDEN_CARD_ID } from '../battle/view.ts';
 import { NOISE_CARD_ID, type GameState, type Monster, type PlayerId, type PlayerState } from '../battle/types.ts';
 
+/** HP などの量はインフレ倍率で大きくなるので、枚数・ターン・回数に付く重みにも同じ倍率を掛ける */
+const S = BALANCE.scale;
+
 export const WEIGHTS = {
   win: 100000,
   hp: 1,
@@ -15,27 +18,27 @@ export const WEIGHTS = {
   monsterAttack: 1.6,
   monsterHp: 0.9,
   monsterDefense: 1.2,
-  taunt: 2,
-  flying: 1.5,
+  taunt: 2 * S,
+  flying: 1.5 * S,
   doubleAttack: 1.2,
-  trample: 1,
-  undying: 2,
+  trample: 1 * S,
+  undying: 2 * S,
   poisonPerDamage: 0.8,
   burnPerDamage: 0.8,
-  weakPerTurn: 1.5,
-  vulnerablePerTurn: 2,
+  weakPerTurn: 1.5 * S,
+  vulnerablePerTurn: 2 * S,
   bleed: 1,
   strength: 3,
   regenPerHeal: 0.8,
   counter: 0.4,
-  nullify: 3,
-  power: 3,
-  nextEnergy: 2.5,
-  nextDraw: 2,
-  discount: 2.5,
-  handCard: 0.5,
-  noiseInDeck: 1,
-  frozen: 1.5,
+  nullify: 3 * S,
+  power: 3 * S,
+  nextEnergy: 2.5 * S,
+  nextDraw: 2 * S,
+  discount: 2.5 * S,
+  handCard: 0.5 * S,
+  noiseInDeck: 1 * S,
+  frozen: 1.5 * S,
 } as const;
 
 const W = WEIGHTS;
@@ -53,9 +56,12 @@ function monsterValue(g: GameState, m: Monster): number {
   return m.betraying ? -m.attack * W.monsterAttack * 2 : v;
 }
 
+/** 毎ターン d ずつ減りながら効く量 n の合計（毒・再生） */
+const decayingTotal = (n: number, d: number): number => (n * (n + d)) / (2 * d);
+
 /** 毒・やけどでこの先受けるダメージの見込み */
 function statusBurden(poison: number, burn: number): number {
-  return ((poison * (poison + 1)) / 2) * W.poisonPerDamage + burn * BALANCE.battle.burnDamage * W.burnPerDamage;
+  return decayingTotal(poison, BALANCE.battle.poisonDecay) * W.poisonPerDamage + burn * BALANCE.battle.burnDamage * W.burnPerDamage;
 }
 
 function playerValue(g: GameState, ps: PlayerState, isMe: boolean): number {
@@ -64,7 +70,7 @@ function playerValue(g: GameState, ps: PlayerState, isMe: boolean): number {
   v += (isMe ? ps.shield : ps.shield * 0.5) * W.shield;
   v -= statusBurden(s.poison, s.burn);
   v -= s.weak * W.weakPerTurn + s.vulnerable * W.vulnerablePerTurn + s.bleed * W.bleed;
-  v += s.strength * W.strength + ((s.regen * (s.regen + 1)) / 2) * W.regenPerHeal;
+  v += s.strength * W.strength + decayingTotal(s.regen, BALANCE.battle.regenDecay) * W.regenPerHeal;
   v += s.counter * W.counter + s.nullify * W.nullify;
   v += ps.powers.length * W.power;
   v += ps.next.energy * W.nextEnergy + ps.next.draw * W.nextDraw + ps.discount * W.discount;

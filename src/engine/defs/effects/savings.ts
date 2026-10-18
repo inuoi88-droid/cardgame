@@ -1,5 +1,5 @@
 import { BALANCE } from '../../balance.ts';
-import { defineEffect, n, valueParam } from '../../define.ts';
+import { defineEffect, n, countParam } from '../../define.ts';
 
 const B = BALANCE.effects.savings;
 
@@ -9,7 +9,7 @@ export default defineEffect({
   group: 'resource',
   order: 52,
   summary: '次のターンのエナジー+N',
-  value: valueParam('エナジー', { default: 1 }),
+  value: countParam('エナジー', { default: 1 }),
   targetRule: 'self',
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,

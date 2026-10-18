@@ -3,6 +3,7 @@
  * 外から来たJSONは型を信用せず、知っている項目だけを取り出して CardDef / Deck に組み立て直す。
  */
 import { normalizeName, uniqueName } from './deck.ts';
+import { toCurrentScale } from './scaling.ts';
 import {
   CONDITION_IDS,
   RARITIES,
@@ -125,10 +126,11 @@ export function parseCard(x: unknown): Result<CardDef> {
   if (!keywords) return { ok: false, error: `${label}のキーワードが正しくありません` };
   if (!effects) return { ok: false, error: `${label}の効果が正しくありません` };
   if (!drawbacks) return { ok: false, error: `${label}のデメリットが正しくありません` };
-  return {
-    ok: true,
-    value: { v: 1, id: x.id, name: x.name, icon: x.icon, rarity: x.rarity, cost: x.cost, stats, keywords, effects, drawbacks },
-  };
+  if (x.scale !== undefined && (!isNum(x.scale) || x.scale <= 0)) return { ok: false, error: `${label}の倍率が正しくありません` };
+  const card: CardDef = { v: 1, id: x.id, name: x.name, icon: x.icon, rarity: x.rarity, cost: x.cost, stats, keywords, effects, drawbacks };
+  if (isNum(x.scale)) card.scale = x.scale;
+  // 古い倍率で書かれたカードは、今の倍率にそろえる（決定事項 #65）
+  return { ok: true, value: toCurrentScale(card) };
 }
 
 export function parseDeck(x: unknown): Result<Deck> {

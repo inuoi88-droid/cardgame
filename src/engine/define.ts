@@ -22,6 +22,8 @@ export interface ParamSpec {
   min: number;
   max: number;
   default: number;
+  /** HP・ダメージなどの「量」なら true（インフレ倍率の対象。古いデータの移行で倍率を掛ける） */
+  scaled?: boolean;
 }
 
 export interface OptionSpec {
@@ -167,12 +169,23 @@ export const defineDrawback = (def: Omit<DrawbackDef, 'kind'>): DrawbackDef => (
 
 // ---------------------------------------------------------------- 定義ファイル用の小道具
 
-/** 数値 N の入力欄 */
+/** 量（ダメージ・回復・毒など）の入力欄。初期値は倍率1のときの値で書く（インフレ倍率を掛けて使う） */
 export function valueParam(label = 'N', opts: { min?: number; max?: number; default?: number } = {}): ParamSpec {
   return {
     label,
     min: opts.min ?? BALANCE.params.valueMin,
     max: opts.max ?? BALANCE.params.valueMax,
+    default: (opts.default ?? 1) * BALANCE.scale,
+    scaled: true,
+  };
+}
+
+/** 数（枚数・エナジー・ターン数）の入力欄。インフレ倍率は掛けない */
+export function countParam(label = 'N', opts: { min?: number; max?: number; default?: number } = {}): ParamSpec {
+  return {
+    label,
+    min: opts.min ?? BALANCE.params.countMin,
+    max: opts.max ?? BALANCE.params.countMax,
     default: opts.default ?? 1,
   };
 }

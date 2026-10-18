@@ -1,5 +1,8 @@
-/** CPU 用のプリセットデッキ3つ（毒中心・モンスター中心・呪いカード中心）。すべてカード作成ルールとデッキルールを守る（テストで確認） */
-import type { CardDef, Deck, EffectInstance, Rarity, Stats } from './engine/index.ts';
+/**
+ * CPU 用のプリセットデッキ3つ（毒中心・モンスター中心・呪いカード中心）。すべてカード作成ルールとデッキルールを守る（テストで確認）。
+ * 数値は倍率1（元の仕様）の大きさで書き、読み込み時にインフレ倍率を掛ける（決定事項 #65）。
+ */
+import { fromBaseScale, type CardDef, type Deck, type EffectInstance, type Rarity, type Stats } from './engine/index.ts';
 
 const fx = (e: Partial<EffectInstance> & { id: string }): EffectInstance => ({
   timing: 'play',
@@ -16,7 +19,7 @@ function c(
   cost: number,
   rest: { stats?: Stats; keywords?: CardDef['keywords']; effects?: EffectInstance[]; drawbacks?: CardDef['drawbacks'] } = {},
 ): CardDef {
-  return {
+  return fromBaseScale({
     v: 1,
     id: `preset-${id}`,
     name,
@@ -27,7 +30,7 @@ function c(
     keywords: rest.keywords ?? [],
     effects: rest.effects ?? [],
     drawbacks: rest.drawbacks ?? [],
-  };
+  });
 }
 
 export interface PresetDeck {

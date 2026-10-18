@@ -84,6 +84,8 @@ export interface DrawbackInstance {
 export interface CardDef {
   /** データ形式のバージョン */
   v: 1;
+  /** 値を書いたときのインフレ倍率（決定事項 #65）。省略は1。読み込み時に今の倍率へそろえる */
+  scale?: number;
   id: string;
   name: string;
   icon: string;

@@ -1,4 +1,5 @@
 /** UI 用の小道具 */
+import { BALANCE, type ParamSpec } from '../engine/index.ts';
 
 /** ランダムなID。http（スマホ実機のLAN接続）でも動くよう、randomUUID が無ければ getRandomValues で作る */
 export function uuid(): string {
@@ -38,4 +39,9 @@ export function signed(n: number): string {
   if (n > 0) return `+${n}`;
   if (n < 0) return `−${-n}`;
   return '0';
+}
+
+/** 入力欄の −／＋ の幅：量（ダメージなど）はインフレ倍率ずつ、数（枚数など）は1ずつ */
+export function stepOf(spec: ParamSpec): number {
+  return spec.scaled ? BALANCE.scale : 1;
 }

@@ -2,16 +2,18 @@
  * エディター用の純粋な補助関数。
  * 選べる選択肢の一覧と、入力を変えたときに選べなくなった値を自動で直す処理。
  */
+import { BALANCE } from './balance.ts';
 import { cardBase, rarityRank } from './classify.ts';
 import type { DrawbackDef, EffectDef } from './define.ts';
 import { allowedTargets, conditionsFor, defaultTiming, TIMINGS, timingsFor } from './options.ts';
 import { getDrawback, getEffect, listDrawbacks, listEffects } from './registry.ts';
+import { stampScale } from './scaling.ts';
 import type { CardBase, CardDef, DrawbackInstance, EffectInstance, Rarity, Stats, TimingId } from './types.ts';
 
-export const DEFAULT_STATS: Stats = { attack: 1, hp: 1, defense: 0 };
+export const DEFAULT_STATS: Stats = { attack: 1 * BALANCE.scale, hp: 1 * BALANCE.scale, defense: 0 };
 
 export function newCard(id: string): CardDef {
-  return {
+  return stampScale({
     v: 1,
     id,
     name: '',
@@ -22,7 +24,7 @@ export function newCard(id: string): CardDef {
     keywords: [],
     effects: [],
     drawbacks: [],
-  };
+  });
 }
 
 /** このレアリティで使える効果 */

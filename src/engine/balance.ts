@@ -2,23 +2,34 @@
  * バランスに関わる数値はすべてこのファイルに置く。
  * 数値はすべて仮。テストプレイで調整する。
  * ここ以外のコードに、ポイント・倍率・上限・HP などの数値を直接書かないこと。
+ *
+ * x(…) はインフレ倍率（scale.ts）を掛けた値。HP・ダメージなどの量と、ポイントの上限・コスト・固定ポイントに付ける。
+ * 量1あたりのポイント（ダメージ1につき2pt など）は、量とポイントの両方が同じ倍率で増えるので掛けない。
+ * 枚数・エナジー・ターン数1あたりのポイントには掛ける。
  */
+import { SCALE } from './scale.ts';
+
+const x = (n: number): number => n * SCALE;
+
 export const BALANCE = {
+  /** インフレ倍率（決定事項 #65） */
+  scale: SCALE,
+
   /** カード作成の基本ルール */
   card: {
     costMin: 0,
     costMax: 5,
     /** コスト1あたりに引くポイント */
-    pointsPerCost: 10,
+    pointsPerCost: x(10),
     nameMaxLength: 16,
   },
 
   /** レアリティごとの上限。deckLimit / perNameLimit が null なら制限なし */
   rarity: {
-    common: { cap: 5, maxEffects: 2, deckLimit: null, perNameLimit: null },
-    rare: { cap: 8, maxEffects: 3, deckLimit: 16, perNameLimit: 5 },
-    epic: { cap: 12, maxEffects: 3, deckLimit: 8, perNameLimit: 3 },
-    legend: { cap: 18, maxEffects: 3, deckLimit: 4, perNameLimit: 1 },
+    common: { cap: x(5), maxEffects: 2, deckLimit: null, perNameLimit: null },
+    rare: { cap: x(8), maxEffects: 3, deckLimit: 16, perNameLimit: 5 },
+    epic: { cap: x(12), maxEffects: 3, deckLimit: 8, perNameLimit: 3 },
+    legend: { cap: x(18), maxEffects: 3, deckLimit: 4, perNameLimit: 1 },
   },
 
   deck: {
@@ -42,11 +53,11 @@ export const BALANCE = {
     hpPoints: 2,
     defensePoints: 4,
     attackMin: 0,
-    attackMax: 30,
+    attackMax: x(30),
     hpMin: 1,
-    hpMax: 50,
+    hpMax: x(50),
     defenseMin: 0,
-    defenseMax: 3,
+    defenseMax: x(3),
   },
 
   /** 発動タイミングの倍率 */
@@ -98,14 +109,16 @@ export const BALANCE = {
     drain: 0.5,
   },
 
-  /** 効果の数値 N の入力範囲（効果ごとの上書きは effects 側の maxValue） */
+  /** 効果の数値 N の入力範囲（効果ごとの上書きは effects 側の maxValue）。value は量、count は枚数・ターン数・エナジー */
   params: {
     valueMin: 1,
-    valueMax: 30,
+    valueMax: x(30),
+    countMin: 1,
+    countMax: 30,
     hitsMin: 2,
     hitsMax: 5,
     /** 1枚のカードのダメージ・連撃の合計（値×回数）の上限（決定事項 #64） */
-    damagePerCardMax: 30,
+    damagePerCardMax: x(30),
   },
 
   /** 効果の基礎ポイント */
@@ -117,57 +130,59 @@ export const BALANCE = {
 
     shield: { perValue: 1.5 },
     heal: { perValue: 3 },
-    nullify: { flat: 15 },
-    cleanse: { flat: 6 },
+    nullify: { flat: x(15) },
+    cleanse: { flat: x(6) },
     repair: { perValue: 1 },
 
     /** 毒は残り続けて合計ダメージが大きくなるので、1つの効果で与えられる値に上限を置く */
-    poison: { perValue: 3, maxValue: 10 },
-    burn: { flat: 10, perExtraTurn: 3, maxExtraTurns: 10 },
-    freeze: { flat: 12 },
-    weak: { perValue: 4 },
-    vulnerable: { perValue: 5 },
+    poison: { perValue: 3, maxValue: x(10) },
+    burn: { flat: x(10), perExtraTurn: x(3), maxExtraTurns: 10 },
+    freeze: { flat: x(12) },
+    /** 弱体・脆弱の N はターン数 */
+    weak: { perValue: x(4) },
+    vulnerable: { perValue: x(5) },
     bleed: { perValue: 3 },
-    seal: { flat: 15 },
-    confuse: { flat: 8 },
+    seal: { flat: x(15) },
+    confuse: { flat: x(8) },
 
     strength: { perValue: 8 },
     focus: { perValue: 2 },
     attackUp: { perValue: 3 },
-    defenseUp: { perValue: 4, maxValue: 3 },
+    defenseUp: { perValue: 4, maxValue: x(3) },
     regen: { perValue: 4 },
 
-    draw: { perValue: 5 },
-    energy: { perValue: 9 },
-    savings: { perValue: 7 },
-    discount: { flat: 7 },
-    search: { flat: 8 },
-    recall: { flat: 8 },
-    retain: { flat: 4 },
+    draw: { perValue: x(5) },
+    energy: { perValue: x(9) },
+    savings: { perValue: x(7) },
+    discount: { flat: x(7) },
+    search: { flat: x(8) },
+    recall: { flat: x(8) },
+    retain: { flat: x(4) },
 
-    drawJam: { flat: 10 },
-    energyJam: { flat: 15 },
-    noise: { perValue: 4 },
-    bounce: { flat: 12 },
+    drawJam: { flat: x(10) },
+    energyJam: { flat: x(15) },
+    noise: { perValue: x(4) },
+    bounce: { flat: x(12) },
     weaken: { perValue: 3 },
-    dispel: { flat: 12 },
+    dispel: { flat: x(12) },
 
-    revive: { flat: 10, perValue: 5 },
+    /** 蘇生の N はコスト */
+    revive: { flat: x(10), perValue: x(5) },
     /** keepRate：コピーがデッキに残る版の上乗せ率 */
-    duplicate: { flat: 12, keepRate: 0.5 },
-    wipe: { flat: 25 },
-    steal: { flat: 35 },
+    duplicate: { flat: x(12), keepRate: 0.5 },
+    wipe: { flat: x(25) },
+    steal: { flat: x(35) },
   },
 
   /** モンスター専用キーワードのポイント */
   keywords: {
     haste: { perAttack: 2 },
-    taunt: { flat: 8 },
-    flying: { flat: 6 },
-    trample: { flat: 5 },
+    taunt: { flat: x(8) },
+    flying: { flat: x(6) },
+    trample: { flat: x(5) },
     doubleAttack: { perAttack: 3, attacks: 2 },
-    stealth: { flat: 5 },
-    undying: { flat: 8 },
+    stealth: { flat: x(5) },
+    undying: { flat: x(8) },
     selfRepair: { perValue: 3 },
   },
 
@@ -178,14 +193,15 @@ export const BALANCE = {
   drawbacks: {
     selfDamage: { perValue: 1.5 },
     selfPoison: { perValue: 2 },
-    selfBurn: { flat: 7 },
-    discardRandom: { flat: 5, count: 1 },
-    recoil: { flat: 10, energyLoss: 1 },
-    pollute: { perValue: 3 },
-    gift: { flat: 4, extraDraw: 1 },
-    upkeep: { fixed: 4, damage: 1 },
-    parasite: { fixed: 5, damage: 2 },
-    betrayal: { fixed: 12, turns: 3 },
+    selfBurn: { flat: x(7) },
+    discardRandom: { flat: x(5), count: 1 },
+    recoil: { flat: x(10), energyLoss: 1 },
+    /** 汚染の N はノイズの枚数 */
+    pollute: { perValue: x(3) },
+    gift: { flat: x(4), extraDraw: 1 },
+    upkeep: { fixed: x(4), damage: x(1) },
+    parasite: { fixed: x(5), damage: x(2) },
+    betrayal: { fixed: x(12), turns: 3 },
   },
 
   /** オンライン対戦（決定事項 #57） */
@@ -200,16 +216,16 @@ export const BALANCE = {
 
   /** 対戦ルール（Phase 2 で使う。効果テキストにも出てくる） */
   battle: {
-    playerHp: 60,
+    playerHp: x(60),
     energyPerTurn: 3,
     drawPerTurn: 5,
     /** マリガンで全部引き直すときの最低枚数 */
     mulliganMinHand: 1,
     firstPlayerFirstTurnEnergy: 2,
     maxTurns: 30,
-    minMonsterDamage: 1,
+    minMonsterDamage: x(1),
     burnTurns: 3,
-    burnDamage: 2,
+    burnDamage: x(2),
     burnHealRate: 0.5,
     weakRate: 0.25,
     vulnerableRate: 0.5,
@@ -219,6 +235,11 @@ export const BALANCE = {
     drawJamAmount: 1,
     energyJamAmount: 1,
     drainRate: 0.5,
+    /** 毒・再生がターン開始時の処理のあとに減る量 */
+    poisonDecay: x(1),
+    regenDecay: x(1),
+    /** 不屈で踏みとどまるときの体力 */
+    undyingHp: x(1),
     /** 安全装置（決定事項 #64。#44 の「上限なし」を取り消し、元の仕様に戻す） */
     /** 1ターンに引けるのは合計この枚数まで（ターン開始時の5枚を含む） */
     maxDrawPerTurn: 10,

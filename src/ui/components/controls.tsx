@@ -8,17 +8,21 @@ interface StepperProps {
   max: number;
   onChange: (v: number) => void;
   invalid?: boolean;
+  /** −／＋ボタンで動く幅（区切りのよい数にそろえる）。直接入力はどんな整数でもよい */
+  step?: number;
 }
 
-export function Stepper({ label, value, min, max, onChange, invalid }: StepperProps) {
+export function Stepper({ label, value, min, max, onChange, invalid, step = 1 }: StepperProps) {
   const [text, setText] = useState<string | null>(null);
   const v = value ?? min;
   const clamp = (x: number) => Math.min(max, Math.max(min, x));
+  const up = () => clamp((Math.floor(v / step) + 1) * step);
+  const down = () => clamp((Math.ceil(v / step) - 1) * step);
   return (
     <label className={invalid ? 'stepper stepper--invalid' : 'stepper'}>
       <span className="stepper__label">{label}</span>
       <span className="stepper__box">
-        <button type="button" onClick={() => onChange(clamp(v - 1))} disabled={v <= min} aria-label={`${label}を減らす`}>
+        <button type="button" onClick={() => onChange(down())} disabled={v <= min} aria-label={`${label}を減らす`}>
           −
         </button>
         <input
@@ -39,7 +43,7 @@ export function Stepper({ label, value, min, max, onChange, invalid }: StepperPr
           }}
           onBlur={() => setText(null)}
         />
-        <button type="button" onClick={() => onChange(clamp(v + 1))} disabled={v >= max} aria-label={`${label}を増やす`}>
+        <button type="button" onClick={() => onChange(up())} disabled={v >= max} aria-label={`${label}を増やす`}>
           ＋
         </button>
       </span>

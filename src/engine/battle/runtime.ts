@@ -2,7 +2,7 @@
 import { BALANCE } from '../balance.ts';
 import { TIMINGS, type TargetRule } from '../options.ts';
 import type { EffectInstance, TimingId } from '../types.ts';
-import { cardName, findMonster, log, monsterLabel, other, playerRef, targetExists, turnLimits } from './core.ts';
+import { cardName, findMonster, log, monsterLabel, other, playerRef, playRecord, targetExists, turnLimits } from './core.ts';
 import { addStatus, cleanse, dealDamage, destroyMonster, heal } from './damage.ts';
 import { pick } from './rng.ts';
 import {
@@ -88,9 +88,25 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
     targets,
     src,
     hit(target, amount, o = {}) {
-      const ps = g.players[me];
-      const bonus = opts.attackCard ? ps.status.strength + ps.status.focus : 0;
-      const r = dealDamage(g, target, amount, { kind: 'hit', source: origin(), bonus, pierce: o.pierce, depth });
+      // 筋力・気合：使った時点の値（play.ts で記録）を、そのカードの最初の1発にだけ乗せる（決定事項 #70 R3）
+      let bonus = 0;
+      if (opts.attackCard) {
+        const ps = g.players[me];
+        const rec = opts.protectKey ? playRecord(g, opts.protectKey) : undefined;
+        if (!rec) bonus = ps.status.strength + ps.status.focus;
+        else if (!rec.bonusUsed) {
+          rec.bonusUsed = true;
+          bonus = rec.bonus ?? ps.status.strength + ps.status.focus;
+        }
+      }
+      const r = dealDamage(g, target, amount, {
+        kind: 'hit',
+        source: origin(),
+        bonus,
+        pierce: o.pierce,
+        ...(opts.protectKey ? { playKey: opts.protectKey } : {}),
+        depth,
+      });
       if (o.drain && r.hpLost > 0) {
         const n = Math.floor(r.hpLost * BALANCE.battle.drainRate);
         log(g, depth + 1, `吸収：与えたダメージ${r.hpLost}の半分を回復`);
@@ -115,7 +131,12 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
     },
     gainShield(p, amount) {
       g.players[p].shield += amount;
-      log(g, depth, `${g.players[p].name}はシールド${amount}を得た（合計${g.players[p].shield}）`);
+      log(g, depth, `${g.players[p].name}はシールド${amount}を得た（合計${g.players[p].shield}）`, 'effect', undefined, {
+        kind: 'shield',
+        player: p,
+        target: playerRef(p),
+        amount,
+      });
     },
     gainEnergy(p, amount) {
       const ps = g.players[p];

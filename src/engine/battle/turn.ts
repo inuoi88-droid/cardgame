@@ -12,6 +12,16 @@ import type { GameState, PlayerId, Statuses } from './types.ts';
 
 const B = BALANCE.battle;
 
+/** そのプレイヤーの n ターン目の基本エナジー（成長表：決定事項 #69） */
+export function energyForTurn(turnsTaken: number): number {
+  let energy = 0;
+  for (const step of B.energySchedule) if (turnsTaken >= step.fromTurn) energy = step.energy;
+  return energy;
+}
+
+/** 毒・再生の減り方：残す割合を掛けて切り捨て（半減式：決定事項 #69） */
+const decay = (value: number, keepRate: number): number => Math.max(0, Math.floor(value * keepRate));
+
 function activate(s: Statuses): void {
   s.freezeActive = s.freezePending;
   s.freezePending = false;
@@ -25,7 +35,7 @@ export function startTurn(g: GameState, p: PlayerId): void {
   g.active = p;
   ps.turnsTaken += 1;
   g.protect = {};
-  log(g, 0, `── ${ps.name}のターン（${ps.turnsTaken}ターン目）──`, 'turn');
+  log(g, 0, `── ${ps.name}のターン（${ps.turnsTaken}ターン目）──`, 'turn', undefined, { kind: 'turnStart', player: p });
 
   // シールドと反撃が消える。凍結・混乱が発効する
   ps.shield = 0;
@@ -38,25 +48,25 @@ export function startTurn(g: GameState, p: PlayerId): void {
   ps.turn = { cardsPlayed: 0, retain: 0, freezeTax: ps.status.freezeActive };
   if (ps.status.freezeActive) log(g, 1, `${ps.name}は凍結している：最初に使うカードのコスト+${B.freezeCostIncrease}`);
 
-  // 毒（シールド・無効化を貫通）
+  // 毒（シールド・無効化を貫通）。その後、半分（切り捨て）になる
   if (ps.status.poison > 0) {
     dealDamage(g, playerRef(p), ps.status.poison, { kind: 'poison', source: null, depth: 1 });
-    ps.status.poison = Math.max(0, ps.status.poison - B.poisonDecay);
+    ps.status.poison = decay(ps.status.poison, B.poisonKeepRate);
     if (isEnded(g)) return;
   }
   for (const m of [...ps.board]) {
     if (m.status.poison > 0) {
       const n = m.status.poison;
-      m.status.poison = Math.max(0, m.status.poison - B.poisonDecay);
+      m.status.poison = decay(m.status.poison, B.poisonKeepRate);
       dealDamage(g, { kind: 'monster', uid: m.uid }, n, { kind: 'poison', source: null, depth: 1 });
       if (isEnded(g)) return;
     }
   }
 
-  // 再生
+  // 再生。その後、半分（切り捨て）になる
   if (ps.status.regen > 0) {
     heal(g, playerRef(p), ps.status.regen, 1);
-    ps.status.regen = Math.max(0, ps.status.regen - B.regenDecay);
+    ps.status.regen = decay(ps.status.regen, B.regenKeepRate);
   }
 
   // 維持費・裏切りの経過（封印されても働く）、自己修復
@@ -71,24 +81,32 @@ export function startTurn(g: GameState, p: PlayerId): void {
     }
   }
 
-  // エナジー（持ち越さない：決定事項 #25）。貯金で増える分も1ターンの増加の上限に数える（決定事項 #64）
-  const base = p === g.first && ps.turnsTaken === 1 ? B.firstPlayerFirstTurnEnergy : B.energyPerTurn;
+  // エナジー（持ち越さない：決定事項 #25）。ターン数で成長し、先攻の1ターン目は1少ない（決定事項 #69）。
+  // 貯金で増える分も1ターンの増加の上限に数える（決定事項 #64）
+  const scheduled = energyForTurn(ps.turnsTaken);
+  const firstPenalty = p === g.first && ps.turnsTaken === 1 ? B.firstPlayerFirstTurnPenalty : 0;
+  const base = scheduled - firstPenalty;
   const limits = turnLimits(g, ps);
   const carried = ps.next.energy > 0 ? Math.min(ps.next.energy, B.maxEnergyGainPerTurn) : ps.next.energy;
   if (carried > 0) limits.energyGained += carried;
   ps.energy = Math.max(0, base + carried);
   const capNote = carried < ps.next.energy ? `、増加は+${B.maxEnergyGainPerTurn}まで` : '';
-  log(
-    g,
-    1,
-    `${ps.name}のエナジー：${ps.energy}${carried ? `（基本${base}${carried > 0 ? '+' : '−'}${Math.abs(carried)}${capNote}）` : ''}`,
-    'info',
-  );
+  const notes = [
+    firstPenalty ? `先攻の1ターン目は−${firstPenalty}` : '',
+    B.energySchedule.some((s) => s.fromTurn === ps.turnsTaken && s.fromTurn > 1) ? `このターンから基本${scheduled}` : '',
+    carried ? `基本${base}${carried > 0 ? '+' : '−'}${Math.abs(carried)}${capNote}` : '',
+  ].filter(Boolean);
+  log(g, 1, `${ps.name}のエナジー：${ps.energy}${notes.length ? `（${notes.join('、')}）` : ''}`, 'info', undefined, {
+    kind: 'energy',
+    player: p,
+    amount: ps.energy,
+  });
 
   // ドロー（1ターン目は対戦開始時に配った手札を使う：決定事項 #47）
   const drawCount = ps.turnsTaken === 1 ? Math.max(0, ps.next.draw) : Math.max(0, B.drawPerTurn + ps.next.draw);
   ps.next = { draw: 0, energy: 0 };
   drawCards(g, p, drawCount, 1);
+  if (isEnded(g)) return;
 
   // 「自分のターン開始時」：パワー → 場のモンスター（左から）。その後、混乱・裏切りの自動攻撃
   enqueuePowers(g, p, 'turnStart', 1);
@@ -114,7 +132,7 @@ export function runAutoAttacks(g: GameState, p: PlayerId): void {
 
 /** ターン終了：「自分のターン終了時」の効果を積み、続きの処理へ */
 export function beginEndTurn(g: GameState, p: PlayerId): void {
-  log(g, 0, `${g.players[p].name}はターンを終了した`, 'action');
+  log(g, 0, `${g.players[p].name}はターンを終了した`, 'action', undefined, { kind: 'turnEnd', player: p });
   enqueuePowers(g, p, 'turnEnd', 1);
   enqueueMonsters(g, p, 'turnEnd', 1);
   enqueue(g, { t: 'turnEndEffects', player: p });
@@ -130,18 +148,6 @@ function tickEnd(s: Statuses): void {
 
 export function turnEndEffects(g: GameState, p: PlayerId): void {
   const ps = g.players[p];
-  // 寄生（手札にある間）
-  for (const card of [...ps.hand]) {
-    const def = g.cards[card.cardId];
-    for (const d of def?.drawbacks ?? []) {
-      const hook = getDrawback(d.id)?.battle.onHandTurnEnd;
-      if (!hook) continue;
-      const src = { kind: 'card' as const, uid: card.uid, cardId: card.cardId, name: def!.name, controller: p };
-      log(g, 1, `手札の「${def!.name}」のデメリット`, 'effect');
-      hook(makeRuntime(g, src, [], { depth: 2, attackCard: false }), d);
-      if (isEnded(g)) return;
-    }
-  }
   // やけど（シールド・無効化を貫通）
   if (ps.status.burn > 0) {
     dealDamage(g, playerRef(p), B.burnDamage, { kind: 'burn', source: null, depth: 1 });
@@ -173,7 +179,13 @@ export function turnEndFinish(g: GameState, p: PlayerId, kept: string[]): void {
   const discarded = ps.hand.filter((c) => !keep.has(c.uid));
   ps.hand = ps.hand.filter((c) => keep.has(c.uid));
   for (const card of discarded) discardCard(g, card);
-  if (discarded.length > 0) log(g, 1, `${ps.name}は手札${discarded.length}枚を捨て札にした${kept.length ? `（${kept.length}枚を保持）` : ''}`, 'info');
+  if (discarded.length > 0) {
+    log(g, 1, `${ps.name}は手札${discarded.length}枚を捨て札にした${kept.length ? `（${kept.length}枚を保持）` : ''}`, 'info', undefined, {
+      kind: 'discard',
+      player: p,
+      amount: discarded.length,
+    });
+  }
   ps.status.focus = 0;
   ps.turn.freezeTax = false;
 

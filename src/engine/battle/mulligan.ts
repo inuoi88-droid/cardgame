@@ -1,6 +1,6 @@
 /** マリガン（決定事項 #47）：全部引き直しは1回目5枚、以降1枚ずつ減る。一部引き直しは1回だけで終了 */
 import { BALANCE } from '../balance.ts';
-import { log } from './core.ts';
+import { isEnded, log } from './core.ts';
 import { shuffle } from './rng.ts';
 import { startTurn } from './turn.ts';
 import { drawCards } from './zones.ts';
@@ -53,6 +53,7 @@ export function mulligan(g: GameState, p: PlayerId, mode: MulliganMode, cardUids
     returnAndDraw(g, p, uids, uids.size);
     ps.mulligan.done = true;
   }
+  if (isEnded(g)) return;
   if (g.players.every((x) => x.mulligan.done)) {
     g.phase = 'main';
     startTurn(g, g.first);

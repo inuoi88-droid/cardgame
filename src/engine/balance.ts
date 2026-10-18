@@ -236,12 +236,21 @@ export const BALANCE = {
 
   /** 対戦ルール（Phase 2 で使う。効果テキストにも出てくる） */
   battle: {
-    playerHp: x(60),
-    energyPerTurn: 3,
+    playerHp: x(120),
+    /**
+     * ターン開始時のエナジー（決定事項 #69）。自分のターンを迎えた回数（turnsTaken）が fromTurn 以上なら energy。
+     * 後ろの段ほど優先（1〜3ターン目 3、4〜6ターン目 4、7ターン目以降 5）
+     */
+    energySchedule: [
+      { fromTurn: 1, energy: 3 },
+      { fromTurn: 4, energy: 4 },
+      { fromTurn: 7, energy: 5 },
+    ],
     drawPerTurn: 5,
     /** マリガンで全部引き直すときの最低枚数 */
     mulliganMinHand: 1,
-    firstPlayerFirstTurnEnergy: 2,
+    /** 先攻の1ターン目はエナジーがこれだけ少ない（3−1＝2） */
+    firstPlayerFirstTurnPenalty: 1,
     maxTurns: 30,
     minMonsterDamage: x(1),
     burnTurns: 3,
@@ -255,9 +264,16 @@ export const BALANCE = {
     drawJamAmount: 1,
     energyJamAmount: 1,
     drainRate: 0.5,
-    /** 毒・再生がターン開始時の処理のあとに減る量 */
-    poisonDecay: x(1),
-    regenDecay: x(1),
+    /** 毒・再生はターン開始時の処理のあと、この割合だけ残る（切り捨て。0.5 なら半分：決定事項 #69） */
+    poisonKeepRate: 0.5,
+    regenKeepRate: 0.5,
+    /** 筋力の合計の上限（決定事項 #70 R9） */
+    strengthCap: x(10),
+    /**
+     * モンスターの反撃（決定事項 #69）：モンスターを攻撃すると、守られた側が攻撃力ぶんを攻撃したモンスターに返す。
+     * テストで切り替えられるように enabled を持つ
+     */
+    retaliation: { enabled: true },
     /** 不屈で踏みとどまるときの体力 */
     undyingHp: x(1),
     /** 安全装置（決定事項 #64。#44 の「上限なし」を取り消し、元の仕様に戻す） */
@@ -265,8 +281,8 @@ export const BALANCE = {
     maxDrawPerTurn: 10,
     /** 1ターンに増やせるエナジーの合計（エナジー効果と貯金） */
     maxEnergyGainPerTurn: 3,
-    /** 「カードを使うたび」が発動するのは、パワー1つにつき1ターンにこの回数まで */
-    maxCardPlayedTriggersPerTurn: 3,
+    /** 「カードを使うたび」が発動するのは、パワー1つにつき1ターンにこの回数まで（決定事項 #70 R10） */
+    maxCardPlayedTriggersPerTurn: 2,
     /** 相手の効果で減らされる、次のターンのエナジーの上限 */
     maxEnergyJamPerTurn: 1,
     /** 相手の効果で減らされる、次のターンに引く枚数の上限 */

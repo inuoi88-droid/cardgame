@@ -56,12 +56,16 @@ function monsterValue(g: GameState, m: Monster): number {
   return m.betraying ? -m.attack * W.monsterAttack * 2 : v;
 }
 
-/** 毎ターン d ずつ減りながら効く量 n の合計（毒・再生） */
-const decayingTotal = (n: number, d: number): number => (n * (n + d)) / (2 * d);
+/** 毎ターン keepRate 倍（切り捨て）に減りながら効く量 n の合計（毒・再生：n + ⌊n/2⌋ + ⌊n/4⌋ + …） */
+function decayingTotal(n: number, keepRate: number): number {
+  let total = 0;
+  for (let v = Math.max(0, Math.floor(n)); v > 0; v = Math.floor(v * keepRate)) total += v;
+  return total;
+}
 
 /** 毒・やけどでこの先受けるダメージの見込み */
 function statusBurden(poison: number, burn: number): number {
-  return decayingTotal(poison, BALANCE.battle.poisonDecay) * W.poisonPerDamage + burn * BALANCE.battle.burnDamage * W.burnPerDamage;
+  return decayingTotal(poison, BALANCE.battle.poisonKeepRate) * W.poisonPerDamage + burn * BALANCE.battle.burnDamage * W.burnPerDamage;
 }
 
 function playerValue(g: GameState, ps: PlayerState, isMe: boolean): number {
@@ -70,7 +74,7 @@ function playerValue(g: GameState, ps: PlayerState, isMe: boolean): number {
   v += (isMe ? ps.shield : ps.shield * 0.5) * W.shield;
   v -= statusBurden(s.poison, s.burn);
   v -= s.weak * W.weakPerTurn + s.vulnerable * W.vulnerablePerTurn + s.bleed * W.bleed;
-  v += s.strength * W.strength + decayingTotal(s.regen, BALANCE.battle.regenDecay) * W.regenPerHeal;
+  v += s.strength * W.strength + decayingTotal(s.regen, BALANCE.battle.regenKeepRate) * W.regenPerHeal;
   v += s.counter * W.counter + s.nullify * W.nullify;
   v += ps.powers.length * W.power;
   v += ps.next.energy * W.nextEnergy + ps.next.draw * W.nextDraw + ps.discount * W.discount;

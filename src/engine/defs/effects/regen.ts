@@ -8,7 +8,7 @@ export default defineEffect({
   name: '再生',
   group: 'buff',
   order: 44,
-  summary: `再生Nを得る（ターン開始時にN回復し、その後Nが${BALANCE.battle.regenDecay}減る）`,
+  summary: '再生Nを得る（ターン開始時にN回復し、その後Nが半分（切り捨て）になる）',
   value: valueParam('再生', { default: 1 }),
   targetRule: 'self',
   basePoints: (e) => B.perValue * n(e),

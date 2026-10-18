@@ -2,7 +2,7 @@
 import { getDrawback, getEffect } from '../registry.ts';
 import { describeDrawback, describeEffect } from '../text.ts';
 import { checkCondition } from './conditions.ts';
-import { checkGameEnd, enqueue, log } from './core.ts';
+import { checkGameEnd, enqueue, log, playRecord } from './core.ts';
 import { finishCard } from './play.ts';
 import { makeRuntime, resolveTargets } from './runtime.ts';
 import { retainOptions, runAutoAttacks, turnEndEffects, turnEndFinish } from './turn.ts';
@@ -103,11 +103,9 @@ function executeDrawback(g: GameState, step: Extract<Step, { t: 'drawback' }>): 
   def.battle.resolve(makeRuntime(g, step.src, [], { depth: step.depth + 1, attackCard: false }), step.drawback);
   // このデメリットで付いた毒・やけどは、同じカードの浄化では消えない（決定事項 #34）
   if (step.protectKey) {
-    const prev = g.protect[step.protectKey] ?? { poison: 0, burn: 0 };
-    g.protect[step.protectKey] = {
-      poison: prev.poison + Math.max(0, s.poison - before.poison),
-      burn: prev.burn + Math.max(0, s.burn - before.burn),
-    };
+    const rec = playRecord(g, step.protectKey);
+    rec.poison += Math.max(0, s.poison - before.poison);
+    rec.burn += Math.max(0, s.burn - before.burn);
   }
 }
 

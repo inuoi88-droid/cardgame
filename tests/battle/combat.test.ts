@@ -1,8 +1,8 @@
-// モンスターの戦闘とキーワード・状態異常・デメリット
+// モンスターの戦闘とキーワード・状態異常・デメリット（HP は 120：決定事項 #69）
 import { describe, expect, it } from 'vitest';
-import { battle } from '../../src/engine/index.ts';
+import { BALANCE, battle } from '../../src/engine/index.ts';
 import { card } from '../helpers.ts';
-import { M, P, act, actError, attack, endTurn, fx, giveCard, monster, play, putMonster, rich, startGame } from './helpers.ts';
+import { FILLER, M, P, act, actError, attack, deckOf, endTurn, fx, giveCard, logText, monster, play, putMonster, rich, startGame } from './helpers.ts';
 
 let n = 0;
 const unit = (attack: number, hp: number, defense = 0, extra: Partial<Parameters<typeof card>[0]> = {}) =>
@@ -17,7 +17,7 @@ describe('攻撃の基本', () => {
     expect(actError(g, { type: 'attack', player: 0, attackerUid: uid, target: P(1) })).toBe('場に出たターンは攻撃できません');
     g = endTurn(endTurn(g));
     g = attack(g, uid, P(1));
-    expect(g.players[1].hp).toBe(58);
+    expect(g.players[1].hp).toBe(118);
   });
 
   it('速攻は召喚したターンから攻撃できる', () => {
@@ -25,7 +25,7 @@ describe('攻撃の基本', () => {
     const uid = giveCard(g, 0, unit(2, 2, 0, kw('haste')));
     g = play(g, uid);
     g = attack(g, uid, P(1));
-    expect(g.players[1].hp).toBe(58);
+    expect(g.players[1].hp).toBe(118);
   });
 
   it('毎ターン1回、二回攻撃なら2回', () => {
@@ -35,16 +35,15 @@ describe('攻撃の基本', () => {
     g = attack(g, a, P(1));
     actError(g, { type: 'attack', player: 0, attackerUid: a, target: P(1) });
     g = attack(attack(g, b, P(1)), b, P(1));
-    expect(g.players[1].hp).toBe(57);
+    expect(g.players[1].hp).toBe(117);
   });
 
-  it('攻撃力 − 守備力、最低1。攻撃されたモンスターは反撃しない', () => {
+  it('攻撃力 − 守備力、最低1', () => {
     let g = startGame();
-    const a = putMonster(g, 0, unit(2, 5));
-    const d = putMonster(g, 1, unit(5, 10, 3));
+    const a = putMonster(g, 0, unit(2, 5, 9));
+    const d = putMonster(g, 1, unit(1, 10, 3));
     g = attack(g, a, M(d));
     expect(monster(g, d)!.hp).toBe(9);
-    expect(monster(g, a)!.hp).toBe(5);
   });
 
   it('倒したモンスターは元の持ち主の捨て札へ', () => {
@@ -63,6 +62,86 @@ describe('攻撃の基本', () => {
   });
 });
 
+describe('モンスターの反撃（#69）', () => {
+  it('モンスターを攻撃すると、守備側の攻撃力ぶんが攻撃したモンスターに返る（守備力で減る・最低1）', () => {
+    let g = startGame();
+    const a = putMonster(g, 0, unit(2, 10, 2));
+    const d = putMonster(g, 1, unit(5, 10, 3));
+    g = attack(g, a, M(d));
+    expect(monster(g, d)!.hp).toBe(9);
+    expect(monster(g, a)!.hp).toBe(7); // 5 − 守備力2
+    expect(logText(g)).toContain('P1の「モンスター');
+    expect(g.log.some((e) => e.text.includes('の反撃：') && e.ev?.kind === 'retaliate' && e.ev.amount === 3)).toBe(true);
+    // 攻撃力が守備力以下でも最低1
+    const b = putMonster(g, 0, unit(1, 10, 9));
+    g = attack(g, b, M(d));
+    expect(monster(g, b)!.hp).toBe(9);
+  });
+
+  it('プレイヤーを攻撃しても反撃はない', () => {
+    let g = startGame();
+    const a = putMonster(g, 0, unit(2, 5));
+    putMonster(g, 1, unit(9, 9));
+    g = attack(g, a, P(1));
+    expect(g.players[1].hp).toBe(118);
+    expect(monster(g, a)!.hp).toBe(5);
+    expect(g.log.some((e) => e.ev?.kind === 'retaliate')).toBe(false);
+  });
+
+  it('封印・凍結されていても反撃する。守備側の「攻撃するたび」は発動しない', () => {
+    let g = startGame();
+    const a = putMonster(g, 0, unit(1, 10));
+    const d = putMonster(g, 1, unit(3, 10, 0, { effects: [fx({ id: 'damage', value: 5, timing: 'attack', target: 'enemyPlayer' })] }), { sealed: true });
+    monster(g, d)!.status.freezeActive = true;
+    g = attack(g, a, M(d));
+    expect(monster(g, a)!.hp).toBe(7);
+    expect(g.players[0].hp).toBe(120);
+  });
+
+  it('同時に解決する：倒された守備側も反撃し、相打ちになる', () => {
+    let g = startGame();
+    const a = putMonster(g, 0, unit(3, 3));
+    const d = putMonster(g, 1, unit(3, 3));
+    g = attack(g, a, M(d));
+    expect(monster(g, a)).toBeUndefined();
+    expect(monster(g, d)).toBeUndefined();
+    expect(g.players[0].discard.some((c) => c.uid === a)).toBe(true);
+    expect(g.players[1].discard.some((c) => c.uid === d)).toBe(true);
+  });
+
+  it('反撃には攻撃側の脆弱・出血と、守備側の弱体が働く', () => {
+    let g = startGame();
+    const a = putMonster(g, 0, unit(1, 20));
+    const d = putMonster(g, 1, unit(4, 20));
+    monster(g, a)!.status.vulnerable = 1;
+    monster(g, a)!.status.bleed = 2;
+    g = attack(g, a, M(d));
+    expect(monster(g, a)!.hp).toBe(20 - (6 + 2)); // 4 → 脆弱で6 → 出血+2
+    monster(g, d)!.status.weak = 1;
+    const b = putMonster(g, 0, unit(1, 20));
+    g = attack(g, b, M(d));
+    expect(monster(g, b)!.hp).toBe(17); // 4 → 弱体で3
+  });
+
+  it('攻撃力0のモンスターは反撃しない。balance で切れる', () => {
+    let g = startGame();
+    const a = putMonster(g, 0, unit(1, 5));
+    const d = putMonster(g, 1, unit(0, 5));
+    g = attack(g, a, M(d));
+    expect(monster(g, a)!.hp).toBe(5);
+    const flag = BALANCE.battle.retaliation as { enabled: boolean };
+    flag.enabled = false;
+    try {
+      const e = putMonster(g, 1, unit(4, 5));
+      g = endTurn(endTurn(g));
+      g = attack(g, a, M(e));
+      expect(monster(g, a)!.hp).toBe(5);
+    } finally {
+      flag.enabled = true;
+    }
+  });
+});
+
 describe('キーワード', () => {
   it('挑発がいると、挑発しか攻撃できない。飛行は無視できる', () => {
     let g = startGame();
@@ -73,7 +152,7 @@ describe('キーワード', () => {
     expect(battle.attackTargets(g, monster(g, a)!)).toEqual([M(t)]);
     expect(battle.attackTargets(g, monster(g, f)!)).toHaveLength(3);
     g = attack(g, f, P(1));
-    expect(g.players[1].hp).toBe(59);
+    expect(g.players[1].hp).toBe(119);
   });
 
   it('隠密は相手の次のターン終了まで攻撃対象にならず、カードの「選んだ1体」でも選べない', () => {
@@ -96,13 +175,14 @@ describe('キーワード', () => {
     expect(monster(g, s)!.stealth).toBe(false);
   });
 
-  it('貫通：倒して余ったダメージが相手プレイヤーに通る', () => {
+  it('貫通：倒して余ったダメージが相手プレイヤーに通る（反撃は別に受ける）', () => {
     let g = startGame();
     const a = putMonster(g, 0, unit(7, 5, 0, kw('trample')));
     const d = putMonster(g, 1, unit(1, 3, 1));
     g = attack(g, a, M(d));
     // 7−1=6、体力3を倒して余り3
-    expect(g.players[1].hp).toBe(57);
+    expect(g.players[1].hp).toBe(117);
+    expect(monster(g, a)!.hp).toBe(4);
   });
 
   it('不屈：一度だけ体力1で踏みとどまる。破壊には効かない', () => {
@@ -136,7 +216,7 @@ describe('凍結・混乱・封印', () => {
     expect(actError(g, { type: 'attack', player: 1, attackerUid: enemy, target: P(0) })).toBe('凍結していて攻撃できません');
     g = endTurn(endTurn(g));
     g = attack(g, enemy, P(0));
-    expect(g.players[0].hp).toBe(57);
+    expect(g.players[0].hp).toBe(117);
   });
 
   it('凍結：プレイヤーは最初に使うカードのコスト+1', () => {
@@ -169,25 +249,63 @@ describe('凍結・混乱・封印', () => {
     expect(monster(g, enemy)!.sealed).toBe(true);
     expect(battle.keywordFlags(g, monster(g, enemy)!).taunt).toBeUndefined();
     g = endTurn(g);
-    expect(g.players[1].hp).toBe(59); // 維持費は残る
+    expect(g.players[1].hp).toBe(119); // 維持費は残る
     g = attack(g, enemy, P(0));
-    expect(g.players[0].hp).toBe(58); // 攻撃するたびのダメージは出ない
+    expect(g.players[0].hp).toBe(118); // 攻撃するたびのダメージは出ない
   });
 });
 
 describe('デメリット', () => {
+  const parasite = () => card({ id: 'para', cost: 0, effects: [fx({ id: 'damage', value: 1 })], drawbacks: [{ id: 'parasite', timing: null }] });
+
   it('維持費：場にいる間、持ち主のターン開始時に1ダメージ', () => {
     let g = startGame();
     putMonster(g, 1, unit(1, 3, 0, { drawbacks: [{ id: 'upkeep', timing: null }] }));
     g = endTurn(g);
-    expect(g.players[1].hp).toBe(59);
+    expect(g.players[1].hp).toBe(119);
   });
 
-  it('寄生：手札にある間、ターン終了時に2ダメージ', () => {
+  it('寄生：このカードを引いたとき自分に2ダメージ（手札にあるだけでは何も起きない：#70 R7）', () => {
     let g = startGame();
-    giveCard(g, 0, card({ id: 'para', cost: 0, effects: [fx({ id: 'damage', value: 1 })], drawbacks: [{ id: 'parasite', timing: null }] }));
+    const def = parasite();
+    g.cards['p0:para'] = def;
+    giveCard(g, 0, def);
     g = endTurn(g);
-    expect(g.players[0].hp).toBe(58);
+    expect(g.players[0].hp).toBe(120);
+    // 次の自分のターンに山札の一番上から引く
+    g.players[0].deck.unshift({ uid: 'para-top', cardId: 'p0:para', owner: 0 });
+    g = endTurn(g);
+    expect(g.players[0].hp).toBe(118);
+    expect(g.log.some((e) => e.text.includes('引いたカードのデメリット：寄生') && e.private === undefined)).toBe(true);
+  });
+
+  it('寄生：対戦開始時の手札とマリガンの引き直しでも働く', () => {
+    const def = parasite();
+    const r = battle.createGame({
+      seed: 1,
+      first: 0,
+      players: [
+        { name: 'P0', deck: { ...deckOf([FILLER]), entries: [{ cardId: FILLER.id, count: 25 }, { cardId: def.id, count: 5 }] }, cards: [FILLER, def] },
+        { name: 'P1', deck: deckOf([FILLER]), cards: [FILLER] },
+      ],
+    });
+    if (!r.ok) throw new Error(r.error);
+    let g = r.state;
+    const inHand = g.players[0].hand.filter((c) => c.cardId === 'p0:para').length;
+    expect(g.players[0].hp).toBe(120 - 2 * inHand);
+    g = act(g, { type: 'mulligan', player: 0, mode: 'all' });
+    const after = g.players[0].hand.filter((c) => c.cardId === 'p0:para').length;
+    expect(g.players[0].hp).toBe(120 - 2 * (inHand + after));
+  });
+
+  it('手札喪失：手札がなければ、代わりに次のターンに引く枚数−1', () => {
+    let g = rich(startGame());
+    g.players[0].hand = [];
+    g = play(g, giveCard(g, 0, card({ id: 'dr', rarity: 'legend', cost: 1, effects: [fx({ id: 'shield', value: 1, target: 'self' })], drawbacks: [{ id: 'discardRandom', timing: 'play' }] })));
+    expect(g.players[0].next.draw).toBe(-1);
+    expect(g.log.some((e) => e.text.includes('次のターンに引く枚数−1'))).toBe(true);
+    g = endTurn(endTurn(g));
+    expect(g.players[0].hand).toHaveLength(4);
   });
 
   it('裏切り：持ち主のターンを3回迎えたら、ターン開始時に持ち主を攻撃する', () => {
@@ -196,10 +314,10 @@ describe('デメリット', () => {
     g = play(g, b);
     for (let i = 0; i < 2; i++) g = endTurn(endTurn(g));
     expect(monster(g, b)!.betraying).toBe(false);
-    expect(g.players[0].hp).toBe(60);
+    expect(g.players[0].hp).toBe(120);
     g = endTurn(endTurn(g));
     expect(monster(g, b)!.betraying).toBe(true);
-    expect(g.players[0].hp).toBe(57);
+    expect(g.players[0].hp).toBe(117);
     expect(actError(g, { type: 'attack', player: 0, attackerUid: b, target: P(1) })).toContain('裏切った');
   });
 

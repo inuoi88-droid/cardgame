@@ -14,11 +14,11 @@ describe('作成例のカードを対戦で使う', () => {
   it('とどめの一撃：相手が毒状態のときだけ20ダメージ', () => {
     let g = rich(startGame());
     g = play(g, giveCard(g, 0, EXAMPLES.todome), { enemy: P(1) });
-    expect(g.players[1].hp).toBe(60);
+    expect(g.players[1].hp).toBe(120);
     expect(g.log.some((e) => e.text.includes('満たさないため発動しない'))).toBe(true);
     g.players[1].status.poison = 1;
     g = play(g, giveCard(g, 0, EXAMPLES.todome), { enemy: P(1) });
-    expect(g.players[1].hp).toBe(40);
+    expect(g.players[1].hp).toBe(100);
   });
 
   it('毒牙ネズミ：攻撃するたび、攻撃した相手に毒1', () => {
@@ -37,7 +37,7 @@ describe('作成例のカードを対戦で使う', () => {
     expect(g.players[0].powers).toHaveLength(1);
     expect(g.players[0].exile.some((c) => c.uid === uid)).toBe(true);
     g = endTurn(endTurn(g));
-    expect(g.players[0].hp).toBe(56);
+    expect(g.players[0].hp).toBe(116);
   });
 });
 
@@ -49,7 +49,7 @@ describe('カードの行き先', () => {
     expect(g.players[0].discard.some((c) => c.uid === atk)).toBe(true);
     const pa = giveCard(g, 0, legend([fx({ id: 'damage', value: 3 }), fx({ id: 'strength', value: 1, target: 'self' })]));
     g = play(g, pa, { enemy: P(1) });
-    expect(g.players[1].hp).toBe(56);
+    expect(g.players[1].hp).toBe(116);
     expect(g.players[0].status.strength).toBe(1);
     expect(g.players[0].exile.some((c) => c.uid === pa)).toBe(true);
   });
@@ -61,7 +61,7 @@ describe('発動タイミング', () => {
     const u = giveCard(g, 0, unit(1, 1, { effects: [fx({ id: 'damage', value: 3, timing: 'summon' })] }));
     expect(actError(g, { type: 'playCard', player: 0, cardUid: u })).toBe('対象を選んでください');
     g = play(g, u, { enemy: P(1) });
-    expect(g.players[1].hp).toBe(57);
+    expect(g.players[1].hp).toBe(117);
   });
 
   it('召喚時の「自分のモンスター1体」は、出したモンスター自身も選べる', () => {
@@ -76,28 +76,28 @@ describe('発動タイミング', () => {
     const a = putMonster(g, 0, unit(5, 5));
     const d = putMonster(g, 1, unit(1, 1, { effects: [fx({ id: 'damage', value: 4, timing: 'destroyed', target: 'enemyPlayer' })] }));
     g = attack(g, a, M(d));
-    expect(g.players[0].hp).toBe(56);
+    expect(g.players[0].hp).toBe(116);
   });
 
-  it('ダメージを受けたとき：生き残ったら、ダメージを与えてきた相手に返す', () => {
+  it('ダメージを受けたとき：生き残ったら、ダメージを与えてきた相手に返す（モンスターの反撃1とは別）', () => {
     let g = startGame();
     const a = putMonster(g, 0, unit(1, 5));
     const d = putMonster(g, 1, unit(1, 5, { effects: [fx({ id: 'damage', value: 2, timing: 'damaged' })] }));
     g = attack(g, a, M(d));
-    expect(monster(g, a)!.hp).toBe(3);
+    expect(monster(g, a)!.hp).toBe(5 - 1 - 2);
   });
 
-  it('カードを使うたび：パワー自身には反応せず、1ターン3回まで（次のターンはまた3回）', () => {
+  it('カードを使うたび：パワー自身には反応せず、1ターン2回まで（次のターンはまた2回：#70 R10）', () => {
     let g = rich(startGame());
     g = play(g, giveCard(g, 0, legend([fx({ id: 'damage', value: 1, timing: 'cardPlayed', target: 'enemyPlayer' })])));
-    expect(g.players[1].hp).toBe(60);
+    expect(g.players[1].hp).toBe(120);
     for (let i = 0; i < 5; i++) g = play(g, giveCard(g, 0, legend([fx({ id: 'shield', value: 1, target: 'self' })])));
-    expect(g.players[1].hp).toBe(57);
-    expect(g.log.some((e) => e.text.includes('1ターン3回まで'))).toBe(true);
+    expect(g.players[1].hp).toBe(118);
+    expect(g.log.some((e) => e.text.includes('1ターン2回まで'))).toBe(true);
     g = endTurn(endTurn(g));
     g = rich(g);
     for (let i = 0; i < 4; i++) g = play(g, giveCard(g, 0, legend([fx({ id: 'shield', value: 1, target: 'self' })])));
-    expect(g.players[1].hp).toBe(54);
+    expect(g.players[1].hp).toBe(116);
   });
 
   it('自分のターン終了時（パワー）', () => {

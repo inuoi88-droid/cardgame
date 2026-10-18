@@ -4,9 +4,11 @@ import { battle, BALANCE } from '../../src/engine/index.ts';
 import { FILLER, act, actError, deckOf, endTurn, startGame } from './helpers.ts';
 
 const B = BALANCE.battle;
+/** 1〜3ターン目の基本エナジー */
+const E1 = B.energySchedule[0]!.energy;
 
 describe('対戦の開始', () => {
-  it('HP60、両者に5枚配ってマリガンから始まる', () => {
+  it('HP120、両者に5枚配ってマリガンから始まる', () => {
     const g = startGame({ mulligan: false });
     expect(g.phase).toBe('mulligan');
     for (const p of g.players) {
@@ -72,7 +74,8 @@ describe('マリガン', () => {
     const g = startGame();
     expect(g.phase).toBe('main');
     expect(g.active).toBe(0);
-    expect(g.players[0].energy).toBe(B.firstPlayerFirstTurnEnergy);
+    expect(g.players[0].energy).toBe(E1 - B.firstPlayerFirstTurnPenalty);
+    expect(g.players[0].energy).toBe(2);
     expect(g.players[0].hand).toHaveLength(5);
   });
 });
@@ -82,7 +85,7 @@ describe('ターンの流れ', () => {
     let g = startGame();
     g = endTurn(g);
     expect(g.active).toBe(1);
-    expect(g.players[1].energy).toBe(B.energyPerTurn);
+    expect(g.players[1].energy).toBe(E1);
     expect(g.players[1].hand).toHaveLength(5);
     // 先攻のターン終了で手札はすべて捨て札へ
     expect(g.players[0].hand).toHaveLength(0);
@@ -90,7 +93,7 @@ describe('ターンの流れ', () => {
     g = endTurn(g);
     expect(g.active).toBe(0);
     expect(g.players[0].hand).toHaveLength(5);
-    expect(g.players[0].energy).toBe(B.energyPerTurn);
+    expect(g.players[0].energy).toBe(E1);
   });
 
   it('エナジーは持ち越さない', () => {
@@ -98,7 +101,32 @@ describe('ターンの流れ', () => {
     g.players[0].energy = 9;
     g = endTurn(g);
     g = endTurn(g);
-    expect(g.players[0].energy).toBe(B.energyPerTurn);
+    expect(g.players[0].energy).toBe(E1);
+  });
+
+  it('エナジーは成長する：1〜3ターン目 3、4〜6ターン目 4、7ターン目以降 5（自分のターン数で数える：#69）', () => {
+    expect(B.energySchedule).toEqual([
+      { fromTurn: 1, energy: 3 },
+      { fromTurn: 4, energy: 4 },
+      { fromTurn: 7, energy: 5 },
+    ]);
+    let g = startGame();
+    const energyAtTurn = (turn: number) => {
+      while (g.players[0].turnsTaken < turn) g = endTurn(endTurn(g));
+      expect(g.active).toBe(0);
+      return g.players[0].energy;
+    };
+    expect(energyAtTurn(3)).toBe(3);
+    expect(energyAtTurn(4)).toBe(4);
+    expect(g.log.some((e) => e.text.includes('このターンから基本4'))).toBe(true);
+    expect(energyAtTurn(6)).toBe(4);
+    expect(energyAtTurn(7)).toBe(5);
+    expect(energyAtTurn(12)).toBe(5);
+    // 後攻も自分のターン数で数える（4ターン目に4）
+    g = endTurn(g);
+    expect(g.active).toBe(1);
+    expect(g.players[1].turnsTaken).toBe(12);
+    expect(g.players[1].energy).toBe(5);
   });
 
   it('山札が尽きたら捨て札をシャッフルして山札にする', () => {

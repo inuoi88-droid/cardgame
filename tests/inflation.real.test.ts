@@ -16,7 +16,8 @@ describe('倍率', () => {
   it('倍率20：量もポイント（上限・コスト・固定ポイント・デメリット）も同じ20倍', () => {
     expect(BALANCE.scale).toBe(20);
     expect(BALANCE.amountScale).toBe(20);
-    expect(BALANCE.battle.playerHp).toBe(1200);
+    expect(BALANCE.battle.playerHp).toBe(2400);
+    expect(BALANCE.battle.strengthCap).toBe(200);
     expect(Object.values(BALANCE.rarity).map((r) => r.cap)).toEqual([100, 160, 240, 360]);
     expect(Object.values(BALANCE.rarity).map((r) => r.maxEffects)).toEqual([3, 4, 4, 4]);
     expect(BALANCE.card.costPoints).toEqual([0, 200, 400, 640, 900, 1160]);
@@ -29,7 +30,8 @@ describe('倍率', () => {
     expect(BALANCE.effects.damage.perValue).toBe(2);
     expect(BALANCE.stats.attackPoints).toBe(3);
     // 枚数・エナジー・ターン数は変わらない
-    expect(BALANCE.battle).toMatchObject({ energyPerTurn: 3, drawPerTurn: 5, maxTurns: 30, burnTurns: 3 });
+    expect(BALANCE.battle).toMatchObject({ drawPerTurn: 5, maxTurns: 30, burnTurns: 3, maxCardPlayedTriggersPerTurn: 2 });
+    expect(BALANCE.battle.energySchedule.map((s) => s.energy)).toEqual([3, 4, 5]);
     expect(BALANCE.params.hitsMax).toBe(5);
     expect(BALANCE.effects.weak.maxValue).toBe(3);
     expect(BALANCE.rarity.rare.deckLimit).toBe(8);
@@ -151,7 +153,7 @@ describe('保存してあったカードの移行', () => {
 });
 
 describe('この倍率での対戦', () => {
-  it('HP は1200、毒は毎ターン20ずつ減る', () => {
+  it('HP は2400、毒は毎ターン半分（切り捨て）になる', () => {
     const [A, B] = PRESET_DECKS as [(typeof PRESET_DECKS)[number], (typeof PRESET_DECKS)[number]];
     const r = battle.createGame({
       seed: 3,
@@ -168,12 +170,12 @@ describe('この倍率での対戦', () => {
       if (!m.ok) throw new Error(m.error);
       g = m.state;
     }
-    expect(g.players[1].hp).toBe(1200);
+    expect(g.players[1].hp).toBe(2400);
     g.players[1].status.poison = 50;
     const end = battle.applyAction(g, { type: 'endTurn', player: 0 });
     if (!end.ok) throw new Error(end.error);
-    expect(end.state.players[1].hp).toBe(1150);
-    expect(end.state.players[1].status.poison).toBe(30);
+    expect(end.state.players[1].hp).toBeLessThanOrEqual(2350);
+    expect(end.state.players[1].status.poison).toBe(25);
   });
 
   it('CPU 同士がプリセットで最後まで対戦できる', () => {

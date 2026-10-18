@@ -175,6 +175,42 @@ export interface PendingChoice {
   step: Step;
 }
 
+/**
+ * ダメージの種類。attack：モンスターの攻撃 / hit：ダメージ・連撃効果の1回分 / counter：反撃（状態） /
+ * retaliate：攻撃されたモンスターの反撃 / trample：貫通の余り / poison・burn：毒・やけど / self：自傷・維持費・寄生
+ */
+export type DamageKind = 'attack' | 'hit' | 'counter' | 'retaliate' | 'trample' | 'poison' | 'burn' | 'self';
+
+/** ログに付ける構造化された出来事（UI の演出・再生用。決定事項 #71）。公開情報だけを入れる */
+export interface LogEvent {
+  kind:
+    | 'damage'
+    | 'heal'
+    | 'shield'
+    | 'status'
+    | 'play'
+    | 'summon'
+    | 'destroy'
+    | 'draw'
+    | 'attack'
+    | 'retaliate'
+    | 'turnStart'
+    | 'turnEnd'
+    | 'energy'
+    | 'discard'
+    | 'result';
+  player?: PlayerId;
+  target?: TargetRef;
+  source?: TargetRef;
+  /** ダメージ・回復・シールド・状態の量、引いた枚数、エナジーなど */
+  amount?: number;
+  cardId?: string;
+  uid?: string;
+  status?: string;
+  /** damage のとき、ダメージの種類（毒・やけど・自傷などの区別） */
+  damageKind?: DamageKind;
+}
+
 export interface LogEntry {
   turn: number;
   depth: number;
@@ -182,6 +218,23 @@ export interface LogEntry {
   kind: 'turn' | 'action' | 'effect' | 'damage' | 'info' | 'result';
   /** このプレイヤーにだけ見せる（引いたカード名など） */
   private?: PlayerId;
+  /** 構造化された出来事（あれば） */
+  ev?: LogEvent;
+}
+
+/**
+ * カード1回の使用（または1回のタイミングの発動）の記録。キーは protectKey。
+ * poison・burn：同じカードのデメリットで付いた毒・やけど（浄化から守る：決定事項 #34）
+ * bonus：使った時点の筋力＋気合。最初の1発にだけ乗せる（決定事項 #70 R3）
+ * bleedHit・counterHit：出血・反撃（状態）をもう働かせた対象（1枚につき1回：決定事項 #70 R4）
+ */
+export interface PlayRecord {
+  poison: number;
+  burn: number;
+  bonus?: number;
+  bonusUsed?: boolean;
+  bleedHit?: string[];
+  counterHit?: string[];
 }
 
 export interface GameResult {
@@ -208,8 +261,8 @@ export interface GameState {
   /** 1つの効果を処理している間は決着を保留する（同時にHP0なら引き分けにするため） */
   holdEnd: number;
   pending: PendingChoice | null;
-  /** 浄化から守る毒・やけど（カードのデメリットで付いた分） */
-  protect: Record<string, { poison: number; burn: number }>;
+  /** カード1回の使用の記録（浄化から守る毒・やけど、筋力・気合、出血・反撃の1回判定）。ターン開始時に空になる */
+  protect: Record<string, PlayRecord>;
   result: GameResult | null;
   log: LogEntry[];
   nextUid: number;
@@ -236,7 +289,7 @@ export interface EffectRuntime {
   /** この効果の対象（解決時点で有効なものだけ） */
   readonly targets: TargetRef[];
   readonly src: SourceRef;
-  /** ダメージ効果の1回分（出血・反撃が働く。筋力・気合はアタックの使用時だけ乗る） */
+  /** ダメージ効果の1回分（出血・反撃が働く。筋力・気合はアタックの使用時、そのカードの最初の1発にだけ乗る） */
   hit(target: TargetRef, amount: number, opts?: { pierce?: boolean; drain?: boolean }): void;
   /** 自分へのダメージ（自傷など） */
   selfDamage(amount: number): void;

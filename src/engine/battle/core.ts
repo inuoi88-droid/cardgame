@@ -6,9 +6,11 @@ import {
   type GameResult,
   type GameState,
   type LogEntry,
+  type LogEvent,
   type Monster,
   type PlayerId,
   type PlayerState,
+  type PlayRecord,
   type SourceRef,
   type Statuses,
   type Step,
@@ -109,10 +111,23 @@ export function sourceOfMonster(g: GameState, m: Monster): SourceRef {
   return { kind: 'monster', uid: m.uid, cardId: m.card.cardId, name: cardName(g, m.card.cardId), controller: m.controller };
 }
 
-export function log(g: GameState, depth: number, text: string, kind: LogEntry['kind'] = 'effect', priv?: PlayerId): void {
+export function log(
+  g: GameState,
+  depth: number,
+  text: string,
+  kind: LogEntry['kind'] = 'effect',
+  priv?: PlayerId,
+  ev?: LogEvent,
+): void {
   const entry: LogEntry = { turn: g.turnIndex, depth, text, kind };
   if (priv !== undefined) entry.private = priv;
+  if (ev) entry.ev = ev;
   g.log.push(entry);
+}
+
+/** カード1回の使用の記録（なければ作る） */
+export function playRecord(g: GameState, key: string): PlayRecord {
+  return (g.protect[key] ??= { poison: 0, burn: 0 });
 }
 
 export function isEnded(g: GameState): boolean {
@@ -149,7 +164,10 @@ export function endGame(g: GameState, winner: PlayerId | null, reason: GameResul
         : reason === 'timeout'
           ? '続けて時間切れになった'
           : 'HPが0になった';
-  log(g, 0, winner === null ? `引き分け（${why}）` : `${g.players[winner].name}の勝ち（${why}）`, 'result');
+  log(g, 0, winner === null ? `引き分け（${why}）` : `${g.players[winner].name}の勝ち（${why}）`, 'result', undefined, {
+    kind: 'result',
+    ...(winner === null ? {} : { player: winner }),
+  });
 }
 
 /** キューの先頭（割り込み位置）に処理を入れる。入れた順に処理される */

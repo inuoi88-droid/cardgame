@@ -1,10 +1,11 @@
 /** カードの移動：ドロー、召喚、ノイズ、バウンス、奪取、コピー、蘇生、解除 */
 import { BALANCE } from '../balance.ts';
-import { getEffect } from '../registry.ts';
+import { getDrawback, getEffect } from '../registry.ts';
 import { TIMINGS } from '../options.ts';
-import { cardName, emptyStatuses, findMonster, log, monsterLabel, newUid, turnLimits } from './core.ts';
+import { cardName, emptyStatuses, findMonster, isEnded, log, monsterLabel, newUid, turnLimits } from './core.ts';
 import { keywordFlags } from './damage.ts';
 import { pick, randInt, shuffle } from './rng.ts';
+import { makeRuntime } from './runtime.ts';
 import { enqueueCardTiming } from './triggers.ts';
 import {
   NOISE_CARD_ID,
@@ -20,7 +21,7 @@ import {
 /** 山札が尽きたら捨て札をシャッフルして山札にする。引けた枚数を返す */
 export function drawCards(g: GameState, p: PlayerId, count: number, depth: number): number {
   const ps = g.players[p];
-  const names: string[] = [];
+  const drawn: CardInst[] = [];
   // 1ターンに引ける枚数の上限（対戦前の手札・マリガンは数えない）
   const limits = g.phase === 'main' ? turnLimits(g, ps) : null;
   const maxDraw = BALANCE.battle.maxDrawPerTurn;
@@ -39,17 +40,29 @@ export function drawCards(g: GameState, p: PlayerId, count: number, depth: numbe
     }
     const card = ps.deck.shift()!;
     ps.hand.push(card);
-    names.push(cardName(g, card.cardId));
+    drawn.push(card);
     if (limits) limits.drawn += 1;
   }
   if (capped) log(g, depth, `${ps.name}はこのターンもう引けない（1ターン${maxDraw}枚まで）`, 'info');
-  if (names.length > 0) {
-    log(g, depth, `${ps.name}はカードを${names.length}枚引いた`, 'info');
-    log(g, depth, `引いたカード：${names.join('、')}`, 'info', p);
+  if (drawn.length > 0) {
+    log(g, depth, `${ps.name}はカードを${drawn.length}枚引いた`, 'info', undefined, { kind: 'draw', player: p, amount: drawn.length });
+    log(g, depth, `引いたカード：${drawn.map((c) => cardName(g, c.cardId)).join('、')}`, 'info', p);
   } else if (count > 0) {
     log(g, depth, `${ps.name}は引けるカードがなかった`, 'info');
   }
-  return names.length;
+  // 引いたときのデメリット（寄生：決定事項 #70 R7）。カード名は相手に見せない
+  for (const card of drawn) {
+    const def = g.cards[card.cardId];
+    for (const d of def?.drawbacks ?? []) {
+      const hook = getDrawback(d.id)?.battle.onDrawn;
+      if (!hook) continue;
+      if (isEnded(g)) return drawn.length;
+      const src: SourceRef = { kind: 'card', uid: card.uid, cardId: card.cardId, name: def!.name, controller: p };
+      log(g, depth, `${ps.name}が引いたカードのデメリット：${getDrawback(d.id)!.name}`, 'effect');
+      hook(makeRuntime(g, src, [], { depth: depth + 1, attackCard: false }), d);
+    }
+  }
+  return drawn.length;
 }
 
 /** モンスターを場に出す（召喚時の効果は呼び出し側で積む） */
@@ -76,7 +89,12 @@ export function placeMonster(g: GameState, p: PlayerId, card: CardInst, depth: n
   };
   m.stealth = keywordFlags(g, m).stealthOnSummon === true;
   g.players[p].board.push(m);
-  log(g, depth, `${g.players[p].name}の場に「${def.name}」が出た（攻撃力${m.attack}・体力${m.hp}・守備力${m.defense}）`);
+  log(g, depth, `${g.players[p].name}の場に「${def.name}」が出た（攻撃力${m.attack}・体力${m.hp}・守備力${m.defense}）`, 'effect', undefined, {
+    kind: 'summon',
+    player: p,
+    cardId: card.cardId,
+    uid: m.uid,
+  });
   return m;
 }
 
@@ -100,12 +118,15 @@ export function addNoise(g: GameState, p: PlayerId, count: number, depth: number
   log(g, depth, `${ps.name}の山札にノイズを${count}枚混ぜた`);
 }
 
+/** 手札をランダムに捨てる。手札がなければ、代わりに次のターンに引く枚数が1枚減る（決定事項 #70 R7） */
 export function discardRandom(g: GameState, p: PlayerId, count: number, depth: number): void {
   const ps = g.players[p];
   for (let i = 0; i < count; i++) {
     const card = pick(g, ps.hand);
     if (!card) {
-      log(g, depth, `${ps.name}の手札がないので捨てられなかった`);
+      const rest = count - i;
+      ps.next.draw -= rest;
+      log(g, depth, `${ps.name}の手札がないので、代わりに次のターンに引く枚数−${rest}`);
       return;
     }
     ps.hand.splice(ps.hand.indexOf(card), 1);

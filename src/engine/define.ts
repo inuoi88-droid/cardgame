@@ -161,8 +161,8 @@ export interface DrawbackDef {
     resolve?(rt: EffectRuntime, d: DrawbackInstance): void;
     /** 場にいる間、持ち主のターン開始時（維持費・裏切り） */
     onBoardTurnStart?(rt: EffectRuntime, d: DrawbackInstance, monster: Monster): void;
-    /** 手札にある間、ターン終了時（寄生） */
-    onHandTurnEnd?(rt: EffectRuntime, d: DrawbackInstance): void;
+    /** このカードを引いたとき（寄生）。対戦開始時の手札・マリガンの引き直しでも働く（決定事項 #70 R7） */
+    onDrawn?(rt: EffectRuntime, d: DrawbackInstance): void;
   };
 }
 

@@ -4,7 +4,7 @@ import { classifyCard } from '../classify.ts';
 import { TIMINGS, isPowerTiming, type TargetRule } from '../options.ts';
 import { getEffect } from '../registry.ts';
 import type { CardDef } from '../types.ts';
-import { enqueue, log, newUid, other, playerRef } from './core.ts';
+import { enqueue, log, newUid, other, playerRef, playRecord } from './core.ts';
 import { enqueueCardTiming, enqueuePowers } from './triggers.ts';
 import { discardCard, summon } from './zones.ts';
 import { NOISE_CARD_ID, type CardInst, type Chosen, type GameState, type PlayerId, type PowerInst, type TargetRef } from './types.ts';
@@ -97,6 +97,8 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
     0,
     `${ps.name}は「${def.name}」を使った（コスト${cost}${notes.length ? `：${notes.join('、')}` : ''}、エナジー ${before}→${ps.energy}）`,
     'action',
+    undefined,
+    { kind: 'play', player: p, cardId: card.cardId, uid: card.uid },
   );
 
   const protectKey = newUid(g, 'pk');
@@ -105,6 +107,8 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
   } else {
     const type = classifyCard(def);
     const attackCard = type === 'attack' || type === 'powerAttack';
+    // 筋力・気合は使った時点の値を記録し、このカードの最初の1発にだけ乗せる（このカード自身が付けた分は乗らない：決定事項 #70 R3）
+    if (attackCard) playRecord(g, protectKey).bonus = ps.status.strength + ps.status.focus;
     const src = { kind: 'card' as const, uid: card.uid, cardId: card.cardId, name: def.name, controller: p };
     enqueueCardTiming(g, src, def, 'play', chosen, 1, { attackCard, protectKey });
   }

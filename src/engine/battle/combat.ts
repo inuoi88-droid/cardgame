@@ -1,5 +1,6 @@
 /** モンスターの攻撃 */
-import { allMonsters, findMonster, log, monsterLabel, other, playerRef, sourceOfMonster, targetExists, targetLabel, isEnded } from './core.ts';
+import { BALANCE } from '../balance.ts';
+import { allMonsters, findMonster, log, monsterLabel, newUid, other, playerRef, sourceOfMonster, targetExists, targetLabel, isEnded } from './core.ts';
 import { dealDamage, keywordFlags } from './damage.ts';
 import { enqueueCardTiming } from './triggers.ts';
 import type { GameState, Monster, TargetRef } from './types.ts';
@@ -34,14 +35,33 @@ export function attackTargets(g: GameState, m: Monster): TargetRef[] {
 /** 攻撃を1回行う（手動・自動共通） */
 export function performAttack(g: GameState, m: Monster, target: TargetRef, depth: number, note = ''): void {
   m.attacksUsed += 1;
-  log(g, depth, `${monsterLabel(g, m)}が${targetLabel(g, target)}を攻撃${note}`, 'action');
+  const attackerRef: TargetRef = { kind: 'monster', uid: m.uid };
+  log(g, depth, `${monsterLabel(g, m)}が${targetLabel(g, target)}を攻撃${note}`, 'action', undefined, { kind: 'attack', source: attackerRef, target });
   const defender = target.kind === 'monster' ? findMonster(g, target.uid) : undefined;
-  const r = dealDamage(g, target, m.attack, { kind: 'attack', source: { kind: 'monster', uid: m.uid }, depth: depth + 1 });
+  // この1回の攻撃の記録のキー：出血・反撃（状態）は攻撃と「攻撃するたび」の効果を合わせて1回（決定事項 #70 R4）
+  const playKey = newUid(g, 'pk');
+  // モンスターの反撃（決定事項 #69）：攻撃される前の守備側の攻撃力・弱体で決まる（同時に解決する扱い）
+  const retaliation =
+    defender && BALANCE.battle.retaliation.enabled && defender.attack > 0
+      ? { amount: defender.attack, weak: defender.status.weak > 0, label: monsterLabel(g, defender) }
+      : null;
+  const r = dealDamage(g, target, m.attack, { kind: 'attack', source: attackerRef, playKey, depth: depth + 1 });
   if (isEnded(g)) return;
   // 貫通：モンスターを倒して余ったダメージは、そのモンスターの持ち主のプレイヤーへ
   if (defender && r.destroyed && r.overflow > 0 && findMonster(g, m.uid) && keywordFlags(g, m).trample) {
     log(g, depth + 1, `貫通：余った${r.overflow}ダメージが${g.players[defender.controller].name}に通る`);
-    dealDamage(g, playerRef(defender.controller), r.overflow, { kind: 'trample', source: { kind: 'monster', uid: m.uid }, depth: depth + 2 });
+    dealDamage(g, playerRef(defender.controller), r.overflow, { kind: 'trample', source: attackerRef, depth: depth + 2 });
+    if (isEnded(g)) return;
+  }
+  // 反撃：守備側が倒れていても、封印・凍結・隠密でも返す。守備側の「攻撃するたび」は発動しない
+  if (retaliation && defender) {
+    dealDamage(g, attackerRef, retaliation.amount, {
+      kind: 'retaliate',
+      source: { kind: 'monster', uid: defender.uid },
+      sourceWeak: retaliation.weak,
+      prefix: `${retaliation.label}の反撃：`,
+      depth: depth + 1,
+    });
     if (isEnded(g)) return;
   }
   // 攻撃するたび（攻撃したモンスターが場に残っていれば）
@@ -49,7 +69,7 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   if (attacker && !attacker.sealed) {
     const def = g.cards[attacker.card.cardId];
     const chosen = targetExists(g, target) ? { enemy: target } : {};
-    if (def) enqueueCardTiming(g, sourceOfMonster(g, attacker), def, 'attack', chosen, depth + 1, {});
+    if (def) enqueueCardTiming(g, sourceOfMonster(g, attacker), def, 'attack', chosen, depth + 1, { protectKey: playKey });
   }
 }
 

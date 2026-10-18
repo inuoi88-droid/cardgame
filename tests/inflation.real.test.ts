@@ -1,6 +1,6 @@
 // 実際の倍率で確かめる（インフレ倍率 #65・予算倍率 #66）。ほかのテストは倍率1（元の仕様の数字）で動く
 import { describe, expect, it } from 'vitest';
-import { BALANCE, ai, analyzeCard, battle, getEffect, newCard, DEFAULT_STATS, parseCard, type CardDef } from '../src/engine/index.ts';
+import { BALANCE, ai, analyzeCard, battle, getEffect, newCard, DEFAULT_STATS, parseCard } from '../src/engine/index.ts';
 import { PRESET_DECKS } from '../src/presets.ts';
 import { SAMPLE_CARDS } from '../src/samples.ts';
 import { card } from './helpers.ts';

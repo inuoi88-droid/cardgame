@@ -1,4 +1,8 @@
 /** CPU の公開窓口 */
-export { cpuAction, cpuShouldAct, type Strategy } from './cpu.ts';
-export { greedyStrategy } from './greedy.ts';
-export { evaluate, WEIGHTS } from './evaluate.ts';
+export { cpuAction, cpuShouldAct, strategyFor, CPU_LEVELS, CPU_LEVEL_LABEL, type CpuLevel, type Strategy } from './cpu.ts';
+export { greedyStrategy, easyStrategy, hardStrategy, makeStrategy, type GreedyOptions } from './greedy.ts';
+export { evaluate, WEIGHTS, raceContext, nextTurnThreat, remainingPotential } from './evaluate.ts';
+export { findLethal, damageUpperBound } from './lethal.ts';
+export { beamSearch } from './beam.ts';
+export { decideMulligan } from './mulligan.ts';
+export { better, scoreAction, simulate, type Candidate } from './sim.ts';

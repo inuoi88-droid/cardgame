@@ -1,65 +1,82 @@
-/** 貪欲法：今できる行動をそれぞれ仮に実行して盤面を評価し、一番よい行動を選ぶ。どれも今より良くならなければターン終了 */
-import { applyAction } from '../battle/apply.ts';
+/**
+ * CPU の戦略（決定事項 #72）。
+ * - 貪欲法：今できる行動をそれぞれ仮に実行して盤面を評価し、一番よい行動を選ぶ。どれも今より良くならなければターン終了。
+ *   評価値がほぼ同じなら「攻撃してくるモンスターの除去 → コストの高いカード → 顔へのダメージ」の順で決める。
+ * - リーサル探索：このターンに勝てる並びがあれば必ずそれを選ぶ。
+ * - 難易度：やさしい＝貪欲法に評価のゆらぎ、リーサル探索なし／ふつう＝リーサル探索＋貪欲法／
+ *   つよい＝リーサル探索＋ターン内のビーム探索。
+ */
 import { legalActions } from '../battle/legal.ts';
 import type { Action, GameState, PlayerId } from '../battle/types.ts';
+import { beamSearch, type BeamOptions } from './beam.ts';
 import type { Strategy } from './cpu.ts';
-import { evaluate } from './evaluate.ts';
+import { evaluate, WEIGHTS } from './evaluate.ts';
+import { findLethal, type LethalOptions } from './lethal.ts';
+import { decideMulligan } from './mulligan.ts';
+import { gaussian } from './noise.ts';
+import { better, chooseFor, dedupeActions, leanView, scoreAction, simulate, type Candidate } from './sim.ts';
 
-/** これより良くならない行動はしない */
-const MIN_GAIN = 0.01;
-
-function simulate(view: GameState, action: Action, seed: number, me: PlayerId): number | null {
-  const r = applyAction({ ...view, rng: seed }, action);
-  if (!r.ok) return null;
-  let s = r.state;
-  // 仮の実行で選択待ちになったら、最初の選択肢で進めて評価する
-  for (let i = 0; i < 3 && s.pending && s.pending.player === me; i++) {
-    const p = s.pending;
-    const picks = p.options.slice(0, Math.max(p.min, Math.min(1, p.max))).map((o) => o.id);
-    const next = applyAction(s, { type: 'choose', player: me, picks });
-    if (!next.ok) break;
-    s = next.state;
-  }
-  return evaluate(s, me);
+export interface GreedyOptions {
+  /** 評価のゆらぎ（標準偏差）。0 ならなし */
+  noiseSigma: number;
+  lethal: boolean;
+  beam: boolean;
+  lethalOptions?: LethalOptions;
+  beamOptions?: BeamOptions;
 }
 
-function decideMulligan(view: GameState, me: PlayerId): Action {
-  const ps = view.players[me];
-  const cheap = ps.hand.filter((c) => (view.cards[c.cardId]?.cost ?? 99) <= 2).length;
-  if (ps.mulligan.fullCount === 0 && cheap < 2) return { type: 'mulligan', player: me, mode: 'all' };
-  return { type: 'mulligan', player: me, mode: 'keep' };
-}
-
+/** 選択待ち：カードを選ぶものは価値で、それ以外（解除など）は仮に実行して評価で決める */
 function decideChoice(view: GameState, me: PlayerId, seed: number): Action {
   const p = view.pending!;
-  if (p.max > 1 || p.min === 0) {
-    // 保持など複数選べるもの：コストの高いカードから残す
-    const sorted = [...p.options].sort((a, b) => (view.cards[b.cardId ?? '']?.cost ?? 0) - (view.cards[a.cardId ?? '']?.cost ?? 0));
-    return { type: 'choose', player: me, picks: sorted.slice(0, p.max).map((o) => o.id) };
+  const effectId = p.step.t === 'effect' ? p.step.effect.id : p.step.t;
+  const byValue = effectId === 'retain' || p.options.every((o) => o.cardId);
+  if (byValue || p.max > 1) return { type: 'choose', player: me, picks: chooseFor(view, p, me) };
+  let best: { picks: string[]; score: number } | null = null;
+  const candidates: string[][] = p.min === 0 ? [[]] : [];
+  for (const o of p.options) candidates.push([o.id]);
+  for (const picks of candidates) {
+    const s = simulate(view, { type: 'choose', player: me, picks }, seed, me);
+    if (!s) continue;
+    const score = evaluate(s, me);
+    if (!best || score > best.score) best = { picks, score };
   }
-  let best: { id: string; score: number } | null = null;
-  for (const o of p.options) {
-    const score = simulate(view, { type: 'choose', player: me, picks: [o.id] }, seed, me);
-    if (score !== null && (!best || score > best.score)) best = { id: o.id, score };
-  }
-  return { type: 'choose', player: me, picks: [best?.id ?? p.options[0]!.id] };
+  return { type: 'choose', player: me, picks: best?.picks ?? chooseFor(view, p, me) };
 }
 
-export const greedyStrategy: Strategy = {
-  name: '貪欲法（評価値の高い行動から）',
-  decide(view, me, seed) {
-    const v: GameState = { ...view, log: [] };
-    if (v.phase === 'mulligan') return decideMulligan(v, me);
-    if (v.pending && v.pending.player === me) return decideChoice(v, me, seed);
-    const base = evaluate(v, me);
-    let best: { action: Action; score: number } | null = null;
-    for (const action of legalActions(v, me)) {
-      if (action.type === 'endTurn' || action.type === 'concede') continue;
-      const score = simulate(v, action, seed, me);
-      if (score !== null && (!best || score > best.score)) best = { action, score };
-    }
-    if (best && best.score > base + MIN_GAIN) return best.action;
-    return { type: 'endTurn', player: me };
-  },
-};
+/** 貪欲法で1手選ぶ */
+function decideGreedy(view: GameState, me: PlayerId, seed: number, noiseSigma: number): Action {
+  const base = evaluate(view, me);
+  let best: Candidate | null = null;
+  let index = 0;
+  for (const action of dedupeActions(view, legalActions(view, me))) {
+    if (action.type === 'endTurn' || action.type === 'concede') continue;
+    const c = scoreAction(view, action, seed, me);
+    index += 1;
+    if (!c) continue;
+    if (noiseSigma > 0) c.score += gaussian(seed, index, noiseSigma);
+    if (!best || better(c, best)) best = c;
+  }
+  if (best && best.score > base + WEIGHTS.tieEpsilon * 0.1) return best.action;
+  return { type: 'endTurn', player: me };
+}
 
+export function makeStrategy(name: string, opts: GreedyOptions): Strategy {
+  return {
+    name,
+    decide(view, me, seed) {
+      if (view.phase === 'mulligan') return decideMulligan(view, me);
+      const v = leanView(view, me);
+      if (v.pending && v.pending.player === me) return decideChoice(v, me, seed);
+      if (opts.lethal) {
+        const plan = findLethal(v, me, seed, opts.lethalOptions);
+        if (plan && plan.length > 0) return plan[0]!;
+      }
+      if (opts.beam) return beamSearch(v, me, seed, opts.beamOptions);
+      return decideGreedy(v, me, seed, opts.noiseSigma);
+    },
+  };
+}
+
+export const easyStrategy: Strategy = makeStrategy('やさしい（貪欲法＋ゆらぎ）', { noiseSigma: WEIGHTS.easyNoiseSigma, lethal: false, beam: false });
+export const greedyStrategy: Strategy = makeStrategy('ふつう（リーサル探索＋貪欲法）', { noiseSigma: 0, lethal: true, beam: false });
+export const hardStrategy: Strategy = makeStrategy('つよい（リーサル探索＋ビーム探索）', { noiseSigma: 0, lethal: true, beam: true });

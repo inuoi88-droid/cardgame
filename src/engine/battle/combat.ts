@@ -1,7 +1,7 @@
 /** モンスターの攻撃 */
 import { BALANCE } from '../balance.ts';
 import { allMonsters, findMonster, log, monsterLabel, newUid, other, playerRef, sourceOfMonster, targetExists, targetLabel, isEnded } from './core.ts';
-import { dealDamage, keywordFlags } from './damage.ts';
+import { dealDamage, keywordFlags, targetableTaunts } from './damage.ts';
 import { enqueueCardTiming } from './triggers.ts';
 import type { GameState, Monster, TargetRef } from './types.ts';
 
@@ -26,7 +26,7 @@ export function attackTargets(g: GameState, m: Monster): TargetRef[] {
   const opp = other(m.controller);
   const monsters = g.players[opp].board.filter((x) => !x.stealth);
   if (!keywordFlags(g, m).flying) {
-    const taunts = monsters.filter((x) => keywordFlags(g, x).taunt);
+    const taunts = targetableTaunts(g, opp);
     if (taunts.length > 0) return taunts.map((x) => ({ kind: 'monster', uid: x.uid }));
   }
   return [playerRef(opp), ...monsters.map((x): TargetRef => ({ kind: 'monster', uid: x.uid }))];

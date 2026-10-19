@@ -35,7 +35,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
   {
     id: 'wall',
     title: '壁モンスター',
-    description: '挑発で攻撃を引き受ける。守備力で削りに強い',
+    description: '挑発で攻撃や効果の対象を引き受ける。守備力で削りに強い',
     build: (id) =>
       make(id, {
         name: '岩の守り手',

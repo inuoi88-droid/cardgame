@@ -6,6 +6,7 @@ import type { CardDef } from '../types.ts';
 import { attackBlockReason, attackTargets } from './combat.ts';
 import { checkCondition } from './conditions.ts';
 import { other } from './core.ts';
+import { targetableTaunts } from './damage.ts';
 import { nextFullMulliganSize } from './mulligan.ts';
 import { allyCandidates, chosenRules, effectiveCost, enemyCandidates, leavesPower, validatePlay } from './play.ts';
 import { NOISE_CARD_ID, type Action, type CardInst, type GameState, type PlayerId, type TargetRef } from './types.ts';
@@ -22,12 +23,16 @@ export interface PlayInfo {
    * 使用時・召喚時の効果だけを見る。空なら注意なし
    */
   warnings: string[];
+  /** 相手の挑発のせいで「選んだ1体」が挑発モンスターに限られているか（決定事項 #83） */
+  tauntLimited: boolean;
 }
 
 export const WARN_NO_TARGET = '対象がいません';
 export const WARN_NO_ENEMY_MONSTER = '相手の場にモンスターがいません';
 export const WARN_NO_MONSTER = '場にモンスターがいません';
 const WARN_POWER_CAP_HEAD = 'パワーが';
+/** 対象選びの案内（確認ダイアログは出さない） */
+export const NOTE_TAUNT_LIMITED = '挑発がいるので、挑発のモンスターしか選べません';
 
 /** パワーの上限の注意（「発動しない」ではなく「古いパワーが消える」注意）か */
 export function isPowerCapWarning(w: string): boolean {
@@ -86,7 +91,7 @@ export function playWarnings(g: GameState, p: PlayerId, def: CardDef, allyTarget
 export function playInfo(g: GameState, p: PlayerId, card: CardInst): PlayInfo {
   const def = g.cards[card.cardId];
   if (card.cardId === NOISE_CARD_ID || !def) {
-    return { card, cost: BALANCE.battle.noiseRemoveCost, blocked: 'ノイズ', enemyTargets: [], allyTargets: [], warnings: [] };
+    return { card, cost: BALANCE.battle.noiseRemoveCost, blocked: 'ノイズ', enemyTargets: [], allyTargets: [], warnings: [], tauntLimited: false };
   }
   const rules = chosenRules(def);
   const enemyTargets = enemyCandidates(g, p, rules.enemy);
@@ -95,7 +100,8 @@ export function playInfo(g: GameState, p: PlayerId, card: CardInst): PlayInfo {
   let blocked: string | null = null;
   if (g.phase !== 'main' || g.active !== p || g.pending) blocked = '今は使えません';
   else if (cost > g.players[p].energy) blocked = 'エナジーが足りません';
-  return { card, cost, blocked, enemyTargets, allyTargets, warnings: playWarnings(g, p, def, allyTargets) };
+  const tauntLimited = enemyTargets.length > 0 && targetableTaunts(g, other(p)).length > 0;
+  return { card, cost, blocked, enemyTargets, allyTargets, warnings: playWarnings(g, p, def, allyTargets), tauntLimited };
 }
 
 export function legalActions(g: GameState, p: PlayerId): Action[] {

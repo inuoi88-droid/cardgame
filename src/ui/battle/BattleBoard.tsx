@@ -286,7 +286,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     if (selCard) {
       if (selCard.cardId === battle.NOISE_CARD_ID) return 'ノイズ：エナジー1で除外できます';
       if (info?.blocked) return info.blocked;
-      if (needEnemy) return `「${selDef?.name}」の対象を選んでください`;
+      if (needEnemy) return `「${selDef?.name}」の対象を選んでください${info?.tauntLimited ? `（${battle.NOTE_TAUNT_LIMITED}）` : ''}`;
       if (needAlly) return `「${selDef?.name}」をかける自分のモンスターを選んでください`;
       return `「${selDef?.name}」を使いますか？`;
     }

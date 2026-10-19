@@ -6,7 +6,7 @@
  */
 import { attackBlockReason, attacksPerTurn } from '../battle/combat.ts';
 import { other } from '../battle/core.ts';
-import { keywordFlags } from '../battle/damage.ts';
+import { keywordFlags, targetableTaunts } from '../battle/damage.ts';
 import { legalActions } from '../battle/legal.ts';
 import { effectiveCost } from '../battle/play.ts';
 import { BALANCE } from '../balance.ts';
@@ -32,7 +32,8 @@ function needed(g: GameState, opp: PlayerId): number {
 /**
  * このターンに顔へ出せる打点の上限（楽観的な見積もり）。
  * 攻撃できるモンスターの残り攻撃回数、手札のダメージカード（エナジーの範囲。エナジー効果の分は増やす）、
- * 攻撃力上昇、筋力・気合、出血、脆弱の倍率を足し合わせる
+ * 攻撃力上昇、筋力・気合、出血、脆弱の倍率を足し合わせる。
+ * 相手に選べる挑発モンスターがいると、飛行でない攻撃とカードの「選んだ1体」のダメージは挑発の体力を超えた分しか届かない
  */
 export function damageUpperBound(g: GameState, me: PlayerId): number {
   const ps = g.players[me];
@@ -63,7 +64,8 @@ export function damageUpperBound(g: GameState, me: PlayerId): number {
   let attackCards = 0;
   let removal = false;
   let vulnerable = opp.status.vulnerable > 0;
-  const costs: { cost: number; dmg: number }[] = [];
+  /** dmg：顔へのダメージ、chosen：そのうち「選んだ1体」の分（挑発がいると顔に届かない：決定事項 #83） */
+  const costs: { cost: number; dmg: number; chosen: number }[] = [];
   for (const c of ps.hand) {
     const def = g.cards[c.cardId];
     if (!def) continue;
@@ -77,29 +79,40 @@ export function damageUpperBound(g: GameState, me: PlayerId): number {
       if (REMOVAL.has(e.id)) removal = true;
     }
     let dmg = cardFaceDamage(def);
+    const chosen = cardFaceDamage(def, true);
     if (def.stats && hasHaste(def)) dmg += def.stats.attack * defAttacksPerTurn(def);
     if (dmg > 0) {
       attackCards += 1;
-      costs.push({ cost: effectiveCost(g, me, c), dmg });
+      costs.push({ cost: effectiveCost(g, me, c), dmg, chosen });
     }
   }
   // エナジーの範囲で出せるカードのダメージの上限（コストあたりのダメージが大きい順に、端数も入れる）
   costs.sort((a, b) => b.dmg / Math.max(0.5, b.cost) - a.dmg / Math.max(0.5, a.cost));
   let cards = 0;
+  let cardsChosen = 0;
   for (const x of costs) {
     if (energy <= 0 && x.cost > 0) break;
     if (x.cost <= energy) {
       energy -= x.cost;
       cards += x.dmg;
+      cardsChosen += x.chosen;
     } else {
       cards += Math.ceil((x.dmg * energy) / x.cost);
+      cardsChosen += Math.ceil((x.chosen * energy) / x.cost);
       energy = 0;
     }
   }
-  // 挑発：飛行でない攻撃は、挑発モンスターを倒した残りしか顔に届かない（除去カードがあれば倒せるものとして見る）
+  // 挑発：飛行でない攻撃と、カードの「選んだ1体」のダメージ（決定事項 #83）は、挑発モンスターを倒した残りしか顔に届かない
+  // （除去カードがあれば倒せるものとして見る）
+  const taunts = removal ? [] : targetableTaunts(g, other(me));
   let tauntHp = 0;
-  if (!removal) for (const m of opp.board) if (!m.stealth && keywordFlags(g, m).taunt) tauntHp += m.hp + m.defense;
-  const boardFace = flying + Math.max(0, ground + attackUp * Math.max(attacksLeft, 1) - tauntHp);
+  for (const m of taunts) tauntHp += m.hp + m.defense;
+  let blocked = 0;
+  if (taunts.length > 0) {
+    blocked = Math.min(cardsChosen, cards);
+    cards -= blocked;
+  }
+  const boardFace = flying + Math.max(0, ground + attackUp * Math.max(attacksLeft, 1) + blocked - tauntHp);
   let total = boardFace + cards + bonus * Math.min(attackCards, 2);
   total += opp.status.bleed * (attacksLeft + Math.min(attackCards, 2));
   if (vulnerable) total = Math.floor(total * (1 + BALANCE.battle.vulnerableRate));

@@ -78,6 +78,14 @@ export function keywordFlags(g: GameState, m: Monster): KeywordDef['battle'] {
   return flags;
 }
 
+/**
+ * 選べる挑発モンスター（隠密は数えない）。相手のモンスターの攻撃と、カードの「選んだ1体」は、
+ * これが1体でもいる間はこの中からしか選べない（決定事項 #83）
+ */
+export function targetableTaunts(g: GameState, owner: PlayerId): Monster[] {
+  return g.players[owner].board.filter((m) => !m.stealth && keywordFlags(g, m).taunt);
+}
+
 const KIND_LABEL: Partial<Record<DamageKind, string>> = { poison: '毒で', burn: 'やけどで', counter: '反撃で' };
 
 export function dealDamage(g: GameState, target: TargetRef, base: number, opts: DamageOpts): DamageResult {

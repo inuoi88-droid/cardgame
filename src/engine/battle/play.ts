@@ -6,6 +6,7 @@ import { getEffect } from '../registry.ts';
 import type { CardDef } from '../types.ts';
 import { enqueue, log, newUid, other, playerRef, playRecord } from './core.ts';
 import { enqueueCardTiming, enqueuePowers } from './triggers.ts';
+import { targetableTaunts } from './damage.ts';
 import { discardCard, summon } from './zones.ts';
 import { NOISE_CARD_ID, type CardInst, type Chosen, type GameState, type PlayerId, type PowerInst, type TargetRef } from './types.ts';
 
@@ -32,10 +33,15 @@ export function chosenRules(def: CardDef): { enemy: TargetRule[]; ally: boolean 
   return { enemy, ally };
 }
 
-/** 相手側の「選んだ1体」の候補（隠密は選べない） */
+/**
+ * 相手側の「選んだ1体」の候補（隠密は選べない）。
+ * 相手に選べる挑発モンスターがいる間は、その挑発モンスターしか選べない（相手プレイヤーも選べない：決定事項 #83）
+ */
 export function enemyCandidates(g: GameState, p: PlayerId, rules: TargetRule[]): TargetRef[] {
   if (rules.length === 0) return [];
   const opp = other(p);
+  const taunts = targetableTaunts(g, opp);
+  if (taunts.length > 0) return taunts.map((m): TargetRef => ({ kind: 'monster', uid: m.uid }));
   const monsters = g.players[opp].board.filter((m) => !m.stealth).map((m): TargetRef => ({ kind: 'monster', uid: m.uid }));
   const allowPlayer = rules.some((r) => r === 'enemyAny');
   return [...(allowPlayer ? [playerRef(opp)] : []), ...monsters];

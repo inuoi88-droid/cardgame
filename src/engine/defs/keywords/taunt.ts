@@ -7,10 +7,10 @@ export default defineKeyword({
   id: 'taunt',
   name: '挑発',
   order: 2,
-  summary: 'このモンスターがいる限り、相手のモンスターはこのモンスターしか攻撃できない（アタックカードの対象には影響しない）',
+  summary: 'このモンスターがいる限り、相手はモンスターの攻撃でもカードの効果でも、このモンスターしか選べない（ランダム・全体には効かない）',
   points: () => B.flat,
   formula: () => `${B.flat}`,
   displayName: () => '挑発',
-  describe: () => '相手のモンスターはこのモンスターしか攻撃できない',
+  describe: () => '相手はモンスターの攻撃でもカードの効果でも、このモンスターしか選べない',
   battle: { taunt: true },
 });

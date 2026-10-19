@@ -97,12 +97,16 @@ export function defAttacksPerTurn(def: CardDef): number {
   return n;
 }
 
-/** 使用時・召喚時にこのカードが顔（相手プレイヤー）に出せるダメージ（条件・エナジーは見ない） */
-export function cardFaceDamage(def: CardDef): number {
+/**
+ * 使用時・召喚時にこのカードが顔（相手プレイヤー）に出せるダメージ（条件・エナジーは見ない）。
+ * onlyChosen なら「選んだ1体」の分だけ（挑発がいると顔に届かない分：決定事項 #83）
+ */
+export function cardFaceDamage(def: CardDef, onlyChosen = false): number {
   let v = 0;
   const timing = def.stats ? 'summon' : 'play';
   for (const e of def.effects) {
     if (e.timing !== timing || e.target === 'self' || e.target === 'enemyMonsters' || e.target === 'board') continue;
+    if (onlyChosen && e.target !== 'chosen') continue;
     if (e.id === 'damage') v += e.value ?? 0;
     else if (e.id === 'multiHit') v += (e.value ?? 0) * (e.hits ?? 0);
   }

@@ -10,6 +10,7 @@ npm run sim:presets         # プリセット総当たり（1組み合わせ 200
 node scripts/sim/presets.mts 300        # 試合数を指定
 node scripts/sim/stress.mts 60          # 極端なデッキ vs 基準デッキ
 node scripts/sim/stress.mts 60 poison burn   # デッキのキーを指定（stress.mts 冒頭の表）
+node scripts/sim/stress10.mts 150       # 基準デッキの10枚だけを極端なカードに差し替えて元の基準デッキと戦う（40 種類、約15分）
 node scripts/sim/length.mts 200         # 試合の長さの分布
 node scripts/sim/aicheck.mts 10         # CPU のリーサル検査
 node scripts/sim/run-all.mts 40         # まとめ（n はプリセットの試合数。他はそれに比例。n=10 で 7〜8 分）
@@ -31,6 +32,7 @@ node scripts/sim/run-all.mts 40         # まとめ（n はプリセットの試
 | `worker.mts` | `series` のワーカー（直接は動かさない） |
 | `presets.mts` | プリセット3つの総当たり（ミラー含む）と、先攻後攻ルールの候補の比較 |
 | `stress.mts` | 1つの効果だけに寄せた極端なデッキ（40 種類以上）を B0・B1 にぶつける |
+| `stress10.mts` | 基準デッキ B0・B1 の1つの枠（10枚）を1つの効果の上限カードに差し替え、元の基準デッキと戦わせる（監査 sim-c の形。30枚すべてを寄せる stress.mts はダメージのないデッキが勝てずに引き分けばかりになるため）。差し替える枠は stress10.mts の冒頭 |
 | `length.mts` | 試合の長さ（各プレイヤーのターン数）の分布 |
 | `aicheck.mts` | 作った場面で CPU がリーサルを取れるか＋実戦での見逃し数 |
 | `run-all.mts` | 全部回してまとめる |

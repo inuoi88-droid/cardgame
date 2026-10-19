@@ -138,15 +138,15 @@ export const BALANCE = {
     damagePerCardMax: x(30),
   },
 
-  /** 効果の基礎ポイント（価格表は決定事項 #68。#73 で処刑・シールド・回復・毒・再生を調整） */
+  /** 効果の基礎ポイント（価格表は決定事項 #68。#73 で処刑・シールド・回復・毒・再生を調整、#75 でシールド・回復・再生を再調整） */
   effects: {
     damage: { perValue: 2 },
     multiHit: { perValueHit: 2 },
     execute: { perValue: 1.5 },
     counter: { perValue: 2 },
 
-    shield: { perValue: 2.5 },
-    heal: { perValue: 3 },
+    shield: { perValue: 3.5 },
+    heal: { perValue: 4 },
     nullify: { flat: x(10) },
     cleanse: { flat: x(8) },
     repair: { perValue: 1 },
@@ -166,7 +166,7 @@ export const BALANCE = {
     focus: { perValue: 3 },
     attackUp: { perValue: 3 },
     defenseUp: { perValue: 4, maxValue: x(3) },
-    regen: { perValue: 4 },
+    regen: { perValue: 5 },
 
     draw: { perValue: x(4) },
     energy: { perValue: x(8) },

@@ -69,7 +69,7 @@ const poison = preset('poison', '毒沼の魔女', '毒をばらまき、毒状�
     }),
     4,
   ],
-  [c('gedoku', '解毒の薬', '🧪', 'common', 1, { effects: [fx({ id: 'shield', value: 3, target: 'self' }), fx({ id: 'heal', value: 2, target: 'self' })] }), 3],
+  [c('gedoku', '解毒の薬', '🧪', 'common', 1, { effects: [fx({ id: 'shield', value: 2, target: 'self' }), fx({ id: 'heal', value: 2, target: 'self' })] }), 3],
   [c('todome', 'とどめの一撃', '⚔️', 'rare', 2, { effects: [fx({ id: 'damage', value: 20, condition: 'enemyPoisoned' })] }), 3],
   [c('numachi', '毒の沼地', '🫧', 'epic', 2, { effects: [fx({ id: 'poison', value: 1, timing: 'turnStart', target: 'enemyPlayer' })] }), 2],
   [c('dokuyaiba', '毒の刃', '🔪', 'epic', 2, { effects: [fx({ id: 'damage', value: 8 }), fx({ id: 'poison', value: 4 })] }), 1],
@@ -143,7 +143,7 @@ const curses = preset('curses', '呪いの契約', '自分を傷つける代わ�
   ],
   [
     c('ikenie', '生贄の儀式', '🕯️', 'rare', 1, {
-      effects: [fx({ id: 'shield', value: 8, target: 'self' }), fx({ id: 'heal', value: 2, target: 'self' })],
+      effects: [fx({ id: 'shield', value: 5, target: 'self' }), fx({ id: 'heal', value: 2, target: 'self' })],
       drawbacks: [
         { id: 'discardRandom', timing: 'play' },
         { id: 'gift', timing: 'play' },
@@ -153,7 +153,7 @@ const curses = preset('curses', '呪いの契約', '自分を傷つける代わ�
     3,
   ],
   [c('hinoko', '火の粉', '🔥', 'common', 1, { effects: [fx({ id: 'damage', value: 2 }), fx({ id: 'burn', value: 0 })] }), 5],
-  [c('yaminotate', '闇の盾', '🌑', 'common', 1, { effects: [fx({ id: 'shield', value: 6, target: 'self' })] }), 7],
+  [c('yaminotate', '闇の盾', '🌑', 'common', 1, { effects: [fx({ id: 'shield', value: 4, target: 'self' })] }), 7],
 ]);
 
 export const PRESET_DECKS: readonly PresetDeck[] = [poison, beasts, curses];

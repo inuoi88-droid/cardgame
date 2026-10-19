@@ -11,17 +11,35 @@ interface StepperProps {
   invalid?: boolean;
   /** −／＋ボタンで動く幅（区切りのよい数にそろえる）。直接入力はどんな整数でもよい */
   step?: number;
+  /** true なら、直接入力した値も入力を終えたとき（blur）に step の倍数へ丸める（量の入力欄で使う） */
+  snap?: boolean;
+  /** 入力欄の id（「理由を見る」で飛ぶ先） */
+  id?: string;
+  /** ラベルの後ろに出す補足（例：「+20 ごとに 60pt」） */
+  help?: ReactNode;
+  /** 入力欄の下に出す誤りの説明 */
+  error?: ReactNode;
 }
 
-export function Stepper({ label, value, min, max, onChange, invalid, step = 1 }: StepperProps) {
+export function Stepper({ label, value, min, max, onChange, invalid, step = 1, snap = false, id, help, error }: StepperProps) {
   const [text, setText] = useState<string | null>(null);
   const v = value ?? min;
   const clamp = (x: number) => Math.min(max, Math.max(min, x));
   const up = () => clamp((Math.floor(v / step) + 1) * step);
   const down = () => clamp((Math.ceil(v / step) - 1) * step);
+  const settle = () => {
+    setText(null);
+    if (snap && step > 1) {
+      const rounded = clamp(Math.round(v / step) * step);
+      if (rounded !== v) onChange(rounded);
+    }
+  };
   return (
-    <label className={invalid ? 'stepper stepper--invalid' : 'stepper'}>
-      <span className="stepper__label">{label}</span>
+    <label className={invalid || error ? 'stepper stepper--invalid' : 'stepper'} id={id}>
+      <span className="stepper__label">
+        {label}
+        {help && <small className="stepper__help"> {help}</small>}
+      </span>
       <span className="stepper__box">
         <button type="button" onClick={() => onChange(down())} disabled={v <= min} aria-label={`${label}を減らす`}>
           −
@@ -42,12 +60,14 @@ export function Stepper({ label, value, min, max, onChange, invalid, step = 1 }:
             const n = parseInt(e.target.value, 10);
             if (!Number.isNaN(n)) onChange(clamp(n));
           }}
-          onBlur={() => setText(null)}
+          onBlur={settle}
+          aria-invalid={invalid || error ? true : undefined}
         />
         <button type="button" onClick={() => onChange(up())} disabled={v >= max} aria-label={`${label}を増やす`}>
           ＋
         </button>
       </span>
+      {error && <span className="field__error">{error}</span>}
     </label>
   );
 }

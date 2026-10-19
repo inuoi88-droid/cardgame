@@ -85,7 +85,10 @@ export function startTurn(g: GameState, p: PlayerId): void {
   // 貯金で増える分も1ターンの増加の上限に数える（決定事項 #64）
   const scheduled = energyForTurn(ps.turnsTaken);
   const firstPenalty = p === g.first && ps.turnsTaken === 1 ? B.firstPlayerFirstTurnPenalty : 0;
-  const base = scheduled - firstPenalty;
+  // 後攻の1ターン目の補正（既定は0。先攻後攻の差を測り直すための調整つまみ）
+  const secondFirstTurn = p !== g.first && ps.turnsTaken === 1;
+  const secondBonus = secondFirstTurn ? B.secondPlayerFirstTurnBonusEnergy : 0;
+  const base = scheduled - firstPenalty + secondBonus;
   const limits = turnLimits(g, ps);
   const carried = ps.next.energy > 0 ? Math.min(ps.next.energy, B.maxEnergyGainPerTurn) : ps.next.energy;
   if (carried > 0) limits.energyGained += carried;
@@ -93,6 +96,7 @@ export function startTurn(g: GameState, p: PlayerId): void {
   const capNote = carried < ps.next.energy ? `、増加は+${B.maxEnergyGainPerTurn}まで` : '';
   const notes = [
     firstPenalty ? `先攻の1ターン目は−${firstPenalty}` : '',
+    secondBonus ? `後攻の1ターン目は+${secondBonus}` : '',
     B.energySchedule.some((s) => s.fromTurn === ps.turnsTaken && s.fromTurn > 1) ? `このターンから基本${scheduled}` : '',
     carried ? `基本${base}${carried > 0 ? '+' : '−'}${Math.abs(carried)}${capNote}` : '',
   ].filter(Boolean);
@@ -102,8 +106,9 @@ export function startTurn(g: GameState, p: PlayerId): void {
     amount: ps.energy,
   });
 
-  // ドロー（1ターン目は対戦開始時に配った手札を使う：決定事項 #47）
-  const drawCount = ps.turnsTaken === 1 ? Math.max(0, ps.next.draw) : Math.max(0, B.drawPerTurn + ps.next.draw);
+  // ドロー（1ターン目は対戦開始時に配った手札を使う：決定事項 #47。後攻の1ターン目の追加ドローは調整つまみ、既定0）
+  const extraDraw = secondFirstTurn ? B.secondPlayerFirstTurnExtraDraw : 0;
+  const drawCount = ps.turnsTaken === 1 ? Math.max(0, ps.next.draw + extraDraw) : Math.max(0, B.drawPerTurn + ps.next.draw);
   ps.next = { draw: 0, energy: 0 };
   drawCards(g, p, drawCount, 1);
   if (isEnded(g)) return;

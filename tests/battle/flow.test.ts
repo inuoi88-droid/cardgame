@@ -129,6 +129,53 @@ describe('ターンの流れ', () => {
     expect(g.players[1].energy).toBe(5);
   });
 
+  describe('後攻の1ターン目の調整つまみ（既定は0。シミュレーションで比べるため）', () => {
+    // BALANCE は const だが、テストでは一時的に書き換えて必ず戻す
+    const Bm = BALANCE.battle as { secondPlayerFirstTurnBonusEnergy: number; secondPlayerFirstTurnExtraDraw: number };
+
+    it('既定は0：後攻の1ターン目はエナジー3・引かない', () => {
+      expect(B.secondPlayerFirstTurnBonusEnergy).toBe(0);
+      expect(B.secondPlayerFirstTurnExtraDraw).toBe(0);
+      const g = endTurn(startGame());
+      expect(g.players[1].energy).toBe(E1);
+      expect(g.players[1].hand).toHaveLength(5);
+    });
+
+    it('エナジー+1：後攻の1ターン目だけ基本に足し、先攻と2ターン目以降は変わらない', () => {
+      Bm.secondPlayerFirstTurnBonusEnergy = 1;
+      try {
+        let g = startGame();
+        expect(g.players[0].energy).toBe(E1 - B.firstPlayerFirstTurnPenalty);
+        g = endTurn(g);
+        expect(g.active).toBe(1);
+        expect(g.players[1].energy).toBe(E1 + 1);
+        expect(g.log.some((e) => e.text.includes('後攻の1ターン目は+1'))).toBe(true);
+        g = endTurn(endTurn(g));
+        expect(g.active).toBe(1);
+        expect(g.players[1].energy).toBe(E1);
+      } finally {
+        Bm.secondPlayerFirstTurnBonusEnergy = 0;
+      }
+    });
+
+    it('ドロー+1：後攻の1ターン目だけ配った手札に加えて引き、先攻と2ターン目以降は変わらない', () => {
+      Bm.secondPlayerFirstTurnExtraDraw = 1;
+      try {
+        let g = startGame();
+        expect(g.players[0].hand).toHaveLength(5);
+        g = endTurn(g);
+        expect(g.players[1].hand).toHaveLength(B.drawPerTurn + 1);
+        expect(g.players[1].deck).toHaveLength(30 - B.drawPerTurn - 1);
+        g = endTurn(g);
+        expect(g.players[0].hand).toHaveLength(B.drawPerTurn);
+        g = endTurn(g);
+        expect(g.players[1].hand).toHaveLength(B.drawPerTurn);
+      } finally {
+        Bm.secondPlayerFirstTurnExtraDraw = 0;
+      }
+    });
+  });
+
   it('山札が尽きたら捨て札をシャッフルして山札にする', () => {
     let g = startGame();
     for (let i = 0; i < 12; i++) g = endTurn(g);

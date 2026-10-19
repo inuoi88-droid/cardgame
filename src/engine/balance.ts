@@ -251,6 +251,13 @@ export const BALANCE = {
     mulliganMinHand: 1,
     /** 先攻の1ターン目はエナジーがこれだけ少ない（3−1＝2） */
     firstPlayerFirstTurnPenalty: 1,
+    /**
+     * 後攻の1ターン目の補正（先攻後攻の差を測り直すための調整つまみ。既定は0＝何もしない）。
+     * BonusEnergy は成長表の基本エナジーに足す（1ターンの増加の上限には数えない）。ExtraDraw はそのターンに引く枚数に足す
+     * （後攻の1ターン目は配った手札を使うので、0 なら引かない：#47・#51）。シミュレーション（scripts/sim/）で比べる
+     */
+    secondPlayerFirstTurnBonusEnergy: 0,
+    secondPlayerFirstTurnExtraDraw: 0,
     maxTurns: 30,
     minMonsterDamage: x(1),
     burnTurns: 3,

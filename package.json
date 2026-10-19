@@ -16,6 +16,10 @@
     "build:single": "npm run build && node scripts/build-single.mjs",
     "prebuild:server": "npm run gen",
     "build:server": "node scripts/build-server.mjs",
+    "presim": "npm run gen",
+    "sim": "node scripts/sim/run-all.mts",
+    "presim:presets": "npm run gen",
+    "sim:presets": "node scripts/sim/presets.mts",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -71,7 +71,7 @@ const poison = preset('poison', '毒沼の魔女', '毒をばらまき、毒状�
   ],
   [c('gedoku', '解毒の薬', '🧪', 'common', 1, { effects: [fx({ id: 'shield', value: 3, target: 'self' }), fx({ id: 'heal', value: 2, target: 'self' })] }), 3],
   [c('todome', 'とどめの一撃', '⚔️', 'rare', 2, { effects: [fx({ id: 'damage', value: 20, condition: 'enemyPoisoned' })] }), 3],
-  [c('numachi', '毒の沼地', '🫧', 'rare', 2, { effects: [fx({ id: 'poison', value: 1, timing: 'turnStart', target: 'enemyPlayer' })] }), 2],
+  [c('numachi', '毒の沼地', '🫧', 'epic', 2, { effects: [fx({ id: 'poison', value: 1, timing: 'turnStart', target: 'enemyPlayer' })] }), 2],
   [c('dokuyaiba', '毒の刃', '🔪', 'epic', 2, { effects: [fx({ id: 'damage', value: 8 }), fx({ id: 'poison', value: 4 })] }), 1],
 ]);
 

@@ -66,7 +66,7 @@ export const BALANCE = {
     defenseMax: x(3),
   },
 
-  /** 発動タイミングの倍率（#73 でパワーの開始時・終了時を 4.0・4.5→6.0・6.5） */
+  /** 発動タイミングの倍率（#73 でパワーの開始時・終了時を 4.0・4.5→6.0・6.5、#74 で 8.0・8.5） */
   timing: {
     play: 1.0,
     summon: 1.0,
@@ -77,8 +77,8 @@ export const BALANCE = {
     attackHasteBonus: 1.0,
     turnStartMonster: 2.0,
     turnEndMonster: 2.5,
-    turnStartPower: 6.0,
-    turnEndPower: 6.5,
+    turnStartPower: 8.0,
+    turnEndPower: 8.5,
     cardPlayed: 8.0,
   },
 

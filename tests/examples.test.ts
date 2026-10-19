@@ -53,18 +53,18 @@ describe('作成例', () => {
     expect(a.text.effects).toEqual(['相手が毒状態なら、相手1体に20ダメージを与える。']);
   });
 
-  it('4. 狂戦士の契約：筋力+5で45pt、デメリット1.5×4×6.0＝36pt（差し引けるのは上限の18まで）、コスト1で−10pt。合計17pt、呪いのパワー', () => {
+  it('4. 狂戦士の契約：筋力+5で45pt、デメリット1.5×4×8.0＝48pt（差し引けるのは上限の18まで）、コスト1で−10pt。合計17pt、呪いのパワー', () => {
     const a = analyzeCard(EXAMPLES.kyosenshi);
     expect(lineValues(a)).toEqual([
       ['筋力5', 45],
       ['コスト1', -10],
-      ['自分のターン開始時 自傷4', -36],
-      ['デメリットの差し引き上限', 18],
+      ['自分のターン開始時 自傷4', -48],
+      ['デメリットの差し引き上限', 30],
     ]);
-    expect(a.points.lines[2]!.formula).toBe('6 × 6.0（自分のターン開始時）');
+    expect(a.points.lines[2]!.formula).toBe('6 × 8.0（自分のターン開始時）');
     expect(a.points.total).toBe(17);
     expect(a.points.cap).toBe(18);
-    expect(a.points.drawbackTotal).toBe(36);
+    expect(a.points.drawbackTotal).toBe(48);
     expect(a.points.drawbackOffset).toBe(18);
     expect(a.isCurse).toBe(true);
     expect(a.cardType).toBe('power');

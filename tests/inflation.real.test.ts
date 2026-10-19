@@ -55,7 +55,7 @@ describe('倍率', () => {
 
     const kyosenshi = analyzeCard(sample('kyosenshi'));
     expect(kyosenshi.points.total).toBe(340);
-    expect(kyosenshi.points.drawbackTotal).toBe(720);
+    expect(kyosenshi.points.drawbackTotal).toBe(960);
     expect(kyosenshi.points.drawbackOffset).toBe(360);
 
     const all = ['hinoko', 'dokuga-nezumi', 'todome', 'kyosenshi'].map((id) => analyzeCard(sample(id)));

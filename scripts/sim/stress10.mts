@@ -46,6 +46,9 @@ const ANY1: [Rarity, number][] = [
   ['epic', 2],
   ['legend', 2],
   ['legend', 3],
+  // #74 でパワーの開始時が ×8.0 になり、開始時エナジー1 は legend のコスト5 でしか作れない
+  ['legend', 4],
+  ['legend', 5],
 ];
 
 export const EXTREME10: Record<string, Extreme> = {

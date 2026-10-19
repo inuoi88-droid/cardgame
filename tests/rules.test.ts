@@ -85,11 +85,11 @@ describe('効果のポイント', () => {
     expect(codes(fx({ id: 'weaken', value: 6 }))).toEqual(['EFFECT_VALUE']);
   });
 
-  it('毎ターン開始時はモンスター ×2.0、パワー ×6.0。終了時は ×2.5、×6.5', () => {
+  it('毎ターン開始時はモンスター ×2.0、パワー ×8.0。終了時は ×2.5、×8.5（#74）', () => {
     expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnStart', target: 'self' }), true)).toBe(10);
-    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnStart', target: 'self' }))).toBe(30);
+    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnStart', target: 'self' }))).toBe(40);
     expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnEnd', target: 'self' }), true)).toBe(13); // 12.5 → 13
-    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnEnd', target: 'self' }))).toBe(33); // 32.5 → 33
+    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnEnd', target: 'self' }))).toBe(43); // 42.5 → 43
   });
 
   it('カードを使うたび ×8.0、破壊されたとき ×0.7、ダメージを受けたとき ×1.5', () => {

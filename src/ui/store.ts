@@ -98,6 +98,12 @@ export const actions = {
   deleteCard(id: string) {
     setState({ cards: state.cards.filter((c) => c.id !== id), decks: state.decks });
   },
+  /** 削除の取り消し：元の位置に戻す（同じ ID がすでにあれば上書き） */
+  restoreCard(card: CardDef, index: number) {
+    const rest = state.cards.filter((c) => c.id !== card.id);
+    const at = Math.max(0, Math.min(rest.length, index));
+    setState({ cards: [...rest.slice(0, at), card, ...rest.slice(at)], decks: state.decks });
+  },
   saveDeck(deck: Deck) {
     const exists = state.decks.some((d) => d.id === deck.id);
     setState({
@@ -107,6 +113,11 @@ export const actions = {
   },
   deleteDeck(id: string) {
     setState({ cards: state.cards, decks: state.decks.filter((d) => d.id !== id) });
+  },
+  restoreDeck(deck: Deck, index: number) {
+    const rest = state.decks.filter((d) => d.id !== deck.id);
+    const at = Math.max(0, Math.min(rest.length, index));
+    setState({ cards: state.cards, decks: [...rest.slice(0, at), deck, ...rest.slice(at)] });
   },
   replaceAll(cards: CardDef[], decks: Deck[]) {
     setState({ cards, decks });

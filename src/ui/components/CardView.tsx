@@ -62,7 +62,7 @@ export function CardView({ card, analysis, size = 'lg', onClick }: Props) {
           <span title="守備力">🛡{card.stats.defense}</span>
         </div>
       )}
-      {!a.valid && size === 'sm' && <div className="card__invalid">ルール違反</div>}
+      {!a.valid && size === 'sm' && <div className="card__invalid">要修正</div>}
     </div>
   );
 }

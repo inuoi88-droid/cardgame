@@ -81,11 +81,11 @@ describe('マリガン', () => {
 });
 
 describe('ターンの流れ', () => {
-  it('後攻の1ターン目はエナジー3で引かない。2ターン目からは5枚引く', () => {
+  it('後攻の1ターン目はエナジー3＋1（#73）で引かない。2ターン目からは5枚引く', () => {
     let g = startGame();
     g = endTurn(g);
     expect(g.active).toBe(1);
-    expect(g.players[1].energy).toBe(E1);
+    expect(g.players[1].energy).toBe(E1 + B.secondPlayerFirstTurnBonusEnergy);
     expect(g.players[1].hand).toHaveLength(5);
     // 先攻のターン終了で手札はすべて捨て札へ
     expect(g.players[0].hand).toHaveLength(0);
@@ -129,19 +129,33 @@ describe('ターンの流れ', () => {
     expect(g.players[1].energy).toBe(5);
   });
 
-  describe('後攻の1ターン目の調整つまみ（既定は0。シミュレーションで比べるため）', () => {
+  describe('後攻の1ターン目の調整つまみ（エナジー+1 を採用：#73。ドローは0。シミュレーションで比べるため）', () => {
     // BALANCE は const だが、テストでは一時的に書き換えて必ず戻す
     const Bm = BALANCE.battle as { secondPlayerFirstTurnBonusEnergy: number; secondPlayerFirstTurnExtraDraw: number };
 
-    it('既定は0：後攻の1ターン目はエナジー3・引かない', () => {
-      expect(B.secondPlayerFirstTurnBonusEnergy).toBe(0);
+    it('採用した値：後攻の1ターン目はエナジー3+1＝4・引かない（#73）', () => {
+      expect(B.secondPlayerFirstTurnBonusEnergy).toBe(1);
       expect(B.secondPlayerFirstTurnExtraDraw).toBe(0);
       const g = endTurn(startGame());
-      expect(g.players[1].energy).toBe(E1);
+      expect(g.players[1].energy).toBe(E1 + 1);
+      expect(g.log.some((e) => e.text.includes('後攻の1ターン目は+1'))).toBe(true);
       expect(g.players[1].hand).toHaveLength(5);
     });
 
+    it('0 にすれば補正なし：後攻の1ターン目はエナジー3', () => {
+      const saved = Bm.secondPlayerFirstTurnBonusEnergy;
+      Bm.secondPlayerFirstTurnBonusEnergy = 0;
+      try {
+        const g = endTurn(startGame());
+        expect(g.players[1].energy).toBe(E1);
+        expect(g.log.some((e) => e.text.includes('後攻の1ターン目は+'))).toBe(false);
+      } finally {
+        Bm.secondPlayerFirstTurnBonusEnergy = saved;
+      }
+    });
+
     it('エナジー+1：後攻の1ターン目だけ基本に足し、先攻と2ターン目以降は変わらない', () => {
+      const saved = Bm.secondPlayerFirstTurnBonusEnergy;
       Bm.secondPlayerFirstTurnBonusEnergy = 1;
       try {
         let g = startGame();
@@ -154,11 +168,12 @@ describe('ターンの流れ', () => {
         expect(g.active).toBe(1);
         expect(g.players[1].energy).toBe(E1);
       } finally {
-        Bm.secondPlayerFirstTurnBonusEnergy = 0;
+        Bm.secondPlayerFirstTurnBonusEnergy = saved;
       }
     });
 
     it('ドロー+1：後攻の1ターン目だけ配った手札に加えて引き、先攻と2ターン目以降は変わらない', () => {
+      const saved = Bm.secondPlayerFirstTurnExtraDraw;
       Bm.secondPlayerFirstTurnExtraDraw = 1;
       try {
         let g = startGame();
@@ -171,7 +186,7 @@ describe('ターンの流れ', () => {
         g = endTurn(g);
         expect(g.players[1].hand).toHaveLength(B.drawPerTurn);
       } finally {
-        Bm.secondPlayerFirstTurnExtraDraw = 0;
+        Bm.secondPlayerFirstTurnExtraDraw = saved;
       }
     });
   });

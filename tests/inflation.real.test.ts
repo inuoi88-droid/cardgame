@@ -47,14 +47,15 @@ describe('倍率', () => {
 
     const nezumi = analyzeCard(sample('dokuga-nezumi'));
     expect(sample('dokuga-nezumi').stats).toEqual({ attack: 20, hp: 40, defense: 0 });
-    expect(nezumi.points.total).toBe(60);
+    // 攻撃力20（60）＋体力40（80）＋攻撃するたび毒20（80×2.0＝160）− コスト200（上限100ちょうど）
+    expect(nezumi.points.total).toBe(100);
 
     // ダメージ400（800pt）×0.7 − コスト400pt
     expect(analyzeCard(sample('todome')).points.total).toBe(160);
 
     const kyosenshi = analyzeCard(sample('kyosenshi'));
     expect(kyosenshi.points.total).toBe(340);
-    expect(kyosenshi.points.drawbackTotal).toBe(480);
+    expect(kyosenshi.points.drawbackTotal).toBe(720);
     expect(kyosenshi.points.drawbackOffset).toBe(360);
 
     const all = ['hinoko', 'dokuga-nezumi', 'todome', 'kyosenshi'].map((id) => analyzeCard(sample(id)));
@@ -63,16 +64,16 @@ describe('倍率', () => {
   });
 
   it('コモン・コスト1（予算300pt）に、キーワードと効果を積める', () => {
-    // 飛行60 ＋ 攻撃するたび毒10（30×2.0＝60）＋ 攻撃力20（60）・体力60（120）
+    // 飛行60 ＋ 攻撃するたび毒5（20×2.0＝40）＋ 攻撃力20（60）・体力60（120）
     const c = card({
       rarity: 'common',
       cost: 1,
       stats: { attack: 20, hp: 60, defense: 0 },
       keywords: [{ id: 'flying' }],
-      effects: [{ id: 'poison', value: 10, timing: 'attack', target: 'chosen', condition: null }],
+      effects: [{ id: 'poison', value: 5, timing: 'attack', target: 'chosen', condition: null }],
     });
     const a = analyzeCard(c);
-    expect(a.points.total).toBe(60 + 120 + 60 + 60 - 200);
+    expect(a.points.total).toBe(60 + 120 + 60 + 40 - 200);
     expect(a.valid).toBe(true);
   });
 

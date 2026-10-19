@@ -9,11 +9,11 @@
  *
  * 差し替える枠：
  * - B0（兵士 3/3 ×10・火球 ダメージ7 ×10・戦士 5/5 ×10）：呪文は火球の枠、モンスターと「打点を増やす」効果（筋力・気合・脆弱・出血）は兵士の枠
- * - B1（見習い兵 2/4.5 ×10・火球 ダメージ7.5 ×10・鉄の盾 シールド10 ×10）：呪文は鉄の盾の枠、モンスターは見習い兵の枠
+ * - B1（見習い兵 2/4.5 ×10・火球 ダメージ7.5 ×10・鉄の盾 シールド上限 ×10）：呪文は鉄の盾の枠、モンスターは見習い兵の枠
  * カードはコモン・コスト1で作れる最大の数値（fitValue）。コモンで作れない効果は上のレアリティで作り、
  * デッキに入れられる上限（レア8・エピック4・レジェンド2）を超える分は元のカードのまま残す。
  */
-import { B0, B1, BALANCE, argN, buildDeck, cardAtCap, fill, fx, isMain, mdTable, pct, series, table, writeOut, type DeckSpec, type SeriesResult } from './lib.mts';
+import { B0, B1, BALANCE, argN, buildDeck, cardAtCap, fill, fx, ironShield, isMain, mdTable, pct, series, table, writeOut, type DeckSpec, type SeriesResult } from './lib.mts';
 import { createEffect, type CardDef, type EffectInstance, type KeywordInstance, type Rarity, type Stats } from '../../src/engine/index.ts';
 
 const eff = (id: string, over: Partial<EffectInstance> = {}, monster = false): EffectInstance => ({ ...createEffect(id, monster ? 'monster' : 'spell'), ...over });
@@ -144,7 +144,7 @@ const FIRE7 = () => cardAtCap('common', 1, [fx({ id: 'damage', value: 7 })], nul
 const WARRIOR = () => cardAtCap('common', 2, [], { attack: 5, hp: 5, defense: 0 }, [], { name: '戦士' });
 const APPRENTICE = () => cardAtCap('common', 1, [], { attack: 2, hp: 4.5, defense: 0 }, [], { name: '見習い兵' });
 const FIRE75 = () => cardAtCap('common', 1, [fx({ id: 'damage', value: 7.5 })], null, [], { name: '火球' });
-const SHIELD10 = () => cardAtCap('common', 1, [fx({ id: 'shield', value: 10, target: 'self' })], null, [], { name: '鉄の盾' });
+const SHIELD10 = () => ironShield();
 
 /** 基準デッキの1枠を差し替えたデッキ */
 export function variant(key: string, base: 'B0' | 'B1', x: Extreme): { deck: DeckSpec; desc: string } {

@@ -1,6 +1,6 @@
 // 効果ごとの処理と、発動タイミング・条件・パワー・選択
 import { describe, expect, it } from 'vitest';
-import { battle, listEffects } from '../../src/engine/index.ts';
+import { BALANCE, battle, listEffects } from '../../src/engine/index.ts';
 import { EXAMPLES, card } from '../helpers.ts';
 import { M, P, act, actError, attack, endTurn, fx, giveCard, monster, play, putMonster, rich, startGame } from './helpers.ts';
 
@@ -265,7 +265,8 @@ describe('リソース系', () => {
     let g = rich(startGame());
     g = play(g, giveCard(g, 0, legend([fx({ id: 'drawJam', target: 'enemyPlayer' }), fx({ id: 'energyJam', target: 'enemyPlayer' }), fx({ id: 'savings', value: 2, target: 'self' })])));
     g = endTurn(g);
-    expect(g.players[1].energy).toBe(2);
+    // 後攻の1ターン目の基本（3＋後攻の補正）から、エナジー妨害で1減る
+    expect(g.players[1].energy).toBe(3 + BALANCE.battle.secondPlayerFirstTurnBonusEnergy - 1);
     g = endTurn(g);
     expect(g.players[0].energy).toBe(5);
     g = endTurn(g);

@@ -66,7 +66,7 @@ export const BALANCE = {
     defenseMax: x(3),
   },
 
-  /** 発動タイミングの倍率 */
+  /** 発動タイミングの倍率（#73 でパワーの開始時・終了時を 4.0・4.5→6.0・6.5） */
   timing: {
     play: 1.0,
     summon: 1.0,
@@ -77,17 +77,17 @@ export const BALANCE = {
     attackHasteBonus: 1.0,
     turnStartMonster: 2.0,
     turnEndMonster: 2.5,
-    turnStartPower: 4.0,
-    turnEndPower: 4.5,
+    turnStartPower: 6.0,
+    turnEndPower: 6.5,
     cardPlayed: 8.0,
   },
 
-  /** 対象の倍率。self / enemyPlayer / board は選択肢のない固定対象 */
+  /** 対象の倍率。self / enemyPlayer / board は選択肢のない固定対象（#73 で相手全体 2.5→3.5） */
   target: {
     chosen: 1.0,
     random: 0.6,
     enemyMonsters: 2.0,
-    enemyAll: 2.5,
+    enemyAll: 3.5,
     everyone: 1.0,
     self: 1.0,
     enemyPlayer: 1.0,
@@ -138,21 +138,21 @@ export const BALANCE = {
     damagePerCardMax: x(30),
   },
 
-  /** 効果の基礎ポイント（価格表は決定事項 #68） */
+  /** 効果の基礎ポイント（価格表は決定事項 #68。#73 で処刑・シールド・回復・毒・再生を調整） */
   effects: {
     damage: { perValue: 2 },
     multiHit: { perValueHit: 2 },
-    execute: { perValue: 2 },
+    execute: { perValue: 1.5 },
     counter: { perValue: 2 },
 
-    shield: { perValue: 1.5 },
-    heal: { perValue: 2 },
+    shield: { perValue: 2.5 },
+    heal: { perValue: 3 },
     nullify: { flat: x(10) },
     cleanse: { flat: x(8) },
     repair: { perValue: 1 },
 
     /** 毒は残り続けて合計ダメージが大きくなるので、1つの効果で与えられる値に上限を置く */
-    poison: { perValue: 3, maxValue: x(10) },
+    poison: { perValue: 4, maxValue: x(10) },
     burn: { flat: x(10), perExtraTurn: x(3), maxExtraTurns: 5 },
     freeze: { flat: x(10) },
     /** 弱体・脆弱の N はターン数（上限あり） */
@@ -166,7 +166,7 @@ export const BALANCE = {
     focus: { perValue: 3 },
     attackUp: { perValue: 3 },
     defenseUp: { perValue: 4, maxValue: x(3) },
-    regen: { perValue: 3 },
+    regen: { perValue: 4 },
 
     draw: { perValue: x(4) },
     energy: { perValue: x(8) },
@@ -252,11 +252,11 @@ export const BALANCE = {
     /** 先攻の1ターン目はエナジーがこれだけ少ない（3−1＝2） */
     firstPlayerFirstTurnPenalty: 1,
     /**
-     * 後攻の1ターン目の補正（先攻後攻の差を測り直すための調整つまみ。既定は0＝何もしない）。
+     * 後攻の1ターン目の補正（先攻後攻の差の調整つまみ。#73 でエナジー+1 を採用：後攻の1ターン目は 3+1＝4）。
      * BonusEnergy は成長表の基本エナジーに足す（1ターンの増加の上限には数えない）。ExtraDraw はそのターンに引く枚数に足す
      * （後攻の1ターン目は配った手札を使うので、0 なら引かない：#47・#51）。シミュレーション（scripts/sim/）で比べる
      */
-    secondPlayerFirstTurnBonusEnergy: 0,
+    secondPlayerFirstTurnBonusEnergy: 1,
     secondPlayerFirstTurnExtraDraw: 0,
     maxTurns: 30,
     minMonsterDamage: x(1),

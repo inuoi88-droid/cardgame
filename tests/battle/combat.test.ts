@@ -226,8 +226,9 @@ describe('凍結・混乱・封印', () => {
     const c = giveCard(g, 1, card({ id: 'c1', cost: 1, effects: [fx({ id: 'damage', value: 2 })] }));
     const info = battle.playInfo(g, 1, g.players[1].hand.find((x) => x.uid === c)!);
     expect(info.cost).toBe(2);
+    const before = g.players[1].energy;
     g = play(g, c, { enemy: P(0) });
-    expect(g.players[1].energy).toBe(1);
+    expect(g.players[1].energy).toBe(before - 2);
     const c2 = giveCard(g, 1, card({ id: 'c2', cost: 1, effects: [fx({ id: 'damage', value: 2 })] }));
     expect(battle.playInfo(g, 1, g.players[1].hand.find((x) => x.uid === c2)!).cost).toBe(1);
   });

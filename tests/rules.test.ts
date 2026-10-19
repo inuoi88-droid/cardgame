@@ -32,20 +32,22 @@ describe('効果のポイント', () => {
     expect(effectValue(fx({ id: 'multiHit', value: 3, hits: 2 }))).toBe(12);
   });
 
-  it('ランダム1体 ×0.6 は切り上げ（毒1：3×0.6＝1.8 → 2）', () => {
-    expect(effectValue(fx({ id: 'poison', value: 1, target: 'random' }))).toBe(2);
+  it('ランダム1体 ×0.6 は切り上げ（毒1：4×0.6＝2.4 → 3）', () => {
+    expect(effectValue(fx({ id: 'poison', value: 1, target: 'random' }))).toBe(3);
   });
 
-  it('相手全体 ×2.5、相手モンスター全体 ×2.0', () => {
-    expect(effectValue(fx({ id: 'poison', value: 1, target: 'enemyAll' }))).toBe(8); // 7.5 → 8
-    expect(effectValue(fx({ id: 'poison', value: 2, target: 'enemyMonsters' }))).toBe(12);
+  it('相手全体 ×3.5、相手モンスター全体 ×2.0', () => {
+    expect(effectValue(fx({ id: 'poison', value: 1, target: 'enemyAll' }))).toBe(14);
+    expect(effectValue(fx({ id: 'damage', value: 1, target: 'enemyAll' }))).toBe(7);
+    expect(effectValue(fx({ id: 'poison', value: 2, target: 'enemyMonsters' }))).toBe(16);
   });
 
   it('敵味方すべては ×1.0。モンスターにしか効かない効果（処刑・封印など）なら ×1.4', () => {
-    expect(effectValue(fx({ id: 'poison', value: 2, target: 'everyone' }))).toBe(6);
-    expect(effectLine(fx({ id: 'poison', value: 2, target: 'everyone' })).formula).toBe('2×3');
-    expect(effectValue(fx({ id: 'execute', value: 5, target: 'everyone' }))).toBe(14);
-    expect(effectLine(fx({ id: 'execute', value: 5, target: 'everyone' })).formula).toBe('10 × 1.4（敵味方すべて）');
+    expect(effectValue(fx({ id: 'poison', value: 2, target: 'everyone' }))).toBe(8);
+    expect(effectLine(fx({ id: 'poison', value: 2, target: 'everyone' })).formula).toBe('2×4');
+    expect(effectValue(fx({ id: 'execute', value: 10, target: 'everyone' }))).toBe(21);
+    expect(effectLine(fx({ id: 'execute', value: 10, target: 'everyone' })).formula).toBe('15 × 1.4（敵味方すべて）');
+    expect(effectValue(fx({ id: 'execute', value: 4, target: 'everyone' }))).toBe(9); // 6 × 1.4 = 8.4 → 9
     expect(effectValue(fx({ id: 'seal', target: 'everyone' }))).toBe(12); // 8 × 1.4 = 11.2 → 12
   });
 
@@ -83,11 +85,11 @@ describe('効果のポイント', () => {
     expect(codes(fx({ id: 'weaken', value: 6 }))).toEqual(['EFFECT_VALUE']);
   });
 
-  it('毎ターン開始時はモンスター ×2.0、パワー ×4.0。終了時は ×2.5、×4.5', () => {
-    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnStart', target: 'self' }), true)).toBe(6);
-    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnStart', target: 'self' }))).toBe(12);
-    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnEnd', target: 'self' }), true)).toBe(8); // 7.5 → 8
-    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnEnd', target: 'self' }))).toBe(14); // 13.5 → 14
+  it('毎ターン開始時はモンスター ×2.0、パワー ×6.0。終了時は ×2.5、×6.5', () => {
+    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnStart', target: 'self' }), true)).toBe(10);
+    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnStart', target: 'self' }))).toBe(30);
+    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnEnd', target: 'self' }), true)).toBe(13); // 12.5 → 13
+    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnEnd', target: 'self' }))).toBe(33); // 32.5 → 33
   });
 
   it('カードを使うたび ×8.0、破壊されたとき ×0.7、ダメージを受けたとき ×1.5', () => {
@@ -102,14 +104,14 @@ describe('効果のポイント', () => {
         stats: { attack: 1, hp: 1, defense: 0 },
         keywords,
       });
-    expect(monster([]).value).toBe(6);
-    expect(monster([]).formula).toBe('3 × 2.0（攻撃するたび）');
-    expect(monster([{ id: 'doubleAttack' }]).value).toBe(12);
-    expect(monster([{ id: 'doubleAttack' }]).formula).toBe('3 × 2.0×2（攻撃するたび・二回攻撃）');
-    expect(monster([{ id: 'haste' }]).value).toBe(9);
-    expect(monster([{ id: 'haste' }]).formula).toBe('3 × 2.0+1.0（攻撃するたび・速攻）');
-    expect(monster([{ id: 'haste' }, { id: 'doubleAttack' }]).value).toBe(15);
-    expect(monster([{ id: 'haste' }, { id: 'doubleAttack' }]).formula).toBe('3 × 2.0×2+1.0（攻撃するたび・二回攻撃・速攻）');
+    expect(monster([]).value).toBe(8);
+    expect(monster([]).formula).toBe('4 × 2.0（攻撃するたび）');
+    expect(monster([{ id: 'doubleAttack' }]).value).toBe(16);
+    expect(monster([{ id: 'doubleAttack' }]).formula).toBe('4 × 2.0×2（攻撃するたび・二回攻撃）');
+    expect(monster([{ id: 'haste' }]).value).toBe(12);
+    expect(monster([{ id: 'haste' }]).formula).toBe('4 × 2.0+1.0（攻撃するたび・速攻）');
+    expect(monster([{ id: 'haste' }, { id: 'doubleAttack' }]).value).toBe(20);
+    expect(monster([{ id: 'haste' }, { id: 'doubleAttack' }]).formula).toBe('4 × 2.0×2+1.0（攻撃するたび・二回攻撃・速攻）');
   });
 
   it('条件は条件ごとの倍率（場にモンスター 0.9 … 毒とやけど 0.5）', () => {

@@ -54,7 +54,7 @@ function preset(id: string, name: string, description: string, list: [CardDef, n
 // ---------------------------------------------------------------- 毒中心
 const poison = preset('poison', '毒沼の魔女', '毒をばらまき、毒状態の相手にとどめを刺す', [
   [c('dokubari', '毒針', '🗡️', 'common', 1, { effects: [fx({ id: 'damage', value: 1 }), fx({ id: 'poison', value: 3 })] }), 8],
-  [c('dokugiri', '毒霧', '🌫️', 'common', 1, { effects: [fx({ id: 'poison', value: 2, target: 'enemyAll' })] }), 5],
+  [c('dokugiri', '毒霧', '🌫️', 'common', 1, { effects: [fx({ id: 'poison', value: 1, target: 'enemyAll' })] }), 5],
   [
     c('nezumi', '毒牙ネズミ', '🐀', 'common', 1, {
       stats: { attack: 1, hp: 2, defense: 0 },
@@ -65,14 +65,14 @@ const poison = preset('poison', '毒沼の魔女', '毒をばらまき、毒状�
   [
     c('hebi', '腐食の蛇', '🐍', 'common', 2, {
       stats: { attack: 2, hp: 3, defense: 0 },
-      effects: [fx({ id: 'poison', value: 2, timing: 'attack' })],
+      effects: [fx({ id: 'poison', value: 1, timing: 'attack' })],
     }),
     4,
   ],
-  [c('gedoku', '解毒の薬', '🧪', 'common', 1, { effects: [fx({ id: 'shield', value: 6, target: 'self' }), fx({ id: 'heal', value: 2, target: 'self' })] }), 3],
+  [c('gedoku', '解毒の薬', '🧪', 'common', 1, { effects: [fx({ id: 'shield', value: 3, target: 'self' }), fx({ id: 'heal', value: 2, target: 'self' })] }), 3],
   [c('todome', 'とどめの一撃', '⚔️', 'rare', 2, { effects: [fx({ id: 'damage', value: 20, condition: 'enemyPoisoned' })] }), 3],
-  [c('numachi', '毒の沼地', '🫧', 'rare', 2, { effects: [fx({ id: 'poison', value: 2, timing: 'turnStart', target: 'enemyPlayer' })] }), 2],
-  [c('dokuyaiba', '毒の刃', '🔪', 'epic', 2, { effects: [fx({ id: 'damage', value: 8 }), fx({ id: 'poison', value: 5 })] }), 1],
+  [c('numachi', '毒の沼地', '🫧', 'rare', 2, { effects: [fx({ id: 'poison', value: 1, timing: 'turnStart', target: 'enemyPlayer' })] }), 2],
+  [c('dokuyaiba', '毒の刃', '🔪', 'epic', 2, { effects: [fx({ id: 'damage', value: 8 }), fx({ id: 'poison', value: 4 })] }), 1],
 ]);
 
 // ---------------------------------------------------------------- モンスター中心
@@ -143,7 +143,7 @@ const curses = preset('curses', '呪いの契約', '自分を傷つける代わ�
   ],
   [
     c('ikenie', '生贄の儀式', '🕯️', 'rare', 1, {
-      effects: [fx({ id: 'shield', value: 10, target: 'self' }), fx({ id: 'heal', value: 3, target: 'self' })],
+      effects: [fx({ id: 'shield', value: 8, target: 'self' }), fx({ id: 'heal', value: 2, target: 'self' })],
       drawbacks: [
         { id: 'discardRandom', timing: 'play' },
         { id: 'gift', timing: 'play' },

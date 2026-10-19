@@ -171,15 +171,30 @@ export const B0 = (): DeckSpec =>
     ]),
   );
 
-/** B1：顔を殴り合うレース（監査 sim-c の基準）。見習い兵 2/4.5 ×10、火球 ダメージ7.5 ×10、鉄の盾 シールド10 ×10 */
+/**
+ * B1：顔を殴り合うレース（監査 sim-c の基準）。見習い兵 2/4.5 ×10、火球 ダメージ7.5 ×10、鉄の盾（コモン・コスト1で作れる最大のシールド）×10。
+ * 鉄の盾は価格表に追従する（シールド 1.5/点 のときは 10、#73 の 2.5/点 からは 6）
+ */
 export const B1 = (): DeckSpec =>
   once('B1', () =>
     buildDeck('B1', [
       [cardAtCap('common', 1, [], { attack: 2, hp: 4.5, defense: 0 }, [], { name: '見習い兵' }), 10],
       [cardAtCap('common', 1, [fx({ id: 'damage', value: 7.5 })], null, [], { name: '火球' }), 10],
-      [cardAtCap('common', 1, [fx({ id: 'shield', value: 10, target: 'self' })], null, [], { name: '鉄の盾' }), 10],
+      [ironShield(), 10],
     ]),
   );
+
+/** 鉄の盾：コモン・コスト1で作れる最大のシールド（0.25 刻み） */
+export function ironShield(): CardDef {
+  for (let v = 30; v >= 0.25; v -= 0.25) {
+    try {
+      return cardAtCap('common', 1, [fx({ id: 'shield', value: v, target: 'self' })], null, [], { name: '鉄の盾' });
+    } catch {
+      // 上限を超えたら次へ
+    }
+  }
+  throw new Error('鉄の盾が作れない');
+}
 
 /** BURN：コスト1のダメージだけのコモン30枚（最速の顔レースの目安） */
 export const BURN = (): DeckSpec =>

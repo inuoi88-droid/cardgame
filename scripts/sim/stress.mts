@@ -60,6 +60,7 @@
 import {
   B0,
   B1,
+  burnCard,
   BALANCE,
   argN,
   buildDeck,
@@ -82,7 +83,7 @@ import { createEffect, type CardDef, type EffectInstance, type KeywordInstance, 
 const eff = (id: string, over: Partial<EffectInstance> = {}, monster = false): EffectInstance => ({ ...createEffect(id, monster ? 'monster' : 'spell'), ...over });
 
 const SOLDIER = (): CardDef => cardAtCap('common', 1, [], { attack: 3, hp: 3, defense: 0 }, [], { name: '兵士' });
-const FIREBALL = (): CardDef => cardAtCap('common', 1, [fx({ id: 'damage', value: 7 })], null, [], { name: '火球' });
+const FIREBALL = (): CardDef => burnCard(7, '火球');
 
 interface Parts {
   effects?: EffectInstance[];

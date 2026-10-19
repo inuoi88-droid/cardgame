@@ -13,7 +13,7 @@
  * カードはコモン・コスト1で作れる最大の数値（fitValue）。コモンで作れない効果は上のレアリティで作り、
  * デッキに入れられる上限（レア8・エピック4・レジェンド2）を超える分は元のカードのまま残す。
  */
-import { B0, B1, BALANCE, argN, buildDeck, cardAtCap, fill, fx, ironShield, isMain, mdTable, pct, series, table, writeOut, type DeckSpec, type SeriesResult } from './lib.mts';
+import { B0, B1, BALANCE, argN, buildDeck, burnCard, cardAtCap, fill, fx, monsterAtCap, ironShield, isMain, mdTable, pct, series, table, writeOut, type DeckSpec, type SeriesResult } from './lib.mts';
 import { createEffect, type CardDef, type EffectInstance, type KeywordInstance, type Rarity, type Stats } from '../../src/engine/index.ts';
 
 const eff = (id: string, over: Partial<EffectInstance> = {}, monster = false): EffectInstance => ({ ...createEffect(id, monster ? 'monster' : 'spell'), ...over });
@@ -142,11 +142,11 @@ function fit(x: Extreme): { card: CardDef; parts: Parts; rarity: Rarity; cost: n
   throw new Error(`作れない：${last}`);
 }
 
-const SOLDIER = () => cardAtCap('common', 1, [], { attack: 3, hp: 3, defense: 0 }, [], { name: '兵士' });
-const FIRE7 = () => cardAtCap('common', 1, [fx({ id: 'damage', value: 7 })], null, [], { name: '火球' });
-const WARRIOR = () => cardAtCap('common', 2, [], { attack: 5, hp: 5, defense: 0 }, [], { name: '戦士' });
-const APPRENTICE = () => cardAtCap('common', 1, [], { attack: 2, hp: 4.5, defense: 0 }, [], { name: '見習い兵' });
-const FIRE75 = () => cardAtCap('common', 1, [fx({ id: 'damage', value: 7.5 })], null, [], { name: '火球' });
+const SOLDIER = () => monsterAtCap('兵士', 1, 3, 3);
+const FIRE7 = () => burnCard(7, '火球');
+const WARRIOR = () => monsterAtCap('戦士', 2, 5, 5);
+const APPRENTICE = () => monsterAtCap('見習い兵', 1, 2, 4.5);
+const FIRE75 = () => burnCard(7.5, '火球');
 const SHIELD10 = () => ironShield();
 
 /** 基準デッキの1枠を差し替えたデッキ */

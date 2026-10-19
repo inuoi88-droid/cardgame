@@ -24,10 +24,10 @@ describe('倍率', () => {
     expect(BALANCE.card.cost0CapPenalty).toBe(40);
     expect(BALANCE.keywords.flying.flat).toBe(60);
     expect(BALANCE.effects.draw.perValue).toBe(80);
-    expect(BALANCE.effects.burn.flat).toBe(200);
+    expect(BALANCE.effects.burn.flat).toBe(180);
     expect(BALANCE.drawbacks.gift.flat).toBe(60);
-    // 量1あたりのポイントは変わらない
-    expect(BALANCE.effects.damage.perValue).toBe(2);
+    // 量1あたりのポイントは変わらない（#84 でダメージは 3pt）
+    expect(BALANCE.effects.damage.perValue).toBe(3);
     expect(BALANCE.stats.attackPoints).toBe(3);
     // 枚数・エナジー・ターン数は変わらない
     expect(BALANCE.battle).toMatchObject({ drawPerTurn: 5, maxTurns: 30, burnTurns: 3, maxCardPlayedTriggersPerTurn: 2 });
@@ -41,21 +41,21 @@ describe('倍率', () => {
     const hinoko = analyzeCard(sample('hinoko'));
     expect(sample('hinoko').effects[0]!.value).toBe(40);
     expect(hinoko.text.effects[0]).toBe('相手1体に40ダメージを与える。');
-    // ダメージ40（80pt）＋やけど200pt − コスト200pt
-    expect(hinoko.points.total).toBe(80);
+    // ダメージ40（120pt）＋やけど180pt − コスト200pt（#84）
+    expect(hinoko.points.total).toBe(100);
     expect(hinoko.points.cap).toBe(100);
 
     const nezumi = analyzeCard(sample('dokuga-nezumi'));
     expect(sample('dokuga-nezumi').stats).toEqual({ attack: 20, hp: 40, defense: 0 });
-    // 攻撃力20（60）＋体力40（80）＋攻撃するたび毒20（80×2.0＝160）− コスト200（上限100ちょうど）
-    expect(nezumi.points.total).toBe(100);
+    // 攻撃力20（60）＋体力40（60。#84 で体力1.5pt）＋攻撃するたび毒20（80×2.0＝160）− コスト200
+    expect(nezumi.points.total).toBe(80);
 
-    // ダメージ400（800pt）×0.7 − コスト400pt
-    expect(analyzeCard(sample('todome')).points.total).toBe(160);
+    // ダメージ400（1200pt）×0.45 − コスト400pt（#84）
+    expect(analyzeCard(sample('todome')).points.total).toBe(140);
 
     const kyosenshi = analyzeCard(sample('kyosenshi'));
     expect(kyosenshi.points.total).toBe(340);
-    expect(kyosenshi.points.drawbackTotal).toBe(960);
+    expect(kyosenshi.points.drawbackTotal).toBe(720);
     expect(kyosenshi.points.drawbackOffset).toBe(360);
 
     const all = ['hinoko', 'dokuga-nezumi', 'todome', 'kyosenshi'].map((id) => analyzeCard(sample(id)));
@@ -64,7 +64,7 @@ describe('倍率', () => {
   });
 
   it('コモン・コスト1（予算300pt）に、キーワードと効果を積める', () => {
-    // 飛行60 ＋ 攻撃するたび毒5（20×2.0＝40）＋ 攻撃力20（60）・体力60（120）
+    // 飛行60 ＋ 攻撃するたび毒5（20×2.0＝40）＋ 攻撃力20（60）・体力60（90。#84 で体力1.5pt）
     const c = card({
       rarity: 'common',
       cost: 1,
@@ -73,7 +73,7 @@ describe('倍率', () => {
       effects: [{ id: 'poison', value: 5, timing: 'attack', target: 'chosen', condition: null }],
     });
     const a = analyzeCard(c);
-    expect(a.points.total).toBe(60 + 120 + 60 + 40 - 200);
+    expect(a.points.total).toBe(60 + 90 + 60 + 40 - 200);
     expect(a.valid).toBe(true);
   });
 
@@ -138,7 +138,7 @@ describe('保存してあったカードの移行', () => {
   });
 
   it('前の版（10倍）のカードは、移行しても新しい価格表で計算される', () => {
-    // 前の版（10倍）のコモン「ダメージ20＋やけど」。移行後は 80 + 200 − 200 = 80 / 100
+    // 前の版（10倍）のコモン「ダメージ20＋やけど」。移行後は 120 + 180 − 200 = 100 / 100（#84 の価格）
     const fire = parsed({
       ...card({
         effects: [
@@ -151,7 +151,7 @@ describe('保存してあったカードの移行', () => {
     expect(fire.effects[0]!.value).toBe(40);
     const a = analyzeCard(fire);
     expect(a.valid).toBe(true);
-    expect(a.points.remaining).toBe(20);
+    expect(a.points.remaining).toBe(0);
   });
 });
 

@@ -1,4 +1,4 @@
-// ポイント計算と種類判定の細部（決定事項ログの内容を含む。価格表は #67・#68）
+// ポイント計算と種類判定の細部（決定事項ログの内容を含む。価格表は #67・#68、#84 の最終調整後）
 import { describe, expect, it } from 'vitest';
 import { analyzeCard, BALANCE, type CardDef, type EffectInstance } from '../src/engine/index.ts';
 import { ceilPoints, floorPoints } from '../src/engine/math.ts';
@@ -17,19 +17,19 @@ const effectValue = (e: EffectInstance, stats = false) => effectLine(e, stats ? 
 
 describe('効果のポイント', () => {
   it('防御無視は+40%、吸収と両方なら+80%（加算）', () => {
-    expect(effectValue(fx({ id: 'damage', value: 2 }))).toBe(4);
-    expect(effectValue(fx({ id: 'damage', value: 2, mods: ['pierce'] }))).toBe(6); // 5.6 → 6
-    expect(effectValue(fx({ id: 'damage', value: 2, mods: ['pierce', 'drain'] }))).toBe(8); // 7.2 → 8
-    expect(effectValue(fx({ id: 'damage', value: 5, mods: ['pierce'] }))).toBe(14);
+    expect(effectValue(fx({ id: 'damage', value: 2 }))).toBe(6);
+    expect(effectValue(fx({ id: 'damage', value: 2, mods: ['pierce'] }))).toBe(9); // 8.4 → 9
+    expect(effectValue(fx({ id: 'damage', value: 2, mods: ['pierce', 'drain'] }))).toBe(11); // 10.8 → 11
+    expect(effectValue(fx({ id: 'damage', value: 5, mods: ['pierce'] }))).toBe(21);
   });
 
   it('防御無視は他の倍率より先に掛け、最後に1回だけ切り上げる', () => {
-    // 4 × 1.4 × 0.6 = 3.36 → 4
-    expect(effectValue(fx({ id: 'damage', value: 2, mods: ['pierce'], target: 'random' }))).toBe(4);
+    // 6 × 1.4 × 0.6 = 5.04 → 6
+    expect(effectValue(fx({ id: 'damage', value: 2, mods: ['pierce'], target: 'random' }))).toBe(6);
   });
 
-  it('連撃は N×M×2', () => {
-    expect(effectValue(fx({ id: 'multiHit', value: 3, hits: 2 }))).toBe(12);
+  it('連撃は N×M×3（#84）', () => {
+    expect(effectValue(fx({ id: 'multiHit', value: 3, hits: 2 }))).toBe(18);
   });
 
   it('ランダム1体 ×0.6 は切り上げ（毒1：4×0.6＝2.4 → 3）', () => {
@@ -38,22 +38,22 @@ describe('効果のポイント', () => {
 
   it('相手全体 ×3.5、相手モンスター全体 ×2.0', () => {
     expect(effectValue(fx({ id: 'poison', value: 1, target: 'enemyAll' }))).toBe(14);
-    expect(effectValue(fx({ id: 'damage', value: 1, target: 'enemyAll' }))).toBe(7);
+    expect(effectValue(fx({ id: 'damage', value: 1, target: 'enemyAll' }))).toBe(11); // 10.5 → 11
     expect(effectValue(fx({ id: 'poison', value: 2, target: 'enemyMonsters' }))).toBe(16);
   });
 
   it('敵味方すべては ×1.0。モンスターにしか効かない効果（処刑・封印など）なら ×1.4', () => {
     expect(effectValue(fx({ id: 'poison', value: 2, target: 'everyone' }))).toBe(8);
     expect(effectLine(fx({ id: 'poison', value: 2, target: 'everyone' })).formula).toBe('2×4');
-    expect(effectValue(fx({ id: 'execute', value: 10, target: 'everyone' }))).toBe(21);
-    expect(effectLine(fx({ id: 'execute', value: 10, target: 'everyone' })).formula).toBe('15 × 1.4（敵味方すべて）');
-    expect(effectValue(fx({ id: 'execute', value: 4, target: 'everyone' }))).toBe(9); // 6 × 1.4 = 8.4 → 9
+    expect(effectValue(fx({ id: 'execute', value: 10, target: 'everyone' }))).toBe(35);
+    expect(effectLine(fx({ id: 'execute', value: 10, target: 'everyone' })).formula).toBe('25 × 1.4（敵味方すべて）');
+    expect(effectValue(fx({ id: 'execute', value: 3, target: 'everyone' }))).toBe(11); // 7.5 × 1.4 = 10.5 → 11 (#84 で処刑 2.5pt)
     expect(effectValue(fx({ id: 'seal', target: 'everyone' }))).toBe(12); // 8 × 1.4 = 11.2 → 12
   });
 
   it('やけどは延長1ターンごとに+3pt（延長は5ターンまで）', () => {
-    expect(effectValue(fx({ id: 'burn', value: 0 }))).toBe(10);
-    expect(effectValue(fx({ id: 'burn', value: 2 }))).toBe(16);
+    expect(effectValue(fx({ id: 'burn', value: 0 }))).toBe(9);
+    expect(effectValue(fx({ id: 'burn', value: 2 }))).toBe(15);
     expect(analyzeCard(card({ rarity: 'legend', cost: 5, effects: [fx({ id: 'burn', value: 6 })] })).violations.map((v) => v.code)).toEqual([
       'EFFECT_VALUE',
     ]);
@@ -85,17 +85,17 @@ describe('効果のポイント', () => {
     expect(codes(fx({ id: 'weaken', value: 6 }))).toEqual(['EFFECT_VALUE']);
   });
 
-  it('毎ターン開始時はモンスター ×2.0、パワー ×8.0。終了時は ×2.5、×8.5（#74。シールドは2につき7pt、#75）', () => {
+  it('毎ターン開始時はモンスター ×2.0、パワー ×6.0。終了時は ×2.5、×6.5（#84。シールドは2につき7pt、#75）', () => {
     expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnStart', target: 'self' }), true)).toBe(14);
-    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnStart', target: 'self' }))).toBe(56);
+    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnStart', target: 'self' }))).toBe(42);
     expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnEnd', target: 'self' }), true)).toBe(18); // 17.5 → 18
-    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnEnd', target: 'self' }))).toBe(60); // 59.5 → 60
+    expect(effectValue(fx({ id: 'shield', value: 2, timing: 'turnEnd', target: 'self' }))).toBe(46); // 45.5 → 46
   });
 
   it('カードを使うたび ×8.0、破壊されたとき ×0.7、ダメージを受けたとき ×1.5', () => {
     expect(effectValue(fx({ id: 'draw', value: 1, timing: 'cardPlayed', target: 'self' }))).toBe(32);
-    expect(effectValue(fx({ id: 'damage', value: 3, timing: 'destroyed', target: 'enemyPlayer' }), true)).toBe(5); // 4.2→5
-    expect(effectValue(fx({ id: 'damage', value: 3, timing: 'damaged', target: 'chosen' }), true)).toBe(9);
+    expect(effectValue(fx({ id: 'damage', value: 3, timing: 'destroyed', target: 'enemyPlayer' }), true)).toBe(7); // 6.3→7
+    expect(effectValue(fx({ id: 'damage', value: 3, timing: 'damaged', target: 'chosen' }), true)).toBe(14); // 13.5→14
   });
 
   it('「攻撃するたび」は攻撃回数を掛け、速攻なら+1.0（二回攻撃＋速攻で ×5.0）', () => {
@@ -114,17 +114,17 @@ describe('効果のポイント', () => {
     expect(monster([{ id: 'haste' }, { id: 'doubleAttack' }]).formula).toBe('4 × 2.0×2+1.0（攻撃するたび・二回攻撃・速攻）');
   });
 
-  it('条件は条件ごとの倍率（場にモンスター 0.9 … 毒とやけど 0.5）', () => {
+  it('条件は条件ごとの倍率（場にモンスター 0.9 … 毒とやけど 0.35。#84 で相手が毒状態 0.45）', () => {
     const v = (condition: EffectInstance['condition']) => effectValue(fx({ id: 'damage', value: 5, condition }));
-    expect(v('hasMonster')).toBe(9);
-    expect(v('smallHand')).toBe(8);
-    expect(v('enemyPoisoned')).toBe(7);
-    expect(v('nthCard')).toBe(7);
-    expect(v('manyMonsters')).toBe(6);
-    expect(v('enemyHpHigher')).toBe(6);
-    expect(v('lowHp')).toBe(5);
-    expect(v('enemyPoisonBurn')).toBe(5);
-    expect(Object.values(BALANCE.condition)).toEqual([0.9, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5, 0.5]);
+    expect(v('hasMonster')).toBe(14); // 13.5 → 14
+    expect(v('smallHand')).toBe(12);
+    expect(v('enemyPoisoned')).toBe(7); // 6.75 → 7
+    expect(v('nthCard')).toBe(11); // 10.5 → 11
+    expect(v('manyMonsters')).toBe(9);
+    expect(v('enemyHpHigher')).toBe(9);
+    expect(v('lowHp')).toBe(8); // 7.5 → 8
+    expect(v('enemyPoisonBurn')).toBe(6); // 5.25 → 6
+    expect(Object.values(BALANCE.condition)).toEqual([0.9, 0.8, 0.45, 0.7, 0.6, 0.6, 0.5, 0.35]);
   });
 
   it('条件「手札が3枚以下」はパワーのターン開始時・終了時では選べない（モンスターや使用時では選べる）', () => {
@@ -151,10 +151,10 @@ describe('キーワード・ステータス・デメリット', () => {
       card({ rarity: 'legend', cost: 3, stats: { attack: 3, hp: 1, defense: 1 }, keywords: [{ id: 'haste' }, { id: 'doubleAttack' }] }),
     );
     const v = Object.fromEntries(a.points.lines.map((l) => [l.label, l.value]));
-    expect(v).toMatchObject({ 攻撃力3: 9, 体力1: 2, 守備力1: 4, 速攻: 6, 二回攻撃: 12, コスト3: -32 });
+    expect(v).toMatchObject({ 攻撃力3: 9, 体力1: 1.5, 守備力1: 4, 速攻: 6, 二回攻撃: 12, コスト3: -32 });
   });
 
-  it('貫通は max(2, 攻撃力×0.5)、隠密は 2+攻撃力、不屈は 3+攻撃力、挑発6、飛行3', () => {
+  it('貫通は max(2, 攻撃力×0.5)、隠密は 2+攻撃力、不屈は 3+攻撃力、挑発8（#84）、飛行3', () => {
     const kw = (attack: number, id: string) =>
       analyzeCard(card({ rarity: 'legend', cost: 5, stats: { attack, hp: 1, defense: 0 }, keywords: [{ id }] })).points.lines.find(
         (l) => l.kind === 'keyword',
@@ -165,7 +165,7 @@ describe('キーワード・ステータス・デメリット', () => {
     expect(kw(8, 'trample').value).toBe(4);
     expect(kw(4, 'stealth').value).toBe(6);
     expect(kw(4, 'undying').value).toBe(7);
-    expect(kw(4, 'taunt').value).toBe(6);
+    expect(kw(4, 'taunt').value).toBe(8);
     expect(kw(4, 'flying').value).toBe(3);
   });
 
@@ -177,7 +177,7 @@ describe('キーワード・ステータス・デメリット', () => {
   it('倍率込み固定値のデメリット（寄生5）でコモンの呪い条件を満たせる', () => {
     const a = analyzeCard(card({ effects: [fx({ id: 'damage', value: 5 })], drawbacks: [{ id: 'parasite', timing: null }] }));
     expect(a.points.drawbackTotal).toBe(5);
-    expect(a.points.total).toBe(10 - 10 - 5);
+    expect(a.points.total).toBe(15 - 10 - 5);
     expect(a.isCurse).toBe(true);
     expect(a.valid).toBe(true);
   });

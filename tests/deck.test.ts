@@ -5,9 +5,9 @@ import { EXAMPLES, card, codes } from './helpers.ts';
 
 // 有効なカードを用意する
 const common = EXAMPLES.hinoko; // コモン
-const rare = (n: number) => card({ id: `rare${n}`, name: `レア${n}`, rarity: 'rare', cost: 1, effects: [{ id: 'damage', value: 9, timing: 'play', target: 'chosen', condition: null }] });
-const epic = (n: number) => card({ id: `epic${n}`, name: `エピック${n}`, rarity: 'epic', cost: 1, effects: [{ id: 'damage', value: 11, timing: 'play', target: 'chosen', condition: null }] });
-const legend = (n: number) => card({ id: `legend${n}`, name: `レジェンド${n}`, rarity: 'legend', cost: 1, effects: [{ id: 'damage', value: 14, timing: 'play', target: 'chosen', condition: null }] });
+const rare = (n: number) => card({ id: `rare${n}`, name: `レア${n}`, rarity: 'rare', cost: 1, effects: [{ id: 'damage', value: 6, timing: 'play', target: 'chosen', condition: null }] });
+const epic = (n: number) => card({ id: `epic${n}`, name: `エピック${n}`, rarity: 'epic', cost: 1, effects: [{ id: 'damage', value: 7, timing: 'play', target: 'chosen', condition: null }] });
+const legend = (n: number) => card({ id: `legend${n}`, name: `レジェンド${n}`, rarity: 'legend', cost: 1, effects: [{ id: 'damage', value: 9, timing: 'play', target: 'chosen', condition: null }] });
 const curseLegend = EXAMPLES.kyosenshi;
 
 function deckOf(entries: [CardDef, number][], name = 'テストデッキ'): [Deck, Map<string, CardDef>] {

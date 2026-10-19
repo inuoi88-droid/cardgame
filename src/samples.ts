@@ -68,7 +68,7 @@ const fx = (e: Partial<EffectInstance> & { id: string }): EffectInstance => ({
 
 const SHOWCASE_SAMPLES: CardDef[] = [
   {
-    // コモンでも、ステータスと効果2つを持てる（3×3＋4×2＋2×2＋1×4−20＝5）
+    // コモンでも、ステータスと効果2つを持てる（3×3＋4×1.5＋2×3＋1×4−20＝5。#84 の体力 1.5pt・ダメージ 3pt で計算）
     v: 1,
     id: 'sample-minarai',
     name: '見習い魔術師',
@@ -81,7 +81,7 @@ const SHOWCASE_SAMPLES: CardDef[] = [
     drawbacks: [],
   },
   {
-    // レアは効果を4つまで（6×2＋1×4＋1×4＋2×4−20＝8）
+    // レアは効果を4つまで（4×3＋1×4＋1×4＋2×4−20＝8。#84 のダメージ 3pt に合わせてダメージ 6→4）
     v: 1,
     id: 'sample-kenja',
     name: '賢者の杖',
@@ -91,7 +91,7 @@ const SHOWCASE_SAMPLES: CardDef[] = [
     stats: null,
     keywords: [],
     effects: [
-      fx({ id: 'damage', value: 6 }),
+      fx({ id: 'damage', value: 4 }),
       fx({ id: 'poison', value: 1 }),
       fx({ id: 'heal', value: 1, target: 'self' }),
       fx({ id: 'draw', value: 2, target: 'self' }),
@@ -99,14 +99,14 @@ const SHOWCASE_SAMPLES: CardDef[] = [
     drawbacks: [],
   },
   {
-    // エピックのモンスター：キーワードと効果を両方（4×3＋7×2＋1×4＋挑発6＋回復2×4−32＝12）
+    // エピックのモンスター：キーワードと効果を両方（4×3＋8×1.5＋1×4＋挑発8＋回復2×4−32＝12。#84 の体力 1.5pt・挑発 8pt に合わせて体力 7→8）
     v: 1,
     id: 'sample-shirogane',
     name: '白銀の騎士',
     icon: '🛡️',
     rarity: 'epic',
     cost: 3,
-    stats: { attack: 4, hp: 7, defense: 1 },
+    stats: { attack: 4, hp: 8, defense: 1 },
     keywords: [{ id: 'taunt' }],
     effects: [fx({ id: 'heal', value: 2, timing: 'summon', target: 'self' })],
     drawbacks: [],

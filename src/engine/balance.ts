@@ -6,7 +6,7 @@
  * 倍率（scale.ts）の付け方（決定事項 #67）：
  * - x(…)：量（HP・ダメージ・攻撃力・毒など）と、ポイント（レアリティ上限・コストの差し引き・固定ポイント・
  *   枚数やターン数1あたりのポイント・デメリット）。すべて同じ倍率
- * - 量1あたりのポイント（ダメージ1につき2pt など）は、量と予算が同じ倍率で増えるので掛けない
+ * - 量1あたりのポイント（ダメージ1につき3pt など）は、量と予算が同じ倍率で増えるので掛けない
  * - 枚数・エナジー・ターン数・回数には掛けない
  */
 import { SCALE } from './scale.ts';
@@ -53,10 +53,10 @@ export const BALANCE = {
     minCostForOffset: 1,
   },
 
-  /** モンスターのステータス */
+  /** モンスターのステータス（#84 で体力を 2→1.5pt：モンスターがコスト1の除去（ダメージ5）1枚で倒れにくくする） */
   stats: {
     attackPoints: 3,
-    hpPoints: 2,
+    hpPoints: 1.5,
     defensePoints: 4,
     attackMin: 0,
     attackMax: x(30),
@@ -66,7 +66,7 @@ export const BALANCE = {
     defenseMax: x(3),
   },
 
-  /** 発動タイミングの倍率（#73 でパワーの開始時・終了時を 4.0・4.5→6.0・6.5、#74 で 8.0・8.5） */
+  /** 発動タイミングの倍率（#73 でパワーの開始時・終了時を 4.0・4.5→6.0・6.5、#74 で 8.0・8.5、#84（パワーの上限3つの後）で 6.0・6.5 に戻す） */
   timing: {
     play: 1.0,
     summon: 1.0,
@@ -77,8 +77,8 @@ export const BALANCE = {
     attackHasteBonus: 1.0,
     turnStartMonster: 2.0,
     turnEndMonster: 2.5,
-    turnStartPower: 8.0,
-    turnEndPower: 8.5,
+    turnStartPower: 6.0,
+    turnEndPower: 6.5,
     cardPlayed: 8.0,
   },
 
@@ -98,16 +98,20 @@ export const BALANCE = {
     everyone: 1.4,
   },
 
-  /** 条件の倍率（条件ごと。決定事項 #68。「ゆるい／ふつう／きびしい」はエディターの見出しだけ） */
+  /**
+   * 条件の倍率（条件ごと。決定事項 #68。「ゆるい／ふつう／きびしい」はエディターの見出しだけ）。
+   * #84 でダメージを 2→3pt にしたとき、作成例「とどめの一撃」（レア・コスト2、毒なら20）が作れるよう相手が毒状態を 0.7→0.45、
+   * それより厳しい「毒とやけど」を 0.5→0.35
+   */
   condition: {
     hasMonster: 0.9,
     smallHand: 0.8,
-    enemyPoisoned: 0.7,
+    enemyPoisoned: 0.45,
     nthCard: 0.7,
     manyMonsters: 0.6,
     enemyHpHigher: 0.6,
     lowHp: 0.5,
-    enemyPoisonBurn: 0.5,
+    enemyPoisonBurn: 0.35,
   },
 
   /** 条件に出てくる数 */
@@ -138,11 +142,15 @@ export const BALANCE = {
     damagePerCardMax: x(30),
   },
 
-  /** 効果の基礎ポイント（価格表は決定事項 #68。#73 で処刑・シールド・回復・毒・再生を調整、#75 でシールド・回復・再生を再調整） */
+  /**
+   * 効果の基礎ポイント（価格表は決定事項 #68。#73 で処刑・シールド・回復・毒・再生を調整、#75 でシールド・回復・再生を再調整、
+   * #84 でダメージ・連撃を 2→3（コスト1のダメージだけの呪文が 7.5→5。除去と顔へのダメージが強すぎ、モンスターが育たなかった）、やけどを 10→9、処刑を 1.5→2.5）
+   */
   effects: {
-    damage: { perValue: 2 },
-    multiHit: { perValueHit: 2 },
-    execute: { perValue: 1.5 },
+    damage: { perValue: 3 },
+    multiHit: { perValueHit: 3 },
+    /** 処刑の N は体力の上限。#84 で 1.5→2.5（体力が 1.5pt になり、コスト1の処刑でコスト2のモンスターまで確実に倒せていた） */
+    execute: { perValue: 2.5 },
     counter: { perValue: 2 },
 
     shield: { perValue: 3.5 },
@@ -153,7 +161,7 @@ export const BALANCE = {
 
     /** 毒は残り続けて合計ダメージが大きくなるので、1つの効果で与えられる値に上限を置く */
     poison: { perValue: 4, maxValue: x(10) },
-    burn: { flat: x(10), perExtraTurn: x(3), maxExtraTurns: 5 },
+    burn: { flat: x(9), perExtraTurn: x(3), maxExtraTurns: 5 },
     freeze: { flat: x(10) },
     /** 弱体・脆弱の N はターン数（上限あり） */
     weak: { perValue: x(5), maxValue: 3 },
@@ -192,10 +200,10 @@ export const BALANCE = {
     steal: { flat: x(45) },
   },
 
-  /** モンスター専用キーワードのポイント（A は攻撃力） */
+  /** モンスター専用キーワードのポイント（A は攻撃力）。挑発は #83（カードの効果の対象も挑発に限る）のあと #84 で 6→8 */
   keywords: {
     haste: { perAttack: 2 },
-    taunt: { flat: x(6) },
+    taunt: { flat: x(8) },
     flying: { flat: x(3) },
     /** 貫通：max(min, 攻撃力×perAttack) */
     trample: { min: x(2), perAttack: 0.5 },

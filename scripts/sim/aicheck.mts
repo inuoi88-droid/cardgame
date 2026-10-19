@@ -40,13 +40,14 @@ interface Scenario {
   setup: (g: G) => void;
 }
 
-const DAMAGE7 = () => cardAtCap('common', 1, [fx({ id: 'damage', value: 7 })], null, [], { name: '火球' });
+// #84 でダメージが 3pt になり、コモン・コスト1ではダメージ7・連撃2×3が作れないのでレアリティを上げる（場面のための札）
+const DAMAGE7 = () => cardAtCap('epic', 1, [fx({ id: 'damage', value: 7 })], null, [], { name: '火球' });
 const SOLDIER = () => cardAtCap('common', 1, [], { attack: 3, hp: 3, defense: 0 }, [], { name: '兵士' });
 const WARRIOR = () => cardAtCap('common', 2, [], { attack: 5, hp: 5, defense: 0 }, [], { name: '戦士' });
 const TAUNT11 = () => cardAtCap('common', 1, [], { attack: 1, hp: 1, defense: 0 }, [{ id: 'taunt' }], { name: '小盾' });
 const TAUNT15 = () => cardAtCap('common', 2, [], { attack: 1, hp: 5, defense: 0 }, [{ id: 'taunt' }], { name: '大盾' });
 const TODOME = () => cardAtCap('rare', 2, [fx({ id: 'damage', value: 20, condition: 'enemyPoisoned' })], null, [], { name: 'とどめの一撃' });
-const MULTI = () => cardAtCap('common', 1, [fx({ id: 'multiHit', value: 2, hits: 3 })], null, [], { name: '三連撃' });
+const MULTI = () => cardAtCap('rare', 1, [fx({ id: 'multiHit', value: 2, hits: 3 })], null, [], { name: '三連撃' });
 const HASTE = () => cardAtCap('common', 1, [], { attack: 2, hp: 1, defense: 0 }, [{ id: 'haste' }], { name: '突撃兵' });
 const EXECUTE = () => cardAtCap('common', 1, [fx({ id: 'execute', value: 5 })], null, [], { name: '処刑' });
 

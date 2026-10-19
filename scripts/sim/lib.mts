@@ -161,25 +161,40 @@ const once = (key: string, make: () => DeckSpec): DeckSpec => {
   return d;
 };
 
-/** B0：除去とモンスターの混合（監査 sim-a の基準）。兵士 3/3 ×10、火球 ダメージ7 ×10、戦士 5/5（コスト2）×10 */
+/**
+ * B0：除去とモンスターの混合（監査 sim-a の基準）。兵士 3/3 ×10、火球 ダメージ7 ×10、戦士 5/5（コスト2）×10。
+ * #84 から体力と火球は価格表に追従する（体力 1.5pt・ダメージ 3pt なら 兵士 3/4、火球 5、戦士 5/6.5。作れる最大、0.25 刻み）
+ */
 export const B0 = (): DeckSpec =>
   once('B0', () =>
     buildDeck('B0', [
-      [cardAtCap('common', 1, [], { attack: 3, hp: 3, defense: 0 }, [], { name: '兵士' }), 10],
-      [cardAtCap('common', 1, [fx({ id: 'damage', value: 7 })], null, [], { name: '火球' }), 10],
-      [cardAtCap('common', 2, [], { attack: 5, hp: 5, defense: 0 }, [], { name: '戦士' }), 10],
+      [monsterAtCap('兵士', 1, 3, 3), 10],
+      [burnCard(7, '火球'), 10],
+      [monsterAtCap('戦士', 2, 5, 5), 10],
     ]),
   );
 
+/** コモンのバニラモンスター（攻撃力は固定、体力は作れる最大。0.25 刻み、minHp 以上） */
+export function monsterAtCap(name: string, cost: number, attack: number, minHp: number): CardDef {
+  for (let hp = 40; hp >= minHp; hp -= 0.25) {
+    try {
+      return cardAtCap('common', cost, [], { attack, hp, defense: 0 }, [], { name });
+    } catch {
+      // 上限を超えたら次へ
+    }
+  }
+  throw new Error(`${name} が作れない`);
+}
+
 /**
- * B1：顔を殴り合うレース（監査 sim-c の基準）。見習い兵 2/4.5 ×10、火球 ダメージ7.5 ×10、鉄の盾（コモン・コスト1で作れる最大のシールド）×10。
+ * B1：顔を殴り合うレース（監査 sim-c の基準）。見習い兵 2/4.5 ×10、火球 ダメージ7.5 ×10、鉄の盾（コモン・コスト1で作れる最大のシールド）×10。#84 から見習い兵の体力と火球も価格表に追従する（2/6・5）。
  * 鉄の盾は価格表に追従する（シールド 1.5/点 のときは 10、#73 の 2.5/点 からは 6）
  */
 export const B1 = (): DeckSpec =>
   once('B1', () =>
     buildDeck('B1', [
-      [cardAtCap('common', 1, [], { attack: 2, hp: 4.5, defense: 0 }, [], { name: '見習い兵' }), 10],
-      [cardAtCap('common', 1, [fx({ id: 'damage', value: 7.5 })], null, [], { name: '火球' }), 10],
+      [monsterAtCap('見習い兵', 1, 2, 4.5), 10],
+      [burnCard(7.5, '火球'), 10],
       [ironShield(), 10],
     ]),
   );
@@ -196,12 +211,24 @@ export function ironShield(): CardDef {
   throw new Error('鉄の盾が作れない');
 }
 
-/** BURN：コスト1のダメージだけのコモン30枚（最速の顔レースの目安） */
+/** BURN：コスト1のダメージだけのコモン30枚（最速の顔レースの目安）。ダメージは 0.25 刻みで作れる最大（倍率20 では 0.25 も作れるので、整数に丸めない） */
 export const BURN = (): DeckSpec =>
-  once('BURN', () => {
-    const { card } = fitValue('common', 1, (v) => ({ effects: [fx({ id: 'damage', value: v })], name: `火球${v}` }));
-    return buildDeck('BURN', [[card, 30]]);
-  });
+  once('BURN', () => buildDeck('BURN', [[burnCard(), 30]]));
+
+/**
+ * コモン・コスト1で作れる最大のダメージの呪文（0.25 刻み、max 以下）。
+ * B0・B1 の火球（7・7.5）もこれで作る：ダメージの値段を上げて 7 が作れなくなったときは作れる最大に下がる（最終調整 #84）
+ */
+export function burnCard(max = 30, name?: string): CardDef {
+  for (let v = max; v >= 0.25; v -= 0.25) {
+    try {
+      return cardAtCap('common', 1, [fx({ id: 'damage', value: v })], null, [], { name: name ?? `火球${v}` });
+    } catch {
+      // 上限を超えたら次へ
+    }
+  }
+  throw new Error('火球が作れない');
+}
 
 /** 山札の埋め草（回復1・コスト1）。場面を作るテスト用 */
 export const FILLER = (): CardDef => cardAtCap('common', 1, [fx({ id: 'heal', value: 1, target: 'self' })], null, [], { name: '練習用の薬' });

@@ -14,6 +14,7 @@ node scripts/sim/stress10.mts 150       # 基準デッキの10枚だけを極端
 node scripts/sim/length.mts 200         # 試合の長さの分布
 node scripts/sim/aicheck.mts 10         # CPU のリーサル検査
 node scripts/sim/run-all.mts 40         # まとめ（n はプリセットの試合数。他はそれに比例。n=10 で 7〜8 分）
+node scripts/sim/final.mts after 200 rr mirror burn mono   # 最終調整（#84）の基準をまとめて測る（グループは final.mts 冒頭）
 ```
 
 `npm run gen`（索引の生成）は npm script の pre フックで自動で走る。`node` で直接動かすときは、`src/engine/registry.generated.ts` がなければ先に `npm run gen`。
@@ -36,14 +37,15 @@ node scripts/sim/run-all.mts 40         # まとめ（n はプリセットの試
 | `length.mts` | 試合の長さ（各プレイヤーのターン数）の分布 |
 | `aicheck.mts` | 作った場面で CPU がリーサルを取れるか＋実戦での見逃し数 |
 | `run-all.mts` | 全部回してまとめる |
+| `final.mts` | 最終調整（#84）の測定：プリセット総当たり・ミラー・BURN・モンスターだけのデッキ MONO・挑発に寄せた TAUNTX・パワーの極端デッキ。`node scripts/sim/final.mts after 200 valid rr mirror burn mono taunt tauntvs`、`node scripts/sim/final.mts power 150 power`。結果の読み方は `out/final.md`（git には入れない）と決定事項 #84 |
 
 ## 基準デッキ（`lib.mts`）
 
 | 名前 | 中身 | 由来 |
 |---|---|---|
-| B0 | 兵士 3/3 ×10、火球 ダメージ7 ×10、戦士 5/5（コスト2）×10 | 監査 sim-a の基準（除去とモンスターの混合。長い試合） |
-| B1 | 見習い兵 2/4.5 ×10、火球 ダメージ7.5 ×10、鉄の盾（コモン・コスト1のシールドの上限。#73 から 6）×10 | 監査 sim-c の基準（顔を殴り合うレース。短い試合） |
-| BURN | コスト1・ダメージだけのコモン30枚（数値は価格表で作れる最大） | 最速の顔レースの目安 |
+| B0 | 兵士 3/3 ×10、火球 ダメージ7 ×10、戦士 5/5（コスト2）×10。#84 から体力と火球は価格表で作れる最大（今は 兵士 3/4・火球 5・戦士 5/6.5） | 監査 sim-a の基準（除去とモンスターの混合。長い試合） |
+| B1 | 見習い兵 2/4.5 ×10、火球 ダメージ7.5 ×10、鉄の盾（コモン・コスト1のシールドの上限）×10。#84 から 見習い兵 2/6・火球 5・鉄の盾 4.25 | 監査 sim-c の基準（顔を殴り合うレース。今は基準どうしでほぼ引き分け） |
+| BURN | コスト1・ダメージだけのコモン30枚（数値は価格表で作れる最大。0.25 刻み。#84 からは 5） | 最速の顔レースの目安 |
 
 すべてのカードは `analyzeCard().valid`、デッキは `analyzeDeck().valid` を確かめてから使う（違反なら理由つきで例外）。`fitValue` は数値 N を上から順に試して作れる最大にするので、価格表を変えればデッキの数値も追従する。
 
@@ -51,6 +53,7 @@ node scripts/sim/run-all.mts 40         # まとめ（n はプリセットの試
 
 ```ts
 cardAtCap(rarity, cost, effects, stats?, keywords?, { name })   // ルールを守るカード。違反なら例外
+burnCard(max?, name?) / monsterAtCap(name, cost, attack, minHp)  // 作れる最大のダメージ呪文・バニラモンスター（0.25 刻み）
 fitValue(rarity, cost, (v) => ({ effects, stats, keywords, name }))  // N を最大にして作る
 buildDeck(name, [[card, count], ...])                             // 検証つきデッキ
 playGame(deckA, deckB, seed, { first?, level?, maxActions?, checkLethal?, battle? })

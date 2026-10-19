@@ -1,35 +1,69 @@
-/** カードエディター */
+/**
+ * カードエディター。
+ * スマホ：上部に固定のミニプレビュー（予算メーター付き）→ 基本・種類・効果・デメリットのフォーム → 保存バー。内訳はシート。
+ * PC：左にフォーム、右に等倍プレビューと内訳（固定）。
+ * 検証は入力欄の直下に出し、「理由を見る」で最初の違反へ飛ぶ。未保存で離れるときと、モンスターをやめるときは確認する。
+ */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BALANCE,
-  EFFECT_GROUPS,
+  CARD_TYPE_LABEL,
+  CURSE_LABEL,
   RARITIES,
   RARITY_LABEL,
   analyzeCard,
   availableDrawbacks,
-  availableEffects,
+  cardBase,
   createDrawback,
   createEffect,
+  getDrawback,
+  getKeyword,
   isNameTaken,
-  listKeywords,
   newCard,
   setMonster,
   type CardDef,
-  type KeywordDef,
-  type Stats,
+  type DrawbackInstance,
+  type EffectInstance,
   type Violation,
 } from '../../engine/index.ts';
+import '../editor.css';
 import { CardView } from '../components/CardView.tsx';
-import { Stepper, Violations } from '../components/controls.tsx';
+import { useConfirm } from '../components/ConfirmDialog.tsx';
+import { Stepper } from '../components/controls.tsx';
+import { useIsPhone } from '../components/dialogUtil.ts';
 import { DrawbackRow, EffectRow } from '../components/EffectRow.tsx';
 import { EmojiPicker } from '../components/EmojiPicker.tsx';
 import { PointPanel } from '../components/PointPanel.tsx';
+import { Sheet } from '../components/Sheet.tsx';
 import { useToast } from '../components/Toast.tsx';
-import { navigate } from '../router.ts';
+import { budgetOf } from '../editor/budget.ts';
+import { EffectPicker, type PickerMode } from '../editor/EffectPicker.tsx';
+import { MiniPreview } from '../editor/MiniPreview.tsx';
+import { TEMPLATES, type CardTemplate } from '../editor/templates.ts';
+import { effectRowViolations, effectSectionViolations, fieldId, findFieldElement, violationsAt, violationsExactly } from '../editor/validation.ts';
+import { navigate, setNavigationGuard } from '../router.ts';
 import { NEW_DRAFT, actions, cardDrafts, useStore } from '../store.ts';
 import { cx, uuid, stepOf } from '../util.ts';
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+let keySeq = 0;
+const genKey = () => `r${++keySeq}`;
+const keysFor = (n: number) => Array.from({ length: n }, genKey);
+
+/** 配列の i と i+dir を入れ替える */
+function swap<T>(xs: readonly T[], i: number, dir: -1 | 1): T[] {
+  const j = i + dir;
+  if (j < 0 || j >= xs.length) return [...xs];
+  const out = [...xs];
+  [out[i], out[j]] = [out[j]!, out[i]!];
+  return out;
+}
+
+function insertAt<T>(xs: readonly T[], i: number, x: T): T[] {
+  const at = Math.max(0, Math.min(xs.length, i));
+  return [...xs.slice(0, at), x, ...xs.slice(at)];
+}
 
 export function CardEditorPage({ id }: { id: string | null }) {
   const { cards } = useStore();
@@ -50,15 +84,32 @@ export function CardEditorPage({ id }: { id: string | null }) {
 function Editor({ saved }: { saved: CardDef | null }) {
   const { cards } = useStore();
   const toast = useToast();
+  const confirm = useConfirm();
+  const phone = useIsPhone(919);
   const draftKey = saved?.id ?? NEW_DRAFT;
   const [restored] = useState(() => {
     const d = cardDrafts.get(draftKey);
     return d && !sameJson(d, saved) ? d : null;
   });
   const [card, setCard] = useState<CardDef>(() => restored ?? saved ?? newCard(uuid()));
+  const [effectKeys, setEffectKeys] = useState<string[]>(() => keysFor(card.effects.length));
+  const [drawbackKeys, setDrawbackKeys] = useState<string[]>(() => keysFor(card.drawbacks.length));
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [focusKey, setFocusKey] = useState<string | null>(null);
   const [draftNotice, setDraftNotice] = useState(restored !== null);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const pointsRef = useRef<HTMLDivElement>(null);
+  const [touchedName, setTouchedName] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+  const [picker, setPicker] = useState<PickerMode | null>(null);
+  const [sheet, setSheet] = useState<'preview' | 'templates' | null>(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const [pendingJump, setPendingJump] = useState<string | null>(null);
+  const [topOffset, setTopOffset] = useState(0);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 行のキー（並べ替え・複製・削除で動く）。数が合わなくなったら作り直す
+  const eKeys = effectKeys.length === card.effects.length ? effectKeys : card.effects.map((_, i) => effectKeys[i] ?? `e${i}`);
+  const dKeys = drawbackKeys.length === card.drawbacks.length ? drawbackKeys : card.drawbacks.map((_, i) => drawbackKeys[i] ?? `d${i}`);
 
   // 保存していない編集内容は下書きとして残す
   useEffect(() => {
@@ -67,42 +118,290 @@ function Editor({ saved }: { saved: CardDef | null }) {
     else cardDrafts.set(draftKey, card);
   }, [card, saved, draftKey]);
 
+  // スマホのミニプレビューを、上部メニューのすぐ下に固定する
+  useEffect(() => {
+    const bar = document.querySelector('.topbar');
+    if (!bar) return;
+    const update = () => setTopOffset(Math.round(bar.getBoundingClientRect().height));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, []);
+
   const analysis = useMemo(() => analyzeCard(card), [card]);
+  const budget = useMemo(() => budgetOf(analysis, card), [analysis, card]);
+  const base = cardBase(card);
   const nameTaken = card.name.trim() !== '' && isNameTaken(cards, card.name, card.id);
   const extra: Violation[] = nameTaken
     ? [{ code: 'NAME_TAKEN', path: 'name', message: `「${card.name.trim()}」という名前のカードはすでにあります` }]
     : [];
-  const canSave = analysis.valid && !nameTaken;
+  const allViolations = [...analysis.violations, ...extra];
+  const canSave = allViolations.length === 0;
   const dirty = !saved || !sameJson(card, saved);
+  const pristine = !saved && sameJson(card, newCard(card.id));
+  const showProblems = attempted || !pristine;
+  const shownViolations = showProblems ? allViolations : [];
+  const maxEffects = BALANCE.rarity[card.rarity].maxEffects;
+
+  // 未保存のまま他の画面へ移ろうとしたら確認する
+  useEffect(() => {
+    if (!dirty) {
+      setNavigationGuard(null);
+      return;
+    }
+    setNavigationGuard(() =>
+      confirm({
+        title: '保存していない変更があります',
+        message: '編集の内容は下書きとして残り、次に開いたときに復元できます。このまま移動しますか？',
+        okLabel: '移動する',
+        cancelLabel: '編集を続ける',
+      }),
+    );
+    return () => setNavigationGuard(null);
+  }, [dirty, confirm]);
+
+  // 追加した行・違反の欄へスクロールしてフォーカス
+  useEffect(() => {
+    if (!pendingJump) return;
+    const el = findFieldElement(pendingJump);
+    setPendingJump(null);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const target = el.matches('input, select, button, [tabindex]') ? el : (el.querySelector<HTMLElement>('input, select, button, [tabindex]') ?? el);
+    if (!target.hasAttribute('tabindex') && !target.matches('input, select, button')) target.tabIndex = -1;
+    target.focus({ preventScroll: true });
+  }, [pendingJump]);
+
+  useEffect(() => {
+    if (!focusKey) return;
+    const i = eKeys.indexOf(focusKey);
+    const j = dKeys.indexOf(focusKey);
+    const path = i >= 0 ? `effects.${i}` : j >= 0 ? `drawbacks.${j}` : null;
+    if (path) findFieldElement(path)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const t = setTimeout(() => setFocusKey(null), 400);
+    return () => clearTimeout(t);
+  }, [focusKey, eKeys, dKeys]);
+
+  useEffect(
+    () => () => {
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+    },
+    [],
+  );
 
   const update = (patch: Partial<CardDef>) => setCard((c) => ({ ...c, ...patch }));
-  const pathViolations = (prefix: string) =>
-    analysis.violations.filter((v) => v.path === prefix || v.path?.startsWith(`${prefix}.`));
-  const exactViolations = (path: string) => analysis.violations.filter((v) => v.path === path);
+  const flashMeter = () => {
+    setFlash(true);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlash(false), 1400);
+  };
+  const expand = (key: string, on = true) =>
+    setExpanded((s) => {
+      const next = new Set(s);
+      if (on) next.add(key);
+      else next.delete(key);
+      return next;
+    });
 
+  /** 違反の欄へ飛ぶ（折りたたんだ行は開く） */
+  const jump = (path: string) => {
+    setAttempted(true);
+    setSheet(null);
+    setPicker(null);
+    if (path === 'points') {
+      if (phone) window.scrollTo({ top: 0, behavior: 'smooth' });
+      else document.getElementById('ed-meter')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      flashMeter();
+      return;
+    }
+    const m = /^(effects|drawbacks)\.(\d+)/.exec(path);
+    if (m) {
+      const key = (m[1] === 'effects' ? eKeys : dKeys)[Number(m[2])];
+      if (key) expand(key);
+    }
+    setPendingJump(path);
+  };
+  const showReasons = () => {
+    const first = allViolations[0];
+    if (first) jump(first.path ?? 'points');
+  };
+
+  // ---------------------------------------------------------------- 保存・移動
   const save = () => {
-    if (!canSave) return;
+    if (!canSave) {
+      setAttempted(true);
+      showReasons();
+      return;
+    }
     const name = card.name.trim();
+    setNavigationGuard(null);
     actions.saveCard({ ...card, name });
     cardDrafts.clear(draftKey);
     toast({ text: `「${name}」を保存しました`, kind: 'ok' });
     navigate('/cards');
   };
+  const leave = async () => {
+    if (dirty) {
+      const ok = await confirm({
+        title: '保存していない変更があります',
+        message: '編集の内容は下書きとして残り、次に開いたときに復元できます。一覧へ戻りますか？',
+        okLabel: '保存せずに戻る',
+        cancelLabel: '編集を続ける',
+      });
+      if (!ok) return;
+    }
+    setNavigationGuard(null);
+    navigate('/cards');
+  };
+  const replaceCard = (next: CardDef) => {
+    setCard(next);
+    setEffectKeys(keysFor(next.effects.length));
+    setDrawbackKeys(keysFor(next.drawbacks.length));
+    setExpanded(new Set());
+  };
   const discardDraft = () => {
     cardDrafts.clear(draftKey);
-    setCard(saved ?? newCard(uuid()));
+    replaceCard(saved ?? newCard(uuid()));
     setDraftNotice(false);
   };
+  const applyTemplate = async (t: CardTemplate) => {
+    if (!pristine) {
+      const ok = await confirm({ title: 'いまの内容を置き換えますか？', message: `編集中の内容はテンプレート「${t.title}」で上書きされます。`, okLabel: '置き換える', danger: true });
+      if (!ok) return;
+    }
+    replaceCard(t.build(card.id));
+    setSheet(null);
+    toast({ text: `テンプレート「${t.title}」を読み込みました。名前や数値を変えて自分のカードにしましょう`, kind: 'ok' });
+  };
 
-  const base = analysis.base;
-  const maxEffects = BALANCE.rarity[card.rarity].maxEffects;
-  const addableDrawbacks = availableDrawbacks(card);
-  const p = analysis.points;
+  // ---------------------------------------------------------------- 効果の行
+  const setEffects = (effects: EffectInstance[], keys: string[]) => {
+    setCard((c) => ({ ...c, effects }));
+    setEffectKeys(keys);
+  };
+  const addEffect = (id: string) => {
+    const key = genKey();
+    setEffects([...card.effects, createEffect(id, base)], [...eKeys, key]);
+    setExpanded(new Set([key])); // 追加・複製した行だけを開き、ほかは要約にたたむ
+    setFocusKey(key);
+  };
+  const removeEffect = (i: number) => {
+    const removed = card.effects[i]!;
+    const name = analysis.points.lines.find((l) => l.kind === 'effect' && l.index === i)?.label ?? '効果';
+    setEffects(
+      card.effects.filter((_, j) => j !== i),
+      eKeys.filter((_, j) => j !== i),
+    );
+    toast({
+      text: `「${name}」を外しました`,
+      kind: 'info',
+      action: {
+        label: '元に戻す',
+        onClick: () => {
+          const key = genKey();
+          setCard((c) => ({ ...c, effects: insertAt(c.effects, i, removed) }));
+          setEffectKeys((ks) => insertAt(ks, i, key));
+        },
+      },
+    });
+  };
+  const moveEffect = (i: number, dir: -1 | 1) => setEffects(swap(card.effects, i, dir), swap(eKeys, i, dir));
+  const duplicateEffect = (i: number) => {
+    const key = genKey();
+    setEffects(insertAt(card.effects, i + 1, { ...card.effects[i]! }), insertAt(eKeys, i + 1, key));
+    setExpanded(new Set([key])); // 追加・複製した行だけを開き、ほかは要約にたたむ
+    setFocusKey(key);
+  };
+
+  // ---------------------------------------------------------------- デメリットの行
+  const setDrawbacks = (drawbacks: DrawbackInstance[], keys: string[]) => {
+    setCard((c) => ({ ...c, drawbacks }));
+    setDrawbackKeys(keys);
+  };
+  const addDrawback = (id: string) => {
+    const key = genKey();
+    setDrawbacks([...card.drawbacks, createDrawback(id, base)], [...dKeys, key]);
+    setExpanded(new Set([key])); // 追加・複製した行だけを開き、ほかは要約にたたむ
+    setFocusKey(key);
+  };
+  const removeDrawback = (i: number) => {
+    const removed = card.drawbacks[i]!;
+    const name = getDrawback(removed.id)?.name ?? 'デメリット';
+    setDrawbacks(
+      card.drawbacks.filter((_, j) => j !== i),
+      dKeys.filter((_, j) => j !== i),
+    );
+    toast({
+      text: `「${name}」を外しました`,
+      kind: 'info',
+      action: {
+        label: '元に戻す',
+        onClick: () => {
+          const key = genKey();
+          setCard((c) => ({ ...c, drawbacks: insertAt(c.drawbacks, i, removed) }));
+          setDrawbackKeys((ks) => insertAt(ks, i, key));
+        },
+      },
+    });
+  };
+
+  // ---------------------------------------------------------------- モンスター・キーワード
+  const toggleMonster = async (on: boolean) => {
+    if (!on) {
+      const kws = card.keywords.map((k) => getKeyword(k.id)?.name ?? k.id);
+      const dbs = card.drawbacks.filter((d) => getDrawback(d.id)?.monsterOnly).map((d) => getDrawback(d.id)?.name ?? d.id);
+      if (kws.length > 0 || dbs.length > 0) {
+        const parts = [kws.length > 0 && `キーワード：${kws.join('、')}`, dbs.length > 0 && `デメリット：${dbs.join('、')}`].filter(Boolean).join('\n');
+        const ok = await confirm({
+          title: 'モンスターをやめますか？',
+          message: `モンスター専用のものが外れます。\n${parts}`,
+          okLabel: '外してやめる',
+          danger: true,
+        });
+        if (!ok) return;
+        setDrawbackKeys((ks) => ks.filter((_, i) => !getDrawback(card.drawbacks[i]?.id ?? '')?.monsterOnly));
+      }
+    }
+    setCard((c) => setMonster(c, on));
+  };
+  const toggleKeyword = (id: string) => {
+    const def = getKeyword(id);
+    if (!def) return;
+    setCard((c) => ({
+      ...c,
+      keywords: c.keywords.some((k) => k.id === id) ? c.keywords.filter((k) => k.id !== id) : [...c.keywords, def.value ? { id, value: def.value.default } : { id }],
+    }));
+  };
+
+  const templateCards = useMemo(
+    () =>
+      TEMPLATES.map((t) => {
+        const c = t.build(`tpl-${t.id}`);
+        return { t, card: c, a: analyzeCard(c) };
+      }),
+    [],
+  );
+  const S = BALANCE.stats;
+  const nameViolations = violationsExactly(allViolations, 'name');
+  const showNameError = (touchedName || attempted) && nameViolations.length > 0;
+  const sectionViolations = effectSectionViolations(analysis.violations);
+  const curseOk = budget.drawbackTotal >= budget.curseNeed;
+  const addable = availableDrawbacks(card);
+
+  const panel = (detailsOpen: boolean) => (
+    <PointPanel card={card} analysis={analysis} budget={budget} violations={shownViolations} onJump={jump} detailsOpen={detailsOpen} meterId="ed-meter" flash={flash} />
+  );
 
   return (
-    <>
+    <div className="ed">
       <div className="page-head">
         <h1>{saved ? 'カードを編集' : '新しいカード'}</h1>
+        {!saved && (
+          <button type="button" className="btn btn--secondary" onClick={() => setSheet('templates')}>
+            ✨ テンプレートから作る
+          </button>
+        )}
       </div>
       {draftNotice && (
         <div className="notice">
@@ -113,39 +412,51 @@ function Editor({ saved }: { saved: CardDef | null }) {
         </div>
       )}
 
-      <div className="editor">
-        <aside className="editor__side">
-          <div className="editor__preview">
-            <CardView card={card} analysis={analysis} />
-          </div>
-          <div ref={pointsRef}>
-            <PointPanel analysis={analysis} rarity={card.rarity} extraViolations={extra} />
-          </div>
-        </aside>
+      <div className="ed-sticky" style={{ top: topOffset }}>
+        <MiniPreview card={card} analysis={analysis} budget={budget} invalidCount={shownViolations.length} flash={flash} onOpen={() => setSheet('preview')} />
+      </div>
 
-        <div className="editor__form">
-          <section className="panel">
-            <h2>基本</h2>
-            <label className={cx('field', (pathViolations('name').length > 0 || nameTaken) && 'field--invalid')}>
-              <span>カード名</span>
-              <input
-                type="text"
-                value={card.name}
-                placeholder="例：火の粉"
-                onChange={(e) => update({ name: e.target.value })}
-              />
-              <small className="field__count">
-                {[...card.name.trim()].length} / {BALANCE.card.nameMaxLength}
-              </small>
-            </label>
-            <div className="field">
-              <span>アイコン</span>
-              <button type="button" className="icon-btn" onClick={() => setPickerOpen(true)} aria-label="アイコンを選ぶ">
-                {card.icon}
-              </button>
+      <div className="ed-layout">
+        <div className="ed-form">
+          {/* ---------------------------------------------------------------- 基本 */}
+          <section className="panel ed-section">
+            <div className="ed-section__head">
+              <span className="ed-step" aria-hidden="true">
+                1
+              </span>
+              <h2>基本</h2>
             </div>
-            <div className="field">
-              <span>レアリティ</span>
+            <div className="ed-basic">
+              <label className={cx('field ed-name', showNameError && 'field--invalid')} id={fieldId('name')}>
+                <span>カード名</span>
+                <input
+                  type="text"
+                  value={card.name}
+                  placeholder="例：火の粉"
+                  maxLength={BALANCE.card.nameMaxLength * 2}
+                  aria-invalid={showNameError || undefined}
+                  aria-describedby={showNameError ? 'ed-name-error' : undefined}
+                  onChange={(e) => update({ name: e.target.value })}
+                  onBlur={() => setTouchedName(true)}
+                />
+                <small className="field__count">
+                  {[...card.name.trim()].length} / {BALANCE.card.nameMaxLength}
+                </small>
+                {showNameError && (
+                  <span className="field__error" id="ed-name-error">
+                    {nameViolations[0]!.message}
+                  </span>
+                )}
+              </label>
+              <div className="field ed-icon" id={fieldId('icon')}>
+                <span>アイコン</span>
+                <button type="button" className="icon-btn" onClick={() => setEmojiOpen(true)} aria-label={`アイコンを選ぶ（いま ${card.icon}）`}>
+                  {card.icon}
+                </button>
+              </div>
+            </div>
+            <div className="field" id={fieldId('rarity')}>
+              <span>レアリティ（基本の予算が決まります）</span>
               <div className="seg" role="radiogroup" aria-label="レアリティ">
                 {RARITIES.map((r) => (
                   <button
@@ -166,191 +477,303 @@ function Editor({ saved }: { saved: CardDef | null }) {
                     }}
                   >
                     {RARITY_LABEL[r]}
-                    <small>上限{BALANCE.rarity[r].cap}pt</small>
+                    <small>上限 {BALANCE.rarity[r].cap}</small>
                   </button>
                 ))}
               </div>
             </div>
-            <div className="field">
+            <div className="ed-cost">
               <Stepper
+                id={fieldId('cost')}
                 label="コスト"
                 value={card.cost}
                 min={BALANCE.card.costMin}
                 max={BALANCE.card.costMax}
-                invalid={exactViolations('cost').length > 0}
+                error={violationsExactly(analysis.violations, 'cost')[0]?.message}
                 onChange={(cost) => update({ cost })}
               />
-              <small className="hint">
-                コスト0〜{BALANCE.card.costMax}で −{BALANCE.card.costPoints.join('／−')}pt（コスト0は上限−{BALANCE.card.cost0CapPenalty}pt）
-              </small>
+              <div className="ed-cost__bonus">
+                <b>予算 +{budget.costBonus}</b>
+                <ol className="ed-costscale" aria-label="コストごとに増える予算">
+                  {BALANCE.card.costPoints.map((p, i) => (
+                    <li key={i} className={cx(i === card.cost && 'is-on')} aria-current={i === card.cost ? 'true' : undefined}>
+                      <span className="ed-costscale__gem" aria-label={`コスト${i}`}>
+                        {i}
+                      </span>
+                      <b>+{p}</b>
+                    </li>
+                  ))}
+                </ol>
+                <small>
+                  コストを上げると予算が増えます。コスト0は上限も −{BALANCE.card.cost0CapPenalty}
+                </small>
+              </div>
             </div>
           </section>
 
-          <section className="panel">
-            <h2>モンスター</h2>
+          {/* ---------------------------------------------------------------- 種類 */}
+          <section className="panel ed-section">
+            <div className="ed-section__head">
+              <span className="ed-step" aria-hidden="true">
+                2
+              </span>
+              <h2>種類</h2>
+              <span className="ed-section__meta">{card.stats ? 'モンスター' : 'スキル・アタック・パワー（効果で決まる）'}</span>
+            </div>
             <label className="switch">
-              <input type="checkbox" checked={card.stats !== null} onChange={(e) => setCard((c) => setMonster(c, e.target.checked))} />
-              <span>モンスターにする（ステータスを持ち、場に召喚する）</span>
+              <input type="checkbox" checked={card.stats !== null} onChange={(e) => void toggleMonster(e.target.checked)} />
+              <span>モンスターにする（ステータスを持ち、場に召喚して戦う）</span>
             </label>
-            {card.stats && <MonsterFields card={card} stats={card.stats} setCard={setCard} violations={analysis.violations} />}
+            {card.stats && (
+              <>
+                <div className="stats-grid ed-stats">
+                  <Stepper
+                    id={fieldId('stats.attack')}
+                    label="攻撃力"
+                    help={`+${BALANCE.scale} ごとに ${BALANCE.scale * S.attackPoints}pt`}
+                    value={card.stats.attack}
+                    min={S.attackMin}
+                    max={S.attackMax}
+                    step={BALANCE.scale}
+                    snap
+                    error={violationsExactly(analysis.violations, 'stats.attack')[0]?.message}
+                    onChange={(attack) => setCard((c) => ({ ...c, stats: { ...c.stats!, attack } }))}
+                  />
+                  <Stepper
+                    id={fieldId('stats.hp')}
+                    label="体力"
+                    help={`+${BALANCE.scale} ごとに ${BALANCE.scale * S.hpPoints}pt`}
+                    value={card.stats.hp}
+                    min={S.hpMin}
+                    max={S.hpMax}
+                    step={BALANCE.scale}
+                    snap
+                    error={violationsExactly(analysis.violations, 'stats.hp')[0]?.message}
+                    onChange={(hp) => setCard((c) => ({ ...c, stats: { ...c.stats!, hp } }))}
+                  />
+                  <Stepper
+                    id={fieldId('stats.defense')}
+                    label="守備力"
+                    help={`+${BALANCE.scale} ごとに ${BALANCE.scale * S.defensePoints}pt`}
+                    value={card.stats.defense}
+                    min={S.defenseMin}
+                    max={S.defenseMax}
+                    step={BALANCE.scale}
+                    snap
+                    error={violationsExactly(analysis.violations, 'stats.defense')[0]?.message}
+                    onChange={(defense) => setCard((c) => ({ ...c, stats: { ...c.stats!, defense } }))}
+                  />
+                </div>
+                <div className="ed-kws" id={fieldId('keywords')}>
+                  <h3>
+                    キーワード <small>{card.keywords.length}</small>
+                  </h3>
+                  {card.keywords.length > 0 && (
+                    <ul className="ed-kw-list">
+                      {card.keywords.map((k, i) => {
+                        const def = getKeyword(k.id);
+                        if (!def) return null;
+                        const bad = violationsAt(analysis.violations, `keywords.${i}`);
+                        return (
+                          <li key={k.id} className={cx('ed-kw', bad.length > 0 && 'is-invalid')}>
+                            <div className="ed-kw__head">
+                              <b>{def.displayName(k)}</b>
+                              <span className="ed-kw__pts">{def.points(k, card.stats!)}pt</span>
+                              <button type="button" className="btn btn--ghost btn--icon btn--small" onClick={() => toggleKeyword(k.id)} aria-label={`${def.name}を外す`}>
+                                ✕
+                              </button>
+                            </div>
+                            <p className="ed-kw__sum">{def.summary}</p>
+                            {def.value && (
+                              <Stepper
+                                label={def.value.label}
+                                value={k.value}
+                                min={def.value.min}
+                                max={def.value.max}
+                                step={stepOf(def.value)}
+                                snap={stepOf(def.value) > 1}
+                                onChange={(value) => setCard((c) => ({ ...c, keywords: c.keywords.map((x) => (x.id === k.id ? { ...x, value } : x)) }))}
+                              />
+                            )}
+                            {bad.length > 0 && <span className="field__error">{bad[0]!.message}</span>}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  <button type="button" className="ed-add ed-add--small" onClick={() => setPicker('keyword')}>
+                    ＋ キーワードを付ける
+                  </button>
+                </div>
+              </>
+            )}
           </section>
 
-          <section className="panel">
-            <h2>
-              効果{' '}
-              <small>
-                {card.effects.length} / {maxEffects}
-              </small>
-            </h2>
-            <Violations items={exactViolations('effects')} />
-            {card.effects.map((e, i) => (
-              <EffectRow
-                key={i}
-                effect={e}
-                card={card}
-                violations={pathViolations(`effects.${i}`)}
-                onChange={(next) => update({ effects: card.effects.map((x, j) => (j === i ? next : x)) })}
-                onRemove={() => update({ effects: card.effects.filter((_, j) => j !== i) })}
-              />
-            ))}
-            <select
-              className="add-select"
-              value=""
-              disabled={card.effects.length >= maxEffects}
-              onChange={(e) => e.target.value && update({ effects: [...card.effects, createEffect(e.target.value, base)] })}
-              aria-label="効果を追加"
-            >
-              <option value="">{card.effects.length >= maxEffects ? `効果は${maxEffects}つまでです` : '＋ 効果を追加…'}</option>
-              {EFFECT_GROUPS.map((g) => (
-                <optgroup key={g.id} label={g.label}>
-                  {availableEffects(card.rarity)
-                    .filter((d) => d.group === g.id)
-                    .map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                </optgroup>
-              ))}
-            </select>
+          {/* ---------------------------------------------------------------- 効果 */}
+          <section className="panel ed-section" id={fieldId('effects')}>
+            <div className="ed-section__head">
+              <span className="ed-step" aria-hidden="true">
+                3
+              </span>
+              <h2>
+                効果{' '}
+                <small>
+                  {card.effects.length} / {maxEffects}
+                </small>
+              </h2>
+              {card.effects.length > 1 && <span className="ed-section__meta">上から順に解決されます</span>}
+            </div>
+            {card.effects.map((e, i) => {
+              const key = eKeys[i]!;
+              return (
+                <EffectRow
+                  key={key}
+                  index={i}
+                  count={card.effects.length}
+                  effect={e}
+                  card={card}
+                  violations={effectRowViolations(analysis.violations, card, i, maxEffects)}
+                  expanded={expanded.has(key)}
+                  onToggle={() => expand(key, !expanded.has(key))}
+                  onChange={(next) => update({ effects: card.effects.map((x, j) => (j === i ? next : x)) })}
+                  onRemove={() => removeEffect(i)}
+                  onMove={(dir) => moveEffect(i, dir)}
+                  onDuplicate={() => duplicateEffect(i)}
+                  canDuplicate={card.effects.length < maxEffects}
+                  autoFocus={focusKey === key}
+                />
+              );
+            })}
+            {sectionViolations.length > 0 && (
+              <p className={cx(attempted ? 'field__error' : 'hint', 'ed-section__msg')}>{attempted ? sectionViolations[0]!.message : 'まず効果を1つ追加しましょう（モンスターなら効果なしでも作れます）'}</p>
+            )}
+            <button type="button" className="ed-add" onClick={() => setPicker('effect')} disabled={card.effects.length >= maxEffects}>
+              {card.effects.length >= maxEffects ? `${RARITY_LABEL[card.rarity]}の効果は${maxEffects}つまでです` : '＋ 効果を追加'}
+            </button>
           </section>
 
-          <section className="panel panel--drawback">
-            <h2>デメリット（呪い）</h2>
-            <p className="hint">
-              デメリットを1つでも付けると呪いカードになります。デメリットの合計が上限（{BALANCE.rarity[card.rarity].cap}pt）以上必要で、
-              合計から差し引けるのも上限（{BALANCE.rarity[card.rarity].cap}pt）までです。コスト{BALANCE.curse.minCostForOffset}
-              未満のカードは差し引けません。デッキの枚数制限は元のレアリティと同じです。同じデメリットは1回までです。
-            </p>
-            {card.drawbacks.map((d, i) => (
-              <DrawbackRow
-                key={i}
-                drawback={d}
-                card={card}
-                violations={pathViolations(`drawbacks.${i}`)}
-                onChange={(next) => update({ drawbacks: card.drawbacks.map((x, j) => (j === i ? next : x)) })}
-                onRemove={() => update({ drawbacks: card.drawbacks.filter((_, j) => j !== i) })}
-              />
-            ))}
-            <select
-              className="add-select"
-              value=""
-              disabled={addableDrawbacks.length === 0}
-              onChange={(e) => e.target.value && update({ drawbacks: [...card.drawbacks, createDrawback(e.target.value, base)] })}
-              aria-label="デメリットを追加"
-            >
-              <option value="">＋ デメリットを追加…</option>
-              {addableDrawbacks.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
+          {/* ---------------------------------------------------------------- デメリット */}
+          <section className={cx('panel ed-section panel--drawback', analysis.isCurse && 'is-curse')} id={fieldId('drawbacks')}>
+            <div className="ed-section__head">
+              <span className="ed-step" aria-hidden="true">
+                4
+              </span>
+              <h2>デメリット</h2>
+              {analysis.isCurse && <span className="badge badge--curse">呪いカード</span>}
+            </div>
+            <p className="hint">デメリットを付けると呪いカードになります。付けた分だけ予算を取り戻せます（上限ぶんまで）。</p>
+            <details className="ed-details">
+              <summary>呪いカードの決まり</summary>
+              <ul className="ed-rules">
+                <li>デメリットの合計が、レアリティの上限（いま {budget.curseNeed}pt）以上必要</li>
+                <li>予算に戻せるのも上限（{budget.curseNeed}pt）まで。超えた分はカードを弱くするだけ</li>
+                <li>コスト{BALANCE.curse.minCostForOffset}未満のカードは予算に戻せない</li>
+                <li>同じデメリットは1枚に1回まで。デッキの枚数制限は元のレアリティと同じ</li>
+              </ul>
+            </details>
+            {analysis.isCurse && (
+              <div className={cx('ed-curse-line', !curseOk && 'is-ng')} role="status">
+                <span>呪いの条件：デメリット合計</span>
+                <b>
+                  {budget.drawbackTotal} / 必要 {budget.curseNeed}
+                </b>
+                <span className={cx('badge', curseOk ? 'badge--ok' : 'badge--ng')}>{curseOk ? '達成' : `あと ${budget.curseNeed - budget.drawbackTotal}pt`}</span>
+              </div>
+            )}
+            {card.drawbacks.map((d, i) => {
+              const key = dKeys[i]!;
+              return (
+                <DrawbackRow
+                  key={key}
+                  index={i}
+                  drawback={d}
+                  card={card}
+                  violations={violationsAt(analysis.violations, `drawbacks.${i}`)}
+                  expanded={expanded.has(key)}
+                  onToggle={() => expand(key, !expanded.has(key))}
+                  onChange={(next) => update({ drawbacks: card.drawbacks.map((x, j) => (j === i ? next : x)) })}
+                  onRemove={() => removeDrawback(i)}
+                  autoFocus={focusKey === key}
+                />
+              );
+            })}
+            <button type="button" className="ed-add ed-add--drawback" onClick={() => setPicker('drawback')} disabled={addable.length === 0}>
+              {addable.length === 0 ? '付けられるデメリットはありません' : '＋ デメリットを追加'}
+            </button>
           </section>
         </div>
+
+        <aside className="ed-aside" aria-label="プレビューと内訳">
+          <div className="ed-preview">
+            <CardView card={card} analysis={analysis} />
+            {shownViolations.length > 0 && <span className="ed-preview__ribbon">要修正 {shownViolations.length}件</span>}
+          </div>
+          {panel(true)}
+        </aside>
       </div>
 
-      <div className="savebar">
-        <button
-          type="button"
-          className={cx('savebar__pts', p.remaining < 0 && 'is-over')}
-          onClick={() => pointsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          title="内訳を見る"
-        >
-          <b>{p.total}</b> / {p.cap}pt
-          <small>{p.remaining < 0 ? `${-p.remaining}pt超過` : `残り${p.remaining}pt`}</small>
-        </button>
-        <span className={cx('savebar__status', !canSave && 'is-ng')} aria-live="polite">
-          {canSave ? (dirty ? '保存できます' : '保存済み') : `要修正 ${analysis.violations.length + extra.length}件`}
-        </span>
-        <button type="button" className="btn btn--secondary" onClick={() => navigate('/cards')}>
+      <div className="savebar ed-savebar">
+        <div className={cx('savebar__status', showProblems && !canSave && 'is-ng', !showProblems && !canSave && 'is-pending')} aria-live="polite">
+          {canSave ? (dirty ? '保存できます' : '保存済み') : showProblems ? `要修正 ${allViolations.length}件` : 'カード名と効果を入れると保存できます'}
+        </div>
+        {!canSave && showProblems && (
+          <button type="button" className="btn btn--small" onClick={showReasons}>
+            理由を見る
+          </button>
+        )}
+        <button type="button" className="btn btn--secondary" onClick={() => void leave()}>
           一覧へ
         </button>
-        <button type="button" className="btn btn--primary" disabled={!canSave || !dirty} onClick={save}>
+        <button type="button" className="btn btn--primary" disabled={!dirty} onClick={save}>
           保存
         </button>
       </div>
 
-      {pickerOpen && <EmojiPicker value={card.icon} onSelect={(icon) => update({ icon })} onClose={() => setPickerOpen(false)} />}
-    </>
-  );
-}
-
-interface MonsterFieldsProps {
-  card: CardDef;
-  stats: Stats;
-  setCard: (f: (c: CardDef) => CardDef) => void;
-  violations: Violation[];
-}
-
-function MonsterFields({ card, stats, setCard, violations }: MonsterFieldsProps) {
-  const S = BALANCE.stats;
-  const setStats = (patch: Partial<Stats>) => setCard((c) => ({ ...c, stats: { ...stats, ...patch } }));
-  const bad = (path: string) => violations.some((v) => v.path === path);
-  const toggleKeyword = (def: KeywordDef) =>
-    setCard((c) => ({
-      ...c,
-      keywords: c.keywords.some((k) => k.id === def.id)
-        ? c.keywords.filter((k) => k.id !== def.id)
-        : [...c.keywords, def.value ? { id: def.id, value: def.value.default } : { id: def.id }],
-    }));
-
-  return (
-    <>
-      <div className="stats-grid">
-        <Stepper label={`攻撃力（${S.attackPoints}pt）`} value={stats.attack} min={S.attackMin} max={S.attackMax} step={BALANCE.scale} invalid={bad('stats.attack')} onChange={(attack) => setStats({ attack })} />
-        <Stepper label={`体力（${S.hpPoints}pt）`} value={stats.hp} min={S.hpMin} max={S.hpMax} step={BALANCE.scale} invalid={bad('stats.hp')} onChange={(hp) => setStats({ hp })} />
-        <Stepper label={`守備力（${S.defensePoints}pt）`} value={stats.defense} min={S.defenseMin} max={S.defenseMax} step={BALANCE.scale} invalid={bad('stats.defense')} onChange={(defense) => setStats({ defense })} />
-      </div>
-      <h3>キーワード</h3>
-      <div className="kw-grid">
-        {listKeywords().map((def) => {
-          const inst = card.keywords.find((k) => k.id === def.id);
-          const preview = inst ?? (def.value ? { id: def.id, value: def.value.default } : { id: def.id });
-          return (
-            <div key={def.id} className={cx('kw-item', inst && 'is-on')}>
-              <label className="check">
-                <input type="checkbox" checked={inst !== undefined} onChange={() => toggleKeyword(def)} />
-                <b>{def.name}</b>
-                <small>{def.points(preview, stats)}pt</small>
-              </label>
-              {inst && def.value && (
-                <Stepper
-                  label={def.value.label}
-                  value={inst.value}
-                  min={def.value.min}
-                  max={def.value.max}
-                  step={stepOf(def.value)}
-                  onChange={(value) =>
-                    setCard((c) => ({ ...c, keywords: c.keywords.map((k) => (k.id === def.id ? { ...k, value } : k)) }))
-                  }
-                />
-              )}
-              <p className="hint">{def.summary}</p>
-            </div>
-          );
-        })}
-      </div>
-    </>
+      {emojiOpen && <EmojiPicker value={card.icon} onSelect={(icon) => update({ icon })} onClose={() => setEmojiOpen(false)} />}
+      {picker && (
+        <EffectPicker
+          mode={picker}
+          card={card}
+          remaining={budget.remaining}
+          onPick={(id) => (picker === 'effect' ? addEffect(id) : picker === 'drawback' ? addDrawback(id) : toggleKeyword(id))}
+          onClose={() => setPicker(null)}
+        />
+      )}
+      <Sheet open={sheet === 'preview'} title="プレビューと内訳" onClose={() => setSheet(null)} desktop="modal">
+        <div className="ed-sheet-preview">
+          <CardView card={card} analysis={analysis} />
+        </div>
+        {panel(false)}
+      </Sheet>
+      <Sheet open={sheet === 'templates'} title="テンプレートから作る" onClose={() => setSheet(null)} desktop="modal">
+        <p className="hint">予算をほどよく使った雛形です。読み込んだあと、名前・数値・効果を自由に変えられます。</p>
+        <ul className="ed-tpls">
+          {templateCards.map(({ t, card: c, a }) => {
+            const stats = c.stats ? `⚔${c.stats.attack} ❤${c.stats.hp} 🛡${c.stats.defense}` : null;
+            const lines = [...a.text.keywords.map((k) => k.name), ...a.text.effects, ...a.text.drawbacks.map((d) => `☠ ${d}`)];
+            return (
+              <li key={t.id}>
+                <button type="button" className={cx('ed-tpl', a.isCurse && 'is-curse')} onClick={() => void applyTemplate(t)}>
+                  <span className={cx('ed-tpl__tile', `frame--${c.rarity}`, a.isCurse && 'frame--curse')} aria-hidden="true">
+                    {c.icon}
+                    <span className="ed-mini__cost">{c.cost}</span>
+                  </span>
+                  <span className="ed-tpl__main">
+                    <b>{t.title}</b>
+                    <span className={cx('ed-tpl__type', `text--${c.rarity}`)}>
+                      {CARD_TYPE_LABEL[a.cardType]}・{RARITY_LABEL[c.rarity]}
+                      {a.isCurse && `・${CURSE_LABEL}`}
+                      {stats && <span className="ed-tpl__stats"> {stats}</span>}
+                    </span>
+                    <span className="ed-tpl__desc">{t.description}</span>
+                    {lines.length > 0 && <span className="ed-tpl__text">{lines.join(' ')}</span>}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </Sheet>
+    </div>
   );
 }

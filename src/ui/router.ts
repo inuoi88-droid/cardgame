@@ -35,11 +35,42 @@ export function navigate(path: string): void {
   window.location.hash = path;
 }
 
+/**
+ * 画面を離れる前の確認（未保存の編集があるときなど）。
+ * 登録しておくと、ハッシュが変わったときに一度元に戻してから guard を呼び、true が返ったら改めて移動する。
+ * 画面側は編集中だけ登録し、離れるとき（アンマウント・保存後）は null で外す。
+ */
+export type NavigationGuard = (to: string) => Promise<boolean>;
+let guard: NavigationGuard | null = null;
+let currentHash = window.location.hash;
+let ignoreNextChange = false;
+
+export function setNavigationGuard(g: NavigationGuard | null): void {
+  guard = g;
+}
+
 export function useRoute(): Route {
   const [route, setRoute] = useState(() => parseRoute(window.location.hash));
   useEffect(() => {
     const onChange = () => {
-      setRoute(parseRoute(window.location.hash));
+      if (ignoreNextChange) {
+        ignoreNextChange = false;
+        return;
+      }
+      const next = window.location.hash;
+      if (guard && next !== currentHash) {
+        const ask = guard;
+        ignoreNextChange = true;
+        window.location.hash = currentHash;
+        void ask(next).then((ok) => {
+          if (!ok) return;
+          guard = null;
+          window.location.hash = next;
+        });
+        return;
+      }
+      currentHash = next;
+      setRoute(parseRoute(next));
       window.scrollTo(0, 0);
     };
     window.addEventListener('hashchange', onChange);

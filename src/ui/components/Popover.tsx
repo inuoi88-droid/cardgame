@@ -47,6 +47,8 @@ export function Popover({ content, children, className, focusable = true, hover 
   const [style, setStyle] = useState<CSSProperties>({});
   const [side, setSide] = useState<'top' | 'bottom'>(placement);
   const hoverOk = useRef(false);
+  /** ホバーで開いた直後のクリックは「閉じる」にしない（PC でクリックすると一瞬で消えるのを防ぐ） */
+  const openedByHover = useRef(false);
 
   useEffect(() => {
     hoverOk.current = hover && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
@@ -133,6 +135,11 @@ export function Popover({ content, children, className, focusable = true, hover 
         aria-describedby={open ? id : undefined}
         onClick={(e) => {
           e.stopPropagation();
+          if (openedByHover.current) {
+            openedByHover.current = false;
+            setOpen(true);
+            return;
+          }
           setOpen((o) => !o);
         }}
         onKeyDown={(e) => {
@@ -142,8 +149,16 @@ export function Popover({ content, children, className, focusable = true, hover 
             setOpen((o) => !o);
           }
         }}
-        onMouseEnter={() => hoverOk.current && setOpen(true)}
-        onMouseLeave={() => hoverOk.current && setOpen(false)}
+        onMouseEnter={() => {
+          if (!hoverOk.current || open) return;
+          openedByHover.current = true;
+          setOpen(true);
+        }}
+        onMouseLeave={() => {
+          if (!hoverOk.current) return;
+          openedByHover.current = false;
+          setOpen(false);
+        }}
       >
         {children}
       </span>

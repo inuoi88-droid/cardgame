@@ -1,5 +1,5 @@
 /**
- * プリセットデッキ3つの総当たり（ミラー含む）と、先攻後攻ルールの候補の比較。
+ * プリセットデッキ（今は5つ）の総当たり（ミラー含む）と、先攻後攻ルールの候補の比較。
  *   node scripts/sim/presets.mts [n]   … 1組み合わせあたり n 試合（既定 200）
  * 出力：scripts/sim/out/presets.json
  *
@@ -35,7 +35,7 @@ export async function run(n: number): Promise<PresetsResult> {
   const roundRobin: SeriesResult[] = [];
   for (let a = 0; a < PRESET_NAMES.length; a++) {
     for (let b = 0; b < PRESET_NAMES.length; b++) {
-      roundRobin.push(await series(presetSpec(a), presetSpec(b), n, { seedBase: 1000 + (a * 3 + b) * 10000 }));
+      roundRobin.push(await series(presetSpec(a), presetSpec(b), n, { seedBase: 1000 + (a * PRESET_NAMES.length + b) * 10000 }));
     }
   }
   const firstPlayer = {} as Record<FirstPlayerVariant, SeriesResult[]>;

@@ -77,10 +77,12 @@ describe('倍率', () => {
     expect(a.valid).toBe(true);
   });
 
-  it('プリセット3つはこの倍率でもルールを守る', () => {
+  it('プリセット5つ・サンプル8枚はこの倍率でもルールを守る', () => {
     for (const p of PRESET_DECKS) {
       for (const c of p.cards) expect(analyzeCard(c).violations, `${p.name}：${c.name}`).toEqual([]);
     }
+    expect(PRESET_DECKS).toHaveLength(5);
+    for (const c of SAMPLE_CARDS) expect(analyzeCard(c).violations, c.name).toEqual([]);
   });
 
   it('エディターの初期値：量は20倍、枚数などはそのまま', () => {
@@ -183,7 +185,9 @@ describe('この倍率での対戦', () => {
     for (const [i, j] of [
       [0, 1],
       [1, 2],
-      [2, 0],
+      [2, 3],
+      [3, 4],
+      [4, 0],
     ] as const) {
       const [A, B] = [PRESET_DECKS[i]!, PRESET_DECKS[j]!];
       const r = battle.createGame({

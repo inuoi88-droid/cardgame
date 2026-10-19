@@ -117,7 +117,7 @@ export function CardListPage() {
       {cards.length === 0 ? (
         <div className="empty">
           <p>まだカードがありません。</p>
-          <p>「＋ 新しいカード」で作るか、「サンプルを追加」で作成例の4枚を入れてみてください。</p>
+          <p>「＋ 新しいカード」で作るか、「サンプルを追加」で作成例と見本の8枚を入れてみてください。</p>
         </div>
       ) : (
         <div className="card-grid">

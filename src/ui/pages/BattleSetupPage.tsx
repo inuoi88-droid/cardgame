@@ -54,7 +54,7 @@ export function BattleSetupPage() {
       <section className="panel">
         <h2>CPU のデッキ</h2>
         <div className="choice-list">
-          {[{ id: 'random', name: 'ランダム', description: '3つのプリセットからランダムに選ぶ' }, ...PRESET_DECKS].map((p) => (
+          {[{ id: 'random', name: 'ランダム', description: `${PRESET_DECKS.length}つのプリセットからランダムに選ぶ` }, ...PRESET_DECKS].map((p) => (
             <label key={p.id} className={cx('choice', cpu === p.id && 'is-active')}>
               <input type="radio" name="cpu" checked={cpu === p.id} onChange={() => setCpu(p.id)} />
               <span>

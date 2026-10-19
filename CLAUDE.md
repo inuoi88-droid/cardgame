@@ -41,8 +41,8 @@
   - `server.ts` 1回の送信の処理 / `http.ts` 受付（DB・時刻・乱数・ハッシュ・通知は外から渡す）/ `index.ts` 公開窓口
 - `supabase/` … `migrations/`（専用スキーマ `cardgame` の rooms）と `functions/cardgame/`（Deno の Edge Function。`engine.js` は `npm run build:server` の生成物）
 - `src/ui/` … React の画面。`store.ts` が localStorage を扱う。`battle/BattleBoard.tsx` が対戦画面の本体（CPU 戦とオンラインで共用）。`pages/Battle*` が CPU 戦、`pages/Online*` と `online/`（通信・Realtime・再接続）がオンライン対戦
-- `src/samples.ts` … 作成例4枚
-- `src/presets.ts` … CPU 用プリセットデッキ3つ（毒・モンスター・呪い）
+- `src/samples.ts` … 作成例4枚（テストで固定）＋今の予算の見本4枚
+- `src/presets.ts` … CPU 用プリセットデッキ5つ（毒・モンスター・呪い・守り・コンボ。どれも選ぶ効果のカードを含む。決定事項 #76）
 - `tests/` … Vitest（作成例・違反ケース・デッキ・取り込み・レジストリ整合性・エンジンの純粋性・対戦・オンラインのサーバー処理）
 - `scripts/gen-registry.mjs` … 定義ファイルの索引を生成
 

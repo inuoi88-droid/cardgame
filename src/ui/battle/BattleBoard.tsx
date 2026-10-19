@@ -165,8 +165,9 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
 
   const confirmWarnings = async (i: battle.PlayInfo, def: CardDef): Promise<boolean> => {
     if (i.warnings.length === 0) return true;
+    const capOnly = i.warnings.every((w) => battle.isPowerCapWarning(w));
     return confirm({
-      title: `「${def.name}」は発動しない効果があります`,
+      title: capOnly ? `「${def.name}」を使うと古いパワーが消えます` : `「${def.name}」は発動しない効果があります`,
       message: (
         <>
           <ul className="warn-list">
@@ -174,7 +175,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               <li key={w}>{w}</li>
             ))}
           </ul>
-          <p>使ってもエナジーを払うだけになります。使いますか？</p>
+          <p>{capOnly ? '使いますか？' : '発動しない効果はエナジーを払うだけになります。使いますか？'}</p>
         </>
       ),
       okLabel: 'それでも使う',

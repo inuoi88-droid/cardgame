@@ -1,18 +1,25 @@
 /** 対戦の準備：自分のデッキと CPU のデッキを選んで開始。選んだデッキの中身（種類・コストの内訳とカード）を見せ、前回の選択を覚える */
 import { useMemo, useState } from 'react';
-import type { CardDef } from '../../engine/index.ts';
+import { ai, type CardDef } from '../../engine/index.ts';
 import { PRESET_DECKS } from '../../presets.ts';
 import { CardView } from '../components/CardView.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { Modal } from '../components/controls.tsx';
 import { DeckPicker } from '../battle/DeckPicker.tsx';
 import { pickChoice, useDeckChoices } from '../battle/deckChoices.ts';
-import { clearSession, loadSession, loadSetupPrefs, saveSetupPrefs, startSession } from '../battle/session.ts';
+import { clearSession, loadSession, loadSetupPrefs, saveSetupPrefs, sessionLevel, startSession } from '../battle/session.ts';
 import { breakdownDeck } from '../battle/summary.ts';
 import '../battle/battle.css';
 import { navigate } from '../router.ts';
 import { cx } from '../util.ts';
 import type { Deck } from '../../engine/index.ts';
+
+/** CPU の強さの選択肢（決定事項 #82）。説明は1行 */
+const LEVEL_HINT: Record<ai.CpuLevel, string> = {
+  easy: '読みが甘く、たまに損な手も打つ。とどめも見逃すことがある',
+  normal: 'とどめを逃さず、1手ずつ一番よい手を選ぶ',
+  hard: 'とどめを逃さず、ターン内の手順を先まで読んで選ぶ',
+};
 
 /** デッキの中身：種類・コストの内訳と、カード（タップで全文） */
 function DeckContents({ deck, cards, onCard }: { deck: Deck; cards: CardDef[]; onCard: (def: CardDef) => void }) {
@@ -52,6 +59,7 @@ export function BattleSetupPage() {
   const prefs = useMemo(() => loadSetupPrefs(), []);
   const [mine, setMine] = useState<string>(prefs?.mine ?? '');
   const [cpu, setCpu] = useState<string>(prefs && (prefs.cpu === 'random' || PRESET_DECKS.some((p) => p.id === prefs.cpu)) ? prefs.cpu : 'random');
+  const [level, setLevel] = useState<ai.CpuLevel>(prefs?.level ?? 'normal');
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState<CardDef | null>(null);
 
@@ -71,7 +79,7 @@ export function BattleSetupPage() {
       if (!ok) return;
     }
     const preset = cpu === 'random' ? PRESET_DECKS[Math.floor(Math.random() * PRESET_DECKS.length)]! : PRESET_DECKS.find((p) => p.id === cpu)!;
-    saveSetupPrefs({ mine: selected.key, cpu });
+    saveSetupPrefs({ mine: selected.key, cpu, level });
     const r = startSession({
       myDeck: selected.deck,
       myCards: selected.cards,
@@ -79,6 +87,7 @@ export function BattleSetupPage() {
       cpuDeck: preset.deck,
       cpuCards: preset.cards,
       cpuDeckName: preset.name,
+      cpuLevel: level,
     });
     if (!r.ok) {
       setError(r.error);
@@ -105,7 +114,8 @@ export function BattleSetupPage() {
       {ongoing && (
         <div className="notice setup__row">
           <span>
-            対戦の途中です（{ongoing.setup.myDeckName} 対 {ongoing.setup.cpuDeckName}・あなたの{ongoing.state.players[0].turnsTaken}ターン目）
+            対戦の途中です（{ongoing.setup.myDeckName} 対 {ongoing.setup.cpuDeckName}・強さ {ai.CPU_LEVEL_LABEL[sessionLevel(ongoing)]}・あなたの
+            {ongoing.state.players[0].turnsTaken}ターン目）
           </span>
           <button type="button" className="btn btn--primary" onClick={() => navigate('/battle/play')}>
             続きから再開
@@ -149,12 +159,19 @@ export function BattleSetupPage() {
           ))}
         </div>
         {cpuPreset && <DeckContents deck={cpuPreset.deck} cards={cpuPreset.cards} onCard={setZoom} />}
-        <div className="setup__cpu">
-          {/* TODO(coordinator): CPU の強さの選択を ai の Strategy につなぐ。今は1種類なので表示だけ */}
-          <button type="button" className="chip" disabled aria-disabled="true" title="強さの選択は準備中です">
-            強さ：ふつう
-          </button>
-          <small className="hint">強さの選択は準備中です</small>
+      </section>
+      <section className="panel">
+        <h2>CPU の強さ</h2>
+        <div className="choice-list choice-list--row" role="radiogroup" aria-label="CPU の強さ">
+          {ai.CPU_LEVELS.map((l) => (
+            <label key={l} className={cx('choice', level === l && 'is-active')}>
+              <input type="radio" name="level" checked={level === l} onChange={() => setLevel(l)} />
+              <span>
+                <b>{ai.CPU_LEVEL_LABEL[l]}</b>
+                <small>{LEVEL_HINT[l]}</small>
+              </span>
+            </label>
+          ))}
         </div>
       </section>
       {error && <div className="notice notice--ng">{error}</div>}

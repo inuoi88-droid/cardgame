@@ -290,6 +290,8 @@ export const BALANCE = {
     maxEnergyGainPerTurn: 3,
     /** 「カードを使うたび」が発動するのは、パワー1つにつき1ターンにこの回数まで（決定事項 #70 R10） */
     maxCardPlayedTriggersPerTurn: 2,
+    /** 場に残せるパワーは1人この数まで。超えるときはいちばん古いものが消える（決定事項 #80。数なので倍率は掛けない） */
+    maxPowers: 3,
     /** 相手の効果で減らされる、次のターンのエナジーの上限 */
     maxEnergyJamPerTurn: 1,
     /** 相手の効果で減らされる、次のターンに引く枚数の上限 */

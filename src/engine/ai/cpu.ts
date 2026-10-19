@@ -17,7 +17,11 @@ export interface Strategy {
 export const CPU_LEVELS = ['easy', 'normal', 'hard'] as const;
 export type CpuLevel = (typeof CPU_LEVELS)[number];
 
-export const CPU_LEVEL_LABEL: Record<CpuLevel, string> = { easy: 'やさしい', normal: 'ふつう', hard: 'つよい' };
+export const CPU_LEVEL_LABEL: Record<CpuLevel, string> = { easy: 'よわい', normal: 'ふつう', hard: 'つよい' };
+
+export function isCpuLevel(x: unknown): x is CpuLevel {
+  return typeof x === 'string' && (CPU_LEVELS as readonly string[]).includes(x);
+}
 
 export function strategyFor(level: CpuLevel): Strategy {
   switch (level) {

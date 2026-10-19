@@ -159,7 +159,7 @@ export function RulesPage() {
             ダメージ以外の効果のカード。使うと捨て札へ。
           </Term>
           <Term name={CARD_TYPE_LABEL.power} icon="✦">
-            「ターン開始時」「ターン終了時」「カードを使うたび」など、試合中ずっと続く効果。使うと除外され、効果だけが残ります。
+            「ターン開始時」「ターン終了時」「カードを使うたび」など、試合中ずっと続く効果。使うと除外され、効果だけが残ります。パワーは1人{B.maxPowers}つまでで、{B.maxPowers + 1}つ目を使うといちばん古いパワーが消えます。
           </Term>
           <Term name={CARD_TYPE_LABEL.powerAttack} icon="✦🔥">
             ダメージを与えたうえで永続効果を残すカード。使うと除外されます。
@@ -332,6 +332,7 @@ export function RulesPage() {
           <li>1ターンに引けるのは合計{B.maxDrawPerTurn}枚まで（ターン開始の{B.drawPerTurn}枚を含む）。</li>
           <li>1ターンに増やせるエナジーは合計+{B.maxEnergyGainPerTurn}まで（エナジー効果と貯金）。</li>
           <li>「カードを使うたび」の効果は、パワー1つにつき1ターン{B.maxCardPlayedTriggersPerTurn}回まで。</li>
+          <li>場に残せるパワーは1人{B.maxPowers}つまで。{B.maxPowers + 1}つ目を使うと、いちばん古いパワーが消えます（消えるときに効果は発動しません）。</li>
           <li>
             相手の妨害で減らされるのは、次のターンのエナジー−{B.maxEnergyJamPerTurn}・引く枚数−{B.maxDrawJamPerTurn}まで。ノイズは1ターンに{B.maxNoiseReceivedPerTurn}枚まで。
           </li>

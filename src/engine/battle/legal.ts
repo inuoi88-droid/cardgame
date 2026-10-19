@@ -7,7 +7,7 @@ import { attackBlockReason, attackTargets } from './combat.ts';
 import { checkCondition } from './conditions.ts';
 import { other } from './core.ts';
 import { nextFullMulliganSize } from './mulligan.ts';
-import { allyCandidates, chosenRules, effectiveCost, enemyCandidates, validatePlay } from './play.ts';
+import { allyCandidates, chosenRules, effectiveCost, enemyCandidates, leavesPower, validatePlay } from './play.ts';
 import { NOISE_CARD_ID, type Action, type CardInst, type GameState, type PlayerId, type TargetRef } from './types.ts';
 
 export interface PlayInfo {
@@ -27,6 +27,12 @@ export interface PlayInfo {
 export const WARN_NO_TARGET = '対象がいません';
 export const WARN_NO_ENEMY_MONSTER = '相手の場にモンスターがいません';
 export const WARN_NO_MONSTER = '場にモンスターがいません';
+const WARN_POWER_CAP_HEAD = 'パワーが';
+
+/** パワーの上限の注意（「発動しない」ではなく「古いパワーが消える」注意）か */
+export function isPowerCapWarning(w: string): boolean {
+  return w.startsWith(WARN_POWER_CAP_HEAD);
+}
 
 /** 今使っても発動しない効果の注意（使用時・召喚時の効果が対象） */
 export function playWarnings(g: GameState, p: PlayerId, def: CardDef, allyTargets: string[]): string[] {
@@ -38,6 +44,10 @@ export function playWarnings(g: GameState, p: PlayerId, def: CardDef, allyTarget
   const add = (s: string) => {
     if (!out.includes(s)) out.push(s);
   };
+  const powers = g.players[p].powers;
+  if (powers.length >= BALANCE.battle.maxPowers && leavesPower(def)) {
+    add(`${WARN_POWER_CAP_HEAD}${BALANCE.battle.maxPowers}つあるので『${powers[0]!.name}』が消えます`);
+  }
   for (const e of def.effects) {
     if (e.timing !== timing) continue;
     const ed = getEffect(e.id);

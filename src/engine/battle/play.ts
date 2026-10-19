@@ -115,6 +115,33 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
   enqueue(g, { t: 'cardDone', player: p, card, protectKey, depth: 1 });
 }
 
+/** このカードを使うと場にパワーが残るか（パワー用タイミングの効果かデメリットがある、パワー・パワー攻撃のカード） */
+export function leavesPower(def: CardDef): boolean {
+  if (def.stats) return false;
+  const type = classifyCard(def);
+  if (type !== 'power' && type !== 'powerAttack') return false;
+  return def.effects.some((e) => isPowerTiming(e.timing, 'spell')) || def.drawbacks.some((d) => isPowerTiming(d.timing, 'spell'));
+}
+
+/**
+ * パワーを場に置く。すでに上限（BALANCE.battle.maxPowers）なら、先にいちばん古いパワーを消す（決定事項 #80）。
+ * 消えたパワーのカードは使ったときに除外済みなので、パワーが場から消えるだけ（誘発なし）
+ */
+export function addPower(g: GameState, p: PlayerId, power: PowerInst, depth: number): void {
+  const ps = g.players[p];
+  const max = BALANCE.battle.maxPowers;
+  while (ps.powers.length >= max) {
+    const old = ps.powers.shift()!;
+    log(g, depth, `パワーは${max}つまで：『${old.name}』が消えた`, 'effect', undefined, {
+      kind: 'destroy',
+      player: p,
+      cardId: old.cardId,
+      uid: old.uid,
+    });
+  }
+  ps.powers.push(power);
+}
+
 /** カードの処理が終わったあと：捨て札・除外・パワーとして残す、そして「カードを使うたび」 */
 export function finishCard(g: GameState, p: PlayerId, card: CardInst, protectKey: string, depth: number): void {
   const ps = g.players[p];
@@ -132,7 +159,7 @@ export function finishCard(g: GameState, p: PlayerId, card: CardInst, protectKey
         drawbacks: def.drawbacks.filter((d) => isPowerTiming(d.timing, 'spell')),
       };
       if (newPower.effects.length > 0 || newPower.drawbacks.length > 0) {
-        ps.powers.push(newPower);
+        addPower(g, p, newPower, depth);
         log(g, depth, `「${def.name}」はパワーとして場に残り、カードは除外された`);
       } else {
         log(g, depth, `「${def.name}」は除外された`);

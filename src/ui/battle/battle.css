@@ -1367,6 +1367,9 @@ body:has(.battle) .toasts {
   display: grid;
   gap: 6px;
 }
+.choice-list--row {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
 .choice {
   display: flex;
   gap: 10px;
@@ -1445,13 +1448,6 @@ body:has(.battle) .toasts {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-}
-.setup__cpu {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
 }
 .btn--big {
   font-size: 1.05rem;

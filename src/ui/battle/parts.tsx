@@ -1,6 +1,6 @@
 /** 対戦画面の部品：プレイヤー情報、モンスター、手札、ログ、状態異常の札（説明はポップオーバー） */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { battle, CARD_TYPE_LABEL, analyzeCard, getEffect, TIMINGS, type CardDef } from '../../engine/index.ts';
+import { BALANCE, battle, CARD_TYPE_LABEL, analyzeCard, getEffect, TIMINGS, type CardDef } from '../../engine/index.ts';
 import { Popover, type PopoverCard } from '../components/Popover.tsx';
 import { glossary, keywordGlossary, type GlossaryEntry } from '../glossary.ts';
 import { cx } from '../util.ts';
@@ -161,6 +161,19 @@ export function PlayerPanel({ ps, isMe, active, targetable, onClick, onPile, flo
             {t}
           </span>
         ))}
+        {ps.powers.length > 0 && (
+          <Popover
+            content={{
+              title: `✦ パワー ${ps.powers.length}/${BALANCE.battle.maxPowers}`,
+              description: `パワーは1人${BALANCE.battle.maxPowers}つまで。${BALANCE.battle.maxPowers + 1}つ目を使うと、いちばん古いパワーが消える`,
+            }}
+            placement="top"
+          >
+            <span className="pp__next pp__powers">
+              パワー {ps.powers.length}/{BALANCE.battle.maxPowers}
+            </span>
+          </Popover>
+        )}
         <Chips chips={[...statusChips(ps.status, true), ...powerChips]} />
       </div>
       <Floats items={floats} />
@@ -317,7 +330,7 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
   const taxed = cost > def.cost;
   const short = cost > energy;
   const warn = info.warnings[0];
-  const badge = warn ? (warn.startsWith('条件') ? '条件未達' : '対象なし') : null;
+  const badge = warn ? (battle.isPowerCapWarning(warn) ? 'パワー入替' : warn.startsWith('条件') ? '条件未達' : '対象なし') : null;
   const costNotes = [
     short ? `エナジーが足りません（必要${cost}・残り${energy}）` : `必要なエナジー ${cost}（残り${energy}）`,
     discounted ? `軽減で元のコスト${def.cost}より安い` : '',

@@ -5,6 +5,7 @@
  * 考え方：
  * - レース：「自分の次ターンの見込み打点」と「相手の次ターンの見込み打点」から、残りターン数の見込みとどちらが有利かを出す。
  *   モンスターの攻撃力は残りターン数ぶんだけ価値がある。レースが有利なら相手の HP（顔へのダメージ）を重く見る。
+ *   この2つは1回の判断の中では判断の前の盤面で固定する（RaceFrame。決定事項 #81）。
  * - シールドは相手の次ターンの見込み打点まで、相手のシールドは自分がこのターンに出せる残りの打点までしか価値がない。
  * - 状態異常は実際のルールに合わせる：プレイヤーの弱体はそのプレイヤーのカードのダメージだけ、脆弱・出血は相手がそれを
  *   使える回数、反撃（状態）は相手の攻撃回数、毒・やけどは残り HP までしか効かない。
@@ -198,18 +199,45 @@ export interface RaceContext {
   raceFavor: boolean;
 }
 
-export function raceContext(g: GameState, me: PlayerId): RaceContext {
+/**
+ * レースの見込みのうち、評価の重みを切り替えるもの（相手の HP を重く見るか・残りターン数）。
+ * どちらも盤面の階段状の関数なので、1回の判断の中で候補ごとに計算し直すと、たまたまレースの判定をまたぐ行動
+ * （相手のモンスターを1体倒して「有利」に変わるなど）に、相手の HP 全体の 25% といった大きな加点が付いてしまう。
+ * そこで判断の前の盤面（根）で1回だけ計算し、その判断で比べるすべての盤面に同じものを使う（決定事項 #81）
+ */
+export interface RaceFrame {
+  myTurns: number;
+  oppTurns: number;
+  turnsLeft: number;
+  raceFavor: boolean;
+}
+
+function threats(g: GameState): [Threat, Threat] {
+  return [nextTurnThreat(g, 0), nextTurnThreat(g, 1)];
+}
+
+function frameFrom(g: GameState, me: PlayerId, threat: [Threat, Threat]): RaceFrame {
   const opp = other(me);
-  const threat: [Threat, Threat] = [nextTurnThreat(g, 0), nextTurnThreat(g, 1)];
-  const remaining: [ReturnType<typeof remainingPotential>, ReturnType<typeof remainingPotential>] = [
-    remainingPotential(g, 0),
-    remainingPotential(g, 1),
-  ];
   const effHp = (p: PlayerId) => Math.max(1, g.players[p].hp - g.players[p].status.poison);
   const myTurns = Math.ceil(effHp(opp) / Math.max(1, threat[me].total));
   const oppTurns = Math.ceil(effHp(me) / Math.max(1, threat[opp].total));
   const turnsLeft = Math.min(W.turnsLeftMax, Math.max(W.turnsLeftMin, Math.min(myTurns, oppTurns)));
-  return { me, threat, remaining, myTurns, oppTurns, turnsLeft, raceFavor: myTurns <= oppTurns };
+  return { myTurns, oppTurns, turnsLeft, raceFavor: myTurns <= oppTurns };
+}
+
+/** 判断の前の盤面からレースの見込みを固定する（その判断の中の評価はすべてこれを使う） */
+export function raceFrame(g: GameState, me: PlayerId): RaceFrame {
+  return frameFrom(g, me, threats(g));
+}
+
+/** frame を渡すと、重みの切り替え（有利・残りターン）はそれに固定し、打点の見込みだけを g から計算する */
+export function raceContext(g: GameState, me: PlayerId, frame?: RaceFrame): RaceContext {
+  const threat = threats(g);
+  const remaining: [ReturnType<typeof remainingPotential>, ReturnType<typeof remainingPotential>] = [
+    remainingPotential(g, 0),
+    remainingPotential(g, 1),
+  ];
+  return { me, threat, remaining, ...(frame ?? frameFrom(g, me, threat)) };
 }
 
 function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
@@ -293,13 +321,17 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
   return v;
 }
 
-export function evaluate(g: GameState, me: PlayerId): number {
+/**
+ * 盤面の評価。1回の判断で複数の盤面を比べるときは、判断の前の盤面の raceFrame を frame に渡す
+ * （渡さなければ g 自身から計算する）
+ */
+export function evaluate(g: GameState, me: PlayerId, frame?: RaceFrame): number {
   if (g.result) {
     if (g.result.winner === me) return W.win;
     if (g.result.winner === null) return 0;
     return -W.win;
   }
-  const ctx = raceContext(g, me);
+  const ctx = raceContext(g, me, frame);
   return playerValue(g, me, ctx) - playerValue(g, other(me), ctx);
 }
 

@@ -283,3 +283,21 @@ describe('viewFor', () => {
     expect(Object.keys(v.cards).some((k) => k.startsWith('p1:'))).toBe(false);
   });
 });
+
+describe('レースの見込みの固定（決定事項 #81）', () => {
+  it('判断の前の盤面で固定した frame を渡すと、候補の盤面でレースの判定が切り替わらない', () => {
+    const g = startGame();
+    putMonster(g, 1, card({ id: 'giant', name: '巨人', rarity: 'legend', stats: { attack: 30, hp: 5, defense: 0 } }));
+    const frame = ai.raceFrame(g, 0);
+    expect(frame.raceFavor).toBe(false);
+    // 相手のモンスターを倒した後の盤面：そのまま計算すると「有利」に切り替わる
+    const after = structuredClone(g);
+    after.players[1].board = [];
+    expect(ai.raceContext(after, 0).raceFavor).toBe(true);
+    expect(ai.raceContext(after, 0, frame).raceFavor).toBe(false);
+    expect(ai.raceContext(after, 0, frame).turnsLeft).toBe(frame.turnsLeft);
+    // 固定しないと、切り替わりの分（相手の HP × (raceFaceBonus − 1)）だけ評価が跳ねる（場にモンスターがいないので他の差はない）
+    const jump = ai.evaluate(after, 0) - ai.evaluate(after, 0, frame);
+    expect(jump).toBeCloseTo(-after.players[1].hp * ai.WEIGHTS.hp * (ai.WEIGHTS.raceFaceBonus - 1));
+  });
+});

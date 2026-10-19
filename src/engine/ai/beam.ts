@@ -5,7 +5,7 @@
  */
 import { legalActions } from '../battle/legal.ts';
 import type { Action, GameState, PlayerId } from '../battle/types.ts';
-import { evaluate, WEIGHTS } from './evaluate.ts';
+import { evaluate, raceFrame, WEIGHTS } from './evaluate.ts';
 import { better, orderForSearch, outcome, scoreAction, signature, type Candidate } from './sim.ts';
 
 export interface BeamOptions {
@@ -30,7 +30,9 @@ interface Node {
 export function beamSearch(view: GameState, me: PlayerId, seed: number, opts: BeamOptions = {}): Action {
   const o = { ...DEFAULTS, ...opts };
   const endTurn: Action = { type: 'endTurn', player: me };
-  const root: Node = { state: view, first: null, score: evaluate(view, me) };
+  // 並びの途中の盤面もすべて根（このターンの判断の前）で固定したレースの見込みで評価する（決定事項 #81）
+  const frame = raceFrame(view, me);
+  const root: Node = { state: view, first: null, score: evaluate(view, me, frame) };
   let best: Node = root;
   let beam: Node[] = [root];
   let sims = 0;
@@ -42,7 +44,7 @@ export function beamSearch(view: GameState, me: PlayerId, seed: number, opts: Be
       for (const action of orderForSearch(node.state, legalActions(node.state, me))) {
         if (sims >= o.maxSims) break;
         sims += 1;
-        const c = scoreAction(node.state, action, seed, me);
+        const c = scoreAction(node.state, action, seed, me, frame);
         if (!c || !c.state) continue;
         if (c.state.result?.winner === me) return node.first ? node.first.action : action;
         if (c.state.result) continue;

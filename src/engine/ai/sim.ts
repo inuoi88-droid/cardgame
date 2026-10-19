@@ -7,7 +7,7 @@ import { applyAction } from '../battle/apply.ts';
 import { other } from '../battle/core.ts';
 import { effectiveCost } from '../battle/play.ts';
 import type { Action, GameState, PendingChoice, PlayerId } from '../battle/types.ts';
-import { cardPickScore, evaluate, WEIGHTS } from './evaluate.ts';
+import { cardPickScore, evaluate, raceFrame, WEIGHTS, type RaceFrame } from './evaluate.ts';
 
 /** ランダムな対象の平均を取るときのシードの数 */
 export const RANDOM_SEEDS = 3;
@@ -93,8 +93,11 @@ export interface Candidate {
   face: number;
 }
 
-/** 行動を評価する。ランダムな結果になる行動は複数シードの平均 */
-export function scoreAction(view: GameState, action: Action, seed: number, me: PlayerId): Candidate | null {
+/**
+ * 行動を評価する。ランダムな結果になる行動は複数シードの平均。
+ * frame（レースの見込み）は比べる候補どうしで同じものを使う。省略すると行動の前の盤面（view）から計算する
+ */
+export function scoreAction(view: GameState, action: Action, seed: number, me: PlayerId, frame: RaceFrame = raceFrame(view, me)): Candidate | null {
   const seeds = usesRandom(view, action) ? RANDOM_SEEDS : 1;
   let total = 0;
   let first: GameState | null = null;
@@ -102,7 +105,7 @@ export function scoreAction(view: GameState, action: Action, seed: number, me: P
     const s = simulate(view, action, seed * RANDOM_SEEDS + k, me);
     if (!s) return null;
     if (!first) first = s;
-    total += evaluate(s, me);
+    total += evaluate(s, me, frame);
   }
   return { action, score: total / seeds, state: first, ...outcome(view, first!, action, me) };
 }

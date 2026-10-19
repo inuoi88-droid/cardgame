@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ai, battle } from '../../engine/index.ts';
 import { BattleBoard } from '../battle/BattleBoard.tsx';
-import { CPU, HUMAN, clearSession, loadSession, saveSession, startSession, type BattleSession } from '../battle/session.ts';
+import { CPU, HUMAN, clearSession, loadSession, saveSession, sessionLevel, startSession, type BattleSession } from '../battle/session.ts';
 import { navigate } from '../router.ts';
 
 /** 演出を見せ終えてから CPU が次の手を打つまでの間（ミリ秒） */
@@ -31,6 +31,7 @@ export function BattlePage() {
 
 function CpuBattle({ session, setSession }: { session: BattleSession; setSession: (s: BattleSession | null) => void }) {
   const state = session.state;
+  const level = sessionLevel(session);
   const view = useMemo(() => battle.viewFor(state, HUMAN), [state]);
   const [error, setError] = useState<string | null>(null);
   // 演出を見せ終えた状態（これと今の状態が同じなら、CPU は次の手を打ってよい）。開いた直後は見せる演出がない
@@ -65,14 +66,14 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
     if (!ai.cpuShouldAct(state, CPU)) return;
     const t = setTimeout(
       () => {
-        const action = ai.cpuAction(state, CPU, state.log.length + state.turnIndex * 7919);
+        const action = ai.cpuAction(state, CPU, state.log.length + state.turnIndex * 7919, level);
         const r = battle.applyAction(state, action);
         if (r.ok) commit(r.state);
       },
       state.phase === 'mulligan' ? CPU_MULLIGAN : CPU_THINK,
     );
     return () => clearTimeout(t);
-  }, [state, idleFor, commit]);
+  }, [state, idleFor, commit, level]);
 
   const backToSetup = () => {
     clearSession();

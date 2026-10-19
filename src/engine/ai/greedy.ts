@@ -10,7 +10,7 @@ import { legalActions } from '../battle/legal.ts';
 import type { Action, GameState, PlayerId } from '../battle/types.ts';
 import { beamSearch, type BeamOptions } from './beam.ts';
 import type { Strategy } from './cpu.ts';
-import { evaluate, WEIGHTS } from './evaluate.ts';
+import { evaluate, raceFrame, WEIGHTS } from './evaluate.ts';
 import { findLethal, type LethalOptions } from './lethal.ts';
 import { decideMulligan } from './mulligan.ts';
 import { gaussian } from './noise.ts';
@@ -31,13 +31,14 @@ function decideChoice(view: GameState, me: PlayerId, seed: number): Action {
   const effectId = p.step.t === 'effect' ? p.step.effect.id : p.step.t;
   const byValue = effectId === 'retain' || p.options.every((o) => o.cardId);
   if (byValue || p.max > 1) return { type: 'choose', player: me, picks: chooseFor(view, p, me) };
+  const frame = raceFrame(view, me);
   let best: { picks: string[]; score: number } | null = null;
   const candidates: string[][] = p.min === 0 ? [[]] : [];
   for (const o of p.options) candidates.push([o.id]);
   for (const picks of candidates) {
     const s = simulate(view, { type: 'choose', player: me, picks }, seed, me);
     if (!s) continue;
-    const score = evaluate(s, me);
+    const score = evaluate(s, me, frame);
     if (!best || score > best.score) best = { picks, score };
   }
   return { type: 'choose', player: me, picks: best?.picks ?? chooseFor(view, p, me) };
@@ -45,12 +46,14 @@ function decideChoice(view: GameState, me: PlayerId, seed: number): Action {
 
 /** 貪欲法で1手選ぶ */
 function decideGreedy(view: GameState, me: PlayerId, seed: number, noiseSigma: number): Action {
-  const base = evaluate(view, me);
+  // 比べる盤面はすべて、この判断の前の盤面で固定したレースの見込みで評価する（決定事項 #81）
+  const frame = raceFrame(view, me);
+  const base = evaluate(view, me, frame);
   let best: Candidate | null = null;
   let index = 0;
   for (const action of dedupeActions(view, legalActions(view, me))) {
     if (action.type === 'endTurn' || action.type === 'concede') continue;
-    const c = scoreAction(view, action, seed, me);
+    const c = scoreAction(view, action, seed, me, frame);
     index += 1;
     if (!c) continue;
     if (noiseSigma > 0) c.score += gaussian(seed, index, noiseSigma);

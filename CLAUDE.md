@@ -34,16 +34,20 @@
   - `points.ts` ポイント計算 / `classify.ts` 種類・呪い判定 / `validate.ts` ルール検証 / `text.ts` 効果テキスト
   - `analyze.ts` カード解析の入口 / `deck.ts` デッキ検証 / `io.ts` 書き出し・取り込み / `editing.ts` エディター用の補助
   - `index.ts` 公開窓口（UI はここから読む）
-  - `battle/` … 対戦エンジン。入口は `applyAction(state, action)`（apply.ts）。setup・turn・play・combat・damage・queue（解決キューと選択待ち）・runtime（効果ファイルに渡す道具）・legal（今できる行動）・view（相手の非公開情報を隠す）。主なルール（#69・#70）：HP 120（倍率1）、エナジーは自分のターン数で 3→4（4ターン目）→5（7ターン目）と成長（`battle.energySchedule`）、モンスターが相手モンスターを攻撃すると守備側がその攻撃力を返す「反撃」（combat。攻撃と同時に解決、`battle.retaliation`）、毒・再生は毎ターン半減、筋力・気合は1枚につき最初の1発だけ、ログの各行に構造化イベント `ev`（#71）
-  - `ai/` … CPU。`Strategy` を差し替えられる。今は貪欲法（greedy.ts）と評価関数（evaluate.ts。重みは balance.ts ではなくここ）
+  - `battle/` … 対戦エンジン。入口は `applyAction(state, action)`（apply.ts）。setup・turn・play・combat・damage・queue（解決キューと選択待ち）・runtime（効果ファイルに渡す道具）・legal（今できる行動）・view（相手の非公開情報を隠す）。主なルール（#69・#70）：HP 120（倍率1）、エナジーは自分のターン数で 3→4（4ターン目）→5（7ターン目）と成長（`battle.energySchedule`）、モンスターが相手モンスターを攻撃すると守備側がその攻撃力を返す「反撃」（combat。攻撃と同時に解決、`battle.retaliation`）、毒・再生は毎ターン半減、筋力・気合は1枚につき最初の1発だけ、ログの各行に構造化イベント `ev`（#71）、パワーは1人 `battle.maxPowers`（3）つまでで超えたらいちばん古いものが消える（play.ts の `addPower`。#80）、挑発はモンスターの攻撃とカードの「選んだ1体」の両方を挑発モンスターに限る（damage.ts の `targetableTaunts`。#83）
+  - `ai/` … CPU。強さは よわい／ふつう／つよい（`CpuLevel`。cpu.ts の `cpuAction(state, player, seed, level)`。#72・#82）。貪欲法（greedy.ts）、つよいの先読み（beam.ts）、リーサル探索（lethal.ts）、評価関数（evaluate.ts。重みは balance.ts ではなくここ。レースの判定は1回の判断の前に `RaceFrame` として固定：#81）、マリガン（mulligan.ts）。sim.ts はシミュレーション用
 - `src/online/` … オンライン対戦のサーバー処理（純粋関数。engine と同じ決まり：DOM・Date・Math.random を使わない）
   - `codes.ts` 部屋コード・名前 / `protocol.ts` 送受信の形と検証 / `room.ts` 部屋の作成・入室・行動・時間切れ・各席への見え方
   - `server.ts` 1回の送信の処理 / `http.ts` 受付（DB・時刻・乱数・ハッシュ・通知は外から渡す）/ `index.ts` 公開窓口
 - `supabase/` … `migrations/`（専用スキーマ `cardgame` の rooms）と `functions/cardgame/`（Deno の Edge Function。`engine.js` は `npm run build:server` の生成物）
-- `src/ui/` … React の画面。`store.ts` が localStorage を扱う。`battle/BattleBoard.tsx` が対戦画面の本体（CPU 戦とオンラインで共用）。`pages/Battle*` が CPU 戦、`pages/Online*` と `online/`（通信・Realtime・再接続）がオンライン対戦
+- `src/ui/` … React の画面。`store.ts` が localStorage を扱う。`router.ts` はハッシュのルーティング（未保存の編集があるときの離脱確認 `setNavigationGuard`）。`glossary.ts` は用語の説明（ルールページ・ポップオーバーで共用）
+  - `components/` … 共通部品：`ConfirmDialog`（`useConfirm()`）・`Toast`（`useToast()`）・`Sheet`（スマホは下から出るシート）・`Popover`・`controls.tsx`（`Modal` など）・`dialogUtil.ts`（フォーカス・`useIsPhone`）・`CardView`・`EffectRow`・`PointPanel`・`EmojiPicker`・`ImportExport`
+  - `editor/` … カードエディターの部品（`pages/CardEditorPage.tsx` から使う）：予算メーター・効果の選択・ミニプレビュー・ヒント・検証の表示、`templates.ts` のテンプレート6つ（`tests/templates*.test.ts` で作れることを固定。#79）
+  - `battle/` … `BattleBoard.tsx` が対戦画面の本体（CPU 戦とオンラインで共用。#78）。`useReplay.ts` と `events.ts` がイベント再生層（新しいログ行の `ev` を演出にして順に再生。タップで早送り、「動きを減らす」設定なら即反映。CPU 戦は再生が終わってから次の手を打つ）。`parts.tsx`（パネル・モンスター・手札・ログ）・`dialogs.tsx`（マリガン・選択・結果）・`session.ts`（CPU 戦の途中保存と準備画面の選択。強さが無い古い保存は「ふつう」）
+  - `pages/` … 各画面。`Battle*` が CPU 戦（準備画面で強さを選ぶ）、`Online*` と `online/`（通信・Realtime・再接続）がオンライン対戦、`RulesPage.tsx` はルール説明（数字は BALANCE から読む）、`UiKitPage.tsx` は部品の見本（#/ui-kit）
 - `src/samples.ts` … 作成例4枚（テストで固定）＋今の予算の見本4枚
 - `src/presets.ts` … CPU 用プリセットデッキ5つ（毒・モンスター・呪い・守り・コンボ。どれも選ぶ効果のカードを含む。決定事項 #76）
-- `tests/` … Vitest（作成例・違反ケース・デッキ・取り込み・レジストリ整合性・エンジンの純粋性・対戦・オンラインのサーバー処理）
+- `tests/` … Vitest（作成例・違反ケース・デッキ・取り込み・レジストリ整合性・エンジンの純粋性・対戦（パワーの上限・挑発・CPU を含む）・テンプレート・プリセット・オンラインのサーバー処理）。UI の通し確認は Playwright を手で回す（リポジトリには入れていない）
 - `scripts/gen-registry.mjs` … 定義ファイルの索引を生成
 
 効果を追加するときは `src/engine/defs/effects/<id>.ts` を1ファイル作り（定義・テキスト・対戦での処理 `battle.resolve`）、基礎ポイントを `balance.ts` に書く。

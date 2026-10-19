@@ -79,7 +79,10 @@ export function ConfirmDialog({ title, message, okLabel = 'OK', cancelLabel = '�
       onClose={() => onAnswer(false)}
       size="sm"
       role="alertdialog"
-      description={message ? <p className="confirm__message">{message}</p> : undefined}
+      description={
+        // 文字列は <p>、要素（<p>・<ul> を含む）は <div> で包む（<p> の入れ子は不正な HTML）
+        message ? typeof message === 'string' ? <p className="confirm__message">{message}</p> : <div className="confirm__message">{message}</div> : undefined
+      }
       initialFocus={danger ? cancelRef : okRef}
     >
       <div className="btn-row confirm__buttons">

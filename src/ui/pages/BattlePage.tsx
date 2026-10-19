@@ -49,7 +49,8 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
   );
 
   const onAction = (action: battle.Action) => {
-    const r = battle.applyAction(state, action);
+    // 最新の状態に適用する（確認ダイアログを開いている間に CPU が手を打っていても、その手を巻き戻さない）
+    const r = battle.applyAction(stateRef.current, action);
     if (!r.ok) {
       setError(r.error);
       return;

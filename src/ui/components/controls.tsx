@@ -1,5 +1,6 @@
-/** 入力部品：数値ステッパー、モーダル */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+/** 入力部品：数値ステッパー、モーダル、違反リスト */
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useFocusTrap, useScrollLock } from './dialogUtil.ts';
 
 interface StepperProps {
   label: string;
@@ -55,29 +56,59 @@ interface ModalProps {
   title: string;
   onClose: () => void;
   children: ReactNode;
-  /** false なら閉じるボタンを出さない（選ぶまで閉じられない画面） */
+  /** false なら閉じるボタンを出さず、Escape・背景タップでも閉じない（選ぶまで閉じられない画面） */
   closable?: boolean;
+  /** 幅の種類。sm は確認ダイアログ程度 */
+  size?: 'sm' | 'md';
+  /** role（確認ダイアログは alertdialog） */
+  role?: 'dialog' | 'alertdialog';
+  /** 見出しの下に出す補足（aria-describedby に使う） */
+  description?: ReactNode;
+  /** 開いたときにフォーカスする要素 */
+  initialFocus?: RefObject<HTMLElement | null>;
 }
 
-export function Modal({ title, onClose, children, closable = true }: ModalProps) {
+/**
+ * モーダル。Tab はこの中を巡り、閉じると開いた要素にフォーカスが戻り、開いている間は背景がスクロールしない。
+ * closable のときだけ Escape・背景タップ・✕ で閉じる。
+ */
+export function Modal({ title, onClose, children, closable = true, size = 'md', role = 'dialog', description, initialFocus }: ModalProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const descId = useId();
+  // onClose が毎描画で変わっても trap を張り直さないように最新を参照で持つ
+  const closeRef = useRef(onClose);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    ref.current?.focus();
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    closeRef.current = onClose;
+  });
+  const escape = useRef(() => closeRef.current());
+  useFocusTrap(ref, { onEscape: closable ? escape.current : undefined, initialFocus });
+  useScrollLock();
   return (
     <div className="modal" onClick={closable ? onClose : undefined}>
-      <div className="modal__body" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`modal__body modal__body--${size}`}
+        role={role}
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descId : undefined}
+        tabIndex={-1}
+        ref={ref}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal__head">
-          <h2>{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           {closable && (
-            <button type="button" className="btn btn--ghost" onClick={onClose} aria-label="閉じる">
+            <button type="button" className="btn btn--ghost btn--icon" onClick={onClose} aria-label="閉じる">
               ✕
             </button>
           )}
         </div>
+        {description && (
+          <div id={descId} className="modal__desc">
+            {description}
+          </div>
+        )}
         {children}
       </div>
     </div>
@@ -87,7 +118,7 @@ export function Modal({ title, onClose, children, closable = true }: ModalProps)
 export function Violations({ items }: { items: { message: string }[] }) {
   if (items.length === 0) return null;
   return (
-    <ul className="violations">
+    <ul className="violations" aria-live="polite">
       {items.map((v, i) => (
         <li key={i}>{v.message}</li>
       ))}

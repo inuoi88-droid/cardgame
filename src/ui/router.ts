@@ -9,7 +9,9 @@ export type Route =
   | { page: 'battleSetup' }
   | { page: 'battle' }
   | { page: 'online'; code: string | null }
-  | { page: 'onlineBattle' };
+  | { page: 'onlineBattle' }
+  | { page: 'rules'; section: string | null }
+  | { page: 'uiKit' };
 
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
@@ -23,6 +25,8 @@ export function parseRoute(hash: string): Route {
     if (id === undefined) return { page: 'decks' };
     return { page: 'deckEdit', id: id === 'new' ? null : id };
   }
+  if (section === 'rules') return { page: 'rules', section: id ?? null };
+  if (section === 'ui-kit') return { page: 'uiKit' };
   if (section === 'cards' && id !== undefined) return { page: 'cardEdit', id: id === 'new' ? null : id };
   return { page: 'cards' };
 }

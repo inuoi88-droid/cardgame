@@ -15,6 +15,7 @@ import {
 } from '../../engine/index.ts';
 import { CardView } from '../components/CardView.tsx';
 import { Modal, Stepper, Violations } from '../components/controls.tsx';
+import { useToast } from '../components/Toast.tsx';
 import { navigate } from '../router.ts';
 import { NEW_DRAFT, actions, deckDrafts, useStore } from '../store.ts';
 import { cx, uuid } from '../util.ts';
@@ -42,6 +43,7 @@ type PoolFilter = Rarity | 'curse' | 'all';
 
 function Builder({ saved }: { saved: Deck | null }) {
   const { cards } = useStore();
+  const toast = useToast();
   const draftKey = saved?.id ?? NEW_DRAFT;
   const [restored] = useState(() => {
     const d = deckDrafts.get(draftKey);
@@ -104,8 +106,10 @@ function Builder({ saved }: { saved: Deck | null }) {
 
   const save = () => {
     if (!a.valid) return;
-    actions.saveDeck({ ...deck, name: deck.name.trim() });
+    const name = deck.name.trim();
+    actions.saveDeck({ ...deck, name });
     deckDrafts.clear(draftKey);
+    toast({ text: `デッキ「${name || '（名前なし）'}」を保存しました`, kind: 'ok' });
     navigate('/decks');
   };
 
@@ -190,7 +194,7 @@ function Builder({ saved }: { saved: Deck | null }) {
                 <li key={c.id} className={cx('card-row', !ca.valid && 'is-invalid', count > 0 && 'is-in')}>
                   <CardRowInfo card={c} a={ca} onPreview={() => setPreview(c)} />
                   <span className={cx('card-row__limit', perName !== null && nameCount > perName && 'text-ng')}>
-                    {!ca.valid ? 'ルール違反' : perName !== null ? `同名 ${nameCount}/${perName}` : ''}
+                    {!ca.valid ? '要修正' : perName !== null ? `同名 ${nameCount}/${perName}` : ''}
                   </span>
                   <CountControl count={count} disabled={!ca.valid && count === 0} onChange={(n) => setCount(c.id, n)} />
                 </li>
@@ -228,10 +232,10 @@ function Builder({ saved }: { saved: Deck | null }) {
         <span className={cx('savebar__pts', a.total !== a.size && 'is-over')}>
           <b>{a.total}</b> / {a.size}枚
         </span>
-        <span className={cx('savebar__status', !a.valid && 'is-ng')}>
-          {a.valid ? (dirty ? '保存できます' : '保存済み') : `保存できません（理由${a.violations.length}件）`}
+        <span className={cx('savebar__status', !a.valid && 'is-ng')} aria-live="polite">
+          {a.valid ? (dirty ? '保存できます' : '保存済み') : `要修正 ${a.violations.length}件`}
         </span>
-        <button type="button" className="btn" onClick={() => navigate('/decks')}>
+        <button type="button" className="btn btn--secondary" onClick={() => navigate('/decks')}>
           一覧へ
         </button>
         <button type="button" className="btn btn--primary" disabled={!a.valid || !dirty} onClick={save}>

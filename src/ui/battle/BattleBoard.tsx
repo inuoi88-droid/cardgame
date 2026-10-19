@@ -5,6 +5,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { BALANCE, battle, type CardDef } from '../../engine/index.ts';
 import { CardView } from '../components/CardView.tsx';
+import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { Modal } from '../components/controls.tsx';
 import { cx } from '../util.ts';
 import './battle.css';
@@ -38,6 +39,7 @@ export interface BattleBoardProps {
 
 export function BattleBoard({ view, me, onAction, error, busy = false, status, opponentLabel, resultButtons }: BattleBoardProps) {
   const opp = battle.other(me);
+  const confirm = useConfirm();
   const [sel, setSel] = useState<Selection>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ def: CardDef; monster?: battle.Monster } | null>(null);
@@ -169,9 +171,10 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
             <button
               type="button"
               className="btn btn--small"
-              onClick={() => {
-                if (view.phase !== 'ended' && !confirm('降参しますか？')) return;
-                if (view.phase !== 'ended') act({ type: 'concede', player: me });
+              onClick={async () => {
+                if (view.phase === 'ended') return;
+                const ok = await confirm({ title: '降参しますか？', message: 'この対戦はあなたの負けになります。', okLabel: '降参する', danger: true });
+                if (ok) act({ type: 'concede', player: me });
               }}
               disabled={view.phase === 'ended'}
             >

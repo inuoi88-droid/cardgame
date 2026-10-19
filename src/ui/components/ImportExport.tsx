@@ -4,6 +4,7 @@ import { mergeImport, parseImport, type ExportBundle, type MergeResult } from '.
 import { actions, getState } from '../store.ts';
 import { downloadText, uuid } from '../util.ts';
 import { Modal } from './controls.tsx';
+import { useToast } from './Toast.tsx';
 
 interface ExportProps {
   title: string;
@@ -14,14 +15,13 @@ interface ExportProps {
 
 export function ExportDialog({ title, bundle, filename, onClose }: ExportProps) {
   const text = JSON.stringify(bundle, null, 2);
-  const [copied, setCopied] = useState(false);
+  const toast = useToast();
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
+      toast({ text: 'コピーしました', kind: 'ok' });
     } catch {
-      setCopied(false);
-      alert('コピーできませんでした。テキストを選択してコピーしてください。');
+      toast({ text: 'コピーできませんでした。テキストを選択してコピーしてください。', kind: 'ng' });
     }
   };
   return (
@@ -29,13 +29,20 @@ export function ExportDialog({ title, bundle, filename, onClose }: ExportProps) 
       <p className="hint">
         カード{bundle.cards.length}枚・デッキ{bundle.decks.length}個。ファイルに保存するか、テキストをコピーして渡してください。
       </p>
-      <textarea className="json-box" readOnly value={text} onFocus={(e) => e.target.select()} />
+      <textarea className="json-box" readOnly value={text} onFocus={(e) => e.target.select()} aria-label="書き出すJSON" />
       <div className="btn-row">
-        <button type="button" className="btn btn--primary" onClick={() => downloadText(filename, text)}>
+        <button
+          type="button"
+          className="btn btn--primary"
+          onClick={() => {
+            downloadText(filename, text);
+            toast({ text: `${filename} を保存しました`, kind: 'ok' });
+          }}
+        >
           ファイルに保存
         </button>
         <button type="button" className="btn" onClick={copy}>
-          {copied ? 'コピーしました' : 'テキストをコピー'}
+          テキストをコピー
         </button>
       </div>
     </Modal>
@@ -43,6 +50,7 @@ export function ExportDialog({ title, bundle, filename, onClose }: ExportProps) 
 }
 
 export function ImportDialog({ onClose }: { onClose: () => void }) {
+  const toast = useToast();
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ merge: MergeResult; warnings: string[] } | null>(null);
@@ -65,6 +73,16 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
     const merge = mergeImport(cards, decks, parsed.value, uuid);
     actions.replaceAll(merge.cards, merge.decks);
     setError(null);
+    const added = merge.addedCards + merge.addedDecks;
+    toast({
+      text: added > 0 ? `カード${merge.addedCards}枚・デッキ${merge.addedDecks}個を取り込みました` : '新しく追加するものはありませんでした（すべて取り込み済みです）',
+      kind: added > 0 ? 'ok' : 'info',
+    });
+    // 名前の変更や読み飛ばしがなければ、詳細を見せずに閉じる
+    if (merge.renamed.length === 0 && parsed.value.warnings.length === 0) {
+      onClose();
+      return;
+    }
     setResult({ merge, warnings: parsed.value.warnings });
   };
 
@@ -100,7 +118,7 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
               </ul>
             </>
           )}
-          <p className="hint">ルール違反のカードも取り込まれます。一覧で「ルール違反」と表示されたカードは、編集して直してください。</p>
+          <p className="hint">要修正のカードも取り込まれます。一覧で「要修正」と表示されたカードは、編集して直してください。</p>
           <div className="btn-row">
             <button type="button" className="btn btn--primary" onClick={onClose}>
               閉じる
@@ -125,12 +143,16 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
               }}
             />
           </label>
-          {error && <p className="text-ng">{error}</p>}
+          {error && (
+            <p className="text-ng" role="alert">
+              {error}
+            </p>
+          )}
           <div className="btn-row">
             <button type="button" className="btn btn--primary" disabled={text.trim() === ''} onClick={run}>
               取り込む
             </button>
-            <button type="button" className="btn" onClick={onClose}>
+            <button type="button" className="btn btn--secondary" onClick={onClose}>
               やめる
             </button>
           </div>

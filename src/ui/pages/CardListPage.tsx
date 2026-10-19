@@ -16,7 +16,9 @@ import {
   type Rarity,
 } from '../../engine/index.ts';
 import { CardView } from '../components/CardView.tsx';
+import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { ExportDialog, ImportDialog } from '../components/ImportExport.tsx';
+import { useToast } from '../components/Toast.tsx';
 import { navigate } from '../router.ts';
 import { NEW_DRAFT, actions, cardDrafts, getState, useStore } from '../store.ts';
 import { SAMPLE_CARDS } from '../../samples.ts';
@@ -26,10 +28,11 @@ type RarityFilter = Rarity | 'curse' | 'all';
 
 export function CardListPage() {
   const { cards, decks } = useStore();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [rarity, setRarity] = useState<RarityFilter>('all');
   const [type, setType] = useState<CardType | 'all'>('all');
   const [dialog, setDialog] = useState<'import' | 'export' | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const hasNewDraft = useMemo(() => cardDrafts.get(NEW_DRAFT) !== null, []);
 
   const analyzed = useMemo(() => cards.map((c) => ({ card: c, a: analyzeCard(c) })), [cards]);
@@ -45,18 +48,32 @@ export function CardListPage() {
     const { cards: cur, decks: curDecks } = getState();
     const m = mergeImport(cur, curDecks, { cards: SAMPLE_CARDS, decks: [] }, uuid);
     actions.replaceAll(m.cards, m.decks);
-    setMessage(m.addedCards > 0 ? `サンプルを${m.addedCards}枚追加しました` : 'サンプルはすでに追加されています');
+    if (m.addedCards > 0) toast({ text: `サンプルを${m.addedCards}枚追加しました`, kind: 'ok' });
+    else toast({ text: 'サンプルはすでに追加されています', kind: 'info' });
   };
 
   const duplicate = (card: CardDef) => {
     const taken = new Set(getState().cards.map((c) => normalizeName(c.name)));
-    actions.saveCard({ ...card, id: uuid(), name: uniqueName(card.name, taken) });
+    const copy = { ...card, id: uuid(), name: uniqueName(card.name, taken) };
+    actions.saveCard(copy);
+    toast({ text: `「${copy.name}」として複製しました`, kind: 'ok', action: { label: '編集', onClick: () => navigate(`/cards/${encodeURIComponent(copy.id)}`) } });
   };
 
-  const remove = (card: CardDef) => {
+  const remove = async (card: CardDef) => {
     const usedIn = decks.filter((d) => d.entries.some((e) => e.cardId === card.id));
-    const warn = usedIn.length > 0 ? `\nこのカードは ${usedIn.map((d) => `「${d.name}」`).join('')} で使われています。削除するとデッキが不完全になります。` : '';
-    if (confirm(`「${card.name}」を削除しますか？${warn}`)) actions.deleteCard(card.id);
+    const ok = await confirm({
+      title: `「${card.name}」を削除しますか？`,
+      message:
+        usedIn.length > 0
+          ? `このカードは ${usedIn.map((d) => `「${d.name}」`).join('')} で使われています。削除するとデッキが不完全になります。`
+          : '削除したあと、しばらくの間は「元に戻す」で戻せます。',
+      okLabel: '削除',
+      danger: true,
+    });
+    if (!ok) return;
+    const index = getState().cards.findIndex((c) => c.id === card.id);
+    actions.deleteCard(card.id);
+    toast({ text: `「${card.name}」を削除しました`, kind: 'info', action: { label: '元に戻す', onClick: () => actions.restoreCard(card, index) } });
   };
 
   return (
@@ -81,11 +98,6 @@ export function CardListPage() {
         </div>
       </div>
 
-      {message && (
-        <div className="notice" onClick={() => setMessage(null)}>
-          {message}
-        </div>
-      )}
       {hasNewDraft && (
         <div className="notice">
           作成途中のカードがあります。
@@ -94,12 +106,12 @@ export function CardListPage() {
           </button>
         </div>
       )}
-      {invalidCount > 0 && <div className="notice notice--ng">ルール違反のカードが{invalidCount}枚あります。編集して直すまでデッキでは使えません。</div>}
+      {invalidCount > 0 && <div className="notice notice--ng">要修正のカードが{invalidCount}枚あります。編集して直すまでデッキでは使えません。</div>}
 
       <div className="filters">
-        <div className="chips">
+        <div className="chips" role="group" aria-label="レアリティで絞り込み">
           {(['all', ...RARITIES, 'curse'] as RarityFilter[]).map((r) => (
-            <button key={r} type="button" className={cx('chip', rarity === r && 'is-active')} onClick={() => setRarity(r)}>
+            <button key={r} type="button" className={cx('chip', rarity === r && 'is-active')} aria-pressed={rarity === r} onClick={() => setRarity(r)}>
               {r === 'all' ? 'すべて' : r === 'curse' ? '呪い' : RARITY_LABEL[r]}
             </button>
           ))}
@@ -117,7 +129,7 @@ export function CardListPage() {
       {cards.length === 0 ? (
         <div className="empty">
           <p>まだカードがありません。</p>
-          <p>「＋ 新しいカード」で作るか、「サンプルを追加」で作成例の4枚を入れてみてください。</p>
+          <p>「＋ 新しいカード」で作るか、「サンプルを追加」で作成例の{SAMPLE_CARDS.length}枚を入れてみてください。</p>
         </div>
       ) : (
         <div className="card-grid">
@@ -131,7 +143,7 @@ export function CardListPage() {
                 <button type="button" className="btn btn--small" onClick={() => duplicate(card)}>
                   複製
                 </button>
-                <button type="button" className="btn btn--small btn--danger" onClick={() => remove(card)}>
+                <button type="button" className="btn btn--small btn--danger" onClick={() => void remove(card)}>
                   削除
                 </button>
               </div>

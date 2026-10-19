@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { BALANCE, battle } from '../../engine/index.ts';
 import type { RoomView } from '../../online/protocol.ts';
 import { BattleBoard } from '../battle/BattleBoard.tsx';
+import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { clearOnlineSession, loadOnlineSession, type OnlineSession } from '../online/client.ts';
 import { WARN_SECONDS } from '../online/config.ts';
 import { useOnlineRoom } from '../online/useOnlineRoom.ts';
@@ -70,6 +71,7 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
 }
 
 function WaitingRoom({ code, online }: { code: string; online: boolean }) {
+  const confirm = useConfirm();
   const [copied, setCopied] = useState(false);
   const copy = () => {
     void navigator.clipboard?.writeText(code).then(
@@ -91,8 +93,8 @@ function WaitingRoom({ code, online }: { code: string; online: boolean }) {
         <button
           type="button"
           className="btn"
-          onClick={() => {
-            if (confirm('この部屋をやめますか？')) leave();
+          onClick={async () => {
+            if (await confirm({ title: 'この部屋をやめますか？', message: '部屋コードは使えなくなります。', okLabel: 'やめる', danger: true })) leave();
           }}
         >
           やめる

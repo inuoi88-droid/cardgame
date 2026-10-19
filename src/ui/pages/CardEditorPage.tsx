@@ -24,6 +24,7 @@ import { Stepper, Violations } from '../components/controls.tsx';
 import { DrawbackRow, EffectRow } from '../components/EffectRow.tsx';
 import { EmojiPicker } from '../components/EmojiPicker.tsx';
 import { PointPanel } from '../components/PointPanel.tsx';
+import { useToast } from '../components/Toast.tsx';
 import { navigate } from '../router.ts';
 import { NEW_DRAFT, actions, cardDrafts, useStore } from '../store.ts';
 import { cx, uuid, stepOf } from '../util.ts';
@@ -48,6 +49,7 @@ export function CardEditorPage({ id }: { id: string | null }) {
 
 function Editor({ saved }: { saved: CardDef | null }) {
   const { cards } = useStore();
+  const toast = useToast();
   const draftKey = saved?.id ?? NEW_DRAFT;
   const [restored] = useState(() => {
     const d = cardDrafts.get(draftKey);
@@ -80,8 +82,10 @@ function Editor({ saved }: { saved: CardDef | null }) {
 
   const save = () => {
     if (!canSave) return;
-    actions.saveCard({ ...card, name: card.name.trim() });
+    const name = card.name.trim();
+    actions.saveCard({ ...card, name });
     cardDrafts.clear(draftKey);
+    toast({ text: `「${name}」を保存しました`, kind: 'ok' });
     navigate('/cards');
   };
   const discardDraft = () => {
@@ -142,14 +146,24 @@ function Editor({ saved }: { saved: CardDef | null }) {
             </div>
             <div className="field">
               <span>レアリティ</span>
-              <div className="seg">
+              <div className="seg" role="radiogroup" aria-label="レアリティ">
                 {RARITIES.map((r) => (
                   <button
                     key={r}
                     type="button"
+                    role="radio"
                     className={cx('seg__btn', `seg__btn--${r}`, r === card.rarity && 'is-active')}
                     onClick={() => update({ rarity: r })}
-                    aria-pressed={r === card.rarity}
+                    aria-checked={r === card.rarity}
+                    tabIndex={r === card.rarity ? 0 : -1}
+                    onKeyDown={(e) => {
+                      const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+                      if (!d) return;
+                      e.preventDefault();
+                      const next = RARITIES[(RARITIES.indexOf(r) + d + RARITIES.length) % RARITIES.length]!;
+                      update({ rarity: next });
+                      (e.currentTarget.parentElement?.querySelector(`.seg__btn--${next}`) as HTMLElement | null)?.focus();
+                    }}
                   >
                     {RARITY_LABEL[r]}
                     <small>上限{BALANCE.rarity[r].cap}pt</small>
@@ -266,10 +280,10 @@ function Editor({ saved }: { saved: CardDef | null }) {
           <b>{p.total}</b> / {p.cap}pt
           <small>{p.remaining < 0 ? `${-p.remaining}pt超過` : `残り${p.remaining}pt`}</small>
         </button>
-        <span className={cx('savebar__status', !canSave && 'is-ng')}>
-          {canSave ? (dirty ? '保存できます' : '保存済み') : `保存できません（理由${analysis.violations.length + extra.length}件）`}
+        <span className={cx('savebar__status', !canSave && 'is-ng')} aria-live="polite">
+          {canSave ? (dirty ? '保存できます' : '保存済み') : `要修正 ${analysis.violations.length + extra.length}件`}
         </span>
-        <button type="button" className="btn" onClick={() => navigate('/cards')}>
+        <button type="button" className="btn btn--secondary" onClick={() => navigate('/cards')}>
           一覧へ
         </button>
         <button type="button" className="btn btn--primary" disabled={!canSave || !dirty} onClick={save}>

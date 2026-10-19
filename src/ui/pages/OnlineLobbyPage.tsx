@@ -1,13 +1,16 @@
 /** オンライン対戦のロビー：名前とデッキを選び、部屋を作る／コードで入る */
 import { useState } from 'react';
+import { BALANCE } from '../../engine/index.ts';
 import { CODE_LENGTH, NAME_MAX_LENGTH, normalizeCode } from '../../online/codes.ts';
 import { DeckPicker } from '../battle/DeckPicker.tsx';
+import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { pickChoice, useDeckChoices } from '../battle/deckChoices.ts';
 import { callServer, clearOnlineSession, loadOnlineName, loadOnlineSession, saveOnlineName, saveOnlineSession } from '../online/client.ts';
 import { navigate } from '../router.ts';
 
 export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) {
   const choices = useDeckChoices();
+  const confirm = useConfirm();
   const [existing, setExisting] = useState(() => loadOnlineSession());
   const [name, setName] = useState(() => loadOnlineName());
   const [deckKey, setDeckKey] = useState('');
@@ -23,7 +26,16 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
       setError(`部屋コードは${CODE_LENGTH}文字です`);
       return;
     }
-    if (existing && !confirm('いま参加している部屋を抜けて、新しい部屋に移りますか？')) return;
+    if (
+      existing &&
+      !(await confirm({
+        title: '新しい部屋に移りますか？',
+        message: `いま参加している部屋（コード ${existing.code}）を抜けます。対戦中なら、その対戦には戻れなくなります。`,
+        okLabel: '移る',
+        danger: true,
+      }))
+    )
+      return;
     setBusy(true);
     setError(null);
     saveOnlineName(name);
@@ -53,8 +65,14 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
             <button
               type="button"
               className="btn btn--small"
-              onClick={() => {
-                if (!confirm('この部屋を抜けますか？（対戦中なら、戻れなくなります）')) return;
+              onClick={async () => {
+                const ok = await confirm({
+                  title: 'この部屋を抜けますか？',
+                  message: '対戦中なら、その対戦には戻れなくなります。',
+                  okLabel: '抜ける',
+                  danger: true,
+                });
+                if (!ok) return;
                 clearOnlineSession();
                 setExisting(null);
               }}
@@ -77,7 +95,7 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
       <section className="panel online-entry">
         <div>
           <h2>部屋を作る</h2>
-          <p className="hint">6文字の部屋コードが出ます。相手に伝えてください。</p>
+          <p className="hint">{CODE_LENGTH}文字の部屋コードが出ます。相手に伝えてください。</p>
           <button type="button" className="btn btn--primary btn--big" disabled={!selected?.valid || busy} onClick={() => void enter('create')}>
             部屋を作る
           </button>
@@ -107,7 +125,8 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
       {busy && <div className="notice">サーバーとやりとりしています…</div>}
       {error && <div className="notice notice--ng">{error}</div>}
       <p className="hint">
-        先攻・後攻はランダム。1ターンの制限時間は90秒で、3回続けて時間切れになると負けです。同じブラウザで開き直せば、対戦の続きに戻れます。
+        先攻・後攻はランダム。1ターンの制限時間は{BALANCE.online.turnSeconds}秒で、{BALANCE.online.timeoutLoseCount}
+        回続けて時間切れになると負けです。同じブラウザで開き直せば、対戦の続きに戻れます。
       </p>
     </>
   );

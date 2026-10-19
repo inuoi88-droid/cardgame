@@ -1,6 +1,7 @@
 /** 対戦画面の部品：プレイヤー情報、モンスター、手札、ログ、状態異常の表示 */
 import { useEffect, useRef } from 'react';
 import { battle, CARD_TYPE_LABEL, analyzeCard, getEffect, TIMINGS, type CardDef } from '../../engine/index.ts';
+import { glossary } from '../glossary.ts';
 import { cx } from '../util.ts';
 
 type Statuses = battle.Statuses;
@@ -14,21 +15,23 @@ export interface Chip {
 /** 状態異常・持続効果を小さな札にする */
 export function statusChips(s: Statuses): Chip[] {
   const out: Chip[] = [];
+  // 説明文は用語集（glossary.ts）と共通。数字は balance.ts から
+  const G = glossary;
   const add = (cond: unknown, label: string, tone: Chip['tone'], title: string) => cond && out.push({ label, tone, title });
-  add(s.poison, `毒${s.poison}`, 'bad', 'ターン開始時に毒の数だけダメージ（シールド無視）、その後1減る');
-  add(s.burn, `やけど${s.burn}T`, 'bad', 'ターン終了時に2ダメージ、回復量半分');
-  add(s.weak, `弱体${s.weak}T`, 'bad', '与えるダメージ−25%');
-  add(s.vulnerable, `脆弱${s.vulnerable}T`, 'bad', '受けるダメージ+50%');
-  add(s.bleed, `出血${s.bleed}`, 'bad', '攻撃を受けるたびに追加ダメージ');
-  add(s.freezePending, '凍結（次）', 'bad', '次のターン：モンスターは攻撃できない／最初のカードのコスト+1');
-  add(s.freezeActive, '凍結中', 'bad', 'このターン：モンスターは攻撃できない／最初のカードのコスト+1');
-  add(s.confusePending, '混乱（次）', 'bad', '次のターン開始時、ランダムな相手を自動で攻撃');
+  add(s.poison, `毒${s.poison}`, 'bad', G.poison.short);
+  add(s.burn, `やけど${s.burn}T`, 'bad', G.burn.short);
+  add(s.weak, `弱体${s.weak}T`, 'bad', G.weak.short);
+  add(s.vulnerable, `脆弱${s.vulnerable}T`, 'bad', G.vulnerable.short);
+  add(s.bleed, `出血${s.bleed}`, 'bad', G.bleed.short);
+  add(s.freezePending, '凍結（次）', 'bad', G.freeze.short);
+  add(s.freezeActive, '凍結中', 'bad', `このターン発効中：${G.freeze.short}`);
+  add(s.confusePending, '混乱（次）', 'bad', G.confuse.short);
   add(s.confuseActive, '混乱中', 'bad', 'このターンは自動で攻撃した');
-  add(s.strength, `筋力${s.strength}`, 'good', 'アタックのダメージ+');
-  add(s.focus, `気合${s.focus}`, 'good', 'このターン、アタックのダメージ+');
-  add(s.counter, `反撃${s.counter}`, 'good', '攻撃を受けたら返す（次の自分のターン開始時まで）');
-  add(s.nullify, `無効化${s.nullify}`, 'good', '次に受けるダメージを0にする（毒・やけどは貫通）');
-  add(s.regen, `再生${s.regen}`, 'good', 'ターン開始時に回復し、1減る');
+  add(s.strength, `筋力${s.strength}`, 'good', G.strength.short);
+  add(s.focus, `気合${s.focus}`, 'good', G.focus.short);
+  add(s.counter, `反撃${s.counter}`, 'good', G.counter.short);
+  add(s.nullify, `無効化${s.nullify}`, 'good', G.nullify.short);
+  add(s.regen, `再生${s.regen}`, 'good', G.regen.short);
   return out;
 }
 

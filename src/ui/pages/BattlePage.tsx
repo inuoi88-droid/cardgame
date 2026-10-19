@@ -1,12 +1,18 @@
-/** CPU 戦。状態は手元で持ち、CPU の手番は1手ずつ間を置いて進める */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+/**
+ * CPU 戦。状態は手元で持つ。
+ * CPU の手番は「1手打つ → その演出（イベント再生）を見せ終える → 少し考えて次の手」の順に進める。
+ * 演出を飛ばした（タップ・動きを減らす設定）ときは、すぐ次の手に進む。
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ai, battle } from '../../engine/index.ts';
 import { BattleBoard } from '../battle/BattleBoard.tsx';
 import { CPU, HUMAN, clearSession, loadSession, saveSession, startSession, type BattleSession } from '../battle/session.ts';
 import { navigate } from '../router.ts';
 
-/** CPU の1手ごとの間（ミリ秒） */
-const CPU_DELAY = 650;
+/** 演出を見せ終えてから CPU が次の手を打つまでの間（ミリ秒） */
+const CPU_THINK = 280;
+/** マリガンの決定までの間 */
+const CPU_MULLIGAN = 300;
 
 export function BattlePage() {
   const [session, setSession] = useState<BattleSession | null>(() => loadSession());
@@ -27,6 +33,10 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
   const state = session.state;
   const view = useMemo(() => battle.viewFor(state, HUMAN), [state]);
   const [error, setError] = useState<string | null>(null);
+  // 演出を見せ終えた状態（これと今の状態が同じなら、CPU は次の手を打ってよい）。開いた直後は見せる演出がない
+  const [idleFor, setIdleFor] = useState<battle.GameState>(state);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   const commit = useCallback(
     (next: battle.GameState) => {
@@ -47,8 +57,11 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
     commit(r.state);
   };
 
-  // CPU の手番：1手ずつ間を置いて進める
+  const onReplayDone = useCallback(() => setIdleFor(stateRef.current), []);
+
+  // CPU の手番：前の手の演出が終わってから、次の1手を打つ
   useEffect(() => {
+    if (idleFor !== state) return;
     if (!ai.cpuShouldAct(state, CPU)) return;
     const t = setTimeout(
       () => {
@@ -56,10 +69,16 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
         const r = battle.applyAction(state, action);
         if (r.ok) commit(r.state);
       },
-      state.phase === 'mulligan' ? 300 : CPU_DELAY,
+      state.phase === 'mulligan' ? CPU_MULLIGAN : CPU_THINK,
     );
     return () => clearTimeout(t);
-  }, [state, commit]);
+  }, [state, idleFor, commit]);
+
+  const backToSetup = () => {
+    clearSession();
+    setSession(null);
+    navigate('/battle');
+  };
 
   return (
     <BattleBoard
@@ -68,6 +87,12 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
       onAction={onAction}
       error={error}
       opponentLabel="CPU"
+      onReplayDone={onReplayDone}
+      menuItems={
+        <button type="button" className="btn" onClick={() => navigate('/battle')}>
+          ⏸ 中断して準備画面へ（続きから再開できます）
+        </button>
+      }
       resultButtons={
         <>
           <button
@@ -80,15 +105,7 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
           >
             同じデッキでもう一度
           </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              clearSession();
-              setSession(null);
-              navigate('/battle');
-            }}
-          >
+          <button type="button" className="btn" onClick={backToSetup}>
             対戦の準備に戻る
           </button>
         </>

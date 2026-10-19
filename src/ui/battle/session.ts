@@ -55,3 +55,30 @@ export function startSession(setup: BattleSession['setup']): { ok: true; session
   saveSession(session);
   return { ok: true, session };
 }
+
+const PREFS_KEY = 'cardgame.v1.battleSetup';
+
+/** 準備画面で前回選んだもの（自分のデッキの候補キーと CPU のデッキ） */
+export interface SetupPrefs {
+  mine: string;
+  cpu: string;
+}
+
+export function loadSetupPrefs(): SetupPrefs | null {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as Partial<SetupPrefs>;
+    return typeof p?.mine === 'string' && typeof p?.cpu === 'string' ? { mine: p.mine, cpu: p.cpu } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSetupPrefs(p: SetupPrefs): void {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+  } catch {
+    // 覚えられなくても困らない
+  }
+}

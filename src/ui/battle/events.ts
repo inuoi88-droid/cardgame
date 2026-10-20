@@ -81,8 +81,12 @@ const STATUS_NAME: Record<string, string> = {
   focus: '気合',
   doom: '呪縛',
   divineShield: '聖盾',
+  // MTG 要素 ○ バッチB
+  bounty: '💰懸賞',
+  quash: '🚫封殺',
+  boon: '🎁恩恵',
 };
-const GOOD_STATUS = new Set(['counter', 'nullify', 'regen', 'strength', 'focus', 'divineShield']);
+const GOOD_STATUS = new Set(['counter', 'nullify', 'regen', 'strength', 'focus', 'divineShield', 'boon']);
 
 function damageTone(kind: battle.DamageKind | undefined): FxTone {
   switch (kind) {
@@ -169,6 +173,15 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
         }
         if (ev.status === 'drawn') {
           push(e.text, ev.player ?? null, { t: 'notice', text: '✋ 引いたときの効果', tone: 'neutral' }, DURATION.notice);
+          break;
+        }
+        // MTG 要素 ○ バッチB：反復・封殺で無効（カードの出来事）
+        if (ev.status === 'rebound') {
+          push(e.text, ev.player ?? null, { t: 'notice', text: '🔁 反復：もう一度発動', tone: 'neutral' }, DURATION.notice);
+          break;
+        }
+        if (ev.status === 'quash' && !ev.target) {
+          push(e.text, ev.player ?? null, { t: 'notice', text: '🚫 封殺：無効になった', tone: 'neutral' }, DURATION.notice);
           break;
         }
         if (!ev.target) break;

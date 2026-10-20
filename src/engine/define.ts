@@ -8,6 +8,8 @@ import { BALANCE } from './balance.ts';
 import type { CardInst, ChoiceSpec, EffectRuntime, GameState, Monster, PlayerId, TargetRef } from './battle/types.ts';
 import type { TargetRule } from './options.ts';
 import type {
+  AbilityInstance,
+  CardBase,
   CardDef,
   CardType,
   DrawbackInstance,
@@ -96,6 +98,10 @@ export interface EffectDef {
   symmetric?: boolean;
   /** 修飾「次のターンに（遅延）」を付けられない（再行動：ターン開始時には意味がない） */
   noDelay?: boolean;
+  /** 付けられるカードの土台（省略ならどちらも。新生はモンスターのカードだけ。MTG 要素 ○ バッチB） */
+  bases?: readonly CardBase[];
+  /** 対象がいなくても処理する（探検：カードの移動だけは行う。MTG 要素 ○ バッチB） */
+  resolveWithoutTargets?: boolean;
   /** 倍率を掛ける前の基礎ポイント */
   basePoints(e: EffectInstance): number;
   /** 基礎ポイントの式（内訳表示用。例：「2×2」） */
@@ -167,6 +173,19 @@ export interface KeywordDef {
     divineShield?: boolean;
     /** モンスターと戦うとき（攻撃・反撃・格闘）だけ攻撃力に足す量（武士道） */
     combatBonus?(k: KeywordInstance): number;
+    // ---- MTG 要素 ○ バッチB
+    /** 一撃離脱：攻撃したあと、場に残っていれば持ち主の手札に戻る */
+    returnAfterAttack?: boolean;
+    /** 激励：場にいる間、自分の他のモンスターの攻撃力に足す量 */
+    auraAttack?(k: KeywordInstance): number;
+    /** 護法：相手のカードの「選んだ1体」にされるとき、そのカードのコストに足す量 */
+    wardTax?(k: KeywordInstance): number;
+    /** 猛襲：相手プレイヤーを攻撃するときだけ攻撃力に足す量 */
+    playerBonus?(k: KeywordInstance): number;
+    /** 威圧：攻撃したとき、相手モンスターの反撃を受けない */
+    noRetaliation?: boolean;
+    /** 分身：初めて攻撃したとき、このカードのコピー（分身を持たない）を手札に加える */
+    doubleTeam?: boolean;
     /** 持ち主のターン開始時 */
     onTurnStart?(rt: EffectRuntime, k: KeywordInstance, monster: Monster): void;
   };
@@ -223,7 +242,48 @@ export interface DrawbackDef {
   };
 }
 
+/** カードの能力のポイント計算に渡す情報 */
+export interface AbilityPointContext {
+  card: Pick<CardDef, 'stats' | 'keywords' | 'effects'>;
+  /** このカードのすべての効果のポイントの合計 */
+  effectPoints: number;
+  /** このカードの使用時（モンスターなら召喚時）の効果のポイントの合計 */
+  playEffectPoints: number;
+}
+
+/**
+ * カードの能力（MTG 要素 ○ バッチB）：モンスター以外にも付く、カード単位の性質。
+ * 種類・ポイント・テキストは毎回計算し、CardDef.abilities には ID と数値・選択だけを保存する
+ */
+export interface AbilityDef {
+  kind: 'ability';
+  id: string;
+  name: string;
+  order: number;
+  summary: string;
+  value?: ParamSpec;
+  option?: OptionSpec;
+  /** 付けられるカードの種類（省略ならすべて） */
+  cardTypes?: readonly CardType[];
+  minRarity?: Rarity;
+  /** 同じカードに付けられない能力・デメリットの ID */
+  conflicts?: readonly string[];
+  points(a: AbilityInstance, ctx: AbilityPointContext): number;
+  formula(a: AbilityInstance, ctx: AbilityPointContext): string;
+  /** カードに表示する名前（例：「成長2」） */
+  displayName(a: AbilityInstance): string;
+  /** テキスト（句点なし） */
+  describe(a: AbilityInstance): string;
+  battle: {
+    /** 使い終えたあとの行き先（循環：山札に混ぜる／再利用：手札に戻る／反復：次の自分のターンにもう一度） */
+    afterUse?: 'shuffle' | 'hand' | 'rebound';
+    /** 成長：使うたび、このカード（個体）のダメージ・連撃の数値に足す量 */
+    grow?(a: AbilityInstance): number;
+  };
+}
+
 export const defineEffect = (def: Omit<EffectDef, 'kind'>): EffectDef => ({ kind: 'effect', ...def });
+export const defineAbility = (def: Omit<AbilityDef, 'kind'>): AbilityDef => ({ kind: 'ability', ...def });
 export const defineModifier = (def: Omit<ModifierDef, 'kind'>): ModifierDef => ({ kind: 'modifier', ...def });
 export const defineKeyword = (def: Omit<KeywordDef, 'kind'>): KeywordDef => ({ kind: 'keyword', ...def });
 export const defineDrawback = (def: Omit<DrawbackDef, 'kind'>): DrawbackDef => ({ kind: 'drawback', ...def });

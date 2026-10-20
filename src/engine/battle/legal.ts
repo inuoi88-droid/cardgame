@@ -8,8 +8,8 @@ import { checkCondition } from './conditions.ts';
 import { other } from './core.ts';
 import { cardTargetableTaunts } from './damage.ts';
 import { nextFullMulliganSize } from './mulligan.ts';
-import { allyCandidates, chosenRules, drawbackBlock, effectiveCost, enemyCandidates, leavesPower, validatePlay } from './play.ts';
-import { NOISE_CARD_ID, type Action, type CardInst, type GameState, type PlayerId, type TargetRef } from './types.ts';
+import { allyCandidates, chosenRules, drawbackBlock, effectiveCost, enemyCandidates, leavesPower, quashMatches, targetKey, validatePlay } from './play.ts';
+import { ARMY_CARD_ID, NOISE_CARD_ID, type Action, type CardInst, type GameState, type PlayerId, type TargetRef } from './types.ts';
 
 export interface PlayInfo {
   card: CardInst;
@@ -25,12 +25,19 @@ export interface PlayInfo {
   warnings: string[];
   /** 相手の挑発のせいで「選んだ1体」が挑発モンスターに限られているか（決定事項 #83） */
   tauntLimited: boolean;
+  /**
+   * 護法（MTG 要素 ○ バッチB）：相手側の対象ごとの実コスト（キーは targetKey。護法で cost と違うものだけ）。
+   * エナジーが足りない対象は落とし先にしない
+   */
+  targetCosts?: Record<string, number>;
 }
 
 export const WARN_NO_TARGET = '対象がいません';
 export const WARN_NO_ENEMY_MONSTER = '相手の場にモンスターがいません';
 export const WARN_NO_MONSTER = '場にモンスターがいません';
 const WARN_POWER_CAP_HEAD = 'パワーが';
+/** 封殺で無効になる注意の書き出し（MTG 要素 ○ バッチB） */
+export const WARN_QUASH = '封殺：このカードは無効になります（コストは払い、何も起きません）';
 /** 対象選びの案内（確認ダイアログは出さない） */
 export const NOTE_TAUNT_LIMITED = '挑発がいるので、挑発のモンスターしか選べません';
 
@@ -53,6 +60,7 @@ export function playWarnings(g: GameState, p: PlayerId, def: CardDef, allyTarget
   if (powers.length >= BALANCE.battle.maxPowers && leavesPower(def)) {
     add(`${WARN_POWER_CAP_HEAD}${BALANCE.battle.maxPowers}つあるので『${powers[0]!.name}』が消えます`);
   }
+  if (quashMatches(g, p, def)) add(WARN_QUASH);
   for (const e of def.effects) {
     if (e.timing !== timing) continue;
     const ed = getEffect(e.id);
@@ -62,6 +70,11 @@ export function playWarnings(g: GameState, p: PlayerId, def: CardDef, allyTarget
     if (e.condition && unmet) add(`条件を満たしていません：${CONDITIONS[e.condition].label}`);
     const rule = ed.targetRule;
     const monsterOnly = isMonsterOnlyRule(rule);
+    // MTG 要素 ○ バッチB：効果ごとの「今は何も起きない」
+    const special = specialWarning(g, p, e.id, e.value ?? 0);
+    if (special) add(special);
+    // 対象がいなくても処理する効果（探検）は「対象がいない」の注意を出さない
+    if (ed.resolveWithoutTargets) continue;
     if (rule === 'fight') {
       // 格闘：自分のモンスターと相手モンスターの両方が要る
       const enemies = e.target === 'chosen' ? enemyCandidates(g, p, [rule]).length : oppMonsters;
@@ -104,6 +117,30 @@ export function playWarnings(g: GameState, p: PlayerId, def: CardDef, allyTarget
   return out;
 }
 
+/** 護法（MTG 要素 ○ バッチB）：エナジーが足りる相手側の対象だけ（ドラッグで光らせる・落とせる対象） */
+export function payableEnemyTargets(info: PlayInfo, energy: number): TargetRef[] {
+  if (!info.targetCosts) return info.enemyTargets;
+  return info.enemyTargets.filter((t) => (info.targetCosts![targetKey(t)] ?? info.cost) <= energy);
+}
+
+/** 効果ごとの「今使っても何も起きない」注意（MTG 要素 ○ バッチB） */
+function specialWarning(g: GameState, p: PlayerId, id: string, n: number): string | null {
+  const opp = g.players[other(p)];
+  const me = g.players[p];
+  switch (id) {
+    case 'slay':
+      return opp.board.some((m) => (m.card.token ? 0 : (g.cards[m.card.cardId]?.cost ?? 0)) <= n) ? null : `コスト${n}以下の相手モンスターがいません`;
+    case 'infight':
+      return opp.board.length >= 2 ? null : '相手のモンスターが2体以上いません';
+    case 'populate':
+      return me.board.some((m) => m.card.token && m.card.cardId !== ARMY_CARD_ID) ? null : '自分のトークンがいません';
+    case 'ramp':
+      return (me.energyBonus ?? 0) >= BALANCE.battle.rampCap ? '最大エナジーはもう増やせません' : null;
+    default:
+      return null;
+  }
+}
+
 /** 手札のカードを使うときの情報（コスト、対象の候補、使えない理由、発動しない効果の注意） */
 export function playInfo(g: GameState, p: PlayerId, card: CardInst): PlayInfo {
   const def = g.cards[card.cardId];
@@ -119,7 +156,18 @@ export function playInfo(g: GameState, p: PlayerId, card: CardInst): PlayInfo {
   else if (cost > g.players[p].energy) blocked = 'エナジーが足りません';
   else blocked = drawbackBlock(g, p, card);
   const tauntLimited = enemyTargets.length > 0 && cardTargetableTaunts(g, other(p)).length > 0;
-  return { card, cost, blocked, enemyTargets, allyTargets, warnings: playWarnings(g, p, def, allyTargets), tauntLimited };
+  // 護法：対象ごとのコスト。どの対象もエナジーが足りなければ使えない
+  let targetCosts: Record<string, number> | undefined;
+  for (const t of enemyTargets) {
+    const c = effectiveCost(g, p, card, { chosen: { enemy: t } });
+    if (c !== cost) (targetCosts ??= {})[targetKey(t)] = c;
+  }
+  if (!blocked && targetCosts && enemyTargets.every((t) => (targetCosts![targetKey(t)] ?? cost) > g.players[p].energy)) {
+    blocked = 'エナジーが足りません（護法）';
+  }
+  const info: PlayInfo = { card, cost, blocked, enemyTargets, allyTargets, warnings: playWarnings(g, p, def, allyTargets), tauntLimited };
+  if (targetCosts) info.targetCosts = targetCosts;
+  return info;
 }
 
 export function legalActions(g: GameState, p: PlayerId): Action[] {

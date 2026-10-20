@@ -36,6 +36,22 @@ export interface Statuses {
   focus: number;
   /** 呪縛（プレイヤー。MTG 要素バッチ2）：自分のターン開始時にこの数だけダメージ。減らない。無ければ0 */
   doom?: number;
+  /** 恩恵（プレイヤー。MTG 要素 ○ バッチB）：次に使うアタック boonUses 回、最初の1発のダメージ+boon。無ければ0 */
+  boon?: number;
+  boonUses?: number;
+}
+
+/**
+ * トークンの強さと種類（MTG 要素バッチ2・○ バッチB）。
+ * copy：複写トークン（cardId は元のカード。効果・キーワード・デメリットはカードの定義から）。temp：応召（持ち主のターン終了時に消える）
+ */
+export interface TokenSpec {
+  attack: number;
+  hp: number;
+  /** 守備力（省略は0） */
+  defense?: number;
+  copy?: boolean;
+  temp?: boolean;
 }
 
 /** 対戦中のカード1枚 */
@@ -48,15 +64,25 @@ export interface CardInst {
   /** 複製で作られたコピー。temp は使うかターン終了で除外、keep はこの試合のデッキに残る */
   copy?: 'temp' | 'keep';
   /**
-   * トークン（MTG 要素バッチ2）の強さ。cardId は TOKEN_CARD_ID。場を離れるとどこにも行かずに消える
-   * （捨て札・除外・手札に入らない）
+   * トークン（MTG 要素バッチ2）の強さ。トークンかどうかはこの項目があるかで決まる（cardId は TOKEN_CARD_ID・ARMY_CARD_ID、
+   * 複写トークンなら元のカード）。場を離れるとどこにも行かずに消える（捨て札・除外・手札に入らない）
    */
-  token?: { attack: number; hp: number };
+  token?: TokenSpec;
+  /** 失ったキーワード（分身を使ったカード。キーワードとして働かない。MTG 要素 ○ バッチB） */
+  lostKeywords?: string[];
+  /** 成長で増えたダメージ・連撃の数値（この個体だけ） */
+  grow?: number;
+  /** 再利用で手札に戻った通算ターン（1ターン1回） */
+  buybackTurn?: number;
 }
 
 export const NOISE_CARD_ID = '__noise__';
 /** トークンのカード定義のキー（GameState.cards。最初のトークンを出すときに登録する） */
 export const TOKEN_CARD_ID = '__token__';
+/** 動員の「軍団」トークンのカード定義のキー（MTG 要素 ○ バッチB） */
+export const ARMY_CARD_ID = '__army__';
+/** 創出で作るカード定義のキーの前置き（`__conjure__:<種類>:<N>`） */
+export const CONJURE_PREFIX = '__conjure__:';
 
 export interface Monster {
   uid: string;
@@ -89,6 +115,11 @@ export interface Monster {
   granted?: string[];
   /** 聖盾を使った（キーワード付与で聖盾を与え直すと未使用に戻る） */
   shieldUsed?: boolean;
+  // ---- MTG 要素 ○ バッチB（公開情報）
+  /** 装備しているカード（モンスターが場を離れると、カードの持ち主の手札に戻る） */
+  equipment?: CardInst[];
+  /** 懸賞：破壊されたら player がカードを draw 枚引く */
+  bounty?: { player: PlayerId; draw: number }[];
 }
 
 /** 場に残っているパワー */
@@ -155,6 +186,10 @@ export interface PlayerState {
   lastTurn?: { cardsPlayed: number };
   /** 予約された効果（修飾「次のターンに」）。次の自分のターン開始時（引いた後）に古い順に発動する。無ければ空 */
   delayed?: DelayedEffect[];
+  /** 封殺（MTG 要素 ○ バッチB）：次に使う kind のカード1枚を無効にする（g.turnIndex が until 以下の間）。公開情報 */
+  quash?: { kind: string; until: number };
+  /** 最大エナジー増加（MTG 要素 ○ バッチB）：ターン開始時のエナジーに足す */
+  energyBonus?: number;
   /** 次に使うカードのコスト軽減（使うまで残る） */
   discount: number;
   /** 自分のターンを迎えた回数 */
@@ -172,6 +207,11 @@ export interface DelayedEffect {
   chosen: Chosen;
   /** 表示用（カード名と効果テキスト） */
   label: string;
+  /**
+   * 反復（MTG 要素 ○ バッチB）：このカードの使用時の効果をまとめてもう一度発動し、そのあとカードを捨て札へ。
+   * effect は先頭の効果（表示・評価用）
+   */
+  rebound?: { card: CardInst; effects: EffectInstance[] };
 }
 
 /** 効果や攻撃の出どころ */
@@ -181,6 +221,8 @@ export interface SourceRef {
   cardId: string;
   name: string;
   controller: PlayerId;
+  /** 出どころがトークン（複写トークンを含む）。新生・複写召喚は解決しない（MTG 要素 ○ バッチB） */
+  token?: boolean;
 }
 
 /** 「選んだ1体」の対象（相手側1つ・自分のモンスター1つ） */
@@ -203,13 +245,25 @@ export type Step =
       protectKey?: string;
       depth: number;
       picks?: string[];
+      /** 成長（MTG 要素 ○ バッチB）：ダメージ・連撃の数値に足す量（使ったカードの個体の値） */
+      grow?: number;
     }
   | { t: 'drawback'; src: SourceRef; drawback: DrawbackInstance; protectKey?: string; depth: number; picks?: string[] }
-  /** 手札を count 枚選んで捨てる（手札整理） */
-  | { t: 'discardChoice'; player: PlayerId; count: number; depth: number; picks?: string[] }
+  /** 手札を count 枚選んで捨てる（手札整理）。then が recruit なら、捨てたのがスキルのときトークンを出す（徴募） */
+  | { t: 'discardChoice'; player: PlayerId; count: number; depth: number; picks?: string[]; then?: 'recruit' }
   /** 濫用：自分のモンスター1体を生け贄にしてよい（選んだら PlayRecord.exploited。MTG 要素 ○ バッチA） */
   | { t: 'exploitChoice'; player: PlayerId; protectKey: string; depth: number; picks?: string[] }
-  | { t: 'cardDone'; player: PlayerId; card: CardInst; protectKey: string; depth: number }
+  /** from：手札から使った（省略）か、無料で使った（続唱）か。反復は手札から使ったときだけ */
+  | { t: 'cardDone'; player: PlayerId; card: CardInst; protectKey: string; depth: number; from?: 'hand' | 'free' }
+  /**
+   * 無料で使う（続唱。MTG 要素 ○ バッチB）。「選んだ1体」が要れば、相手側 → 自分側の順に選ぶ（stage）。
+   * freeDepth は無料で使う連鎖の段（battle.maxFreePlayDepth まで）
+   */
+  | { t: 'freePlay'; player: PlayerId; card: CardInst; depth: number; freeDepth: number; chosen?: Chosen; stage?: 'enemy' | 'ally'; picks?: string[] }
+  /** 一撃離脱：攻撃したモンスターを持ち主の手札に戻す */
+  | { t: 'returnToHand'; uid: string; depth: number }
+  /** 反復の2回目が終わったカードを捨て札に置く */
+  | { t: 'reboundDone'; card: CardInst; depth: number }
   | { t: 'autoAttacks'; player: PlayerId }
   | { t: 'turnEndEffects'; player: PlayerId }
   | { t: 'retain'; player: PlayerId; picks?: string[] }
@@ -297,6 +351,10 @@ export interface PlayRecord {
   x?: number;
   /** 濫用で自分のモンスターを生け贄にした（条件「自分のモンスター1体を生け贄にしたなら」） */
   exploited?: boolean;
+  /** 装備（MTG 要素 ○ バッチB）：このカードを付けるモンスター */
+  equipTo?: string;
+  /** 無料で使ったカード（続唱）の段。このカードの続唱はこの次の段になる */
+  freeDepth?: number;
 }
 
 export interface GameResult {
@@ -404,6 +462,43 @@ export interface EffectRuntime {
   exileCard(player: PlayerId, cardUid: string): void;
   /** 占術：山札の上の uids を、元の並びのまま山札の下か捨て札へ */
   scryMove(player: PlayerId, uids: string[], toDiscard: boolean): void;
+  // ---- MTG 要素 ○ バッチB
+  /** シード付き乱数（0〜n−1） */
+  randInt(n: number): number;
+  /** 手札を count 枚選んで捨てる処理を積む。then が recruit なら徴募 */
+  chooseDiscardThen(player: PlayerId, count: number, then: 'recruit'): void;
+  /** 装備：このカードを使い終えたら target に付ける（カードから使ったときだけ） */
+  equipTo(target: TargetRef): void;
+  /** 借用：turns ターンの間、自分の場に移す（すぐ攻撃できる） */
+  borrow(target: TargetRef, turns: number): void;
+  /** 懸賞を掛ける（破壊されたら player が draw 枚引く） */
+  addBounty(target: TargetRef, player: PlayerId, draw: number): void;
+  /** トークンを1体出す（複写トークンは召喚扱いで召喚時の効果も出る）。出せたら場のモンスター */
+  createToken(player: PlayerId, cardId: string | null, token: TokenSpec): Monster | undefined;
+  /** 動員：軍団を（いなければ出してから）攻撃力・体力+n */
+  amass(player: PlayerId, n: number): void;
+  /** 動力化：まだ攻撃できるモンスターをこのターン攻撃できなくする。できたら true */
+  exhaustForEnergy(target: TargetRef): boolean;
+  /** 同士討ち：player のモンスターそれぞれが、ランダムな他のモンスターに攻撃力ぶんのダメージ */
+  infight(player: PlayerId): void;
+  /** 山札の uids を捨て札へ（名前は公開） */
+  deckToDiscard(player: PlayerId, uids: string[], why: string): void;
+  /** 山札の uids を、元の並びのまま山札の下へ */
+  deckToBottom(player: PlayerId, uids: string[]): void;
+  /** 山札の特定のカードを引く（引いた枚数の上限に数え、引いたときも出る）。引けたら true */
+  drawSpecific(player: PlayerId, uid: string): boolean;
+  /** 山札の特定のカードを、順番を変えずに手札へ（引いた扱いではない。名前は本人だけ） */
+  seekFromDeck(player: PlayerId, uid: string): void;
+  /** 山札から抜いて無料で使う（続唱） */
+  freePlayFromDeck(player: PlayerId, uid: string): void;
+  /** 封殺を掛ける */
+  addQuash(player: PlayerId, kind: string): void;
+  /** 恩恵 */
+  addBoon(player: PlayerId, amount: number, uses: number): void;
+  /** 最大エナジー増加。上限なら false */
+  ramp(player: PlayerId): boolean;
+  /** 創出：カード定義を登録し、使い切りのコピーを手札に count 枚 */
+  conjure(player: PlayerId, def: CardDef, count: number): void;
 }
 
 export type StatusKey =

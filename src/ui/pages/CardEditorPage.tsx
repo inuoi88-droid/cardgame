@@ -13,8 +13,11 @@ import {
   RARITIES,
   RARITY_LABEL,
   analyzeCard,
+  abilityChoices,
   availableDrawbacks,
   cardBase,
+  createAbility,
+  getAbility,
   createDrawback,
   createEffect,
   descriptionLength,
@@ -33,7 +36,7 @@ import '../editor.css';
 import '../editor/extras.css';
 import { CardView } from '../components/CardView.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
-import { Stepper } from '../components/controls.tsx';
+import { Stepper, Violations } from '../components/controls.tsx';
 import { useIsPhone } from '../components/dialogUtil.ts';
 import { DrawbackRow, EffectRow } from '../components/EffectRow.tsx';
 import { EmojiPicker } from '../components/EmojiPicker.tsx';
@@ -363,6 +366,22 @@ function Editor({ saved }: { saved: CardDef | null }) {
     });
   };
 
+  // ---------------------------------------------------------------- カードの能力（MTG 要素 ○ バッチB）
+  const abilities = card.abilities ?? [];
+  const setAbilities = (next: typeof abilities) =>
+    setCard((c) => {
+      const out: CardDef = { ...c, abilities: next };
+      if (next.length === 0) delete out.abilities;
+      return out;
+    });
+  const addAbility = (id: string) => setAbilities([...abilities, createAbility(id)]);
+  const removeAbility = (i: number) => {
+    const name = getAbility(abilities[i]!.id)?.name ?? '能力';
+    setAbilities(abilities.filter((_, j) => j !== i));
+    toast({ text: `「${name}」を外しました`, kind: 'info' });
+  };
+  const abilityAddable = abilityChoices(card).some((x) => x.blocked === null);
+
   // ---------------------------------------------------------------- モンスター・キーワード
   const toggleMonster = async (on: boolean) => {
     if (!on) {
@@ -686,6 +705,58 @@ function Editor({ saved }: { saved: CardDef | null }) {
             </button>
           </section>
 
+          {/* ---------------------------------------------------------------- カードの能力（MTG 要素 ○ バッチB） */}
+          {(base === 'spell' || abilities.length > 0) && (
+            <section className="panel ed-section" id={fieldId('abilities')}>
+              <div className="ed-section__head">
+                <span className="ed-step" aria-hidden="true">
+                  ✦
+                </span>
+                <h2>
+                  カードの能力{' '}
+                  <small>
+                    {abilities.length} / {BALANCE.card.maxAbilities}
+                  </small>
+                </h2>
+              </div>
+              <p className="hint">循環・再利用・反復・成長など、カード1枚に付く性質です（アタック・スキルのカード向け）。</p>
+              {abilities.map((a, i) => {
+                const def = getAbility(a.id);
+                const line = analysis.points.lines.find((l) => l.kind === 'ability' && l.index === i);
+                return (
+                  <div key={`${a.id}-${i}`} className="ed-row ed-row--ability" id={fieldId(`abilities.${i}`)}>
+                    <div className="ed-row__head">
+                      <b>✦ {def ? def.displayName(a) : a.id}</b>
+                      <span className="ed-row__pts">{line ? `${line.value}pt` : ''}</span>
+                      <button type="button" className="btn btn--small btn--ghost" onClick={() => removeAbility(i)} aria-label={`${def?.name ?? a.id}を外す`}>
+                        外す
+                      </button>
+                    </div>
+                    {def && <p className="ed-row__summary">{def.summary}</p>}
+                    {def?.value && (
+                      <div className="ed-row__params">
+                        <Stepper
+                          label={def.value.label}
+                          value={a.value}
+                          min={def.value.min}
+                          max={def.value.max}
+                          step={stepOf(def.value)}
+                          snap={stepOf(def.value) > 1}
+                          onChange={(v) => setAbilities(abilities.map((x, j) => (j === i ? { ...x, value: v } : x)))}
+                        />
+                      </div>
+                    )}
+                    <Violations items={violationsAt(analysis.violations, `abilities.${i}`)} />
+                  </div>
+                );
+              })}
+              <Violations items={violationsExactly(analysis.violations, 'abilities')} />
+              <button type="button" className="ed-add" onClick={() => setPicker('ability')} disabled={!abilityAddable}>
+                {abilityAddable ? '＋ カードの能力を追加' : '付けられるカードの能力はありません'}
+              </button>
+            </section>
+          )}
+
           {/* ---------------------------------------------------------------- デメリット */}
           <section className={cx('panel ed-section panel--drawback', analysis.isCurse && 'is-curse')} id={fieldId('drawbacks')}>
             <div className="ed-section__head">
@@ -769,7 +840,9 @@ function Editor({ saved }: { saved: CardDef | null }) {
           mode={picker}
           card={card}
           remaining={budget.remaining}
-          onPick={(id) => (picker === 'effect' ? addEffect(id) : picker === 'drawback' ? addDrawback(id) : toggleKeyword(id))}
+          onPick={(id) =>
+            picker === 'effect' ? addEffect(id) : picker === 'drawback' ? addDrawback(id) : picker === 'ability' ? addAbility(id) : toggleKeyword(id)
+          }
           onClose={() => setPicker(null)}
         />
       )}

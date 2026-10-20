@@ -8,6 +8,7 @@ import { findMonster, other } from '../battle/core.ts';
 import { effectiveCost } from '../battle/play.ts';
 import { NOISE_CARD_ID, type Action, type GameState, type PendingChoice, type PlayerId } from '../battle/types.ts';
 import { getEffect } from '../registry.ts';
+import { classifyCard } from '../classify.ts';
 import { cardPickScore, evaluate, nextEnergy, raceFrame, WEIGHTS, type RaceFrame } from './evaluate.ts';
 
 /** ランダムな対象の平均を取るときのシードの数 */
@@ -63,13 +64,15 @@ function chooseSpecial(g: GameState, p: PendingChoice, me: PlayerId): string[] |
       .map((o) => o.id);
   }
   if (step.t === 'discardChoice') {
-    // ノイズ → 呪い → このターン払えないコストのうち一番重いもの → 一番軽いもの
+    // ノイズ → 呪い → このターン払えないコストのうち一番重いもの → 一番軽いもの。
+    // 徴募（MTG 要素 ○ バッチB）なら、スキルを少し優先する（小鬼が出る）
     const energy = g.players[me].energy;
     const cost = (id: string | undefined) => (id && g.cards[id] ? g.cards[id]!.cost : 0);
+    const isSkill = (id: string | undefined) => (id && id !== NOISE_CARD_ID && g.cards[id] ? classifyCard(g.cards[id]!) === 'skill' : false);
     const scored = options.map((o) => {
       const junk = junkRank(g, o.cardId);
       const c = cost(o.cardId);
-      const key = junk > 0 ? 1000 * junk : c > energy ? 100 + c : 10 - c;
+      const key = (junk > 0 ? 1000 * junk : c > energy ? 100 + c : 10 - c) + (step.then === 'recruit' && isSkill(o.cardId) ? 50 : 0);
       return { o, key };
     });
     scored.sort((a, b) => b.key - a.key);
@@ -79,6 +82,26 @@ function chooseSpecial(g: GameState, p: PendingChoice, me: PlayerId): string[] |
     // ノイズ → 呪いカード → 選ばない
     const best = [...options].sort((a, b) => junkRank(g, b.cardId) - junkRank(g, a.cardId))[0];
     return best && junkRank(g, best.cardId) > 0 ? [best.id] : [];
+  }
+  // MTG 要素 ○ バッチB：居住（評価値の一番高いトークン）・発見（占術と同じ考え方で、すぐ使える一番重いカード）
+  if (step.t === 'effect' && step.effect.id === 'populate') {
+    const scored = options.map((o) => {
+      const m = findMonster(g, o.id);
+      return { o, v: m ? m.attack * 3 + m.hp * 1.5 : -1 };
+    });
+    scored.sort((a, b) => b.v - a.v);
+    return scored[0] ? [scored[0].o.id] : [];
+  }
+  if (step.t === 'effect' && step.effect.id === 'discover') {
+    const energy = Math.max(g.players[me].energy, nextEnergy(g, me));
+    const scored = options.map((o) => {
+      const def = o.cardId ? g.cards[o.cardId] : undefined;
+      const junk = junkRank(g, o.cardId);
+      const v = !def ? 0 : junk > 0 ? -1000 * junk : (def.cost <= energy ? 100 : 0) + def.cost;
+      return { o, v };
+    });
+    scored.sort((a, b) => b.v - a.v);
+    return scored[0] ? [scored[0].o.id] : [];
   }
   // MTG 要素 ○ バッチA：濫用・枯朽・捨て札の除外
   if (step.t === 'exploitChoice') {
@@ -217,7 +240,26 @@ export function scoreAction(view: GameState, action: Action, seed: number, me: P
     if (!first) first = s;
     total += evaluate(s, me, frame);
   }
-  return { action, score: total / seeds, state: first, ...outcome(view, first!, action, me) };
+  return { action, score: total / seeds + hiddenDeckBonus(view, action), state: first, ...outcome(view, first!, action, me) };
+}
+
+/**
+ * 見える情報では自分の山札が隠れているので、仮の実行では価値が出ない効果（MTG 要素 ○ バッチB）の見込み：
+ * 続唱（コストN以下のカードを無料で使う）と抽出（山札から1枚）。使用時・召喚時の効果だけ（条件は見ない）
+ */
+export function hiddenDeckBonus(view: GameState, action: Action): number {
+  if (action.type !== 'playCard') return 0;
+  const card = view.players[action.player].hand.find((c) => c.uid === action.cardUid);
+  const def = card ? view.cards[card.cardId] : undefined;
+  if (!def) return 0;
+  const timing = def.stats ? 'summon' : 'play';
+  let bonus = 0;
+  for (const e of def.effects) {
+    if (e.timing !== timing) continue;
+    if (e.id === 'cascade') bonus += (e.value ?? 0) * WEIGHTS.cascadePerCost;
+    if (e.id === 'seek') bonus += WEIGHTS.seekCard;
+  }
+  return bonus;
 }
 
 /** タイブレーク用：除去した攻撃してくるモンスターの数、コスト、顔へのダメージ */
@@ -231,7 +273,7 @@ export function outcome(before: GameState, after: GameState, action: Action, me:
   let cost = 0;
   if (action.type === 'playCard') {
     const card = before.players[me].hand.find((c) => c.uid === action.cardUid);
-    if (card) cost = effectiveCost(before, me, card);
+    if (card) cost = effectiveCost(before, me, card, { chosen: action.chosen ?? {} });
   }
   const face = Math.max(0, before.players[opp].hp - after.players[opp].hp);
   return { kills, cost, face };
@@ -276,7 +318,7 @@ export function actionKey(g: GameState, a: Action): string {
   if (a.type === 'playCard') {
     const card = g.players[a.player].hand.find((c) => c.uid === a.cardUid);
     const t = a.chosen?.enemy;
-    return `c:${card?.cardId}:${card?.copy ?? ''}|${t ? (t.kind === 'player' ? 'p' : t.uid) : ''}|${a.chosen?.ally ?? ''}`;
+    return `c:${card?.cardId}:${card?.copy ?? ''}:${card?.grow ?? 0}:${card?.buybackTurn ?? ''}|${t ? (t.kind === 'player' ? 'p' : t.uid) : ''}|${a.chosen?.ally ?? ''}`;
   }
   if (a.type === 'attack') {
     const m = g.players[a.player].board.find((x) => x.uid === a.attackerUid);

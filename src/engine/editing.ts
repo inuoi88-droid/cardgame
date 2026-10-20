@@ -3,13 +3,14 @@
  * 選べる選択肢の一覧と、入力を変えたときに選べなくなった値を自動で直す処理。
  */
 import { BALANCE } from './balance.ts';
-import { cardBase, rarityRank } from './classify.ts';
-import { drawbackValueSpec, type DrawbackDef, type EffectDef, type ModifierDef } from './define.ts';
+import { CARD_TYPE_LABEL } from './labels.ts';
+import { cardBase, classifyCard, rarityRank } from './classify.ts';
+import { drawbackValueSpec, type AbilityDef, type DrawbackDef, type EffectDef, type ModifierDef } from './define.ts';
 import { modifierFits } from './points.ts';
 import { allowedTargets, conditionsFor, defaultTiming, targetsForEffect, TIMINGS, timingsFor } from './options.ts';
-import { getDrawback, getEffect, getModifier, listDrawbacks, listEffects, listModifiers } from './registry.ts';
+import { getAbility, getDrawback, getEffect, getModifier, listAbilities, listDrawbacks, listEffects, listModifiers } from './registry.ts';
 import { stampScale } from './scaling.ts';
-import type { CardBase, CardDef, DrawbackInstance, EffectInstance, Rarity, Stats, TimingId } from './types.ts';
+import type { AbilityInstance, CardBase, CardDef, DrawbackInstance, EffectInstance, Rarity, Stats, TimingId } from './types.ts';
 
 export const DEFAULT_STATS: Stats = { attack: 1 * BALANCE.amountScale, hp: 1 * BALANCE.amountScale, defense: 0 };
 
@@ -28,9 +29,11 @@ export function newCard(id: string): CardDef {
   });
 }
 
-/** このレアリティで使える効果 */
-export function availableEffects(rarity: Rarity): EffectDef[] {
-  return listEffects().filter((d) => !d.minRarity || rarityRank(rarity) >= rarityRank(d.minRarity));
+/** このレアリティ（と土台）で使える効果。土台を渡すと、付けられない土台の効果（新生はモンスターだけ）を外す */
+export function availableEffects(rarity: Rarity, base?: CardBase): EffectDef[] {
+  return listEffects().filter(
+    (d) => (!d.minRarity || rarityRank(rarity) >= rarityRank(d.minRarity)) && (base === undefined || !d.bases || d.bases.includes(base)),
+  );
 }
 
 /** このデメリットをこの土台のカードに付けられるか（モンスター専用・付けられる種類。種類の細かい判定は validate） */
@@ -48,8 +51,44 @@ export function availableDrawbacks(card: CardDef): DrawbackDef[] {
     (d) =>
       !used.has(d.id) &&
       drawbackFitsBase(d, base) &&
-      !card.drawbacks.some((x) => d.conflicts?.includes(x.id) || getDrawback(x.id)?.conflicts?.includes(d.id)),
+      !card.drawbacks.some((x) => d.conflicts?.includes(x.id) || getDrawback(x.id)?.conflicts?.includes(d.id)) &&
+      // カードの能力と同時に付けられないもの（循環・再利用・反復と廃棄）
+      !(card.abilities ?? []).some((a) => getAbility(a.id)?.conflicts?.includes(d.id)),
   );
+}
+
+/**
+ * このカードの能力（MTG 要素 ○ バッチB）を付けられない理由。付けられるなら null
+ * （上限・使用済み・カードの種類・レアリティ・同時に付けられない能力やデメリット）
+ */
+export function abilityBlockReason(card: CardDef, def: AbilityDef): string | null {
+  const list = card.abilities ?? [];
+  if (list.some((a) => a.id === def.id)) return 'もう付いています';
+  if (list.length >= BALANCE.card.maxAbilities) return `カードの能力は${BALANCE.card.maxAbilities}つまでです`;
+  if (def.minRarity && rarityRank(card.rarity) < rarityRank(def.minRarity)) return 'レアリティが足りません';
+  const type = classifyCard(card);
+  if (def.cardTypes && !def.cardTypes.includes(type)) return `${def.cardTypes.map((t) => CARD_TYPE_LABEL[t]).join('・')}のカードだけ`;
+  for (const a of list) {
+    const other = getAbility(a.id);
+    if (def.conflicts?.includes(a.id) || other?.conflicts?.includes(def.id)) return `「${other?.name ?? a.id}」と同時に付けられません`;
+  }
+  for (const d of card.drawbacks) {
+    if (def.conflicts?.includes(d.id)) return `デメリット「${getDrawback(d.id)?.name ?? d.id}」と同時に付けられません`;
+  }
+  return null;
+}
+
+/** このカードに付けられる能力（付けられないものは理由つき。エディターの選択パネル用） */
+export function abilityChoices(card: CardDef): { def: AbilityDef; blocked: string | null }[] {
+  return listAbilities().map((def) => ({ def, blocked: abilityBlockReason(card, def) }));
+}
+
+export function createAbility(abilityId: string): AbilityInstance {
+  const def = getAbility(abilityId);
+  const a: AbilityInstance = { id: abilityId };
+  if (def?.value) a.value = def.value.default;
+  if (def?.option) a.option = def.option.default;
+  return a;
 }
 
 /** このデメリットをこの土台のカードに付けるとき選べるタイミング（デメリットごとの制限 timings を含む） */
@@ -158,6 +197,10 @@ export function setMonster(card: CardDef, monster: boolean): CardDef {
         return !def || drawbackFitsBase(def, base);
       })
       .map((d) => fitDrawback(d, base)),
+    // カードの能力はモンスターには付かない（付けられる種類にモンスターがあるものだけ残す）
+    ...(monster && card.abilities ? { abilities: card.abilities.filter((x) => getAbility(x.id)?.cardTypes?.includes('monster') ?? true) } : {}),
+    // 新生などモンスターだけの効果は、モンスターでなくなったら外す
+    ...(monster ? {} : { effects: card.effects.filter((e) => !getEffect(e.id)?.bases || getEffect(e.id)!.bases!.includes(base)).map((e) => fitEffect(e, base)) }),
   };
 }
 

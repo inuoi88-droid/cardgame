@@ -2,7 +2,7 @@
  * 用語集：状態異常・持続効果・モンスターの状態の「名前」「短い説明」「アイコン」。
  * 対戦画面のポップオーバーとルールページが同じ文を使う。数字は balance.ts から読む。
  */
-import { BALANCE, CONDITIONS, TIMINGS, listKeywords, listModifiers } from '../engine/index.ts';
+import { BALANCE, CONDITIONS, TIMINGS, listAbilities, listKeywords, listModifiers } from '../engine/index.ts';
 
 const B = BALANCE.battle;
 const pct = (rate: number) => `${Math.round(rate * 100)}%`;
@@ -120,6 +120,13 @@ const KEYWORD_ICON: Record<string, string> = {
   lifelink: '💞',
   bushido: '🎌',
   divineShield: '✴',
+  // MTG 要素 ○ バッチB
+  hitAndRun: '↩',
+  inspire: '📯',
+  ward: '🔮',
+  onslaught: '🐗',
+  menace: '😠',
+  doubleTeam: '👯',
 };
 
 /** キーワードの用語（レジストリから作る。名前と説明はエンジンの定義そのもの） */
@@ -137,6 +144,13 @@ const MODIFIER_ICON: Record<string, string> = {
   perEnemyMonster: '👥',
   perCardPlayed: '🃏',
 };
+
+const ABILITY_ICON: Record<string, string> = { shuffleBack: '🔄', buyback: '↩', rebound: '🔁', grow: '🌱' };
+
+/** カードの能力（MTG 要素 ○ バッチB。レジストリから作る） */
+export const abilityGlossary: Record<string, GlossaryEntry> = Object.fromEntries(
+  listAbilities().map((def) => [`ability:${def.id}`, { name: def.name, short: def.summary, icon: ABILITY_ICON[def.id] ?? '✦', tone: 'info' as const }]),
+);
 
 /** 効果のオプション（防御無視・吸収・X など。レジストリから作る） */
 export const modifierGlossary: Record<string, GlossaryEntry> = Object.fromEntries(
@@ -234,6 +248,54 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     tone: 'info',
     short: 'タイミング「引いたとき」の効果は、対戦中に山札から引いたときに発動する（配った手札・マリガンでは出ない）。カードは手札に残る。効果が出ると、引いたカードが相手にも分かる',
   },
+  // ---- MTG 要素 ○ バッチB
+  equip: {
+    name: '装備',
+    icon: '🗡',
+    tone: 'good',
+    short: '装備のカードは、使い終えると選んだモンスターに付く（攻撃力の上乗せはそのまま）。モンスターが場を離れると、カードは持ち主の手札に戻る',
+  },
+  borrow: {
+    name: '借用',
+    icon: '🤲',
+    tone: 'info',
+    short: '借りたモンスターはすぐ攻撃できる。借りた側のターン終了時に残りが1減り、0で元の持ち主の場に戻る（召喚酔いなし。ダメージ・強化はそのまま）',
+  },
+  bounty: { name: '懸賞', icon: '💰', tone: 'info', short: '懸賞の掛かったモンスターが破壊されると、掛けたプレイヤーがカードを引く（バウンスなど破壊でなく場を離れたら消える）' },
+  quash: {
+    name: '封殺',
+    icon: '🚫',
+    tone: 'bad',
+    short: '次に使う指定の種類のカード1枚が無効になる（コストは払い、何も起きない）。期限は次の自分のターンの終わりまで。浄化で消える',
+  },
+  boon: { name: '恩恵', icon: '🎁', tone: 'good', short: '次に使うアタックの最初の1発のダメージ+N（回数ぶん）。浄化・解除では消えない' },
+  ramp: { name: '最大エナジー増加', icon: '🔋', tone: 'good', short: `以後ずっと、自分のターン開始時のエナジーが増える（1人${B.rampCap}回まで）` },
+  army: {
+    name: B.armyName,
+    icon: B.armyIcon,
+    tone: 'info',
+    short: `動員で出るトークン。いなければ攻撃力0・体力0で出てから強くなる。1人${B.maxArmy}体まで（トークンの上限${B.maxTokens}に数える）。居住・複写召喚では写せない`,
+  },
+  copyToken: {
+    name: '複写トークン',
+    icon: '🪞',
+    tone: 'info',
+    short: '新生・複写召喚・居住で出るコピー。元のカードの効果・キーワード・デメリットを持ち、召喚時の効果も出る（新生・複写召喚はトークンからは出ない）。場を離れると消える',
+  },
+  tempToken: { name: '応召', icon: '⌛', tone: 'info', short: '速攻つきで出て、持ち主のターン終了時に消える（破壊ではない）' },
+  freePlay: {
+    name: '無料で使う（続唱）',
+    icon: '🎲',
+    tone: 'info',
+    short: `山札からめくったカードをコストを払わずに使う（X は0）。「選んだ1体」は相手側 → 自分側の順に選ぶ。デメリットで使えなければ手札に入る。無料で使う連鎖は${B.maxFreePlayDepth}段まで`,
+  },
+  conjure: { name: '創出', icon: '✨', tone: 'info', short: '効果で作られた使い切りのカード（コスト0）。使うかターン終了で除外される' },
+  abilities: {
+    name: 'カードの能力',
+    icon: '✦',
+    tone: 'info',
+    short: `循環・再利用・反復・成長など、カード1枚に付く性質（1枚に${BALANCE.card.maxAbilities}つまで）。使い終えたカードの行き先は、装備 → 反復 → 再利用 → 循環 → 廃棄 → 捨て札 の順に決まる`,
+  },
 };
 
 /** 状態異常・キーワード・オプション・しくみ・タイミング（timing:…）・条件（condition:…）のどの ID でも引ける */
@@ -243,6 +305,7 @@ export function glossaryOf(id: string): GlossaryEntry | undefined {
     keywordGlossary[id] ??
     modifierGlossary[id] ??
     mechanicGlossary[id] ??
+    abilityGlossary[id] ??
     timingGlossary[id] ??
     conditionGlossary[id]
   );

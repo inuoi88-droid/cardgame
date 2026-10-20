@@ -55,6 +55,7 @@ export function CardRow({
             {a.text.keywords.length > 0 && ' '}
             {a.text.effects.join('')}
             {a.text.drawbacks.map((d) => `☠${d}`).join('')}
+            {a.text.abilities.map((x) => `✦${x.name}`).join('')}
             {def.stats && (
               <span className="crow__stats">
                 ⚔{def.stats.attack} ❤{def.stats.hp} 🛡{def.stats.defense}

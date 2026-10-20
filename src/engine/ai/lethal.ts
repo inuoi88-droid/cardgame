@@ -6,7 +6,7 @@
  */
 import { attackBlockReason, attacksPerTurn } from '../battle/combat.ts';
 import { effectiveAttack, other } from '../battle/core.ts';
-import { keywordFlags, targetableTaunts } from '../battle/damage.ts';
+import { keywordFlags, playerBonus, targetableTaunts } from '../battle/damage.ts';
 import { legalActions } from '../battle/legal.ts';
 import { effectiveCost } from '../battle/play.ts';
 import { BALANCE } from '../balance.ts';
@@ -46,7 +46,8 @@ export function damageUpperBound(g: GameState, me: PlayerId): number {
     if (attackBlockReason(g, m)) continue;
     const left = attacksPerTurn(g, m) - m.attacksUsed;
     attacksLeft += left;
-    let dmg = effectiveAttack(m) * left;
+    // 猛襲（相手プレイヤーへの攻撃だけ+N）も見込む
+    let dmg = (effectiveAttack(g, m) + playerBonus(g, m)) * left;
     const def = g.cards[m.card.cardId];
     if (def && !m.sealed) {
       for (const e of def.effects) {

@@ -13,12 +13,13 @@ import {
   RARITY_LABEL,
   TIMING_GROUPS,
   TIMINGS,
+  listAbilities,
   listDrawbacks,
   listEffects,
   listKeywords,
   listModifiers,
 } from '../../engine/index.ts';
-import { glossary, keywordGlossary, mechanicGlossary, modifierGlossary, type StatusId } from '../glossary.ts';
+import { abilityGlossary, glossary, keywordGlossary, mechanicGlossary, modifierGlossary, type StatusId } from '../glossary.ts';
 import { cx } from '../util.ts';
 
 const B = BALANCE.battle;
@@ -128,12 +129,12 @@ export function RulesPage() {
           <li>毒のダメージを受け、毒が半分（切り捨て）になります。呪縛のダメージを受けます（呪縛は減りません）。再生で回復し、再生も半分になります。</li>
           <li>維持費・裏切りなどのデメリット、自己修復が働きます。</li>
           <li>
-            エナジーを得ます。エナジーは自分のターン数で増えます：<b>{energyText}</b>。先攻の1ターン目だけ−{B.firstPlayerFirstTurnPenalty}（{firstEnergy}）です。エナジーは次のターンに持ち越せません。
+            エナジーを得ます。エナジーは自分のターン数で増えます：<b>{energyText}</b>。先攻の1ターン目だけ−{B.firstPlayerFirstTurnPenalty}（{firstEnergy}）です。エナジーは次のターンに持ち越せません（効果「蓄え」を除く）。「最大エナジー増加」の分はここに足します。
           </li>
           <li>
             カードを <b>{B.drawPerTurn}枚</b> 引きます（1ターン目を除く）。山札が尽きたら捨て札を混ぜて山札にします。「引いたとき」の効果は、引き終えてから引いた順に発動します。
           </li>
-          <li>予約していた効果（修飾「次のターンに」）が古い順に発動します（1人{B.maxDelayedPerPlayer}件まで）。</li>
+          <li>予約していた効果（修飾「次のターンに」・カードの能力「反復」）が古い順に発動します（1人{B.maxDelayedPerPlayer}件まで）。</li>
           <li>「自分のターン開始時」の効果（パワー → 場のモンスターの左から）。混乱・裏切りのモンスターが自動で攻撃します。</li>
         </ol>
         <h3>ターン中</h3>
@@ -147,9 +148,9 @@ export function RulesPage() {
           <li>
             やけどのダメージ（{B.burnDamage}）。出血が半分、弱体・脆弱の残りターンが1減り、凍結・混乱が切れます。
           </li>
-          <li>腐乱のモンスター（このターンに攻撃したもの）が破壊され、寿命が1減ります（0になると場から消えます）。</li>
+          <li>応召のトークンが消え、借用の残りが1減ります（0なら元の持ち主の場へ）。腐乱のモンスター（このターンに攻撃したもの）が破壊され、寿命が1減ります（0になると場から消えます）。</li>
           <li>
-            <b>手札をすべて捨て札にします</b>（「保持」で残したカードを除く）。気合と、両者のモンスターの一時強化が消えます。
+            <b>手札をすべて捨て札にします</b>（「保持」で残したカードを除く）。気合と、両者のモンスターの一時強化が消えます。期限の来た封殺が消えます。
           </li>
         </ol>
       </Section>
@@ -176,7 +177,21 @@ export function RulesPage() {
         <ul>
           <li>効果は書いてある順に解決します。</li>
           <li>条件付きの効果は、条件を満たしていないと発動しません（カード自体は使えます）。</li>
+          {(['quash', 'freePlay', 'conjure', 'boon', 'ramp', 'bounty'] as const).map((id) => (
+            <li key={id}>
+              <b>{mechanicGlossary[id]!.name}</b>：{mechanicGlossary[id]!.short}。
+            </li>
+          ))}
         </ul>
+        <h3>カードの能力</h3>
+        <p className="hint">{mechanicGlossary.abilities!.short}。</p>
+        <dl className="terms">
+          {listAbilities().map((d) => (
+            <Term key={d.id} name={d.name} icon={abilityGlossary[`ability:${d.id}`]?.icon}>
+              {d.summary}
+            </Term>
+          ))}
+        </dl>
       </Section>
 
       <Section {...sec('monster')}>
@@ -200,9 +215,12 @@ export function RulesPage() {
           </li>
           <li>「攻撃するたび」の効果は、攻撃したモンスターが場に残っていれば発動します（反撃では発動しません）。</li>
           <li>
+            <b>威圧</b>のモンスターは攻撃したときに反撃を受けません。<b>一撃離脱</b>のモンスターは攻撃のあと手札に戻ります。<b>激励</b>は自分の他のモンスターの攻撃力を上げます（重ねがけは合計）。<b>護法</b>のモンスターを相手のカードの「選んだ1体」にすると、そのカードのコストが上がります。<b>猛襲</b>は相手プレイヤーを攻撃するときだけ攻撃力が上がります。<b>分身</b>は初めて攻撃したときにカードのコピーを手札に加えます。
+          </li>
+          <li>
             <b>接死</b>のモンスターが攻撃・反撃・格闘でダメージを与えたモンスターは破壊されます（不屈でも踏みとどまれません）。<b>先制攻撃</b>のモンスターは、攻撃で相手を倒せば反撃を受けません。<b>聖盾</b>は最初のダメージ1回を0にします。<b>呪禁</b>のモンスターはカードの「選んだ1体」に選べません（呪禁の挑発は、カードの対象選びを縛りません）。<b>防衛</b>のモンスターは攻撃できませんが、反撃はします。
           </li>
-          {(['token', 'tempAttack', 'granted', 'fight', 'lifespan', 'exert'] as const).map((id) => (
+          {(['token', 'tempAttack', 'granted', 'fight', 'lifespan', 'exert', 'equip', 'borrow', 'copyToken', 'tempToken', 'army'] as const).map((id) => (
             <li key={id}>
               <b>{mechanicGlossary[id]!.name}</b>：{mechanicGlossary[id]!.short}。
             </li>

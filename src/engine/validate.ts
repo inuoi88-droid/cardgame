@@ -6,7 +6,8 @@ import { CARD_TYPE_LABEL, RARITY_LABEL } from './labels.ts';
 import { isIntInRange } from './math.ts';
 import { effectPoints, modifierFits, rarityCap } from './points.ts';
 import { CONDITIONS, TIMINGS, conditionsFor, targetLabel, targetsForEffect } from './options.ts';
-import { getDrawback, getEffect, getKeyword, getModifier } from './registry.ts';
+import { getAbility, getDrawback, getEffect, getKeyword, getModifier } from './registry.ts';
+import { growHits } from './defs/abilities/grow.ts';
 import { RARITIES, type CardDef, type PointSummary, type Violation } from './types.ts';
 
 function checkParam(
@@ -96,6 +97,10 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     if (def.minRarity && rarityOk && rarityRank(card.rarity) < rarityRank(def.minRarity)) {
       const limit = def.minRarity === 'legend' ? 'レジェンドのみ' : `${RARITY_LABEL[def.minRarity]}以上のカード`;
       out.push({ code: 'EFFECT_RARITY', path, message: `${what}は${limit}で使えます` });
+    }
+    // 付けられる土台（新生はモンスターのカードだけ。MTG 要素 ○ バッチB）
+    if (def.bases && !def.bases.includes(base)) {
+      out.push({ code: 'EFFECT_BASE', path, message: `${what}は${def.bases.includes('monster') ? 'モンスター' : 'モンスター以外'}のカードにしか付けられません` });
     }
     checkParam(out, 'EFFECT_VALUE', `${path}.value`, what, def.value, e.value);
     checkParam(out, 'EFFECT_HITS', `${path}.hits`, what, def.hits, e.hits);
@@ -241,6 +246,53 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
         const ok = def.timings.map((t) => `「${TIMINGS[t].label}」`).join('・');
         out.push({ code: 'DRAWBACK_TIMING', path: `${path}.timing`, message: `${what}は${ok}でしか使えません` });
       }
+    }
+  });
+
+  // カードの能力（MTG 要素 ○ バッチB）
+  const abilities = card.abilities ?? [];
+  const maxAbilities = C.maxAbilities;
+  if (abilities.length > maxAbilities) {
+    out.push({ code: 'TOO_MANY_ABILITIES', path: 'abilities', message: `カードの能力は1枚に${maxAbilities}つまでです（いま${abilities.length}つ）` });
+  }
+  const seenAbilities = new Set<string>();
+  abilities.forEach((a, i) => {
+    const def = getAbility(a.id);
+    const path = `abilities.${i}`;
+    if (!def) {
+      out.push({ code: 'ABILITY_UNKNOWN', path, message: `不明なカードの能力です（${a.id}）` });
+      return;
+    }
+    const what = `能力「${def.name}」`;
+    if (seenAbilities.has(a.id)) out.push({ code: 'ABILITY_DUPLICATE', path, message: `同じ能力は1枚に1つまでです（${def.name}）` });
+    seenAbilities.add(a.id);
+    if (def.cardTypes && !def.cardTypes.includes(cardType)) {
+      const ok = def.cardTypes.map((t) => CARD_TYPE_LABEL[t]).join('・');
+      out.push({ code: 'ABILITY_CARD_TYPE', path, message: `${what}は${ok}のカードにしか付けられません（このカードは${CARD_TYPE_LABEL[cardType]}）` });
+    }
+    if (def.minRarity && rarityOk && rarityRank(card.rarity) < rarityRank(def.minRarity)) {
+      out.push({ code: 'ABILITY_RARITY', path, message: `${what}は${RARITY_LABEL[def.minRarity]}以上のカードで使えます` });
+    }
+    checkParam(out, 'ABILITY_VALUE', `${path}.value`, what, def.value, a.value);
+    if (def.option && a.option !== undefined && !def.option.choices.some((c) => c.id === a.option)) {
+      out.push({ code: 'ABILITY_OPTION', path: `${path}.option`, message: `${what}の${def.option.label}が正しくありません` });
+    }
+    // 同時に付けられない能力・デメリット（1組につき1回だけ出す）
+    for (const other of abilities.slice(i + 1)) {
+      if (other.id === a.id) continue;
+      const otherDef = getAbility(other.id);
+      if (def.conflicts?.includes(other.id) || otherDef?.conflicts?.includes(a.id)) {
+        out.push({ code: 'ABILITY_CONFLICT', path, message: `${what}と「${otherDef?.name ?? other.id}」は同時に付けられません` });
+      }
+    }
+    for (const d of card.drawbacks) {
+      if (def.conflicts?.includes(d.id)) {
+        out.push({ code: 'ABILITY_CONFLICT', path, message: `${what}とデメリット「${getDrawback(d.id)?.name ?? d.id}」は同時に付けられません` });
+      }
+    }
+    // 成長は使用時のダメージ効果が要る
+    if (def.battle.grow && growHits(card.effects) === 0) {
+      out.push({ code: 'GROW_WITHOUT_DAMAGE', path, message: `${what}は、使用時のダメージ・連撃の効果があるカードにしか付けられません` });
     }
   });
 

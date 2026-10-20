@@ -29,11 +29,22 @@ export function viewFor(g: GameState, p: PlayerId): GameState {
   for (const c of [...me.hand, ...me.discard, ...me.exile]) visible.add(c.cardId);
   for (const c of g.players[p].deck) visible.add(c.cardId);
   for (const pl of v.players) {
-    for (const m of pl.board) visible.add(m.card.cardId);
+    for (const m of pl.board) {
+      visible.add(m.card.cardId);
+      // 装備しているカード（MTG 要素 ○ バッチB。公開）
+      for (const c of m.equipment ?? []) visible.add(c.cardId);
+    }
     for (const c of [...pl.discard, ...pl.exile]) visible.add(c.cardId);
     for (const pw of pl.powers) visible.add(pw.cardId);
+    // 予約（反復のカードを含む。公開）
+    for (const d of pl.delayed ?? []) {
+      visible.add(d.src.cardId);
+      if (d.rebound) visible.add(d.rebound.card.cardId);
+    }
   }
   if (v.pending) for (const o of v.pending.options) if (o.cardId) visible.add(o.cardId);
+  // 無料で使う途中のカード（続唱でめくって公開済み）
+  if (v.pending?.step.t === 'freePlay') visible.add(v.pending.step.card.cardId);
   const cards: Record<string, CardDef> = {};
   for (const [id, def] of Object.entries(v.cards)) if (visible.has(id)) cards[id] = def;
   v.cards = cards;

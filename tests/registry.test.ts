@@ -11,6 +11,7 @@ import {
   createEffect,
   describeDrawback,
   describeEffect,
+  listAbilities,
   listDrawbacks,
   listEffects,
   listKeywords,
@@ -23,11 +24,12 @@ describe('レジストリ', () => {
     expect(readFileSync(OUTPUT_PATH, 'utf8')).toBe(generateRegistrySource());
   });
 
-  it('仕様の数だけ登録されている（効果51・オプション7・キーワード14・デメリット19。MTG 要素バッチ1で数値の倍数3つ、バッチ2で効果12・キーワード6・デメリット5、○ バッチAで修飾2・デメリット4）', () => {
-    expect(listEffects()).toHaveLength(51);
+  it('仕様の数だけ登録されている（効果74・オプション7・キーワード20・デメリット19・カードの能力4。MTG 要素バッチ1で数値の倍数3つ、バッチ2で効果12・キーワード6・デメリット5、○ バッチAで修飾2・デメリット4、○ バッチBで効果23・キーワード6・能力4）', () => {
+    expect(listEffects()).toHaveLength(74);
     expect(listModifiers()).toHaveLength(7);
-    expect(listKeywords()).toHaveLength(14);
+    expect(listKeywords()).toHaveLength(20);
     expect(listDrawbacks()).toHaveLength(19);
+    expect(listAbilities()).toHaveLength(4);
   });
 
   it('すべての効果に balance.ts の基礎ポイントがある', () => {
@@ -36,6 +38,7 @@ describe('レジストリ', () => {
     }
     for (const def of listKeywords()) expect(BALANCE.keywords, def.id).toHaveProperty(def.id);
     for (const def of listDrawbacks()) expect(BALANCE.drawbacks, def.id).toHaveProperty(def.id);
+    for (const def of listAbilities()) expect(BALANCE.abilities, def.id).toHaveProperty(def.id);
   });
 
   it('すべての効果が、選べるすべてのタイミング・対象でテキストとポイントを作れる', () => {

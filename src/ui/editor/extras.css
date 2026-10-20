@@ -11,3 +11,17 @@
 .ed-desc .field__count {
   font-variant-numeric: tabular-nums;
 }
+
+/* ------------------------------------------------------------ カードの能力の行（MTG 要素 ○ バッチB） */
+.ed-row--ability {
+  padding: 0 10px 8px;
+}
+.ed-row--ability .ed-row__head {
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.ed-row--ability .ed-row__head b {
+  flex: 1;
+  min-width: 0;
+}

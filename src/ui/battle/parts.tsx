@@ -203,6 +203,28 @@ export function PlayerPanel({ ps, isMe, active, targetable, onClick, onPile, flo
             </span>
           </Popover>
         )}
+        {/* MTG 要素 ○ バッチB：封殺・恩恵・最大エナジー増加 */}
+        {ps.quash && (
+          <Popover content={{ title: `${mechanicGlossary.quash!.icon} 封殺（${QUASH_KIND[ps.quash.kind] ?? 'カード'}）`, description: mechanicGlossary.quash!.short }} placement="top">
+            <span className="pp__next pp__quash">
+              {mechanicGlossary.quash!.icon}封殺（{QUASH_KIND[ps.quash.kind] ?? 'カード'}）
+            </span>
+          </Popover>
+        )}
+        {(ps.status.boonUses ?? 0) > 0 && (
+          <Popover content={{ title: `${mechanicGlossary.boon!.icon} 恩恵 +${ps.status.boon}×${ps.status.boonUses}`, description: mechanicGlossary.boon!.short }} placement="top">
+            <span className="pp__next">
+              {mechanicGlossary.boon!.icon}恩恵 +{ps.status.boon}×{ps.status.boonUses}
+            </span>
+          </Popover>
+        )}
+        {(ps.energyBonus ?? 0) > 0 && (
+          <Popover content={{ title: `${mechanicGlossary.ramp!.icon} 最大エナジー+${ps.energyBonus}`, description: mechanicGlossary.ramp!.short }} placement="top">
+            <span className="pp__next">
+              {mechanicGlossary.ramp!.icon}+{ps.energyBonus}
+            </span>
+          </Popover>
+        )}
         <Chips chips={statusChips(ps.status, true)} />
         {ps.powers.map((pw) => (
           <button
@@ -261,7 +283,15 @@ interface MonsterTileProps {
   dragging?: boolean;
   /** 今の持ち主が自分のターンを迎えた回数（消耗の表示） */
   ownerTurns?: number;
+  /** 実効攻撃力（激励を含む。battle.effectiveAttack(view, m)。省略すると攻撃力＋一時強化） */
+  attackNow?: number;
 }
+
+/** 実効攻撃力（激励は盤面が要るので、呼び出し側が渡す。無ければ攻撃力＋一時強化） */
+export const attackOf = (m: battle.Monster, attackNow?: number): number => attackNow ?? m.attack + (m.tempAttack ?? 0);
+
+/** 封殺の種類の呼び方 */
+const QUASH_KIND: Record<string, string> = { any: 'すべて', attack: 'アタック', skill: 'スキル', monster: 'モンスター', power: 'パワー' };
 
 /** モンスターの札（キーワード・封印・隠密・裏切り・予告・攻撃回数・状態異常）。タイルと詳細で共用 */
 export function monsterChips(
@@ -270,6 +300,8 @@ export function monsterChips(
   flags: ReturnType<typeof battle.keywordFlags>,
   /** 今の持ち主が自分のターンを迎えた回数（消耗の表示に使う。省略すると消耗を出さない） */
   ownerTurns?: number,
+  /** 実効攻撃力（激励を含む） */
+  attackNow?: number,
 ): Chip[] {
   const kws: Chip[] = (def?.keywords ?? []).map((k) => {
     const g = keywordGlossary[k.id];
@@ -302,7 +334,7 @@ export function monsterChips(
       id: 'temp',
       label: `${M.tempAttack!.icon}攻撃+${m.tempAttack}`,
       tone: 'good',
-      card: { title: `${M.tempAttack!.icon} 一時強化 +${m.tempAttack}`, description: M.tempAttack!.short, lines: [`もとの攻撃力 ${m.attack} → このターン ${battle.effectiveAttack(m)}`] },
+      card: { title: `${M.tempAttack!.icon} 一時強化 +${m.tempAttack}`, description: M.tempAttack!.short, lines: [`もとの攻撃力 ${m.attack} → このターン ${attackOf(m, attackNow)}`] },
     });
   }
   if (flags.divineShield && m.shieldUsed) {
@@ -327,6 +359,24 @@ export function monsterChips(
   if (attacksTotal > 0 && def?.effects.some((e) => e.condition === 'veteran')) {
     extra.push({ id: 'attacksTotal', label: `⚔攻撃した回数 ${attacksTotal}`, tone: 'info', card: { title: `攻撃した回数 ${attacksTotal}`, description: '場に出てから攻撃した回数（場を離れると0から）' } });
   }
+  // MTG 要素 ○ バッチB：複写・応召・軍団、装備、借用、懸賞、分身を使った
+  if (m.card.token?.copy) extra.push({ id: 'copy', label: `${M.copyToken!.icon}コピー`, tone: 'info', card: { title: `${M.copyToken!.icon} ${M.copyToken!.name}`, description: M.copyToken!.short } });
+  if (m.card.token?.temp) extra.push({ id: 'temp-token', label: `${M.tempToken!.icon}応召`, tone: 'info', card: { title: `${M.tempToken!.icon} ${M.tempToken!.name}`, description: M.tempToken!.short } });
+  if (m.card.cardId === battle.ARMY_CARD_ID) extra.push({ id: 'army', label: `${M.army!.icon}${M.army!.name}`, tone: 'info', card: { title: `${M.army!.icon} ${M.army!.name}`, description: M.army!.short } });
+  if ((m.equipment?.length ?? 0) > 0) {
+    const n = m.equipment!.length;
+    extra.push({ id: 'equip', label: `${M.equip!.icon}装備${n > 1 ? `×${n}` : ''}`, tone: 'good', card: { title: `${M.equip!.icon} 装備（${n}枚）`, description: M.equip!.short } });
+  }
+  if (m.counters.borrowLeft !== undefined) {
+    extra.push({ id: 'borrow', label: `${M.borrow!.icon}借用 残り${m.counters.borrowLeft}`, tone: 'info', card: { title: `${M.borrow!.icon} 借用（残り${m.counters.borrowLeft}ターン）`, description: M.borrow!.short } });
+  }
+  if ((m.bounty?.length ?? 0) > 0) {
+    const draw = m.bounty!.reduce((n, b) => n + b.draw, 0);
+    extra.push({ id: 'bounty', label: `${M.bounty!.icon}懸賞`, tone: 'info', card: { title: `${M.bounty!.icon} 懸賞（破壊されたら${draw}枚）`, description: M.bounty!.short } });
+  }
+  if (m.card.lostKeywords?.includes('doubleTeam')) {
+    extra.push({ id: 'dt-used', label: `${keywordGlossary.doubleTeam?.icon ?? ''}分身 使用済み`, tone: 'info', card: { title: '分身（使用済み）', description: keywordGlossary.doubleTeam?.short ?? '' } });
+  }
   for (const f of monsterForecasts(def, m)) extra.push({ id: `fc:${f.title}`, label: f.label, tone: f.tone, card: { title: f.title, description: f.description } });
   if ((flags.attacksPerTurn ?? 1) > 1 && m.attacksUsed > 0) {
     extra.push({ id: 'attacks', label: `攻撃${m.attacksUsed}/${flags.attacksPerTurn}`, tone: 'info', card: { title: 'このターンの攻撃回数', description: `${flags.attacksPerTurn}回まで攻撃できる` } });
@@ -334,9 +384,9 @@ export function monsterChips(
   return [...(m.sealed ? [] : kws), ...extra, ...statusChips(m.status, false)];
 }
 
-export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, flags, onClick, onDetail, onPointerDown, floats, flash, hidden, dying, isMine, dropHover, dragging, ownerTurns }: MonsterTileProps) {
+export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, flags, onClick, onDetail, onPointerDown, floats, flash, hidden, dying, isMine, dropHover, dragging, ownerTurns, attackNow }: MonsterTileProps) {
   const press = useLongPress(onDetail);
-  const chips = monsterChips(def, m, flags, ownerTurns);
+  const chips = monsterChips(def, m, flags, ownerTurns, attackNow);
   const label = def?.name ?? '？';
   const state = targetable ? '対象' : selected ? '選択中' : ready ? '攻撃できる' : blockLabel ?? null;
   return (
@@ -359,7 +409,7 @@ export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, f
       )}
       role="button"
       tabIndex={dying ? -1 : 0}
-      aria-label={`${label}（攻撃力${battle.effectiveAttack(m)}・体力${m.hp}・守備力${m.defense}）${state ? `・${state}` : ''}。押すと詳細`}
+      aria-label={`${label}（攻撃力${attackOf(m, attackNow)}・体力${m.hp}・守備力${m.defense}）${state ? `・${state}` : ''}。押すと詳細`}
       aria-pressed={selected || undefined}
       data-fx={m.uid}
       data-drop={dying ? undefined : `m:${m.uid}`}
@@ -380,9 +430,9 @@ export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, f
       </span>
       <span className="mt__name">{label}</span>
       <span className="mt__stats" aria-hidden="true">
-        <span className={cx('mt__stat', m.tempAttack ? 'is-buffed' : undefined)}>
+        <span className={cx('mt__stat', attackOf(m, attackNow) > m.attack ? 'is-buffed' : undefined)}>
           <small>⚔</small>
-          {battle.effectiveAttack(m)}
+          {attackOf(m, attackNow)}
         </span>
         <span className={cx('mt__stat', m.hp < m.maxHp && 'is-hurt')}>
           <small>❤</small>

@@ -98,7 +98,7 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
     case 'emptyHand':
       return mine.hand.length === 0;
     case 'bigMonster':
-      return mine.board.some((m) => effectiveAttack(m) >= C.bigMonsterAttack);
+      return mine.board.some((m) => effectiveAttack(g, m) >= C.bigMonsterAttack);
     case 'bigDiscard':
       return mine.discard.length >= C.discardMin;
     case 'monsterInHand':
@@ -118,15 +118,15 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
       if (!opts.src) return true;
       const m = sourceMonster(g, opts.src);
       if (!m) return false;
-      const atk = effectiveAttack(m);
-      return g.players[m.controller].board.some((o) => o.uid !== m.uid && effectiveAttack(o) > atk);
+      const atk = effectiveAttack(g, m);
+      return g.players[m.controller].board.some((o) => o.uid !== m.uid && effectiveAttack(g, o) > atk);
     }
     case 'totalAttack':
-      return mine.board.reduce((s, m) => s + effectiveAttack(m), 0) >= C.totalAttackMin;
+      return mine.board.reduce((s, m) => s + effectiveAttack(g, m), 0) >= C.totalAttackMin;
     case 'twoAllyAttacks':
       return myTurn && (mine.turn.allyAttacks ?? 0) >= C.allyAttacksMin;
     case 'coven':
-      return new Set(mine.board.map(effectiveAttack)).size >= C.covenMin;
+      return new Set(mine.board.map((m) => effectiveAttack(g, m))).size >= C.covenMin;
     case 'delirium':
       return discardTypeCount(g, mine.discard) >= C.deliriumMin;
     case 'criticalHp':

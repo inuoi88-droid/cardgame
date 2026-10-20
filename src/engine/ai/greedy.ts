@@ -7,7 +7,7 @@
  *   つよい＝リーサル探索＋ターン内のビーム探索。
  */
 import { legalActions } from '../battle/legal.ts';
-import { usesX } from '../battle/play.ts';
+import { quashMatches, usesX } from '../battle/play.ts';
 import type { Action, GameState, PlayerId } from '../battle/types.ts';
 import { beamSearch, type BeamOptions } from './beam.ts';
 import type { Strategy } from './cpu.ts';
@@ -30,7 +30,8 @@ export interface GreedyOptions {
 function decideChoice(view: GameState, me: PlayerId, seed: number): Action {
   const p = view.pending!;
   const effectId = p.step.t === 'effect' ? p.step.effect.id : p.step.t;
-  const byValue = effectId === 'retain' || p.options.every((o) => o.cardId);
+  // 無料で使うカードの対象（MTG 要素 ○ バッチB）は、仮に実行して評価で決める
+  const byValue = p.step.t !== 'freePlay' && (effectId === 'retain' || p.options.every((o) => o.cardId));
   if (byValue || p.max > 1) return { type: 'choose', player: me, picks: chooseFor(view, p, me) };
   const frame = raceFrame(view, me);
   let best: { picks: string[]; score: number } | null = null;
@@ -43,6 +44,41 @@ function decideChoice(view: GameState, me: PlayerId, seed: number): Action {
     if (!best || score > best.score) best = { picks, score };
   }
   return { type: 'choose', player: me, picks: best?.picks ?? chooseFor(view, p, me) };
+}
+
+/**
+ * 封殺（MTG 要素 ○ バッチB）を掛けられているとき：封殺に当たるカードのうち一番損の少ないものを先に使って封殺を消す
+ * （捨て駒）。封殺が無いとしたら一番よい行動が封殺に当たるカードで、その得が捨て駒の損より大きいときだけ
+ */
+export function quashBait(view: GameState, me: PlayerId, seed: number, frame: ReturnType<typeof raceFrame>): Action | null {
+  const q = view.players[me].quash;
+  if (!q || view.turnIndex > q.until || view.pending || view.active !== me) return null;
+  const hit = (a: Action) => {
+    if (a.type !== 'playCard') return false;
+    const card = view.players[me].hand.find((c) => c.uid === a.cardUid);
+    const def = card ? view.cards[card.cardId] : undefined;
+    return def ? quashMatches(view, me, def) : false;
+  };
+  const actions = dedupeActions(view, legalActions(view, me)).filter(hit);
+  if (actions.length === 0) return null;
+  const base = evaluate(view, me, frame);
+  // 封殺が無いとしたときの、封殺に当たるカードの一番の得
+  const free: GameState = { ...view, players: [{ ...view.players[0] }, { ...view.players[1] }] };
+  delete free.players[me].quash;
+  let gain = -Infinity;
+  for (const a of actions) {
+    const c = scoreAction(free, a, seed, me, frame);
+    if (c) gain = Math.max(gain, c.score - base);
+  }
+  // 捨て駒：いま使ったときの損が一番少ないもの
+  let bait: Candidate | null = null;
+  for (const a of actions) {
+    const c = scoreAction(view, a, seed, me, frame);
+    if (c && (!bait || c.score > bait.score)) bait = c;
+  }
+  if (!bait || gain <= WEIGHTS.tieEpsilon) return null;
+  const loss = base - bait.score;
+  return gain > loss ? bait.action : null;
 }
 
 /** 貪欲法で1手選ぶ */
@@ -89,6 +125,8 @@ export function makeStrategy(name: string, opts: GreedyOptions): Strategy {
         const plan = findLethal(v, me, seed, opts.lethalOptions);
         if (plan && plan.length > 0) return plan[0]!;
       }
+      const bait = quashBait(v, me, seed, raceFrame(v, me));
+      if (bait) return bait;
       if (opts.beam) return beamSearch(v, me, seed, opts.beamOptions);
       return decideGreedy(v, me, seed, opts.noiseSigma);
     },

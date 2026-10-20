@@ -28,6 +28,8 @@ export const BALANCE = {
     /** コスト0のカードはレアリティ上限をこれだけ下げる（決定事項 #67） */
     cost0CapPenalty: x(2),
     nameMaxLength: 16,
+    /** カードの能力（MTG 要素 ○ バッチB）は1枚にこの数まで */
+    maxAbilities: 2,
   },
 
   /** レアリティごとの上限。deckLimit / perNameLimit が null なら制限なし */
@@ -314,7 +316,7 @@ export const BALANCE = {
      * MTG 要素の採用：バッチ2（決定事項ログ）。価格は目安。
      * トークン生成：基礎 =（強さ N × perValue + perToken）× 体数 M。強さは攻撃力と体力の両方（守備力0）
      */
-    token: { perValue: 4, perToken: x(1), maxValue: x(5), maxTokens: 3 },
+    token: { perValue: 4, perToken: x(1), maxValue: x(5), maxTokens: 3, normalRate: 1, mobilizeRate: 0.7 },
     /** 鍛錬：攻撃力と体力を+N（永続） */
     train: { perValue: 4.5, maxValue: x(10) },
     /** 衰弱：攻撃力と体力を−N（体力が0になると破壊） */
@@ -347,6 +349,41 @@ export const BALANCE = {
     doom: { perValue: 15, maxValue: x(2) },
     /** 一時強化：このターンだけ攻撃力+N */
     pump: { perValue: 1.5, maxValue: x(10) },
+
+    /**
+     * MTG 要素 ○ バッチB（決定事項ログ）。価格は目安。
+     * 装備：N×perValue＋flat。討伐：flat＋コストN×perCost。借用：N ターンの順の値。蓄え・準備・動力化：N×perValue
+     */
+    equip: { perValue: 3, flat: x(3), maxValue: x(5) },
+    slay: { flat: x(10), perCost: x(5), maxValue: 5 },
+    borrow: { byTurns: [x(14), x(22), x(28)] },
+    bank: { perValue: x(3), maxValue: 2 },
+    bounty: { flat: x(2), perValue: x(3), maxValue: 2 },
+    prepare: { perValue: x(3), maxValue: 2 },
+    /** 続唱：flat＋コストN×perCost。山札は maxReveal 枚までめくる */
+    cascade: { flat: x(4), perCost: x(8), maxValue: 4, maxReveal: 10 },
+    /** 新生：攻撃力 stat・体力 stat のコピー */
+    offspring: { flat: x(6), stat: x(1) },
+    mill: { selfPerValue: x(0.5), enemyPerValue: x(1), maxValue: 5 },
+    /** 封殺：すべての種類なら any、種類を指定すれば typed */
+    quash: { any: x(25), typed: x(15) },
+    proliferate: { perValue: 5, maxValue: x(3) },
+    populate: { flat: x(6) },
+    explore: { flat: x(2), perValue: 3, maxValue: x(5) },
+    amass: { perValue: 5, maxValue: x(5) },
+    harness: { perValue: x(5), maxValue: 2 },
+    /** 徴募：捨てたのがスキルなら攻撃力 stat・体力 stat のトークン */
+    recruit: { flat: x(6), stat: x(1) },
+    infight: { flat: x(12) },
+    seek: { flat: x(5) },
+    /** 創出：1枚＝（元の効果の基礎ポイント（ダメージ・回復・シールドの perValue）×N×rate＋flat）。M 枚まで */
+    conjure: { flat: x(1), rate: 1.1, maxValue: x(5), maxCards: 2 },
+    /** 発見：山札の上 look 枚から1枚 */
+    discover: { flat: x(6), look: 3 },
+    /** 恩恵：N×perValueUse×M（M 回まで） */
+    boon: { perValueUse: 2.5, maxValue: x(5), maxUses: 3 },
+    ramp: { flat: x(30) },
+    cloneToken: { flat: x(25) },
   },
 
   /** モンスター専用キーワードのポイント（A は攻撃力）。挑発は #83（カードの効果の対象も挑発に限る）のあと #84 で 6→8 */
@@ -374,6 +411,27 @@ export const BALANCE = {
     /** 武士道 N：モンスターと戦うときだけ攻撃力+N */
     bushido: { perValue: 2, maxValue: x(5) },
     divineShield: { flat: x(4) },
+    /**
+     * MTG 要素 ○ バッチB（決定事項ログ）。一撃離脱（固定）・激励 N・護法 N（N は追加コスト）・猛襲 N・
+     * 威圧＝max(min, 攻撃力×perAttack)・分身＝rate×（攻撃力×3＋体力×1.5＋守備力×4。ステータスのポイント）
+     */
+    hitAndRun: { flat: x(1) },
+    inspire: { perValue: 4.5, maxValue: x(3) },
+    ward: { perValue: x(3), maxValue: 2 },
+    onslaught: { perValue: 2, maxValue: x(5) },
+    menace: { min: x(3), perAttack: 1 },
+    doubleTeam: { rate: 0.4 },
+  },
+
+  /**
+   * カードの能力（MTG 要素 ○ バッチB。決定事項ログ）。循環は固定、再利用・反復はこのカードの使用時の効果のポイントの合計×rate、
+   * 成長は N×perValue×（使用時のダメージ効果の数。連撃は回数）。成長の上乗せは maxGrow まで
+   */
+  abilities: {
+    shuffleBack: { flat: x(1) },
+    buyback: { rate: 0.5 },
+    rebound: { rate: 0.7 },
+    grow: { perValue: 4.5, maxValue: x(3), maxGrow: x(10) },
   },
 
   /**
@@ -499,6 +557,14 @@ export const BALANCE = {
     doomCap: x(5),
     /** 予約（修飾「次のターンに」。MTG 要素 ○ バッチA）は1人この件数まで（数なので倍率は掛けない） */
     maxDelayedPerPlayer: 6,
+    /** MTG 要素 ○ バッチB：無料で使う（続唱）の深さの上限（無料で使ったカードの続唱からさらに使うのはこの段まで） */
+    maxFreePlayDepth: 2,
+    /** 動員の「軍団」トークン（1人 maxArmy 体） */
+    armyName: '軍団',
+    armyIcon: '🛡️',
+    maxArmy: 1,
+    /** 最大エナジー増加は1人この回数まで */
+    rampCap: 1,
   },
 } as const;
 

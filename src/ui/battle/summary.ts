@@ -7,7 +7,7 @@ type PlayerId = battle.PlayerId;
 /** 手札カードの1行要約（キーワード・効果・デメリットを並べ、長ければ…で切る） */
 export function summarizeCard(def: CardDef, max = 40): string {
   const a = analyzeCard(def);
-  const parts = [...a.text.keywords.map((k) => k.name), ...a.text.effects.map((t) => t.replace(/。$/, '')), ...a.text.drawbacks.map((d) => `☠${d.replace(/。$/, '')}`)];
+  const parts = [...a.text.keywords.map((k) => k.name), ...a.text.effects.map((t) => t.replace(/。$/, '')), ...a.text.drawbacks.map((d) => `☠${d.replace(/。$/, '')}`), ...a.text.abilities.map((x) => `✦${x.name}`)];
   const s = parts.join('／');
   if (s.length <= max) return s;
   return `${s.slice(0, max - 1)}…`;

@@ -13,6 +13,7 @@ const KINDS = [
   { dir: 'modifiers', exportName: 'MODIFIER_DEFS', type: 'ModifierDef' },
   { dir: 'keywords', exportName: 'KEYWORD_DEFS', type: 'KeywordDef' },
   { dir: 'drawbacks', exportName: 'DRAWBACK_DEFS', type: 'DrawbackDef' },
+  { dir: 'abilities', exportName: 'ABILITY_DEFS', type: 'AbilityDef' },
 ];
 
 export function generateRegistrySource() {
@@ -28,7 +29,7 @@ export function generateRegistrySource() {
   }
   return [
     '// 自動生成ファイル。手で編集しないこと（scripts/gen-registry.mjs が生成する）',
-    "import type { DrawbackDef, EffectDef, KeywordDef, ModifierDef } from './define.ts';",
+    "import type { AbilityDef, DrawbackDef, EffectDef, KeywordDef, ModifierDef } from './define.ts';",
     ...imports,
     '',
     ...exports,

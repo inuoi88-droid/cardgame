@@ -1,6 +1,7 @@
 /** 対戦の小道具：参照・名前・ログ・決着 */
 import { BALANCE } from '../balance.ts';
-import type { CardDef } from '../types.ts';
+import { getKeyword } from '../registry.ts';
+import type { CardDef, KeywordInstance } from '../types.ts';
 import {
   NOISE_CARD_ID,
   type GameResult,
@@ -102,8 +103,25 @@ export function statusOf(g: GameState, t: TargetRef): Statuses | undefined {
 
 export const playerRef = (p: PlayerId): TargetRef => ({ kind: 'player', player: p });
 
-/** 実効攻撃力（攻撃力＋このターンだけの上乗せ） */
-export const effectiveAttack = (m: Monster): number => m.attack + (m.tempAttack ?? 0);
+/** カードのキーワードのうち、失っていないもの（分身を使ったカードは分身を失う。MTG 要素 ○ バッチB）。封印は見ない */
+export function cardKeywords(g: GameState, m: Monster): KeywordInstance[] {
+  const all = g.cards[m.card.cardId]?.keywords ?? [];
+  const lost = m.card.lostKeywords;
+  return lost && lost.length > 0 ? all.filter((k) => !lost.includes(k.id)) : all;
+}
+
+/** 激励（MTG 要素 ○ バッチB）：同じ持ち主の他の（封印されていない）モンスターの激励の合計 */
+export function auraAttack(g: GameState, m: Monster): number {
+  let n = 0;
+  for (const o of g.players[m.controller]?.board ?? []) {
+    if (o.uid === m.uid || o.sealed) continue;
+    for (const k of cardKeywords(g, o)) n += getKeyword(k.id)?.battle.auraAttack?.(k) ?? 0;
+  }
+  return n;
+}
+
+/** 実効攻撃力（攻撃力＋このターンだけの上乗せ＋激励） */
+export const effectiveAttack = (g: GameState, m: Monster): number => m.attack + (m.tempAttack ?? 0) + auraAttack(g, m);
 export const monsterRef = (m: Monster): TargetRef => ({ kind: 'monster', uid: m.uid });
 
 export function sourceOfPlayer(g: GameState, p: PlayerId): SourceRef {
@@ -111,7 +129,14 @@ export function sourceOfPlayer(g: GameState, p: PlayerId): SourceRef {
 }
 
 export function sourceOfMonster(g: GameState, m: Monster): SourceRef {
-  return { kind: 'monster', uid: m.uid, cardId: m.card.cardId, name: cardName(g, m.card.cardId), controller: m.controller };
+  return {
+    kind: 'monster',
+    uid: m.uid,
+    cardId: m.card.cardId,
+    name: cardName(g, m.card.cardId),
+    controller: m.controller,
+    ...(m.card.token ? { token: true } : {}),
+  };
 }
 
 export function log(
@@ -156,6 +181,8 @@ export function endGame(g: GameState, winner: PlayerId | null, reason: GameResul
     if (step.t === 'cardDone' && !g.players.some((p) => p.board.some((m) => m.uid === step.card.uid))) {
       g.players[step.card.owner].discard.push(step.card);
     }
+    // 無料で使う途中・反復の2回目の途中のカード（MTG 要素 ○ バッチB）
+    if (step.t === 'freePlay' || step.t === 'reboundDone') g.players[step.card.owner].discard.push(step.card);
   }
   g.queue = [];
   g.pending = null;

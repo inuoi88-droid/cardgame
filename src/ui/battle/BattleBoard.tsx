@@ -135,7 +135,17 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   const mine = view.players[me];
   const theirs = view.players[opp];
   const myTurn = view.phase === 'main' && view.active === me && !view.pending && !busy;
-  const infos = useMemo(() => new Map(mine.hand.map((c) => [c.uid, battle.playInfo(view, me, c)])), [view, me, mine.hand]);
+  // 護法（MTG 要素 ○ バッチB）：エナジーが足りない相手は対象の候補にしない
+  const infos = useMemo(
+    () =>
+      new Map(
+        mine.hand.map((c) => {
+          const i = battle.playInfo(view, me, c);
+          return [c.uid, { ...i, enemyTargets: battle.payableEnemyTargets(i, view.players[me].energy) }];
+        }),
+      ),
+    [view, me, mine.hand],
+  );
   const isPlayable = (c: battle.CardInst) => {
     const i = infos.get(c.uid)!;
     return myTurn && (c.cardId === battle.NOISE_CARD_ID ? mine.energy >= i.cost : !i.blocked);
@@ -396,7 +406,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     if (t.kind === 'player') return t.player === me ? 'あなた' : `相手プレイヤー ❤${theirs.hp}`;
     const m = battle.findMonster(view, t.uid);
     const def = m ? view.cards[m.card.cardId] : undefined;
-    return m ? `${def?.icon ?? ''}${def?.name ?? '？'} ⚔${battle.effectiveAttack(m)} ❤${m.hp}` : '？';
+    return m ? `${def?.icon ?? ''}${def?.name ?? '？'} ⚔${battle.effectiveAttack(view, m)} ❤${m.hp}` : '？';
   };
 
   /** 場の並び：今のモンスターに、消える途中のモンスター（幽霊）を元の位置へ差し込む */
@@ -424,6 +434,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               m={m}
               def={view.cards[m.card.cardId]}
               ownerTurns={view.players[m.controller].turnsTaken}
+              attackNow={battle.effectiveAttack(view, m)}
               isMine={isMine}
               ready={ready}
               blockLabel={isMine && myTurn ? shortBlock(battle.attackBlockReason(view, m)) : null}
@@ -552,7 +563,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
             ) : undefined
           }
         >
-          <CardDetailBody def={def} extras={{ monster: m, flags: battle.keywordFlags(view, m), ownerTurns: view.players[m.controller].turnsTaken, where: isMine ? 'あなたの場' : `${opponentLabel}の場` }} />
+          <CardDetailBody def={def} extras={{ monster: m, flags: battle.keywordFlags(view, m), ownerTurns: view.players[m.controller].turnsTaken, attackNow: battle.effectiveAttack(view, m), where: isMine ? 'あなたの場' : `${opponentLabel}の場` }} />
         </CardDetailSheet>
       );
     }

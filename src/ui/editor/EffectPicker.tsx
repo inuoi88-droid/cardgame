@@ -4,6 +4,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  BALANCE,
   EFFECT_GROUPS,
   RARITY_LABEL,
   availableDrawbacks,
@@ -18,6 +19,10 @@ import {
   listDrawbacks,
   listEffects,
   listKeywords,
+  abilityChoices,
+  abilityContext,
+  abilityPoints,
+  createAbility,
   type CardDef,
   type DrawbackDef,
   type EffectGroup,
@@ -25,7 +30,7 @@ import {
 import { Sheet } from '../components/Sheet.tsx';
 import { cx } from '../util.ts';
 
-export type PickerMode = 'effect' | 'drawback' | 'keyword';
+export type PickerMode = 'effect' | 'drawback' | 'keyword' | 'ability';
 
 export const GROUP_ICON: Record<EffectGroup, string> = {
   damage: '💥',
@@ -66,7 +71,7 @@ function conflictName(d: DrawbackDef, card: CardDef): string | undefined {
   return x ? (getDrawback(x.id)?.name ?? x.id) : undefined;
 }
 
-const TITLE: Record<PickerMode, string> = { effect: '効果を追加', drawback: 'デメリットを追加', keyword: 'キーワード' };
+const TITLE: Record<PickerMode, string> = { effect: '効果を追加', drawback: 'デメリットを追加', keyword: 'キーワード', ability: 'カードの能力を追加' };
 
 export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) {
   const [query, setQuery] = useState('');
@@ -90,7 +95,27 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
         summary: d.summary,
         group: d.group,
         points: effectPoints(createEffect(d.id, base), card).value,
-        locked: ok.has(d.id) ? undefined : d.minRarity === 'legend' ? 'レジェンドのみ' : `${RARITY_LABEL[d.minRarity ?? 'common']}以上`,
+        locked:
+          d.bases && !d.bases.includes(base)
+            ? d.bases.includes('monster')
+              ? 'モンスターのカードだけ'
+              : 'モンスター以外のカードだけ'
+            : ok.has(d.id)
+              ? undefined
+              : d.minRarity === 'legend'
+                ? 'レジェンドのみ'
+                : `${RARITY_LABEL[d.minRarity ?? 'common']}以上`,
+      }));
+    }
+    if (mode === 'ability') {
+      const ctx = abilityContext(card);
+      return abilityChoices(card).map(({ def, blocked }) => ({
+        id: def.id,
+        icon: '✦',
+        name: def.name,
+        summary: def.summary,
+        points: abilityPoints(createAbility(def.id), ctx).value,
+        locked: blocked ?? undefined,
       }));
     }
     if (mode === 'drawback') {
@@ -155,6 +180,7 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
           {mode === 'effect' && `残りの予算 ${remaining}pt。ポイントは既定の値・使用時・対象1体のときの目安です`}
           {mode === 'drawback' && 'デメリットを付けると呪いカードになります。相殺できるのは上限ぶんまで'}
           {mode === 'keyword' && 'モンスター専用。タップで付け外し。ポイントは今の攻撃力から計算'}
+          {mode === 'ability' && `カード単位の性質（1枚に${BALANCE.card.maxAbilities}つまで）。ポイントは今の効果から計算`}
         </p>
         {shown.length === 0 ? (
           <p className="pk__empty">「{query}」に合うものはありません</p>

@@ -19,8 +19,9 @@ import {
   timingMultiplier,
   type AttackProfile,
 } from './options.ts';
-import { getDrawback, getEffect, getKeyword, getModifier } from './registry.ts';
-import type { CardBase, CardDef, DrawbackInstance, EffectInstance, KeywordInstance, PointLine, PointSummary } from './types.ts';
+import { getAbility, getDrawback, getEffect, getKeyword, getModifier } from './registry.ts';
+import type { AbilityInstance, CardBase, CardDef, DrawbackInstance, EffectInstance, KeywordInstance, PointLine, PointSummary } from './types.ts';
+import type { AbilityPointContext } from './define.ts';
 
 export interface Factor {
   label: string;
@@ -178,6 +179,31 @@ export function drawbackLabel(d: DrawbackInstance, base: CardBase): string {
   return `${timing}${def.name}${def.value ? (d.value ?? 0) : ''}`;
 }
 
+/** カードの能力のポイント計算に渡す情報（効果のポイントの合計など） */
+export function abilityContext(card: Pick<CardDef, 'stats' | 'keywords' | 'effects'>): AbilityPointContext {
+  const timing = card.stats ? 'summon' : 'play';
+  let all = 0;
+  let play = 0;
+  for (const e of card.effects) {
+    const v = effectPoints(e, card).value;
+    all += v;
+    if (e.timing === timing) play += v;
+  }
+  return { card, effectPoints: all, playEffectPoints: play };
+}
+
+/** カードの能力1つのポイント（切り上げ） */
+export function abilityPoints(a: AbilityInstance, ctx: AbilityPointContext): { value: number; formula: string } {
+  const def = getAbility(a.id);
+  if (!def) return { value: 0, formula: '0' };
+  return { value: ceilPoints(def.points(a, ctx)), formula: def.formula(a, ctx) };
+}
+
+export function abilityLabel(a: AbilityInstance): string {
+  const def = getAbility(a.id);
+  return def ? `能力 ${def.displayName(a)}` : `不明な能力（${a.id}）`;
+}
+
 /** コストの差し引き（表にないコストは0。範囲外は validate が弾く） */
 export function costPoints(cost: number): number {
   return BALANCE.card.costPoints[cost] ?? 0;
@@ -210,6 +236,13 @@ export function calculatePoints(card: CardDef): PointSummary {
   card.effects.forEach((e, index) => {
     const p = effectPoints(e, card);
     lines.push({ kind: 'effect', index, label: effectLabel(e, base), formula: p.formula, value: p.value });
+  });
+
+  // カードの能力（MTG 要素 ○ バッチB）：再利用・反復は効果のポイントから決まる
+  const ctx = abilityContext(card);
+  (card.abilities ?? []).forEach((a, index) => {
+    const p = abilityPoints(a, ctx);
+    lines.push({ kind: 'ability', index, label: abilityLabel(a), formula: p.formula, value: p.value });
   });
 
   const costPt = costPoints(card.cost);

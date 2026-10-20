@@ -2,8 +2,8 @@
 import { cardBase } from './classify.ts';
 import { CONDITIONS, TIMINGS, targetNoun } from './options.ts';
 import { effectModifiers } from './points.ts';
-import { getDrawback, getEffect, getKeyword } from './registry.ts';
-import type { CardDef, CardText, DrawbackInstance, EffectInstance } from './types.ts';
+import { getAbility, getDrawback, getEffect, getKeyword } from './registry.ts';
+import type { AbilityInstance, CardDef, CardText, DrawbackInstance, EffectInstance } from './types.ts';
 
 export function describeEffect(e: EffectInstance): string {
   const def = getEffect(e.id);
@@ -45,5 +45,16 @@ export function describeCard(card: CardDef): CardText {
         })
       : [],
     drawbacks: card.drawbacks.map(describeDrawback),
+    abilities: (card.abilities ?? []).flatMap((a) => {
+      const def = getAbility(a.id);
+      return def ? [{ name: def.displayName(a), text: describeAbility(a) }] : [];
+    }),
   };
+}
+
+/** カードの能力のテキスト（MTG 要素 ○ バッチB。句点つき） */
+export function describeAbility(a: AbilityInstance): string {
+  const def = getAbility(a.id);
+  if (!def) return `（不明な能力：${a.id}）`;
+  return `${def.describe(a)}。`;
 }

@@ -11,6 +11,7 @@ import {
   RARITIES,
   TARGET_IDS,
   TIMING_IDS,
+  type AbilityInstance,
   type CardDef,
   type ConditionId,
   type Deck,
@@ -99,6 +100,24 @@ function parseDrawback(x: unknown): DrawbackInstance | null {
   return d;
 }
 
+/** カードの能力（MTG 要素 ○ バッチB）。ID が知らないものでも形が正しければ読み、analyzeCard の違反（ABILITY_UNKNOWN）にする */
+function parseAbility(x: unknown): AbilityInstance | null {
+  if (!isObj(x) || !isStr(x.id)) return null;
+  const value = optNum(x.value);
+  if (value === false) return null;
+  const a: AbilityInstance = { id: x.id };
+  if (value !== undefined) a.value = value;
+  if (x.option !== undefined) {
+    if (!isStr(x.option)) return null;
+    a.option = x.option;
+  }
+  if (x.condition !== undefined && x.condition !== null) {
+    if (!oneOf<ConditionId>(CONDITION_IDS, x.condition)) return null;
+    a.condition = x.condition;
+  }
+  return a;
+}
+
 function parseList<T>(x: unknown, parse: (y: unknown) => T | null): T[] | null {
   if (!Array.isArray(x)) return null;
   const out: T[] = [];
@@ -150,11 +169,15 @@ export function parseCard(x: unknown): Result<CardDef> {
   const keywords = parseList(x.keywords ?? [], parseKeyword);
   const effects = parseList(x.effects ?? [], parseEffect);
   const drawbacks = parseList(x.drawbacks ?? [], parseDrawback);
+  const abilities = parseList(x.abilities ?? [], parseAbility);
   if (!keywords) return { ok: false, error: `${label}のキーワードが正しくありません` };
+  if (!abilities) return { ok: false, error: `${label}のカードの能力が正しくありません` };
   if (!effects) return { ok: false, error: `${label}の効果が正しくありません` };
   if (!drawbacks) return { ok: false, error: `${label}のデメリットが正しくありません` };
   if (x.scale !== undefined && (!isNum(x.scale) || x.scale <= 0)) return { ok: false, error: `${label}の倍率が正しくありません` };
   const card: CardDef = { v: 1, id: x.id, name: x.name, icon: x.icon, rarity: x.rarity, cost: x.cost, stats, keywords, effects, drawbacks };
+  // カードの能力は、あるときだけ持たせる（古いデータ・能力のないカードの形を変えない）
+  if (abilities.length > 0) card.abilities = abilities;
   // 説明は見た目だけの任意項目。文字列でなければ無いものとして読み、長すぎれば切り詰める（カードごと捨てない）
   const description = normalizeDescription(x.description);
   if (description !== undefined) card.description = description;

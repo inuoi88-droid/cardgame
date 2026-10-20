@@ -10,7 +10,7 @@ import { Modal } from '../components/controls.tsx';
 import { Sheet } from '../components/Sheet.tsx';
 import { keywordGlossary } from '../glossary.ts';
 import { cx } from '../util.ts';
-import { monsterChips, powerLines } from './parts.tsx';
+import { attackOf, monsterChips, powerLines } from './parts.tsx';
 
 export interface DetailExtras {
   /** 場のモンスター（今の値・状態を出す） */
@@ -18,6 +18,8 @@ export interface DetailExtras {
   flags?: ReturnType<typeof battle.keywordFlags>;
   /** 今の持ち主が自分のターンを迎えた回数（消耗の表示） */
   ownerTurns?: number;
+  /** 実効攻撃力（激励を含む） */
+  attackNow?: number;
   /** 場に残っているパワー */
   power?: battle.PowerInst;
   /** 手札での今のコスト（元のコストと違えば並べて出す） */
@@ -40,7 +42,7 @@ const diff = (now: number, base: number) => (now === base ? null : now > base ? 
 function displayDef(def: CardDef, m: battle.Monster | undefined): CardDef {
   const t = m?.card.token;
   if (!t) return def;
-  return { ...def, stats: { attack: t.attack, hp: t.hp, defense: def.stats?.defense ?? 0 } };
+  return { ...def, stats: { attack: t.attack, hp: t.hp, defense: t.defense ?? 0 } };
 }
 
 export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; extras?: DetailExtras }) {
@@ -48,7 +50,7 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
   const def = displayDef(rawDef, m);
   const a = analyzeCard(def);
   const desc = descriptionOf(def);
-  const chips = m ? monsterChips(def, m, extras.flags ?? {}, extras.ownerTurns) : [];
+  const chips = m ? monsterChips(def, m, extras.flags ?? {}, extras.ownerTurns, extras.attackNow) : [];
   const statusChips = chips.filter((c) => !c.id.startsWith('kw:'));
   return (
     <div className="cdetail">
@@ -81,9 +83,9 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
               <div>
                 <dt>⚔ 攻撃力</dt>
                 <dd>
-                  {battle.effectiveAttack(m)}
-                  {diff(battle.effectiveAttack(m), def.stats.attack) && (
-                    <small className={battle.effectiveAttack(m) > def.stats.attack ? 'is-up' : 'is-down'}>{diff(battle.effectiveAttack(m), def.stats.attack)}</small>
+                  {attackOf(m, extras.attackNow)}
+                  {diff(attackOf(m, extras.attackNow), def.stats.attack) && (
+                    <small className={attackOf(m, extras.attackNow) > def.stats.attack ? 'is-up' : 'is-down'}>{diff(attackOf(m, extras.attackNow), def.stats.attack)}</small>
                   )}
                 </dd>
               </div>

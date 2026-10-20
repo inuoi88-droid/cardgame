@@ -6,6 +6,7 @@ import { BALANCE } from '../balance.ts';
 import type { KeywordDef } from '../define.ts';
 import { getKeyword } from '../registry.ts';
 import {
+  cardKeywords,
   cardName,
   checkGameEnd,
   findMonster,
@@ -19,6 +20,7 @@ import {
   isEnded,
 } from './core.ts';
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
+import { drawCards } from './zones.ts';
 import type { DamageKind, GameState, Monster, PlayerId, StatusKey, TargetRef } from './types.ts';
 
 export type { DamageKind } from './types.ts';
@@ -85,8 +87,7 @@ function onceFor(g: GameState, playKey: string | undefined, field: 'bleedHit' | 
 export function keywordFlags(g: GameState, m: Monster): KeywordDef['battle'] {
   const flags: KeywordDef['battle'] = {};
   if (m.sealed) return flags;
-  const def = g.cards[m.card.cardId];
-  for (const k of def?.keywords ?? []) {
+  for (const k of cardKeywords(g, m)) {
     const kd = getKeyword(k.id);
     if (kd) Object.assign(flags, kd.battle);
   }
@@ -101,8 +102,45 @@ export function keywordFlags(g: GameState, m: Monster): KeywordDef['battle'] {
 export function combatBonus(g: GameState, m: Monster): number {
   if (m.sealed) return 0;
   let n = 0;
-  for (const k of g.cards[m.card.cardId]?.keywords ?? []) n += getKeyword(k.id)?.battle.combatBonus?.(k) ?? 0;
+  for (const k of cardKeywords(g, m)) n += getKeyword(k.id)?.battle.combatBonus?.(k) ?? 0;
   return n;
+}
+
+/** 相手プレイヤーを攻撃するときだけ攻撃力に足す量（猛襲。封印中は0。MTG 要素 ○ バッチB） */
+export function playerBonus(g: GameState, m: Monster): number {
+  if (m.sealed) return 0;
+  let n = 0;
+  for (const k of cardKeywords(g, m)) n += getKeyword(k.id)?.battle.playerBonus?.(k) ?? 0;
+  return n;
+}
+
+/** 護法：相手のカードの「選んだ1体」にするときのコストの上乗せ（封印中は0。MTG 要素 ○ バッチB） */
+export function wardTax(g: GameState, m: Monster): number {
+  if (m.sealed) return 0;
+  let n = 0;
+  for (const k of cardKeywords(g, m)) n += getKeyword(k.id)?.battle.wardTax?.(k) ?? 0;
+  return n;
+}
+
+/**
+ * モンスターが場を離れるときの後始末（MTG 要素 ○ バッチB）：装備していたカードは、カードの持ち主の手札に戻る。
+ * 懸賞は、破壊されたときだけ掛けた人が引く（バウンス・一撃離脱・トークンの消滅では引けずに消える）
+ */
+export function onLeaveBoard(g: GameState, m: Monster, depth: number, destroyed: boolean): void {
+  const equipment = m.equipment ?? [];
+  delete m.equipment;
+  for (const card of equipment) {
+    g.players[card.owner].hand.push(card);
+    log(g, depth, `装備していた「${cardName(g, card.cardId)}」は${g.players[card.owner].name}の手札に戻った`);
+  }
+  const bounty = m.bounty ?? [];
+  delete m.bounty;
+  if (!destroyed) return;
+  for (const b of bounty) {
+    if (isEnded(g)) return;
+    log(g, depth, `懸賞：${g.players[b.player].name}がカードを${b.draw}枚引く`);
+    drawCards(g, b.player, b.draw, depth + 1);
+  }
 }
 
 /** 戦闘のダメージで働く接死・絆魂（出どころのモンスターから読む） */
@@ -316,6 +354,7 @@ export function destroyMonster(g: GameState, m: Monster, depth: number): void {
     cardId: m.card.cardId,
     uid: m.uid,
   });
+  onLeaveBoard(g, m, depth + 1, true);
   // このターンの記録（手番のプレイヤーの記録に、敵味方どちらのモンスターも数える）
   if (g.phase === 'main') {
     const turn = g.players[g.active].turn;
@@ -431,6 +470,11 @@ export function cleanse(g: GameState, p: PlayerId, protect: { poison: number; bu
   s.freezeActive = false;
   if (s.doom) s.doom = 0;
   g.players[p].turn.freezeTax = false;
+  // 封殺（MTG 要素 ○ バッチB）も解除する
+  if (g.players[p].quash) {
+    delete g.players[p].quash;
+    log(g, depth, `${g.players[p].name}の封殺が解けた`);
+  }
   const kept = s.poison + s.burn > 0 ? '（このカードのデメリットで付いた分は残る）' : '';
   log(g, depth, `${g.players[p].name}の状態異常をすべて解除した${kept}`);
 }

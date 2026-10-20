@@ -6,12 +6,13 @@ import { getDrawback, getEffect, getModifier } from '../registry.ts';
 import { describeDrawback, describeEffect } from '../text.ts';
 import type { EffectInstance } from '../types.ts';
 import { checkCondition } from './conditions.ts';
-import { destroyMonster } from './damage.ts';
+import { destroyMonster, keywordFlags } from './damage.ts';
 import { cardName, checkGameEnd, enqueue, findMonster, log, monsterLabel, newUid, other, playRecord } from './core.ts';
-import { finishCard } from './play.ts';
+import { executeFreePlay, finishCard } from './play.ts';
 import { makeRuntime, resolveTargets } from './runtime.ts';
 import { retainOptions, runAutoAttacks, turnEndEffects, turnEndFinish } from './turn.ts';
-import { discardChosen } from './zones.ts';
+import { bounce, createTokens, discardCard, discardChosen } from './zones.ts';
+import { classifyCard } from '../classify.ts';
 import { CONDITIONS, REPEAT_CAPPED_TIMINGS } from '../options.ts';
 import { NOISE_CARD_ID, type DelayedEffect, type GameState, type SourceRef, type Step } from './types.ts';
 
@@ -40,7 +41,15 @@ function executeStep(g: GameState, step: Step): void {
     case 'drawback':
       return executeDrawback(g, step);
     case 'cardDone':
-      return finishCard(g, step.player, step.card, step.protectKey, step.depth);
+      return finishCard(g, step.player, step.card, step.protectKey, step.depth, step.from ?? 'hand');
+    case 'freePlay':
+      return executeFreePlay(g, step);
+    case 'returnToHand':
+      return executeReturnToHand(g, step);
+    case 'reboundDone':
+      discardCard(g, step.card);
+      log(g, step.depth, `反復を終えた「${cardName(g, step.card.cardId)}」は捨て札に置かれた`, 'info');
+      return;
     case 'autoAttacks':
       return runAutoAttacks(g, step.player);
     case 'turnEndEffects':
@@ -106,9 +115,24 @@ function sourceGone(g: GameState, step: Extract<Step, { t: 'effect' }>): boolean
   return step.src.kind === 'monster' && REPEAT_CAPPED_TIMINGS.includes(step.timing) && !findMonster(g, step.src.uid);
 }
 
-function executeEffect(g: GameState, step: Extract<Step, { t: 'effect' }>): void {
-  const def = getEffect(step.effect.id);
+/** 成長（MTG 要素 ○ バッチB）：使ったカードの個体の分だけ、ダメージ・連撃の数値を足した写し */
+function grownStep(step: Extract<Step, { t: 'effect' }>, def: EffectDef): Extract<Step, { t: 'effect' }> {
+  if (!step.grow || !def.isDamage) return step;
+  return { ...step, effect: { ...step.effect, value: (step.effect.value ?? 0) + step.grow } };
+}
+
+/** 一撃離脱（MTG 要素 ○ バッチB）：攻撃したモンスターが場に残っていて封印されていなければ、持ち主の手札に戻す。トークンは残る */
+function executeReturnToHand(g: GameState, step: Extract<Step, { t: 'returnToHand' }>): void {
+  const m = findMonster(g, step.uid);
+  if (!m || m.card.token || !keywordFlags(g, m).returnAfterAttack) return;
+  log(g, step.depth, `一撃離脱：${monsterLabel(g, m)}は攻撃を終えて手札に戻る`);
+  bounce(g, m.uid, step.depth + 1);
+}
+
+function executeEffect(g: GameState, original: Extract<Step, { t: 'effect' }>): void {
+  const def = getEffect(original.effect.id);
   if (!def) return;
+  const step = grownStep(original, def);
   const me = step.src.controller;
   if (!step.picks) {
     if (sourceGone(g, step)) return;
@@ -118,6 +142,7 @@ function executeEffect(g: GameState, step: Extract<Step, { t: 'effect' }>): void
       log(g, step.depth + 1, `条件「${CONDITIONS[step.effect.condition].label}」を満たさないため発動しない`);
       return;
     }
+    if (step.grow && def.isDamage) log(g, step.depth + 1, `成長：数値+${step.grow}`, 'info');
   }
   // 数値の倍数：効果ファイルには掛けたあとの値の写しを渡す
   const scaled = scaledEffect(g, step, def);
@@ -141,7 +166,7 @@ function executeEffect(g: GameState, step: Extract<Step, { t: 'effect' }>): void
     attackCard: step.attackCard,
     ...(step.protectKey ? { protectKey: step.protectKey } : {}),
   });
-  if (def.targetRule !== 'self' && def.targetRule !== 'enemyPlayer' && targets.length === 0) {
+  if (def.targetRule !== 'self' && def.targetRule !== 'enemyPlayer' && targets.length === 0 && !def.resolveWithoutTargets) {
     log(g, step.depth + 1, '対象がいないため何も起きない');
     return;
   }
@@ -156,7 +181,7 @@ function executeEffect(g: GameState, step: Extract<Step, { t: 'effect' }>): void
       if (spec.options.length === 1 && spec.min >= 1) {
         picks = [spec.options[0]!.id];
       } else {
-        g.pending = { player: me, prompt: spec.prompt, options: spec.options, min: spec.min, max: spec.max, step };
+        g.pending = { player: me, prompt: spec.prompt, options: spec.options, min: spec.min, max: spec.max, step: original };
         return;
       }
     }
@@ -278,8 +303,22 @@ function executeDrawback(g: GameState, step: Extract<Step, { t: 'drawback' }>): 
 function executeDiscardChoice(g: GameState, step: Extract<Step, { t: 'discardChoice' }>): void {
   const ps = g.players[step.player];
   const n = Math.min(step.count, ps.hand.length);
+  const done = (uids: string[]) => {
+    const cards = uids.map((uid) => ps.hand.find((c) => c.uid === uid)).filter((c) => c !== undefined);
+    discardChosen(g, step.player, uids, step.depth);
+    // 徴募（MTG 要素 ○ バッチB）：捨てたのがスキルなら小鬼を出す
+    if (step.then === 'recruit') {
+      const skill = cards.some((c) => {
+        const def = g.cards[c.cardId];
+        return def !== undefined && c.cardId !== NOISE_CARD_ID && classifyCard(def) === 'skill';
+      });
+      const stat = BALANCE.effects.recruit.stat;
+      if (skill) createTokens(g, step.player, stat, stat, 1, step.depth);
+      else log(g, step.depth, '捨てたのはスキルではないので、小鬼は出ない');
+    }
+  };
   if (step.picks) {
-    discardChosen(g, step.player, step.picks.slice(0, n), step.depth);
+    done(step.picks.slice(0, n));
     return;
   }
   if (n === 0) {
@@ -287,7 +326,7 @@ function executeDiscardChoice(g: GameState, step: Extract<Step, { t: 'discardCho
     return;
   }
   if (n === ps.hand.length) {
-    discardChosen(g, step.player, ps.hand.map((c) => c.uid), step.depth);
+    done(ps.hand.map((c) => c.uid));
     return;
   }
   g.pending = {

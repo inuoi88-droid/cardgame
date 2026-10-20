@@ -1,9 +1,11 @@
 /** 発動タイミングごとに、効果・デメリットを解決キューに積む */
 import { BALANCE } from '../balance.ts';
 import { REPEAT_CAPPED_TIMINGS, TIMINGS } from '../options.ts';
-import type { CardDef, TimingId } from '../types.ts';
+import type { CardDef, EffectInstance, TimingId } from '../types.ts';
 import { enqueue, log, newUid } from './core.ts';
-import type { Chosen, GameState, PlayerId, PowerInst, SourceRef } from './types.ts';
+import { allyCandidates, chosenRules, enemyCandidates } from './play.ts';
+import { pick } from './rng.ts';
+import type { CardInst, Chosen, GameState, PlayerId, PowerInst, SourceRef } from './types.ts';
 
 interface FireOpts {
   /** アタック・パワーアタックの使用時（筋力・気合が乗る） */
@@ -11,6 +13,8 @@ interface FireOpts {
   /** 封印されたモンスター（効果は発動せず、デメリットだけ残る） */
   sealed?: boolean;
   protectKey?: string;
+  /** 成長（MTG 要素 ○ バッチB）：ダメージ・連撃の数値に足す量 */
+  grow?: number;
 }
 
 /**
@@ -36,7 +40,7 @@ export function enqueueCardTiming(
     enqueue(g, { t: 'exploitChoice', player: src.controller, protectKey, depth });
   }
   for (const effect of effects) {
-    enqueue(g, { t: 'effect', src, effect, timing, chosen, attackCard: opts.attackCard ?? false, protectKey, depth });
+    enqueue(g, { t: 'effect', src, effect, timing, chosen, attackCard: opts.attackCard ?? false, protectKey, depth, ...(opts.grow ? { grow: opts.grow } : {}) });
   }
 }
 
@@ -140,6 +144,10 @@ export function enqueueDelayed(g: GameState, p: PlayerId): void {
   if (list.length === 0) return;
   ps.delayed = [];
   for (const d of list) {
+    if (d.rebound) {
+      enqueueRebound(g, p, d.src, d.rebound.card, d.rebound.effects);
+      continue;
+    }
     enqueue(g, {
       t: 'effect',
       src: { ...d.src, controller: p },
@@ -151,4 +159,38 @@ export function enqueueDelayed(g: GameState, p: PlayerId): void {
       depth: 1,
     });
   }
+}
+
+/**
+ * 反復（MTG 要素 ○ バッチB）の2回目：使用時の効果をまとめて積み、そのあとカードを捨て札へ。
+ * 「選んだ1体」はランダムな合法の対象（相手側は選べる候補から、自分側は自分のモンスターから）。カードを使ったことには数えない
+ */
+function enqueueRebound(g: GameState, p: PlayerId, src: SourceRef, card: CardInst, effects: EffectInstance[]): void {
+  const def = g.cards[card.cardId];
+  const chosen: Chosen = {};
+  if (def) {
+    const rules = chosenRules(def);
+    const enemy = pick(g, enemyCandidates(g, p, rules.enemy));
+    if (enemy) chosen.enemy = enemy;
+    if (rules.ally) {
+      const ally = pick(g, allyCandidates(g, p, card).filter((uid) => uid !== card.uid));
+      if (ally) chosen.ally = ally;
+    }
+  }
+  log(g, 1, `反復：「${src.name}」の使用時の効果がもう一度発動する`, 'effect', undefined, { kind: 'status', player: p, cardId: card.cardId, uid: card.uid, status: 'rebound' });
+  const protectKey = newUid(g, 'pk');
+  for (const effect of effects) {
+    enqueue(g, {
+      t: 'effect',
+      src: { ...src, controller: p },
+      effect,
+      timing: 'play',
+      chosen,
+      attackCard: false,
+      protectKey,
+      depth: 2,
+      ...(card.grow ? { grow: card.grow } : {}),
+    });
+  }
+  enqueue(g, { t: 'reboundDone', card, depth: 2 });
 }

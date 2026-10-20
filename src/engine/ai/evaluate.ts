@@ -12,8 +12,8 @@
  */
 import { BALANCE } from '../balance.ts';
 import { attackBlockReason, attacksPerTurn, cannotAttack } from '../battle/combat.ts';
-import { effectiveAttack, other } from '../battle/core.ts';
-import { combatBonus, keywordFlags } from '../battle/damage.ts';
+import { auraAttack, effectiveAttack, other } from '../battle/core.ts';
+import { combatBonus, keywordFlags, playerBonus, wardTax } from '../battle/damage.ts';
 import { effectiveCost, lifespanOf } from '../battle/play.ts';
 import { energyForTurn } from '../battle/turn.ts';
 import { effectPoints } from '../points.ts';
@@ -100,6 +100,29 @@ export const WEIGHTS = {
    */
   delayed: 0.8,
   pointsPerHp: 3,
+  // ---- MTG 要素 ○ バッチB
+  /** 借用中のモンスター：借りた側の価値に掛ける割合 */
+  borrowedFactor: 0.5,
+  /** 護法：追加コスト1につき */
+  ward: 1 * S,
+  /** 威圧・一撃離脱・分身（まだ使っていない） */
+  menace: 1 * S,
+  hitAndRun: 0.5 * S,
+  doubleTeam: 1.5 * S,
+  /** 封殺を掛けられている（次に使うカードが無効になる） */
+  quashed: 3 * S,
+  /** 恩恵：上乗せ×回数に、筋力の重みのこの割合 */
+  boonFactor: 0.5,
+  /** 装備しているカード1枚（場を離れると手札に戻る） */
+  equipment: 0.5 * S,
+  /** 懸賞（掛けた側が引く1枚） */
+  bounty: 1 * S,
+  /**
+   * 見える情報では山札が隠れていて仮の実行で価値が出ない効果の見込み（sim.ts の hiddenDeckBonus）：
+   * 続唱はコスト1につき、抽出は1枚
+   */
+  cascadePerCost: 2 * S,
+  seekCard: 1.5 * S,
 } as const;
 
 const W = WEIGHTS;
@@ -179,7 +202,7 @@ export function nextEnergy(g: GameState, p: PlayerId): number {
   const ps = g.players[p];
   const penalty = p === g.first && ps.turnsTaken + 1 === 1 ? B.firstPlayerFirstTurnPenalty : 0;
   const carried = ps.next.energy > 0 ? Math.min(ps.next.energy, B.maxEnergyGainPerTurn) : ps.next.energy;
-  return Math.max(0, energyForTurn(ps.turnsTaken + 1) - penalty + carried);
+  return Math.max(0, energyForTurn(ps.turnsTaken + 1) - penalty + carried + (ps.energyBonus ?? 0));
 }
 
 /** 消耗（MTG 要素 ○ バッチA）で、次の持ち主のターンに攻撃できないか */
@@ -195,8 +218,11 @@ export function nextTurnThreat(g: GameState, p: PlayerId): Threat {
     if (m.betraying || m.status.freezePending || cannotAttack(g, m)) continue;
     // 消耗：次の自分のターンは攻撃できない
     if (exertedNextTurn(g, m)) continue;
+    // 応召の一時トークンは次のターンにはいない
+    if (m.card.token?.temp) continue;
     const n = attacksPerTurn(g, m);
-    let atk = m.attack;
+    // 激励・猛襲（相手プレイヤーへの攻撃）も見込む
+    let atk = m.attack + auraAttack(g, m) + playerBonus(g, m);
     if (m.status.weak > 0) atk = Math.floor(atk * (1 - B.weakRate));
     if (m.status.confusePending) atk *= W.confusedFactor;
     board += atk * n;
@@ -215,7 +241,7 @@ export function remainingPotential(g: GameState, p: PlayerId): { damage: number;
   for (const m of ps.board) {
     if (attackBlockReason(g, m)) continue;
     const left = attacksPerTurn(g, m) - m.attacksUsed;
-    damage += effectiveAttack(m) * left;
+    damage += effectiveAttack(g, m) * left;
     attacks += left;
   }
   const cards = handFaceDamage(g, p);
@@ -288,11 +314,17 @@ function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   const k = keywordFlags(g, m);
   const n = attacksPerTurn(g, m);
   const T = ctx.turnsLeft;
+  // 応召の一時トークン：このターンに残っている攻撃のぶんだけ価値がある（ターン終了時に消える）
+  if (m.card.token?.temp) {
+    const canAttack = g.phase === 'main' && g.active === m.controller && !attackBlockReason(g, m);
+    return canAttack ? effectiveAttack(g, m) * (n - m.attacksUsed) * W.readyAttack : 0;
+  }
   let attackTurns = T;
   if (m.status.freezePending || m.status.freezeActive) attackTurns -= 1;
   if (m.status.weak > 0) attackTurns -= Math.min(m.status.weak, attackTurns) * B.weakRate;
   // 防衛：攻撃しないので打点として数えない
-  let attackVal = cannotAttack(g, m) ? 0 : m.attack * n * W.monsterAttack * Math.max(0, attackTurns);
+  // 激励で上がっている分も打点（激励を持つモンスターの価値は、味方の攻撃力の上がり方に出る）
+  let attackVal = cannotAttack(g, m) ? 0 : (m.attack + auraAttack(g, m)) * n * W.monsterAttack * Math.max(0, attackTurns);
   if (m.status.confusePending || m.status.confuseActive) attackVal *= W.confusedFactor;
   // 消耗：次の自分のターンは攻撃できないので、打点を半分に数える
   if (exertedNextTurn(g, m)) attackVal *= W.exertFactor;
@@ -315,12 +347,20 @@ function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   if (k.undying && !m.undyingUsed) v += W.undying;
   if (m.stealth) v += W.stealth;
   if (m.sealed) v -= W.sealed;
+  // MTG 要素 ○ バッチB
+  if (!m.sealed) v += wardTax(g, m) * W.ward;
+  if (k.noRetaliation) v += W.menace;
+  if (k.returnAfterAttack) v += W.hitAndRun;
+  if (k.doubleTeam && !m.card.token) v += W.doubleTeam;
+  v += (m.equipment?.length ?? 0) * W.equipment;
   v -= Math.min(decayingTotal(m.status.poison, B.poisonKeepRate), m.hp) * W.poison;
   v -= Math.min(m.status.burn * B.burnDamage, m.hp) * W.burn;
   if (m.status.vulnerable > 0) v -= W.monsterVulnerable;
   // 寿命：残りが短いほど価値が下がる
   const life = m.counters.life ?? lifespanOf(def);
   if (life !== undefined) v *= Math.min(1, W.lifespanBase + W.lifespanPerTurn * life);
+  // 借用中：期限で元の持ち主に戻る
+  if (m.counters.borrowLeft !== undefined) v *= W.borrowedFactor;
   return v;
 }
 
@@ -372,8 +412,16 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
     v += pw.effects.filter((x) => !x.removed).length * W.power * life;
   }
   v += ps.next.energy * W.nextEnergy + ps.next.draw * W.nextDraw + ps.discount * W.discount;
-  // 予約した効果（次のターンに）：効果のポイントを HP に換算して足す（そうしないと、予約するカードを使う意味がないと判断してしまう）
-  for (const d of ps.delayed ?? []) v += (effectPoints(d.effect, NO_CARD).raw / W.pointsPerHp) * W.delayed;
+  // 予約した効果（次のターンに）：効果のポイントを HP に換算して足す（そうしないと、予約するカードを使う意味がないと判断してしまう）。
+  // 反復はカードの使用時の効果すべて
+  for (const d of ps.delayed ?? []) {
+    for (const e of d.rebound?.effects ?? [d.effect]) v += (effectPoints(e, NO_CARD).raw / W.pointsPerHp) * W.delayed;
+  }
+  // MTG 要素 ○ バッチB：封殺・恩恵・最大エナジー増加・懸賞（相手のモンスターに掛けた分）
+  if (ps.quash && g.turnIndex <= ps.quash.until) v -= W.quashed;
+  v += (s.boon ?? 0) * (s.boonUses ?? 0) * W.strength * W.boonFactor;
+  v += (ps.energyBonus ?? 0) * W.cardDamagePerEnergy * (1 + ctx.turnsLeft);
+  for (const m of g.players[user].board) for (const b of m.bounty ?? []) if (b.player === p) v += b.draw * W.bounty;
   v -= ps.deck.filter((c) => c.cardId === NOISE_CARD_ID).length * W.noiseInDeck;
   for (const m of ps.board) v += monsterValue(g, m, ctx);
 

@@ -4,7 +4,7 @@
  * 「量」（ステータスと、量の入力欄を持つ効果・キーワード・デメリットの値）に倍率の比を掛けて今の倍率にそろえる。
  */
 import { BALANCE } from './balance.ts';
-import { getDrawback, getEffect, getKeyword } from './registry.ts';
+import { getAbility, getDrawback, getEffect, getKeyword } from './registry.ts';
 import type { CardDef } from './types.ts';
 
 const SCALE = BALANCE.amountScale;
@@ -30,6 +30,7 @@ export function scaleCardValues(card: CardDef, f: number): CardDef {
     keywords: card.keywords.map((k) => (getKeyword(k.id)?.value?.scaled ? { ...k, value: mul(k.value, f) } : k)),
     effects: card.effects.map((e) => (getEffect(e.id)?.value?.scaled ? { ...e, value: mul(e.value, f) } : e)),
     drawbacks: card.drawbacks.map((d) => (getDrawback(d.id)?.value?.scaled ? { ...d, value: mul(d.value, f) } : d)),
+    ...(card.abilities ? { abilities: card.abilities.map((a) => (getAbility(a.id)?.value?.scaled ? { ...a, value: mul(a.value, f) } : a)) } : {}),
   };
 }
 

@@ -413,6 +413,47 @@ describe('時間切れ（決定事項 #57）', () => {
   });
 });
 
+describe('MTG 要素 ○ バッチB（サーバー越し）', () => {
+  it('発見：選択肢（山札の上）は相手に見えず、本人が選んで送れる', () => {
+    const { s, now } = playing(BEASTS, BEASTS);
+    const g = s.room!.state!;
+    const p = g.active;
+    const opp = battle.other(p);
+    const uid = giveCard(g, p, card({ id: 'disc', name: '発見', effects: [{ id: 'discover', timing: 'play', target: 'self', condition: null }] }));
+    g.players[p].energy = 10;
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'playCard', player: p, cardUid: uid }), { tokenHash: tokenOf(p), now }));
+    const mine = ok(s.send(stateReq(tokenOf(p)), { tokenHash: tokenOf(p), now: now + 1 })).view!;
+    const theirs = ok(s.send(stateReq(tokenOf(opp)), { tokenHash: tokenOf(opp), now: now + 1 })).view!;
+    expect(mine.pending!.options).toHaveLength(3);
+    expect(theirs.pending!.options).toEqual([]);
+    expectHidden(theirs, opp);
+    const pick = mine.pending!.options[1]!.id;
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'choose', player: p, picks: [pick] }), { tokenHash: tokenOf(p), now: now + 2 }));
+    expect(s.room!.state!.players[p].hand.some((c) => c.uid === pick)).toBe(true);
+  });
+
+  it('続唱：無料で使うカードの対象は、使った人が選んで送る（護法の追加コストは払わない）', () => {
+    const { s, now } = playing(BEASTS, BEASTS);
+    const g = s.room!.state!;
+    const p = g.active;
+    const opp = battle.other(p);
+    const bolt = card({ id: 'bolt9', name: '雷', cost: 1, effects: [{ id: 'damage', value: 3, timing: 'play', target: 'chosen', condition: null }] });
+    g.cards[`p${p}:bolt9`] = bolt;
+    g.players[p].deck.unshift({ uid: 'top', cardId: `p${p}:bolt9`, owner: p });
+    const uid = giveCard(g, p, card({ id: 'casc', name: '続唱', rarity: 'rare', effects: [{ id: 'cascade', value: 1, timing: 'play', target: 'self', condition: null }] }));
+    g.players[p].energy = 1;
+    const hp = g.players[opp].hp;
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'playCard', player: p, cardUid: uid }), { tokenHash: tokenOf(p), now }));
+    const pending = s.room!.state!.pending;
+    if (pending) {
+      expect(pending.player).toBe(p);
+      ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'choose', player: p, picks: [`player:${opp}`] }), { tokenHash: tokenOf(p), now: now + 1 }));
+    }
+    expect(s.room!.state!.players[opp].hp).toBe(hp - 3 * BALANCE.amountScale);
+    expect(s.room!.state!.players[p].energy).toBe(0);
+  });
+});
+
 describe('接続状態と再接続', () => {
   it('相手から30秒以上通信がなければ「切断中」', () => {
     const { s, now } = playing();

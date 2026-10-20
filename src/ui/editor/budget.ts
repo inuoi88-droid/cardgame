@@ -40,6 +40,8 @@ export function budgetOf(a: CardAnalysis, card: CardDef): BudgetModel {
   const segments = { stat: 0, keyword: 0, effect: 0 };
   for (const l of p.lines) {
     if (l.kind === 'stat' || l.kind === 'keyword' || l.kind === 'effect') segments[l.kind] += l.value;
+    // カードの能力（MTG 要素 ○ バッチB）は効果の帯に含める
+    if (l.kind === 'ability') segments.effect += l.value;
   }
   const costBonus = costPoints(card.cost);
   const budget = p.cap + costBonus;

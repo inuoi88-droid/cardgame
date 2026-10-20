@@ -3,7 +3,9 @@ import { BALANCE } from '../balance.ts';
 import { getDrawback } from '../registry.ts';
 import {
   allMonsters,
+  cardName,
   effectiveAttack,
+  enqueue,
   findMonster,
   log,
   monsterLabel,
@@ -15,7 +17,7 @@ import {
   targetLabel,
   isEnded,
 } from './core.ts';
-import { combatBonus, combatSourceOf, dealDamage, keywordFlags, targetableTaunts } from './damage.ts';
+import { combatBonus, combatSourceOf, dealDamage, keywordFlags, playerBonus, targetableTaunts } from './damage.ts';
 import { enqueueCardTiming } from './triggers.ts';
 import type { GameState, Monster, TargetRef } from './types.ts';
 
@@ -80,22 +82,26 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   }
   const attackerRef: TargetRef = { kind: 'monster', uid: m.uid };
   log(g, depth, `${monsterLabel(g, m)}が${targetLabel(g, target)}を攻撃${note}`, 'action', undefined, { kind: 'attack', source: attackerRef, target });
+  // MTG 要素 ○ バッチB：攻撃する前のキーワード（威圧・一撃離脱・分身）
+  const flags = keywordFlags(g, m);
+  const doubleTeam = flags.doubleTeam === true && !m.card.token;
   const defender = target.kind === 'monster' ? findMonster(g, target.uid) : undefined;
   // この1回の攻撃の記録のキー：出血・反撃（状態）は攻撃と「攻撃するたび」の効果を合わせて1回（決定事項 #70 R4）
   const playKey = newUid(g, 'pk');
   // モンスターの反撃（決定事項 #69）：攻撃される前の守備側の攻撃力（一時強化・武士道を含む）・弱体・接死・絆魂で決まる（同時に解決する扱い）
-  const retaliationAmount = defender ? effectiveAttack(defender) + combatBonus(g, defender) : 0;
+  const retaliationAmount = defender ? effectiveAttack(g, defender) + combatBonus(g, defender) : 0;
   const retaliation =
     defender && BALANCE.battle.retaliation.enabled && retaliationAmount > 0
       ? { amount: retaliationAmount, weak: defender.status.weak > 0, label: monsterLabel(g, defender), source: combatSourceOf(g, defender) }
       : null;
   /** 先制攻撃：攻撃で相手モンスターを倒したら反撃を受けない */
   const firstStrike = keywordFlags(g, m).firstStrike === true;
-  // 武士道：モンスターと戦うときだけ攻撃力に足す
-  const amount = effectiveAttack(m) + (defender ? combatBonus(g, m) : 0);
+  // 武士道：モンスターと戦うときだけ攻撃力に足す。猛襲：相手プレイヤーを攻撃するときだけ足す
+  const enemy = other(m.controller);
+  const toEnemyPlayer = target.kind === 'player' && target.player === enemy;
+  const amount = effectiveAttack(g, m) + (defender ? combatBonus(g, m) : toEnemyPlayer ? playerBonus(g, m) : 0);
   const r = dealDamage(g, target, amount, { kind: 'attack', source: attackerRef, playKey, depth: depth + 1 });
   if (isEnded(g)) return;
-  const enemy = other(m.controller);
   /** 相手プレイヤーのHPを減らしたか（「相手プレイヤーにダメージを与えたとき」。裏切り・混乱で自分を殴ったときは数えない） */
   let hitEnemy = target.kind === 'player' && target.player === enemy && r.hpLost > 0;
   // 貫通：モンスターを倒して余ったダメージは、そのモンスターの持ち主のプレイヤーへ
@@ -107,7 +113,9 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   }
   // 反撃：守備側が倒れていても、封印・凍結・隠密でも返す。守備側の「攻撃するたび」は発動しない。
   // 先制攻撃のモンスターが相手を倒したときは反撃を受けない
-  if (retaliation && defender && firstStrike && r.destroyed) {
+  if (retaliation && defender && flags.noRetaliation) {
+    log(g, depth + 1, `威圧：${retaliation.label}の反撃を受けない`);
+  } else if (retaliation && defender && firstStrike && r.destroyed) {
     log(g, depth + 1, `先制攻撃：${retaliation.label}の反撃を受けない`);
   } else if (retaliation && defender) {
     dealDamage(g, attackerRef, retaliation.amount, {
@@ -129,6 +137,16 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
     // 相手プレイヤーにダメージを与えたとき（1回の攻撃で最大1回）
     if (def && hitEnemy) enqueueCardTiming(g, sourceOfMonster(g, attacker), def, 'hitEnemyPlayer', {}, depth + 1, { protectKey: playKey });
   }
+  // 分身（MTG 要素 ○ バッチB）：初めて攻撃したとき、分身を失ったこのカードのコピーを今の持ち主の手札に。元のカードも分身を失う
+  if (doubleTeam) {
+    const lost = [...(m.card.lostKeywords ?? []), 'doubleTeam'];
+    m.card.lostKeywords = lost;
+    const copy = { uid: newUid(g, 'c'), cardId: m.card.cardId, owner: m.card.owner, copy: 'keep' as const, lostKeywords: ['doubleTeam'] };
+    g.players[m.controller].hand.push(copy);
+    log(g, depth + 1, `分身：「${cardName(g, m.card.cardId)}」のコピー（分身なし）を${g.players[m.controller].name}の手札に加えた`);
+  }
+  // 一撃離脱：攻撃に関わる処理がすべて終わったあと、場に残っていれば手札に戻る
+  if (flags.returnAfterAttack && !m.card.token) enqueue(g, { t: 'returnToHand', uid: m.uid, depth: depth + 1 });
 }
 
 /** 混乱・裏切りの自動攻撃の対象 */

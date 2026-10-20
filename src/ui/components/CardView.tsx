@@ -60,6 +60,15 @@ export function CardView({ card, analysis, size = 'lg', onClick, actionLabel }: 
         {a.text.effects.map((t, i) => (
           <p key={i}>{t}</p>
         ))}
+        {a.text.abilities.length > 0 && (
+          <div className="card__keywords card__abilities">
+            {a.text.abilities.map((x, i) => (
+              <span key={`a${i}`} className="kw kw--ability" title={x.text}>
+                ✦{x.name}
+              </span>
+            ))}
+          </div>
+        )}
         {a.text.drawbacks.map((t, i) => (
           <p key={`d${i}`} className="card__drawback">
             {t}

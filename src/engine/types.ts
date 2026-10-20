@@ -131,6 +131,18 @@ export interface DrawbackInstance {
   option?: string;
 }
 
+/**
+ * カードの能力（MTG 要素 ○ バッチB）。モンスター以外にも付く、カード単位の性質（循環・再利用・反復・成長など）。
+ * 定義は defs/abilities/。1枚に BALANCE.card.maxAbilities まで、同じ id は1つ
+ */
+export interface AbilityInstance {
+  id: string;
+  value?: number;
+  option?: string;
+  /** 能力に付ける条件（バッチC1 の条件付き軽減で使う。今は使わない） */
+  condition?: ConditionId;
+}
+
 export interface CardDef {
   /** データ形式のバージョン */
   v: 1;
@@ -145,6 +157,8 @@ export interface CardDef {
   keywords: KeywordInstance[];
   effects: EffectInstance[];
   drawbacks: DrawbackInstance[];
+  /** カードの能力（MTG 要素 ○ バッチB）。省略は無し */
+  abilities?: AbilityInstance[];
   /**
    * プレイヤーが書く短い説明（フレーバーや使い方のメモ）。任意。ポイントやルールには関係しない。
    * 読み込み時に前後の空白・制御文字を除き、CARD_DESCRIPTION_MAX 文字を超えた分は切り詰める（io.ts の normalizeDescription）
@@ -184,8 +198,8 @@ export interface PointLine {
   /** 合計に加える値（コスト・デメリットは負） */
   value: number;
   /** limit：デメリットのうち差し引けない分を戻す行 */
-  kind: 'stat' | 'keyword' | 'effect' | 'cost' | 'drawback' | 'limit';
-  /** effects / drawbacks / keywords の何番目か */
+  kind: 'stat' | 'keyword' | 'effect' | 'ability' | 'cost' | 'drawback' | 'limit';
+  /** effects / drawbacks / keywords / abilities の何番目か */
   index?: number;
 }
 
@@ -207,6 +221,8 @@ export interface CardText {
   effects: string[];
   keywords: { name: string; text: string }[];
   drawbacks: string[];
+  /** カードの能力（カードの下段に表示） */
+  abilities: { name: string; text: string }[];
 }
 
 export interface CardAnalysis {

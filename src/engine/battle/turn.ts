@@ -8,7 +8,7 @@ import { lifespanOf } from './play.ts';
 import { randInt } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
 import { enqueueDelayed, enqueueMonsters, enqueuePowers } from './triggers.ts';
-import { discardCard, drawCards } from './zones.ts';
+import { discardCard, drawCards, returnBorrowed, vanish } from './zones.ts';
 import type { GameState, PlayerId, Statuses } from './types.ts';
 
 const B = BALANCE.battle;
@@ -95,7 +95,9 @@ export function startTurn(g: GameState, p: PlayerId): void {
   // 後攻の1ターン目の補正（既定は0。先攻後攻の差を測り直すための調整つまみ）
   const secondFirstTurn = p !== g.first && ps.turnsTaken === 1;
   const secondBonus = secondFirstTurn ? B.secondPlayerFirstTurnBonusEnergy : 0;
-  const base = scheduled - firstPenalty + secondBonus;
+  // 最大エナジー増加（MTG 要素 ○ バッチB）：基本エナジーに足す（1ターンの増加の上限には数えない）
+  const ramp = ps.energyBonus ?? 0;
+  const base = scheduled - firstPenalty + secondBonus + ramp;
   const limits = turnLimits(g, ps);
   const carried = ps.next.energy > 0 ? Math.min(ps.next.energy, B.maxEnergyGainPerTurn) : ps.next.energy;
   if (carried > 0) limits.energyGained += carried;
@@ -105,6 +107,7 @@ export function startTurn(g: GameState, p: PlayerId): void {
     firstPenalty ? `先攻の1ターン目は−${firstPenalty}` : '',
     secondBonus ? `後攻の1ターン目は+${secondBonus}` : '',
     B.energySchedule.some((s) => s.fromTurn === ps.turnsTaken && s.fromTurn > 1) ? `このターンから基本${scheduled}` : '',
+    ramp ? `最大エナジー増加で+${ramp}` : '',
     carried ? `基本${base}${carried > 0 ? '+' : '−'}${Math.abs(carried)}${capNote}` : '',
   ].filter(Boolean);
   log(g, 1, `${ps.name}のエナジー：${ps.energy}${notes.length ? `（${notes.join('、')}）` : ''}`, 'info', undefined, {
@@ -196,6 +199,19 @@ export function turnEndEffects(g: GameState, p: PlayerId): void {
  */
 function boardTurnEnd(g: GameState, p: PlayerId): void {
   const ps = g.players[p];
+  // 応召の一時トークンは持ち主のターン終了時に消える（破壊ではない）。借用は期限を数え、0 で元の持ち主の場へ（MTG 要素 ○ バッチB）
+  for (const m of [...ps.board]) {
+    if (!ps.board.includes(m)) continue;
+    if (m.card.token?.temp) {
+      vanish(g, m, 1, `${monsterLabel(g, m)}は去った（応召・ターン終了時に消える）`);
+      continue;
+    }
+    if (m.counters.borrowLeft !== undefined) {
+      m.counters.borrowLeft -= 1;
+      if (m.counters.borrowLeft <= 0) returnBorrowed(g, m, 1);
+      else log(g, 1, `${monsterLabel(g, m)}の借用：あと${m.counters.borrowLeft}ターン`, 'info');
+    }
+  }
   for (const m of [...ps.board]) {
     if (!ps.board.includes(m)) continue;
     const def = g.cards[m.card.cardId];
@@ -250,6 +266,11 @@ export function turnEndFinish(g: GameState, p: PlayerId, kept: string[]): void {
   }
   ps.status.focus = 0;
   ps.turn.freezeTax = false;
+  // 封殺（MTG 要素 ○ バッチB）：期限のターンが終わったら消える
+  if (ps.quash && ps.quash.until <= g.turnIndex) {
+    delete ps.quash;
+    log(g, 1, `${ps.name}の封殺の期限が切れた`, 'info');
+  }
   // このターンの記録を残す（条件「前の相手のターンに相手がカードを3枚以上使った」。MTG 要素 ○ バッチA）
   ps.lastTurn = { cardsPlayed: ps.turn.cardsPlayed };
   // 一時強化はターンの終わりに消える（両者のモンスター）

@@ -7,6 +7,8 @@ import {
   EFFECT_GROUPS,
   RARITY_LABEL,
   availableDrawbacks,
+  drawbackFitsBase,
+  getDrawback,
   availableEffects,
   cardBase,
   createDrawback,
@@ -17,6 +19,7 @@ import {
   listEffects,
   listKeywords,
   type CardDef,
+  type DrawbackDef,
   type EffectGroup,
 } from '../../engine/index.ts';
 import { Sheet } from '../components/Sheet.tsx';
@@ -57,6 +60,12 @@ interface Props {
   onClose: () => void;
 }
 
+/** 同時に付けられないデメリット（防衛と裏切りなど）がカードにあれば、その名前 */
+function conflictName(d: DrawbackDef, card: CardDef): string | undefined {
+  const x = card.drawbacks.find((c) => d.conflicts?.includes(c.id) || getDrawback(c.id)?.conflicts?.includes(d.id));
+  return x ? (getDrawback(x.id)?.name ?? x.id) : undefined;
+}
+
 const TITLE: Record<PickerMode, string> = { effect: '効果を追加', drawback: 'デメリットを追加', keyword: 'キーワード' };
 
 export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) {
@@ -93,7 +102,17 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
         name: d.name,
         summary: d.summary,
         points: drawbackPoints(createDrawback(d.id, base), card).value,
-        locked: ok.has(d.id) ? undefined : used.has(d.id) ? '追加済み（同じデメリットは1回まで）' : d.monsterOnly ? 'モンスター専用' : '選べません',
+        locked: ok.has(d.id)
+          ? undefined
+          : used.has(d.id)
+            ? '追加済み（同じデメリットは1回まで）'
+            : d.monsterOnly && base !== 'monster'
+              ? 'モンスター専用'
+              : !drawbackFitsBase(d, base)
+                ? 'このカードの種類には付けられません'
+                : conflictName(d, card)
+                  ? `「${conflictName(d, card)}」と同時には付けられません`
+                  : '選べません',
       }));
     }
     const stats = card.stats ?? { attack: 0, hp: 0, defense: 0 };

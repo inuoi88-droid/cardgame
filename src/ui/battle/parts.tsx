@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { BALANCE, battle, CARD_TYPE_LABEL, analyzeCard, getEffect, TIMINGS, type CardDef } from '../../engine/index.ts';
 import { Popover, type PopoverCard } from '../components/Popover.tsx';
-import { glossary, keywordGlossary, type GlossaryEntry } from '../glossary.ts';
+import { glossary, keywordGlossary, mechanicGlossary, type GlossaryEntry } from '../glossary.ts';
 import { cx } from '../util.ts';
 import { logIcon, tokenizeLog, type LogNames } from './logFormat.ts';
 import type { Float } from './useReplay.ts';
@@ -30,6 +30,7 @@ export function statusChips(s: Statuses, isPlayer: boolean): Chip[] {
   const out: Chip[] = [];
   const add = (id: string, cond: unknown, chip: Omit<Chip, 'id'>) => cond && out.push({ id, ...chip });
   add('poison', s.poison, chipOf(G.poison, String(s.poison), [`次の自分のターン開始時に${s.poison}ダメージ → そのあと${Math.floor(s.poison / 2)}に`]));
+  add('doom', s.doom, chipOf(G.doom, String(s.doom ?? 0), [`自分のターン開始時に毎回${s.doom ?? 0}ダメージ（減らない。浄化で消える）`]));
   add('burn', s.burn, chipOf(G.burn, `${s.burn}T`, [`残り${s.burn}ターン`]));
   add('weak', s.weak, chipOf(G.weak, `${s.weak}T`, [`残り${s.weak}ターン`]));
   add('vulnerable', s.vulnerable, chipOf(G.vulnerable, `${s.vulnerable}T`, [`残り${s.vulnerable}ターン`]));
@@ -189,6 +190,7 @@ export function PlayerPanel({ ps, isMe, active, targetable, onClick, onPile, flo
             aria-label={`パワー「${pw.name}」の詳細`}
           >
             ✦{pw.name}
+            {pw.life !== undefined && <span className="st__life">{` ${mechanicGlossary.lifespan!.icon}${pw.life}`}</span>}
           </button>
         ))}
       </div>
@@ -199,7 +201,8 @@ export function PlayerPanel({ ps, isMe, active, targetable, onClick, onPile, flo
 
 export function powerLines(pw: battle.PowerInst): ReactNode[] {
   const effects = pw.effects.filter((x) => !x.removed).map((x) => `${TIMINGS[x.effect.timing]?.label ?? ''}：${getEffect(x.effect.id)?.name ?? x.effect.id}`);
-  return [...effects, ...pw.drawbacks.map((d) => `☠ デメリット（${d.timing ? TIMINGS[d.timing].label : ''}）`)];
+  const life = pw.life !== undefined ? [`${mechanicGlossary.lifespan!.icon} 寿命：残り${pw.life}（持ち主のターン終了時に1減り、0で消える）`] : [];
+  return [...effects, ...pw.drawbacks.map((d) => `☠ デメリット（${d.timing ? TIMINGS[d.timing].label : ''}）`), ...life];
 }
 
 // ---------------------------------------------------------------- モンスター
@@ -247,6 +250,34 @@ export function monsterChips(def: CardDef | undefined, m: battle.Monster, flags:
   if (m.sealed) extra.push({ id: 'sealed', label: `${glossary.seal.icon}封印`, tone: 'bad', card: { title: '🔒 封印', description: glossary.seal.short } });
   if (m.stealth) extra.push({ id: 'stealth', label: `${glossary.stealth.icon}隠密中`, tone: 'info', card: { title: '👤 隠密', description: glossary.stealth.short } });
   if (m.betraying) extra.push({ id: 'betraying', label: `${glossary.betrayal.icon}裏切り`, tone: 'bad', card: { title: '🗡 裏切り', description: glossary.betrayal.short } });
+  const M = mechanicGlossary;
+  if (m.card.token) extra.push({ id: 'token', label: `${M.token!.icon}トークン`, tone: 'info', card: { title: `${M.token!.icon} ${M.token!.name}`, description: M.token!.short } });
+  if (!m.sealed) {
+    for (const id of m.granted ?? []) {
+      const g = keywordGlossary[id];
+      extra.push({
+        id: `gr:${id}`,
+        label: `${M.granted!.icon}${g?.icon ?? ''}${g?.name ?? id}`,
+        tone: 'kw',
+        card: { title: `${M.granted!.icon} 付与：${g?.name ?? id}`, description: g?.short ?? '', lines: [M.granted!.short] },
+      });
+    }
+  }
+  if (m.tempAttack) {
+    extra.push({
+      id: 'temp',
+      label: `${M.tempAttack!.icon}攻撃+${m.tempAttack}`,
+      tone: 'good',
+      card: { title: `${M.tempAttack!.icon} 一時強化 +${m.tempAttack}`, description: M.tempAttack!.short, lines: [`もとの攻撃力 ${m.attack} → このターン ${battle.effectiveAttack(m)}`] },
+    });
+  }
+  if (flags.divineShield && m.shieldUsed) {
+    extra.push({ id: 'shieldUsed', label: `${keywordGlossary.divineShield?.icon ?? ''}聖盾 使用済み`, tone: 'info', card: { title: '聖盾（使用済み）', description: 'このモンスターの聖盾はもう使った。キーワード付与で聖盾を与え直すと戻る' } });
+  }
+  const life = m.counters.life;
+  if (life !== undefined && life > 0) {
+    extra.push({ id: 'life', label: `${M.lifespan!.icon}寿命${life}`, tone: 'bad', card: { title: `${M.lifespan!.icon} 寿命 残り${life}`, description: M.lifespan!.short, lines: [life === 1 ? 'このモンスターの持ち主のターン終了時に破壊される' : `あと${life}回、持ち主のターン終了時を迎えると破壊される`] } });
+  }
   for (const f of monsterForecasts(def, m)) extra.push({ id: `fc:${f.title}`, label: f.label, tone: f.tone, card: { title: f.title, description: f.description } });
   if ((flags.attacksPerTurn ?? 1) > 1 && m.attacksUsed > 0) {
     extra.push({ id: 'attacks', label: `攻撃${m.attacksUsed}/${flags.attacksPerTurn}`, tone: 'info', card: { title: 'このターンの攻撃回数', description: `${flags.attacksPerTurn}回まで攻撃できる` } });
@@ -279,7 +310,7 @@ export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, f
       )}
       role="button"
       tabIndex={dying ? -1 : 0}
-      aria-label={`${label}（攻撃力${m.attack}・体力${m.hp}・守備力${m.defense}）${state ? `・${state}` : ''}。押すと詳細`}
+      aria-label={`${label}（攻撃力${battle.effectiveAttack(m)}・体力${m.hp}・守備力${m.defense}）${state ? `・${state}` : ''}。押すと詳細`}
       aria-pressed={selected || undefined}
       data-fx={m.uid}
       data-drop={dying ? undefined : `m:${m.uid}`}
@@ -300,9 +331,9 @@ export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, f
       </span>
       <span className="mt__name">{label}</span>
       <span className="mt__stats" aria-hidden="true">
-        <span className="mt__stat">
+        <span className={cx('mt__stat', m.tempAttack ? 'is-buffed' : undefined)}>
           <small>⚔</small>
-          {m.attack}
+          {battle.effectiveAttack(m)}
         </span>
         <span className={cx('mt__stat', m.hp < m.maxHp && 'is-hurt')}>
           <small>❤</small>
@@ -590,7 +621,7 @@ export function LogPanel({ log, me, names, onCard, compact = false }: { log: bat
             )}
             {isOpen &&
               g.rows.map(({ e, i }) => {
-                const icon = logIcon(e.ev?.kind, e.kind);
+                const icon = logIcon(e.ev?.kind, e.kind, e.ev?.status);
                 const depth = Math.min(e.depth, 4);
                 return (
                   <div

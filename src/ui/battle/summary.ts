@@ -38,6 +38,10 @@ export function monsterForecasts(def: CardDef | undefined, m: battle.Monster): F
       if (m.betraying) continue;
       const left = Math.max(0, BALANCE.drawbacks.betrayal.turns - (m.counters.betrayal ?? 0));
       out.push({ label: `裏切りまで ${left}T`, title: '裏切り', description: `${dd.describe(d)}。あと${left}ターン（持ち主のターン開始時に数える）`, tone: 'bad' });
+    } else if (d.id === 'defender') {
+      out.push({ label: '防衛', title: '防衛', description: `${dd.describe(d)}（反撃はする）`, tone: 'bad' });
+    } else if (d.id === 'decay') {
+      out.push({ label: '腐乱', title: '腐乱', description: dd.describe(d), tone: 'bad' });
     } else if (d.id === 'upkeep') {
       out.push({ label: `維持費 −${BALANCE.drawbacks.upkeep.damage}/T`, title: '維持費', description: dd.describe(d), tone: 'bad' });
     }

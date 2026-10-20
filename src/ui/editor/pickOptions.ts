@@ -7,9 +7,14 @@
  */
 import {
   CONDITIONS,
+  CONDITION_GROUPS,
   CONDITION_TIER_LABEL,
   TIMINGS,
-  allowedTargets,
+  TIMING_GROUPS,
+  drawbackTimings,
+  effectTimings,
+  getDrawback,
+  targetsForEffect,
   attackProfile,
   cardBase,
   conditionMultiplier,
@@ -24,7 +29,6 @@ import {
   targetLabel,
   targetMultiplier,
   timingMultiplier,
-  timingsFor,
   type CardBase,
   type CardDef,
   type ConditionId,
@@ -59,6 +63,15 @@ function mult(f: () => number): string | undefined {
 
 const NONE = '';
 
+/** 見出しの並び順（options.ts の TIMING_GROUPS / CONDITION_GROUPS）で安定に並べ替える。見出しの無いものは最後 */
+function byGroup(list: PickOption[], groups: readonly string[]): PickOption[] {
+  const rank = (o: PickOption) => {
+    const i = o.group ? groups.indexOf(o.group) : -1;
+    return i < 0 ? groups.length : i;
+  };
+  return list.map((o, i) => ({ o, i })).sort((a, b) => rank(a.o) - rank(b.o) || a.i - b.i).map((x) => x.o);
+}
+
 // ---------------------------------------------------------------- タイミング
 
 /** タイミングの説明がないときに、定義（パワーになるか・「選んだ1体」が何を指すか）から作る */
@@ -81,18 +94,22 @@ function timingAutoDescription(def: TimingDef, base: CardBase): string {
   return parts.join('・');
 }
 
-function timingReason(def: TimingDef): string {
+function timingReason(def: TimingDef, base: CardBase): string {
   const bases = def.bases ?? [];
-  if (bases.length === 1 && bases[0] === 'monster') return 'モンスター専用';
-  if (bases.length === 1 && bases[0] === 'spell') return 'モンスター以外のカード専用';
-  return 'このカードでは使えません';
+  if (!bases.includes(base)) {
+    if (bases.length === 1 && bases[0] === 'monster') return 'モンスター専用';
+    if (bases.length === 1 && bases[0] === 'spell') return 'モンスター以外のカード専用';
+    return 'このカードでは使えません';
+  }
+  return 'この効果では使えません';
 }
 
-function timingOptions(card: CardDef, points: (t: TimingId) => string | undefined): PickOption[] {
+/** usable：この効果・デメリットで選べるタイミング（effectTimings / drawbackTimings。土台と定義ごとの制限を反映済み） */
+function timingOptions(card: CardDef, usableList: readonly TimingId[], points: (t: TimingId) => string | undefined): PickOption[] {
   const base = cardBase(card);
   const attack = attackProfile(card.keywords);
-  const usable = new Set<TimingId>(timingsFor(base));
-  return (Object.keys(TIMINGS) as TimingId[]).map((t) => {
+  const usable = new Set<TimingId>(usableList);
+  const list = (Object.keys(TIMINGS) as TimingId[]).map((t) => {
     const def = TIMINGS[t];
     const x = extra(def);
     const ok = usable.has(t);
@@ -103,19 +120,24 @@ function timingOptions(card: CardDef, points: (t: TimingId) => string | undefine
       description: x.description ?? timingAutoDescription(def, base),
       hint: mult(() => timingMultiplier(t, base, attack)),
       points: ok ? points(t) : undefined,
-      disabled: ok ? undefined : timingReason(def),
+      disabled: ok ? undefined : timingReason(def, base),
     };
   });
+  return byGroup(list, TIMING_GROUPS);
 }
 
 export function effectTimingOptions(effect: EffectInstance, card: CardDef): PickOption[] {
   const base = cardBase(card);
-  return timingOptions(card, (t) => `${effectPoints(fitEffect({ ...effect, timing: t }, base), card).value}pt`);
+  const def = getEffect(effect.id);
+  const usable = def ? effectTimings(def, base) : [];
+  return timingOptions(card, usable, (t) => `${effectPoints(fitEffect({ ...effect, timing: t }, base), card).value}pt`);
 }
 
 export function drawbackTimingOptions(drawback: DrawbackInstance, card: CardDef): PickOption[] {
   const base = cardBase(card);
-  return timingOptions(card, (t) => `−${drawbackPoints(fitDrawback({ ...drawback, timing: t }, base), card).value}pt`);
+  const def = getDrawback(drawback.id);
+  const usable = def ? drawbackTimings(def, base) : [];
+  return timingOptions(card, usable, (t) => `−${drawbackPoints(fitDrawback({ ...drawback, timing: t }, base), card).value}pt`);
 }
 
 // ---------------------------------------------------------------- 対象
@@ -123,7 +145,7 @@ export function drawbackTimingOptions(drawback: DrawbackInstance, card: CardDef)
 export function targetOptions(effect: EffectInstance, card: CardDef): PickOption[] {
   const def = getEffect(effect.id);
   if (!def) return [];
-  const targets = allowedTargets(def.targetRule, effect.timing);
+  const targets = targetsForEffect(def, effect.timing, cardBase(card));
   const out: PickOption[] = targets.map((t) => ({
     id: t,
     label: targetLabel(t, def.targetRule, effect.timing),
@@ -140,6 +162,7 @@ export function targetOptions(effect: EffectInstance, card: CardDef): PickOption
 
 function conditionReason(id: ConditionId, timing: TimingId, base: CardBase): string {
   const c = CONDITIONS[id];
+  if (c.excludeTimings?.includes(timing)) return `${TIMINGS[timing]?.label ?? timing}では使えません`;
   if (c.timings && !c.timings.includes(timing)) return `${c.timings.map((t) => TIMINGS[t]?.label ?? t).join('・')}のときだけ`;
   if (isPowerTiming(timing, base) && c.notForPower) return 'パワーになるタイミングでは使えません';
   return 'いまのタイミングでは使えません';
@@ -170,7 +193,7 @@ export function conditionOptions(effect: EffectInstance, card: CardDef): PickOpt
       disabled: ok ? undefined : conditionReason(c, effect.timing, base),
     };
   });
-  return [none, ...list];
+  return [none, ...byGroup(list, CONDITION_GROUPS)];
 }
 
 /** 条件の選択肢の ID ⇔ 値（「なし」は空文字） */

@@ -16,7 +16,8 @@ import {
   fitEffect,
   getDrawback,
   getEffect,
-  listModifiers,
+  getModifier,
+  modifiersFor,
   targetLabel,
   type CardDef,
   type DrawbackInstance,
@@ -144,7 +145,8 @@ export function EffectRow({ index, count, effect, card, violations, expanded, on
       </span>,
     );
   }
-  (effect.mods ?? []).forEach((m) => chips.push(<span key={m} className="ed-chip ed-chip--mod">{listModifiers().find((x) => x.id === m)?.name ?? m}</span>));
+  (effect.mods ?? []).forEach((m) => chips.push(<span key={m} className="ed-chip ed-chip--mod">{getModifier(m)?.name ?? m}</span>));
+  const mods = def ? modifiersFor(def, effect.timing) : [];
 
   return (
     <RowShell
@@ -227,23 +229,28 @@ export function EffectRow({ index, count, effect, card, violations, expanded, on
         />
       </div>
 
-      {def?.allowsMods && (
+      {mods.length > 0 && (
         <div className="ed-row__mods">
-          {listModifiers().map((m) => {
+          {mods.map((m) => {
             const on = effect.mods?.includes(m.id) ?? false;
+            const scale = m.scope === 'scale';
             return (
               <label key={m.id} className="check" title={m.summary}>
                 <input
                   type="checkbox"
                   checked={on}
                   onChange={() => {
-                    const mods = on ? (effect.mods ?? []).filter((x) => x !== m.id) : [...(effect.mods ?? []), m.id as ModifierId];
+                    // 数値の倍数（scale）は1効果に1つまで：付けたら他の倍数を外す
+                    const cur = effect.mods ?? [];
+                    const mods = on
+                      ? cur.filter((x) => x !== m.id)
+                      : [...cur.filter((x) => !(scale && getModifier(x)?.scope === 'scale')), m.id as ModifierId];
                     const next: EffectInstance = { ...effect, mods };
                     if (mods.length === 0) delete next.mods;
                     onChange(next);
                   }}
                 />
-                {m.name}（+{Math.round(m.rate * 100)}%）
+                {m.name}（+{Math.round(m.rate * 100)}%{scale ? '・数値の倍数' : ''}）
               </label>
             );
           })}

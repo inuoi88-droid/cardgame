@@ -506,6 +506,10 @@ body:has(.battle) .toasts {
 .mt__stat.is-hurt {
   color: #ffb3bc;
 }
+.mt__stat.is-buffed {
+  color: #8ff0a4;
+  font-weight: 800;
+}
 .mt__stat.is-zero {
   color: var(--muted);
 }

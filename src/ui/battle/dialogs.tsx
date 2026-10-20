@@ -1,6 +1,6 @@
 /** 対戦画面のダイアログ：マリガン、選択、結果。カードは読める大きさのリストで出し、🔍（一覧ではカードそのもの）で詳細を見られる */
 import { useState, type ReactNode } from 'react';
-import { analyzeCard, BALANCE, battle, CARD_TYPE_LABEL, type CardDef } from '../../engine/index.ts';
+import { analyzeCard, BALANCE, battle, CARD_TYPE_LABEL, getDrawback, getEffect, type CardDef } from '../../engine/index.ts';
 import { Modal } from '../components/controls.tsx';
 import { cx } from '../util.ts';
 import { CardDetailModal } from './CardDetail.tsx';
@@ -129,6 +129,23 @@ export function MulliganDialog({ view, me, onAction, timeLeft }: { view: GameSta
 
 // ---------------------------------------------------------------- 選択
 
+/** 選択ダイアログの見出し：何の選択か（効果・デメリットの名前、手札整理、保持） */
+function choiceTitle(p: NonNullable<GameState['pending']>): string {
+  const count = p.max === 1 ? '1つ選ぶ' : p.min === 0 ? `${p.max}つまで選ぶ` : p.min === p.max ? `${p.max}つ選ぶ` : `${p.min}〜${p.max}つ選ぶ`;
+  switch (p.step.t) {
+    case 'retain':
+      return '手札を残す（保持）';
+    case 'discardChoice':
+      return `手札を捨てる（${p.max}枚）`;
+    case 'drawback':
+      return `${getDrawback(p.step.drawback.id)?.name ?? 'デメリット'}：${count}`;
+    case 'effect':
+      return `${getEffect(p.step.effect.id)?.name ?? '効果'}：${count}`;
+    default:
+      return count;
+  }
+}
+
 export function ChoiceDialog({ view, me, onAction, timeLeft }: { view: GameState; me: PlayerId; onAction: (a: battle.Action) => void; timeLeft?: ReactNode }) {
   const p = view.pending!;
   const [picked, setPicked] = useState<string[]>([]);
@@ -136,7 +153,7 @@ export function ChoiceDialog({ view, me, onAction, timeLeft }: { view: GameState
   const retain = p.step.t === 'retain';
   const toggle = (id: string) =>
     setPicked((s) => (s.includes(id) ? s.filter((x) => x !== id) : p.max === 1 ? [id] : s.length < p.max ? [...s, id] : s));
-  const title = retain ? '手札を残す（保持）' : p.max === 1 ? '1つ選ぶ' : `${p.max}つまで選ぶ`;
+  const title = choiceTitle(p);
   const canDecide = picked.length >= p.min && picked.length <= p.max;
   return (
     <>

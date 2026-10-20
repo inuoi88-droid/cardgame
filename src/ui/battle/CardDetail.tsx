@@ -34,9 +34,17 @@ export function descriptionOf(def: CardDef): string {
 
 const diff = (now: number, base: number) => (now === base ? null : now > base ? `+${now - base}` : `−${base - now}`);
 
-export function CardDetailBody({ def, extras = {} }: { def: CardDef; extras?: DetailExtras }) {
-  const a = analyzeCard(def);
+/** トークンはカードの定義が共通（仮の強さ）なので、出たときの強さ（CardInst.token）でカードを作り直す */
+function displayDef(def: CardDef, m: battle.Monster | undefined): CardDef {
+  const t = m?.card.token;
+  if (!t) return def;
+  return { ...def, stats: { attack: t.attack, hp: t.hp, defense: def.stats?.defense ?? 0 } };
+}
+
+export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; extras?: DetailExtras }) {
   const { monster: m, power, cost, notes, where } = extras;
+  const def = displayDef(rawDef, m);
+  const a = analyzeCard(def);
   const desc = descriptionOf(def);
   const chips = m ? monsterChips(def, m, extras.flags ?? {}) : [];
   const statusChips = chips.filter((c) => !c.id.startsWith('kw:'));
@@ -71,8 +79,10 @@ export function CardDetailBody({ def, extras = {} }: { def: CardDef; extras?: De
               <div>
                 <dt>⚔ 攻撃力</dt>
                 <dd>
-                  {m.attack}
-                  {diff(m.attack, def.stats.attack) && <small className={m.attack > def.stats.attack ? 'is-up' : 'is-down'}>{diff(m.attack, def.stats.attack)}</small>}
+                  {battle.effectiveAttack(m)}
+                  {diff(battle.effectiveAttack(m), def.stats.attack) && (
+                    <small className={battle.effectiveAttack(m) > def.stats.attack ? 'is-up' : 'is-down'}>{diff(battle.effectiveAttack(m), def.stats.attack)}</small>
+                  )}
                 </dd>
               </div>
               <div>

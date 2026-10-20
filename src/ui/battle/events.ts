@@ -79,12 +79,15 @@ const STATUS_NAME: Record<string, string> = {
   regen: '再生',
   strength: '筋力',
   focus: '気合',
+  doom: '呪縛',
+  divineShield: '聖盾',
 };
-const GOOD_STATUS = new Set(['counter', 'nullify', 'regen', 'strength', 'focus']);
+const GOOD_STATUS = new Set(['counter', 'nullify', 'regen', 'strength', 'focus', 'divineShield']);
 
 function damageTone(kind: battle.DamageKind | undefined): FxTone {
   switch (kind) {
     case 'poison':
+    case 'doom':
       return 'poison';
     case 'burn':
       return 'burn';
@@ -149,6 +152,12 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
         );
         break;
       case 'status': {
+        if (ev.status === 'coin') {
+          // コイン投げ（条件「コインを投げて表なら」）：amount 1＝表、0＝裏
+          const heads = (ev.amount ?? 0) > 0;
+          push(e.text, ev.player ?? null, { t: 'notice', text: `🪙 コイン投げ：${heads ? '表' : '裏'}`, tone: 'neutral' }, DURATION.notice);
+          break;
+        }
         if (!ev.target) break;
         const name = STATUS_NAME[ev.status ?? ''] ?? ev.status ?? '';
         const good = GOOD_STATUS.has(ev.status ?? '');

@@ -8,7 +8,7 @@
  *   詳細の「使う」「攻撃する」からは、候補ボタンで対象を選ぶ（キーボード・ドラッグしにくいとき用）
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { battle, type CardDef } from '../../engine/index.ts';
+import { battle, getEffect, type CardDef } from '../../engine/index.ts';
 import { CardView } from '../components/CardView.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { Modal } from '../components/controls.tsx';
@@ -279,6 +279,13 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
         if (src.kind === 'card' && d.attempt?.enemy) {
           const i = infos.get(src.uid);
           if (i?.tauntLimited) return back(battle.NOTE_TAUNT_LIMITED);
+          const t = d.attempt.enemy;
+          const m = t.kind === 'monster' ? battle.findMonster(view, t.uid) : undefined;
+          if (m && m.controller !== me) {
+            if (m.stealth) return back('隠密中のモンスターは対象に選べません');
+            if (battle.keywordFlags(view, m).hexproof) return back('呪禁のモンスターは、カードの対象に選べません');
+          }
+          if (t.kind === 'player' && t.player === opp && i && !i.enemyTargets.some((x) => x.kind === 'player')) return back('このカードはモンスターしか選べません');
         }
         return back(d.reason);
       }
@@ -365,8 +372,9 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     if (attacker) return `「${view.cards[attacker.card.cardId]?.name}」の攻撃先を選んでください`;
     if (selCard) {
       if (info?.blocked) return info.blocked;
-      if (needEnemy) return `「${selDef?.name}」の対象を選んでください${info?.tauntLimited ? `（${battle.NOTE_TAUNT_LIMITED}）` : ''}`;
-      if (needAlly) return `「${selDef?.name}」をかける自分のモンスターを選んでください`;
+      const fight = selDef?.effects.some((e) => getEffect(e.id)?.targetRule === 'fight') ?? false;
+      if (needEnemy) return `「${selDef?.name}」の${fight ? '戦わせる相手モンスター' : '対象'}を選んでください${info?.tauntLimited ? `（${battle.NOTE_TAUNT_LIMITED}）` : ''}`;
+      if (needAlly) return `「${selDef?.name}」${fight ? 'で戦わせる' : 'をかける'}自分のモンスターを選んでください`;
       return `「${selDef?.name}」を使いますか？`;
     }
     if (nothingLeft) return 'できることはもうありません。ターンを終了しましょう';

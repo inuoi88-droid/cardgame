@@ -142,7 +142,10 @@ export function tokenizeLog(text: string, names: LogNames, preferId?: string): L
 }
 
 /** ログの出来事の種類ごとのアイコン（ev がなければ行の種類から） */
-export function logIcon(evKind: battle.LogEvent['kind'] | undefined, rowKind?: battle.LogEntry['kind']): string {
+export function logIcon(evKind: battle.LogEvent['kind'] | undefined, rowKind?: battle.LogEntry['kind'], status?: string): string {
+  if (status === 'coin') return '🪙';
+  if (status === 'divineShield') return '✴';
+  if (status === 'doom') return '⏳';
   switch (evKind) {
     case 'damage':
       return '💥';

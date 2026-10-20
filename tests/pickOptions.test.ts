@@ -1,0 +1,81 @@
+// エディターの選択パネル（プルダウンの代わり）の選択肢：すべてのタイミング・条件が見出しと説明つきで出ること、
+// 効果ごとの制限（タイミング・対象・数値の倍数）が反映されること
+import { describe, expect, it } from 'vitest';
+import {
+  CONDITIONS,
+  CONDITION_GROUPS,
+  TIMINGS,
+  TIMING_GROUPS,
+  createEffect,
+  modifiersFor,
+  getEffect,
+  newCard,
+  setMonster,
+  type CardDef,
+  type EffectInstance,
+} from '../src/engine/index.ts';
+import { conditionOptions, effectTimingOptions, targetOptions } from '../src/ui/editor/pickOptions.ts';
+
+const spell = (): CardDef => ({ ...newCard('t-spell'), name: '試し' });
+const monster = (): CardDef => setMonster({ ...newCard('t-mon'), name: '試し' }, true);
+
+describe('選択パネルの選択肢', () => {
+  it('すべてのタイミングが見出し（TIMING_GROUPS）と説明つきで、見出しの順に並ぶ', () => {
+    for (const card of [spell(), monster()]) {
+      const e = createEffect('damage', card.stats ? 'monster' : 'spell');
+      const opts = effectTimingOptions(e, card);
+      expect(opts.map((o) => o.id).sort()).toEqual(Object.keys(TIMINGS).sort());
+      for (const o of opts) {
+        expect(TIMING_GROUPS as readonly string[]).toContain(o.group);
+        expect(o.description?.length ?? 0).toBeGreaterThan(0);
+      }
+      const ranks = opts.map((o) => TIMING_GROUPS.indexOf(o.group as (typeof TIMING_GROUPS)[number]));
+      expect([...ranks].sort((a, b) => a - b)).toEqual(ranks);
+    }
+  });
+
+  it('すべての条件が見出し（CONDITION_GROUPS）と説明つきで出る（先頭は「なし」）', () => {
+    const card = monster();
+    const opts = conditionOptions(createEffect('damage', 'monster'), card);
+    expect(opts[0]!.id).toBe('');
+    const rest = opts.slice(1);
+    expect(rest.map((o) => o.id).sort()).toEqual(Object.keys(CONDITIONS).sort());
+    for (const o of rest) {
+      expect(CONDITION_GROUPS as readonly string[]).toContain(o.group);
+      expect(o.description?.length ?? 0).toBeGreaterThan(0);
+    }
+  });
+
+  it('効果ごとのタイミングの制限（再行動は使用時・召喚時だけ）は理由つきで選べない', () => {
+    const card = monster();
+    const e = createEffect('ready', 'monster');
+    const opts = effectTimingOptions(e, card);
+    expect(opts.find((o) => o.id === 'summon')?.disabled).toBeUndefined();
+    expect(opts.find((o) => o.id === 'turnEnd')?.disabled).toBe('この効果では使えません');
+    expect(opts.find((o) => o.id === 'play')?.disabled).toBe('モンスター以外のカード専用');
+  });
+
+  it('対象は土台を見て選ぶ（モンスターなら「このモンスター」、再行動は外す）', () => {
+    const card = monster();
+    const train: EffectInstance = createEffect('train', 'monster');
+    expect(targetOptions(train, card).map((o) => o.id)).toContain('thisMonster');
+    const ready = createEffect('ready', 'monster');
+    const ids = targetOptions(ready, card).filter((o) => !o.disabled).map((o) => o.id);
+    expect(ids).not.toContain('thisMonster');
+    expect(ids).not.toContain('allyMonsters');
+  });
+
+  it('条件の除外タイミング（ターン開始時の「このターン相手にダメージを与えた」）は理由つき', () => {
+    const card = spell();
+    const e = { ...createEffect('damage', 'spell'), timing: 'turnStart' as const };
+    const o = conditionOptions(e, card).find((x) => x.id === 'enemyDamagedThisTurn');
+    expect(o?.disabled).toContain('自分のターン開始時');
+  });
+
+  it('数値の倍数（X など）は scalable な効果だけ、X は使用時・召喚時だけ', () => {
+    const dmg = getEffect('damage')!;
+    expect(modifiersFor(dmg, 'play').map((m) => m.id)).toContain('xEnergy');
+    expect(modifiersFor(dmg, 'turnEnd').map((m) => m.id)).not.toContain('xEnergy');
+    expect(modifiersFor(getEffect('fight')!, 'play').map((m) => m.id)).toEqual([]);
+  });
+});

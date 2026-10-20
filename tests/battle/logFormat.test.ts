@@ -74,5 +74,6 @@ describe('logNamesOf / logIcon', () => {
     expect(logIcon('damage')).toBe('💥');
     expect(logIcon('heal')).toBe('✚');
     expect(logIcon(undefined, 'effect')).toBe('');
+    expect(logIcon('status', 'info', 'coin')).toBe('🪙');
   });
 });

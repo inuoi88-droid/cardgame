@@ -43,7 +43,7 @@ function executeStep(g: GameState, step: Step): void {
     case 'drawback':
       return executeDrawback(g, step);
     case 'cardDone':
-      return finishCard(g, step.player, step.card, step.protectKey, step.depth, step.from ?? 'hand');
+      return finishCard(g, step.player, step.card, step.protectKey, step.depth, step.from ?? 'hand', step.adventure === true, step.faceDown === true);
     case 'freePlay':
       return executeFreePlay(g, step);
     case 'returnToHand':

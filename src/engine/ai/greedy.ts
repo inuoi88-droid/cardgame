@@ -134,6 +134,27 @@ export function cyclingFallback(view: GameState, me: PlayerId): Action | null {
   return best?.action ?? null;
 }
 
+/**
+ * 待機ゾーン（MTG 要素 △ バッチC）の小規則：ターンを終える前（手札は捨て札になる）に、まだ置けるエナジーがあれば、
+ * 手札のカードを待機させる（予顕・計画・待機）。印刷コストの重いカードから。仮の実行では待機させる得が小さく出るため
+ */
+export function setAsideFallback(view: GameState, me: PlayerId): Action | null {
+  const ps = view.players[me];
+  const keep = ps.turn.retain;
+  // 保持で残せるなら、残すほうに任せる
+  if (keep >= ps.hand.length) return null;
+  let best: { action: Action; key: number } | null = null;
+  for (const a of legalActions(view, me)) {
+    if (a.type !== 'setAside') continue;
+    const card = ps.hand.find((c) => c.uid === a.cardUid);
+    const def = card ? view.cards[card.cardId] : undefined;
+    if (!def) continue;
+    const key = def.cost * 10 + (a.kind === 'plot' ? 2 : a.kind === 'foretell' ? 1 : 0);
+    if (!best || key > best.key) best = { action: a, key };
+  }
+  return best?.action ?? null;
+}
+
 export function makeStrategy(name: string, opts: GreedyOptions): Strategy {
   return {
     name,
@@ -148,8 +169,8 @@ export function makeStrategy(name: string, opts: GreedyOptions): Strategy {
       const bait = quashBait(v, me, seed, raceFrame(v, me));
       if (bait) return bait;
       const action = opts.beam ? beamSearch(v, me, seed, opts.beamOptions) : decideGreedy(v, me, seed, opts.noiseSigma);
-      // ターンを終える前に、使えないカードをサイクリングで回す（MTG 要素 ○ バッチC1）
-      if (action.type === 'endTurn') return cyclingFallback(v, me) ?? action;
+      // ターンを終える前に、使えないカードをサイクリングで回す（MTG 要素 ○ バッチC1）。残ったカードを待機させる（△ バッチC）
+      if (action.type === 'endTurn') return cyclingFallback(v, me) ?? setAsideFallback(v, me) ?? action;
       return action;
     },
   };

@@ -30,6 +30,8 @@ export interface DetailExtras {
   where?: string;
   /** 装備しているカード（MTG 要素 ○ バッチB） */
   equipment?: CardDef[];
+  /** 裏向きの自分のモンスターの正体（MTG 要素 △ バッチC。持ち主にだけ） */
+  realDef?: CardDef;
 }
 
 /** カードの自由記述の説明（CardDef に description があれば。無い版のデータでも動くように読む） */
@@ -52,7 +54,7 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
   const def = displayDef(rawDef, m);
   const a = analyzeCard(def);
   const desc = descriptionOf(def);
-  const chips = m ? monsterChips(def, m, extras.flags ?? {}, extras.ownerTurns, extras.attackNow) : [];
+  const chips = m ? monsterChips(def, m, extras.flags ?? {}, extras.ownerTurns, extras.attackNow, extras.realDef?.name) : [];
   const statusChips = chips.filter((c) => !c.id.startsWith('kw:'));
   return (
     <div className="cdetail">
@@ -120,6 +122,21 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
                 ))}
               </ul>
             )}
+          </section>
+        )}
+
+        {extras.realDef && (
+          <section className="cdetail__sec">
+            <h3>正体（あなたにだけ見える）</h3>
+            <p>
+              {extras.realDef.icon}「{extras.realDef.name}」
+              {m?.faceDown?.revealCost !== null && m?.faceDown?.revealCost !== undefined ? `：自分のターンにエナジー${m.faceDown.revealCost}で表にできる` : '：モンスターでないので表にできない'}
+            </p>
+            <ul className="cdetail__plain">
+              {analyzeCard(extras.realDef).text.effects.map((t, i) => (
+                <li key={i}>{t}</li>
+              ))}
+            </ul>
           </section>
         )}
 

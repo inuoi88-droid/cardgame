@@ -14,7 +14,8 @@ import { BALANCE } from '../balance.ts';
 import { attackBlockReason, attacksPerTurn, cannotAttack } from '../battle/combat.ts';
 import { auraAttack, effectiveAttack, other } from '../battle/core.ts';
 import { combatBonus, keywordFlags, playerBonus, wardTax } from '../battle/damage.ts';
-import { effectiveCost, lifespanOf } from '../battle/play.ts';
+import { effectiveCost, lifespanOf, waitingRule } from '../battle/play.ts';
+import { altWinGoalOf, altWinTarget } from '../battle/powers.ts';
 import { energyForTurn } from '../battle/turn.ts';
 import { effectPoints } from '../points.ts';
 import { chapterOf } from '../options.ts';
@@ -142,6 +143,17 @@ export const WEIGHTS = {
   radHitRate: 0.6,
   /** 氷結を掛けられている（次のターンに凍る手札1枚） */
   iced: 0.8 * S,
+  // ---- MTG 要素 △ バッチC
+  /** 待機ゾーンのカード：手札1枚の価値に、払い済み・安くなるエナジー1につき足す */
+  waitingPerEnergy: 0.6 * S,
+  /** 追加ターンが控えている：自分の次ターンの見込み打点に掛ける割合 */
+  extraTurn: 1,
+  /** 特殊勝利の進み（割合）に掛ける重み（相手のものは減点：解除を優先する） */
+  altWin: 30 * S,
+  /** 忠誠1につき・Lv1につき（パワー）・紋章1つ */
+  loyalty: 0.8 * S,
+  powerLevel: 1 * S,
+  emblem: 4 * S,
 } as const;
 
 const W = WEIGHTS;
@@ -330,6 +342,8 @@ export function raceContext(g: GameState, me: PlayerId, frame?: RaceFrame): Race
 
 function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   if (m.betraying) return -m.attack * W.monsterAttack * 2;
+  // 砦（MTG 要素 △ バッチC）は持ち主の戦力ではない（壊すと相手が報酬を得る）
+  if (m.siege) return 0;
   const def = g.cards[m.card.cardId];
   // 腐乱：攻撃したターンの終わりに破壊される
   if (m.counters.attackedTurn === g.turnIndex && def?.drawbacks.some((d) => d.id === 'decay')) return 0;
@@ -435,12 +449,25 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
   v += s.nullify * W.nullify;
   if (s.freezePending || (s.freezeActive && ps.turn.freezeTax)) v -= W.frozen;
 
-  for (const pw of ps.powers) {
+  for (const pw of [...ps.powers, ...(ps.emblems ?? [])]) {
     const life = pw.life === undefined ? 1 : Math.min(1, W.lifespanBase + W.lifespanPerTurn * pw.life);
     // 英雄譚（MTG 要素 ○ バッチC2）：まだ出ていない章の効果だけ
     const live = pw.effects.filter((x) => !x.removed && (pw.chapter === undefined || chapterOf(x.effect.timing) > pw.chapter));
     v += live.length * W.power * life;
+    // MTG 要素 △ バッチC：忠誠・Lv・特殊勝利の進み
+    v += (pw.loyalty ?? 0) * W.loyalty + ((pw.level ?? 1) - 1) * W.powerLevel;
+    const goal = altWinGoalOf(g.cards[pw.cardId]);
+    if (goal) v += Math.min(1, (pw.progress ?? 0) / altWinTarget(goal)) * W.altWin;
   }
+  v += (ps.emblems?.length ?? 0) * W.emblem;
+  // 待機ゾーン（MTG 要素 △ バッチC）：手札と同じく1枚ずつ価値があり、払い済み（計画・待機）・安くなる（予顕）エナジーのぶん上乗せ
+  for (const w of ps.waiting ?? []) {
+    const def = g.cards[w.card.cardId];
+    const saved = !def ? 0 : w.kind === 'plot' || w.kind === 'suspend' ? def.cost : w.kind === 'foretell' ? (waitingRule(def, w.kind)?.cut ?? 0) : 0;
+    v += (isMe ? W.handCard : W.oppHandCard) + saved * W.waitingPerEnergy;
+  }
+  // 追加ターン（MTG 要素 △ バッチC）：相手の手番を1回飛ばす
+  if (ps.extraTurnPending) v += ctx.threat[p].total * W.extraTurn;
   // 速度・王冠（MTG 要素 ○ バッチC2）
   v += (ps.speed ?? 0) * W.speed;
   // MTG 要素 △ バッチA：経験・放射能（残り HP まで）・氷結（次のターンに凍る手札）

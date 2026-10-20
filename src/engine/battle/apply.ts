@@ -2,7 +2,8 @@
 import { findMonster } from './core.ts';
 import { attackBlockReason, attackTargets, enlistOptions, performAttack } from './combat.ts';
 import { mulligan, validateMulligan } from './mulligan.ts';
-import { activate, useDiscardAbility, useHandAbility, validateActivate, validateDiscardAbility, validateHandAbility } from './abilities.ts';
+import { activate, reveal, useDiscardAbility, useHandAbility, validateActivate, validateDiscardAbility, validateHandAbility, validateReveal } from './abilities.ts';
+import { setAside, validateSetAside } from './waiting.ts';
 import { playCard, removeNoise, validatePlay, validateRemoveNoise, type PlayOpts } from './play.ts';
 import { runQueue } from './queue.ts';
 import { beginEndTurn, concede } from './turn.ts';
@@ -11,7 +12,7 @@ import type { Action, ApplyResult, GameState, TargetRef } from './types.ts';
 /** playCard の追加の指定（MTG 要素 ○ バッチC1：捨て札から使う・キッカー） */
 function playOpts(a: Extract<Action, { type: 'playCard' }>): PlayOpts {
   const o: PlayOpts = {};
-  if (a.from === 'discard') o.from = 'discard';
+  if (a.from === 'discard' || a.from === 'waiting') o.from = a.from;
   if (a.discardUid !== undefined) o.discardUid = a.discardUid;
   if (a.exileUids !== undefined) o.exileUids = a.exileUids;
   if (a.kick === true) o.kick = true;
@@ -56,7 +57,12 @@ export function validateAction(g: GameState, a: Action): string | null {
     case 'playCard':
       return validatePlay(g, a.player, a.cardUid, a.chosen, playOpts(a));
     case 'activate':
-      return validateActivate(g, a.player, a.sourceUid, a.chosen);
+      return validateActivate(g, a.player, a.sourceUid, a.chosen, a.use);
+    // MTG 要素 △ バッチC：待機させる・表にする
+    case 'setAside':
+      return validateSetAside(g, a.player, a.cardUid, a.kind);
+    case 'reveal':
+      return validateReveal(g, a.player, a.uid, a.chosen);
     case 'handAbility':
       return validateHandAbility(g, a.player, a.cardUid, a.ability, a.chosen);
     case 'discardAbility':
@@ -100,7 +106,13 @@ export function applyAction(state: GameState, a: Action): ApplyResult {
       playCard(g, a.player, a.cardUid, a.chosen ?? {}, playOpts(a));
       break;
     case 'activate':
-      activate(g, a.player, a.sourceUid, a.chosen ?? {});
+      activate(g, a.player, a.sourceUid, a.chosen ?? {}, a.use);
+      break;
+    case 'setAside':
+      setAside(g, a.player, a.cardUid, a.kind);
+      break;
+    case 'reveal':
+      reveal(g, a.player, a.uid, a.chosen ?? {});
       break;
     case 'handAbility':
       useHandAbility(g, a.player, a.cardUid, a.ability, a.chosen ?? {});

@@ -8,12 +8,16 @@ import { keywordFlags, onLeaveBoard } from './damage.ts';
 import { pick, randInt, shuffle } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
-import { chargePowers } from './powers.ts';
+import { altWinDispelOptions, altWinGoalOf, chargePowers } from './powers.ts';
 import type { CardDef, TimingId } from '../types.ts';
+import { putWaiting } from './waiting.ts';
 import {
   ARMY_CARD_ID,
   EGG_CARD_ID,
+  FACE_DOWN_CARD_ID,
+  FACE_DOWN_WARD_CARD_ID,
   NOISE_CARD_ID,
+  SIEGE_CARD_ID,
   TOKEN_CARD_ID,
   type CardInst,
   type ChoiceOption,
@@ -121,6 +125,8 @@ export interface EnterOpts {
   unleash?: number;
   unearth?: boolean;
   villain?: boolean;
+  /** ワープ（MTG 要素 △ バッチC）：持ち主のターン終了時に待機ゾーンへ */
+  warp?: boolean;
 }
 
 /** 試作版の値：半分を量の刻みに切り捨て（最低 min） */
@@ -169,6 +175,7 @@ export function placeMonster(g: GameState, p: PlayerId, card: CardInst, depth: n
   if (enter.prototype) m.prototype = true;
   if (enter.unleash) m.unleashed = true;
   if (enter.unearth) m.unearthed = true;
+  if (enter.warp) m.warped = true;
   // 休眠（MTG 要素 △ バッチA）：出たターンを起点に1ターンおきに休む
   if (def.drawbacks.some((d) => getDrawback(d.id)?.battle.dormant)) m.counters.dormantFrom = g.players[p].turnsTaken;
   m.stealth = keywordFlags(g, m).stealthOnSummon === true;
@@ -183,7 +190,9 @@ export function placeMonster(g: GameState, p: PlayerId, card: CardInst, depth: n
           ? '（解鎖）'
           : enter.unearth
             ? '（一時蘇生：ターン終了時に除外）'
-            : '';
+            : enter.warp
+              ? '（ワープ：ターン終了時に待機ゾーンへ）'
+              : '';
   log(g, depth, `${g.players[p].name}の場に「${def.name}」${kind}が出た（攻撃力${m.attack}・体力${m.hp}・守備力${m.defense}）`, 'effect', undefined, {
     kind: 'summon',
     player: p,
@@ -258,6 +267,7 @@ export function devourAmount(def: CardDef | undefined): number {
 /** 場から除外する（一時蘇生のターン終了時。破壊ではない。MTG 要素 △ バッチB）。カードは持ち主の除外へ */
 export function exileFromBoard(g: GameState, m: Monster, depth: number, text: string): void {
   if (!findMonster(g, m.uid)) return;
+  unmask(g, m, depth);
   removeFromBoard(g, m);
   if (!m.card.token) g.players[m.card.owner].exile.push(m.card);
   log(g, depth, text, 'effect', undefined, { kind: 'destroy', player: m.controller, cardId: m.card.cardId, uid: m.uid });
@@ -327,6 +337,8 @@ export function removeFromBoard(g: GameState, m: Monster): void {
 export function bounce(g: GameState, uid: string, depth: number): void {
   const m = findMonster(g, uid);
   if (!m) return;
+  // 裏向き（MTG 要素 △ バッチC）は場を離れるときに公開する
+  unmask(g, m, depth);
   const label = monsterLabel(g, m);
   removeFromBoard(g, m);
   // トークンは手札に戻らず消える
@@ -350,6 +362,7 @@ export function bounce(g: GameState, uid: string, depth: number): void {
 /** 場から消す（破壊ではない。応召の一時トークンの退場。MTG 要素 ○ バッチB） */
 export function vanish(g: GameState, m: Monster, depth: number, text: string): void {
   if (!findMonster(g, m.uid)) return;
+  unmask(g, m, depth);
   removeFromBoard(g, m);
   log(g, depth, text, 'effect', undefined, { kind: 'destroy', player: m.controller, cardId: m.card.cardId, uid: m.uid });
   onLeaveBoard(g, m, depth + 1, false);
@@ -371,6 +384,11 @@ function moveMonster(g: GameState, m: Monster, to: PlayerId): void {
 export function steal(g: GameState, uid: string, to: PlayerId, depth: number): void {
   const m = findMonster(g, uid);
   if (!m || m.controller === to) return;
+  // 砦（MTG 要素 △ バッチC）は奪えない：報酬なしで消える
+  if (m.siege) {
+    vanish(g, m, depth, `${monsterLabel(g, m)}は奪われて崩れた（報酬なし）`);
+    return;
+  }
   const label = monsterLabel(g, m);
   moveMonster(g, m, to);
   m.enteredTurn = g.turnIndex;
@@ -382,6 +400,10 @@ export function steal(g: GameState, uid: string, to: PlayerId, depth: number): v
 export function borrow(g: GameState, uid: string, to: PlayerId, turns: number, depth: number): void {
   const m = findMonster(g, uid);
   if (!m || m.controller === to) return;
+  if (m.siege) {
+    vanish(g, m, depth, `${monsterLabel(g, m)}は奪われて崩れた（報酬なし）`);
+    return;
+  }
   const label = monsterLabel(g, m);
   const from = m.controller;
   moveMonster(g, m, to);
@@ -453,6 +475,8 @@ export function dispelOptions(g: GameState, p: PlayerId): ChoiceOption[] {
   const ps = g.players[p];
   const out: ChoiceOption[] = [];
   if (ps.status.strength > 0) out.push({ id: 'strength', label: `筋力（合計${ps.status.strength}）` });
+  // 特殊勝利（MTG 要素 △ バッチC）のパワーは、パワーごと消せる
+  out.push(...altWinDispelOptions(g, p));
   const groups = new Map<string, number>();
   for (const power of ps.powers) {
     for (const x of power.effects) {
@@ -471,6 +495,13 @@ export function dispelOptions(g: GameState, p: PlayerId): ChoiceOption[] {
 
 export function dispel(g: GameState, p: PlayerId, key: string, depth: number): void {
   const ps = g.players[p];
+  if (key.startsWith('altwin:')) {
+    const power = ps.powers.find((x) => x.uid === key.slice('altwin:'.length));
+    if (!power) return;
+    ps.powers = ps.powers.filter((x) => x !== power);
+    log(g, depth, `${ps.name}の特殊勝利『${power.name}』を消した`, 'effect', undefined, { kind: 'destroy', player: p, cardId: power.cardId, uid: power.uid });
+    return;
+  }
   if (key === 'strength') {
     log(g, depth, `${ps.name}の筋力${ps.status.strength}をすべて消した`);
     ps.status.strength = 0;
@@ -486,7 +517,8 @@ export function dispel(g: GameState, p: PlayerId, key: string, depth: number): v
       }
     }
   }
-  ps.powers = ps.powers.filter((pw) => pw.effects.some((x) => !x.removed) || pw.drawbacks.length > 0);
+  // 効果がすべて消えたパワーは消える（特殊勝利のパワーは効果が無くても残る：MTG 要素 △ バッチC）
+  ps.powers = ps.powers.filter((pw) => pw.effects.some((x) => !x.removed) || pw.drawbacks.length > 0 || altWinGoalOf(g.cards[pw.cardId]) !== undefined);
   const name = getEffect(id ?? '')?.name ?? id;
   log(g, depth, `${ps.name}の持続効果「${name}」を${count}つ消した`);
 }
@@ -510,9 +542,9 @@ export function tokenDef(): CardDef {
   };
 }
 
-/** 場のトークンの数 */
+/** 場のトークンの数（砦は数えない：MTG 要素 △ バッチC） */
 export function tokenCount(g: GameState, p: PlayerId): number {
-  return g.players[p].board.filter((m) => m.card.token).length;
+  return g.players[p].board.filter((m) => m.card.token && !m.card.token.siege).length;
 }
 
 /** 軍団（動員）のカード定義（MTG 要素 ○ バッチB） */
@@ -685,6 +717,76 @@ export function discardChosen(g: GameState, p: PlayerId, uids: string[], depth: 
     discardCard(g, card!);
     log(g, depth, `${ps.name}は手札の「${cardName(g, card!.cardId)}」を捨てた`, 'info', undefined, { kind: 'discard', player: p, amount: 1 });
     afterDiscarded(g, p, card!, depth);
+  }
+}
+
+// ---------------------------------------------------------------- MTG 要素 △ バッチC：裏向き・砦・ワープ
+
+/** 裏向きのモンスターのカード定義（変装は護法つき） */
+export function faceDownDef(ward: boolean): CardDef {
+  const B = BALANCE.battle;
+  return {
+    v: 1,
+    id: ward ? FACE_DOWN_WARD_CARD_ID : FACE_DOWN_CARD_ID,
+    name: B.faceDownName,
+    icon: B.faceDownIcon,
+    rarity: 'common',
+    cost: 0,
+    stats: { attack: B.faceDownStats, hp: B.faceDownStats, defense: 0 },
+    keywords: ward ? [{ id: 'ward', value: B.faceDownWard }] : [],
+    effects: [],
+    drawbacks: [],
+  };
+}
+
+/** 砦のカード定義（強さは CardInst.token が決める） */
+export function siegeDef(): CardDef {
+  const B = BALANCE.battle;
+  return { ...tokenDef(), id: SIEGE_CARD_ID, name: B.siegeName, icon: B.siegeIcon };
+}
+
+/**
+ * カードを裏向きのモンスターとして場に出す（変装・予示）。Monster.card は裏向き用の代わりのカードになり、本当のカードは faceDown.card。
+ * 召喚時の効果は出ない（「自分のモンスターが出るたび」は出る）。正体は持ち主のログ（private）だけ
+ */
+export function placeFaceDown(g: GameState, p: PlayerId, card: CardInst, kind: 'disguise' | 'manifest', revealCost: number | null, depth: number): Monster | undefined {
+  const ward = kind === 'disguise';
+  const id = ward ? FACE_DOWN_WARD_CARD_ID : FACE_DOWN_CARD_ID;
+  g.cards[id] ??= faceDownDef(ward);
+  const mask: CardInst = { uid: card.uid, cardId: id, owner: card.owner };
+  const m = placeMonster(g, p, mask, depth);
+  if (!m) return undefined;
+  m.faceDown = { kind, revealCost, card };
+  log(g, depth, `裏向きのモンスターの正体：「${cardName(g, card.cardId)}」${revealCost === null ? '（モンスターでないので表にできない）' : `（エナジー${revealCost}で表にできる）`}`, 'info', p);
+  onMonsterEntered(g, m, depth + 1);
+  return m;
+}
+
+/** 裏向きのモンスターが場を離れるとき：本当のカードに戻して公開する（裏向きでなければ何もしない） */
+export function unmask(g: GameState, m: Monster, depth: number): void {
+  const real = m.faceDown?.card;
+  if (!real) return;
+  m.card = real;
+  delete m.faceDown;
+  log(g, depth, `裏向きのモンスターは「${cardName(g, real.cardId)}」だった`, 'info', undefined, { kind: 'reveal', player: m.controller, uid: m.uid, cardId: real.cardId });
+}
+
+/** ワープ（MTG 要素 △ バッチC）：持ち主のターン終了時、場のモンスターを待機ゾーンへ（破壊ではない。いっぱいなら手札へ） */
+export function warpAway(g: GameState, m: Monster, depth: number): void {
+  if (!findMonster(g, m.uid)) return;
+  const label = monsterLabel(g, m);
+  removeFromBoard(g, m);
+  const card = m.card;
+  log(g, depth, `ワープ：${label}は場を離れた`, 'effect', undefined, { kind: 'destroy', player: m.controller, cardId: card.cardId, uid: m.uid });
+  onLeaveBoard(g, m, depth + 1, false);
+  if (card.token) return;
+  if (card.exileOnLeave) {
+    g.players[card.owner].exile.push(card);
+    return;
+  }
+  if (!putWaiting(g, card.owner, card, 'warp', depth + 1)) {
+    g.players[card.owner].hand.push(card);
+    log(g, depth + 1, `待機ゾーンがいっぱいなので「${cardName(g, card.cardId)}」は手札に戻った`);
   }
 }
 

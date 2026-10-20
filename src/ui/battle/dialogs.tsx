@@ -237,6 +237,10 @@ export function ResultDialog({ view, me, onHide, children }: { view: GameState; 
           ? won
             ? '相手が降参しました'
             : '降参しました'
+          : result.reason === 'altWin'
+            ? won
+              ? '特殊勝利の目標を達成しました'
+              : '相手が特殊勝利の目標を達成しました'
           : won
             ? '相手のHPを0にしました'
             : 'HPが0になりました';
@@ -458,7 +462,7 @@ export function PaySheet({
   const tgt: TargetLike = alt ?? modeInfo ?? info;
   const pending = (tgt.enemyTargets.length > 0 && !chosen.enemy) || (tgt.allyTargets.length > 0 && !chosen.ally);
   const check = (p: PayChoice) => {
-    const opts = { ...(fromDiscard ? { from: 'discard' as const } : {}), ...(mode !== undefined ? { mode } : {}), ...(modes ? { modes } : {}), ...payFields(p) };
+    const opts = { ...(fromDiscard ? { from: 'discard' as const } : info.from === 'waiting' ? { from: 'waiting' as const } : {}), ...(mode !== undefined ? { mode } : {}), ...(modes ? { modes } : {}), ...payFields(p) };
     const c: battle.Chosen = p.alt === 'overload' ? {} : chosen;
     const err = battle.validatePlay(view, me, card.uid, pending ? undefined : c, opts);
     const targetErr = err === '対象を選んでください' || err === '自分のモンスターを選んでください';

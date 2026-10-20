@@ -611,7 +611,7 @@ describe('オンラインの受付（△ バッチB）', () => {
       { modes: [1] },
       { modes: [1, 1] },
       { modes: [0, 1] },
-      { alt: 'warp' },
+      { alt: 'nope' },
       { sacrificeUid: 3 },
       { tapUids: ['a', 'b', 'c', 'd', 'e', 'f'] },
       { lifePay: 3 },

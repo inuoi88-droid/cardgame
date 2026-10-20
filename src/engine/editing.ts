@@ -7,7 +7,19 @@ import { CARD_TYPE_LABEL } from './labels.ts';
 import { cardBase, classifyCard, rarityRank } from './classify.ts';
 import { drawbackValueSpec, type AbilityDef, type DrawbackDef, type EffectDef, type ModifierDef } from './define.ts';
 import { modifierFits } from './points.ts';
-import { allowedTargets, CONDITIONS, conditionsFor, costConditions, defaultTiming, MODE_TIMINGS, targetsForEffect, TIMINGS, timingsFor, TRIBE_TARGETS } from './options.ts';
+import {
+  achieveConditions,
+  allowedTargets,
+  CONDITIONS,
+  conditionsFor,
+  costConditions,
+  defaultTiming,
+  MODE_TIMINGS,
+  targetsForEffect,
+  TIMINGS,
+  timingsFor,
+  TRIBE_TARGETS,
+} from './options.ts';
 import { getAbility, getDrawback, getEffect, getModifier, listAbilities, listDrawbacks, listEffects, listModifiers } from './registry.ts';
 import { stampScale } from './scaling.ts';
 import type { AbilityInstance, CardBase, CardDef, DrawbackInstance, EffectInstance, Rarity, Stats, TimingId, TribeId } from './types.ts';
@@ -67,7 +79,7 @@ export function abilityBlockReason(card: CardDef, def: AbilityDef): string | nul
   if (list.length >= BALANCE.card.maxAbilities) return `カードの能力は${BALANCE.card.maxAbilities}つまでです`;
   if (def.minRarity && rarityRank(card.rarity) < rarityRank(def.minRarity)) return 'レアリティが足りません';
   const type = classifyCard(card);
-  if (def.cardTypes && !def.cardTypes.includes(type)) return `${def.cardTypes.map((t) => CARD_TYPE_LABEL[t]).join('・')}のカードだけ`;
+  if (def.cardTypes && !def.cardTypes.includes(type)) return `${def.cardTypes.map((t) => `「${CARD_TYPE_LABEL[t]}」`).join('')}のカードだけ`;
   for (const a of list) {
     const other = getAbility(a.id);
     if (def.conflicts?.includes(a.id) || other?.conflicts?.includes(def.id)) return `「${other?.name ?? a.id}」と同時に付けられません`;
@@ -85,13 +97,18 @@ export function abilityChoices(card: CardDef): { def: AbilityDef; blocked: strin
 
 /** 条件付き軽減（MTG 要素 ○ バッチC1）の最初の条件：怒濤（このターン2枚目以降） */
 const DEFAULT_COST_CONDITION = 'notFirstCard';
+/** 事件・進化（MTG 要素 △ バッチC）の最初の達成条件：自分の場にモンスターが3体以上 */
+const DEFAULT_ACHIEVE_CONDITION = 'manyMonsters';
 
 export function createAbility(abilityId: string): AbilityInstance {
   const def = getAbility(abilityId);
   const a: AbilityInstance = { id: abilityId };
   if (def?.value) a.value = def.value.default;
   if (def?.option) a.option = def.option.default;
-  if (def?.takesCondition) {
+  if (def?.achieveCondition) {
+    const list = achieveConditions();
+    a.condition = list.includes(DEFAULT_ACHIEVE_CONDITION) ? DEFAULT_ACHIEVE_CONDITION : list[0];
+  } else if (def?.takesCondition) {
     const list = costConditions();
     a.condition = list.includes(DEFAULT_COST_CONDITION) ? DEFAULT_COST_CONDITION : list[0];
   }
@@ -100,6 +117,8 @@ export function createAbility(abilityId: string): AbilityInstance {
 
 /** カードの能力の一覧（タイミング・条件の「能力が要るもの」を見るため） */
 type Abilities = CardDef['abilities'];
+/** カードの効果の一覧（「砦を落としたとき」が効果「砦を築く」を見る。MTG 要素 △ バッチC） */
+type Effects = CardDef['effects'];
 
 /**
  * このデメリットをこの土台のカードに付けるとき選べるタイミング（デメリットごとの制限 timings を含む。
@@ -110,10 +129,11 @@ export function drawbackTimings(def: Pick<DrawbackDef, 'timings'>, base: CardBas
 }
 
 /** 土台（と能力）に合わないタイミングは、その土台の基本タイミング（使用時／召喚時）に読み替える */
-function mapTiming(timing: TimingId, base: CardBase, abilities?: Abilities): TimingId {
+function mapTiming(timing: TimingId, base: CardBase, abilities?: Abilities, effects?: Effects): TimingId {
   const def = TIMINGS[timing];
   if (!def?.bases.includes(base)) return defaultTiming(base);
   if (def.requiresAbility && !(abilities ?? []).some((a) => def.requiresAbility!.includes(a.id))) return defaultTiming(base);
+  if (def.requiresEffect && !(effects ?? []).some((e) => def.requiresEffect!.includes(e.id))) return defaultTiming(base);
   return timing;
 }
 
@@ -121,8 +141,8 @@ function mapTiming(timing: TimingId, base: CardBase, abilities?: Abilities): Tim
  * この効果をこの土台のカードに付けるとき選べるタイミング（効果ごとの制限 timings を含む）。
  * abilities を渡すと、能力が要るタイミング（起動・魂力・捨て札から使ったとき）も出る（MTG 要素 ○ バッチC1）
  */
-export function effectTimings(def: Pick<EffectDef, 'timings'>, base: CardBase, abilities?: Abilities): TimingId[] {
-  return timingsFor(base, abilities).filter((t) => !def.timings || def.timings.includes(t));
+export function effectTimings(def: Pick<EffectDef, 'timings'>, base: CardBase, abilities?: Abilities, effects?: Effects): TimingId[] {
+  return timingsFor(base, abilities, effects).filter((t) => !def.timings || def.timings.includes(t));
 }
 
 /** この効果に、このタイミングで付けられるオプション（防御無視・吸収と、数値の倍数と、遅延） */
@@ -134,11 +154,11 @@ export function modifiersFor(def: Pick<EffectDef, 'allowsMods' | 'scalable' | 'n
 }
 
 /** 効果を、カードの土台（と能力）に合わせて選べる値へ直す */
-export function fitEffect(e: EffectInstance, base: CardBase, abilities?: Abilities): EffectInstance {
+export function fitEffect(e: EffectInstance, base: CardBase, abilities?: Abilities, effects?: Effects): EffectInstance {
   const def = getEffect(e.id);
   if (!def) return e;
-  const timings = effectTimings(def, base, abilities);
-  const mapped = mapTiming(e.timing, base, abilities);
+  const timings = effectTimings(def, base, abilities, effects);
+  const mapped = mapTiming(e.timing, base, abilities, effects);
   const timing = timings.includes(mapped) ? mapped : (timings[0] ?? defaultTiming(base));
   const targets = targetsForEffect(def, timing, base);
   const target = targets.includes(e.target) ? e.target : targets[0]!;
@@ -160,7 +180,7 @@ export function fitEffect(e: EffectInstance, base: CardBase, abilities?: Abiliti
   return next;
 }
 
-export function createEffect(effectId: string, base: CardBase, abilities?: Abilities): EffectInstance {
+export function createEffect(effectId: string, base: CardBase, abilities?: Abilities, effects?: Effects): EffectInstance {
   const def = getEffect(effectId);
   const timing = defaultTiming(base);
   const e: EffectInstance = { id: effectId, timing, target: 'self', condition: null };
@@ -168,13 +188,13 @@ export function createEffect(effectId: string, base: CardBase, abilities?: Abili
   if (def.value) e.value = def.value.default;
   if (def.hits) e.hits = def.hits.default;
   if (def.option) e.option = def.option.default;
-  return fitEffect(e, base, abilities);
+  return fitEffect(e, base, abilities, effects);
 }
 
 /** 効果の種類を変える。タイミング・条件はなるべく引き継ぐ */
-export function changeEffectType(e: EffectInstance, effectId: string, base: CardBase, abilities?: Abilities): EffectInstance {
-  const fresh = createEffect(effectId, base, abilities);
-  return fitEffect({ ...fresh, timing: e.timing, condition: e.condition, target: e.target }, base, abilities);
+export function changeEffectType(e: EffectInstance, effectId: string, base: CardBase, abilities?: Abilities, effects?: Effects): EffectInstance {
+  const fresh = createEffect(effectId, base, abilities, effects);
+  return fitEffect({ ...fresh, timing: e.timing, condition: e.condition, target: e.target }, base, abilities, effects);
 }
 
 /**
@@ -183,7 +203,7 @@ export function changeEffectType(e: EffectInstance, effectId: string, base: Card
  */
 export function setAbilities(card: CardDef, abilities: AbilityInstance[]): CardDef {
   const base = cardBase(card);
-  const next: CardDef = { ...card, effects: card.effects.map((e) => fitEffect(e, base, abilities)) };
+  const next: CardDef = { ...card, effects: card.effects.map((e) => fitEffect(e, base, abilities, card.effects)) };
   if (abilities.length > 0) next.abilities = abilities;
   else delete next.abilities;
   return next;
@@ -260,7 +280,7 @@ export function setMonster(card: CardDef, monster: boolean): CardDef {
     ...card,
     stats: monster ? (card.stats ?? { ...DEFAULT_STATS }) : null,
     keywords: monster ? card.keywords : [],
-    effects: card.effects.map((e) => fitEffect(e, base, card.abilities)),
+    effects: card.effects.map((e) => fitEffect(e, base, card.abilities, card.effects)),
     drawbacks: card.drawbacks
       .filter((d) => {
         const def = getDrawback(d.id);
@@ -272,7 +292,7 @@ export function setMonster(card: CardDef, monster: boolean): CardDef {
     // 新生などモンスターだけの効果は、モンスターでなくなったら外す
     ...(monster
       ? {}
-      : { effects: card.effects.filter((e) => !getEffect(e.id)?.bases || getEffect(e.id)!.bases!.includes(base)).map((e) => fitEffect(e, base, card.abilities)) }),
+      : { effects: card.effects.filter((e) => !getEffect(e.id)?.bases || getEffect(e.id)!.bases!.includes(base)).map((e) => fitEffect(e, base, card.abilities, card.effects)) }),
   };
 }
 

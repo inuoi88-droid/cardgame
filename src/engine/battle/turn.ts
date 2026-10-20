@@ -8,8 +8,9 @@ import { lifespanOf } from './play.ts';
 import { randInt } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
 import { enqueueDelayed, enqueueMonsters, enqueuePowers, powerSource } from './triggers.ts';
-import { advanceSagas, chargePowers } from './powers.ts';
-import { deckToDiscard, discardCard, drawCards, exileFromBoard, hatchEggs, returnBorrowed, vanish } from './zones.ts';
+import { advanceSagas, altWinOnTurnStart, chargePowers, checkAchievements } from './powers.ts';
+import { deckToDiscard, discardCard, drawCards, exileFromBoard, hatchEggs, returnBorrowed, vanish, warpAway } from './zones.ts';
+import { tickSuspend } from './waiting.ts';
 import { NOISE_CARD_ID } from './types.ts';
 import type { GameState, PlayerId, Statuses } from './types.ts';
 
@@ -32,13 +33,14 @@ function activate(s: Statuses): void {
   s.confusePending = false;
 }
 
-export function startTurn(g: GameState, p: PlayerId): void {
+/** extra：追加ターン（MTG 要素 △ バッチC。相手の手番を飛ばして、もう一度自分のターン） */
+export function startTurn(g: GameState, p: PlayerId, extra = false): void {
   const ps = g.players[p];
   g.turnIndex += 1;
   g.active = p;
   ps.turnsTaken += 1;
   g.protect = {};
-  log(g, 0, `── ${ps.name}のターン（${ps.turnsTaken}ターン目）──`, 'turn', undefined, { kind: 'turnStart', player: p });
+  log(g, 0, `── ${ps.name}の${extra ? '追加' : ''}ターン（${ps.turnsTaken}ターン目）──`, 'turn', undefined, { kind: 'turnStart', player: p, ...(extra ? { extra: true } : {}) });
 
   // シールドと反撃が消える。凍結・混乱が発効する
   ps.shield = 0;
@@ -55,6 +57,10 @@ export function startTurn(g: GameState, p: PlayerId): void {
   }
   ps.turn = { cardsPlayed: 0, retain: 0, freezeTax: ps.status.freezeActive };
   if (ps.status.freezeActive) log(g, 1, `${ps.name}は凍結している：最初に使うカードのコスト+${B.freezeCostIncrease}`);
+
+  // 特殊勝利（MTG 要素 △ バッチC）：ターン開始を迎えた数・場のモンスターの数
+  altWinOnTurnStart(g, p);
+  if (isEnded(g)) return;
 
   // 毒（シールド・無効化を貫通）。その後、半分（切り捨て）になる
   if (ps.status.poison > 0) {
@@ -151,6 +157,8 @@ export function startTurn(g: GameState, p: PlayerId): void {
   const delayed = ps.delayed?.length ?? 0;
   if (delayed > 0) log(g, 1, `${ps.name}の予約していた効果が発動する（${delayed}件）`, 'info');
   enqueueDelayed(g, p);
+  // 待機（MTG 要素 △ バッチC）：残りを1減らし、0なら無料で使う（予約の後・英雄譚の前）
+  tickSuspend(g, p);
 
   // 英雄譚（MTG 要素 ○ バッチC2）：1章ずつ進む。蓄積「自分のターン開始時」
   advanceSagas(g, p);
@@ -205,7 +213,7 @@ export function runAutoAttacks(g: GameState, p: PlayerId): void {
     if (!(m.status.confuseActive || m.betraying)) continue;
     if (m.status.freezeActive) continue;
     // 休眠中・卵は自動でも攻撃しない（MTG 要素 △ バッチA）
-    if (monsterDormant(g, m) || m.card.token?.egg) continue;
+    if (monsterDormant(g, m) || m.card.token?.egg || m.siege) continue;
     // 防衛・消耗のモンスターは自動でも攻撃しない
     if (cannotAttack(g, m) || exerted(g, m)) continue;
     const times = attacksPerTurn(g, m) - m.attacksUsed;
@@ -222,6 +230,8 @@ export function runAutoAttacks(g: GameState, p: PlayerId): void {
 /** ターン終了：「自分のターン終了時」の効果を積み、続きの処理へ */
 export function beginEndTurn(g: GameState, p: PlayerId): void {
   log(g, 0, `${g.players[p].name}はターンを終了した`, 'action', undefined, { kind: 'turnEnd', player: p });
+  // 達成（MTG 要素 △ バッチC：事件・進化）の判定は、ターン終了時の効果の前
+  checkAchievements(g, p);
   enqueuePowers(g, p, 'turnEnd', 1);
   enqueueMonsters(g, p, 'turnEnd', 1);
   enqueue(g, { t: 'turnEndEffects', player: p });
@@ -276,6 +286,11 @@ function boardTurnEnd(g: GameState, p: PlayerId): void {
     // 一時蘇生（MTG 要素 △ バッチB）：持ち主のターン終了時に除外（破壊ではない）
     if (m.unearthed) {
       exileFromBoard(g, m, 1, `${monsterLabel(g, m)}は除外された（一時蘇生）`);
+      continue;
+    }
+    // ワープ（MTG 要素 △ バッチC）：持ち主のターン終了時に待機ゾーンへ（破壊ではない）
+    if (m.warped) {
+      warpAway(g, m, 1);
       continue;
     }
     if (m.counters.borrowLeft !== undefined) {
@@ -362,9 +377,16 @@ export function turnEndFinish(g: GameState, p: PlayerId, kept: string[]): void {
     }
   }
 
-  // 30ターン経過で引き分け（各プレイヤー30ターン：決定事項 #26）
-  if (g.players.every((x) => x.turnsTaken >= B.maxTurns)) {
+  // 30ターン経過で引き分け（各プレイヤー30ターン：決定事項 #26。追加ターンも1ターンに数えるので、通算ターンで数える：MTG 要素 △ バッチC）
+  if (g.turnIndex >= B.maxTurns * 2) {
     endGame(g, null, 'turnLimit');
+    return;
+  }
+  // 追加ターン（MTG 要素 △ バッチC）：相手の手番を飛ばして、もう一度自分のターン
+  if (ps.extraTurnPending) {
+    delete ps.extraTurnPending;
+    log(g, 0, `${ps.name}は追加のターンを得た`, 'info', undefined, { kind: 'status', player: p, status: 'extraTurn' });
+    startTurn(g, p, true);
     return;
   }
   startTurn(g, other(p));

@@ -43,6 +43,14 @@ export const TIMING_IDS = [
   // MTG 要素 △ バッチB：能力「相続」で捨て札から除外したとき・能力「予見」で手札から使ったとき（能力があるときだけ）
   'renew',
   'forecast',
+  // MTG 要素 △ バッチC：出来事（能力「出来事」）・達成したとき（事件・進化）・Lvが上がったとき・忠誠+1／−K・表になったとき・砦を落としたとき
+  'adventure',
+  'achievedNow',
+  'leveledUp',
+  'loyaltyPlus',
+  'loyaltyMinus',
+  'revealed',
+  'siegeWon',
 ] as const;
 export type TimingId = (typeof TIMING_IDS)[number];
 
@@ -117,6 +125,10 @@ export const CONDITION_IDS = [
   'rested',
   // MTG 要素 △ バッチB：協約したなら（能力「協約」があるときだけ）
   'bargained',
+  // MTG 要素 △ バッチC：達成していれば（事件・進化）・Lv2以上なら・Lv3なら（Lvアップ）
+  'achieved',
+  'level2',
+  'level3',
 ] as const;
 export type ConditionId = (typeof CONDITION_IDS)[number];
 

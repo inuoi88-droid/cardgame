@@ -1,7 +1,7 @@
 /** 今できる行動の一覧（UI・CPU・サーバーの検証で共用） */
 import { BALANCE } from '../balance.ts';
 import { CONDITIONS, isMonsterOnlyRule } from '../options.ts';
-import { getEffect } from '../registry.ts';
+import { getAbility, getEffect } from '../registry.ts';
 import type { CardDef } from '../types.ts';
 import { attackBlockReason, attackTargets, enlistOptions } from './combat.ts';
 import { checkCondition } from './conditions.ts';
@@ -45,6 +45,7 @@ import {
   fromDiscardAbility,
   icedBlock,
   kickerCost,
+  waitingPlayBlock,
   leavesPower,
   modeName,
   playableModes,
@@ -61,11 +62,14 @@ import { modeTexts } from '../text.ts';
 import { cardModes, effectsForMode, isVillain, spreeCost, tieredSurcharge } from './modes.ts';
 import { tribeAllies } from './runtime.ts';
 import { advanceableSagas } from './powers.ts';
+import { setAsideBlock, setAsideCost, setAsideKinds, setAsideOf, waitingFull } from './waiting.ts';
+import { levelOf, revealBlock, revealSource, revealTargets, validateReveal } from './abilities.ts';
 import type { EffectInstance, TimingId } from '../types.ts';
 import {
   ARMY_CARD_ID,
   NOISE_CARD_ID,
   type Action,
+  type ActivateUse,
   type AltPlay,
   type CardInst,
   type Chosen,
@@ -76,6 +80,7 @@ import {
   type Monster,
   type PlayerId,
   type SacrificeKind,
+  type SetAsideKind,
   type TargetRef,
 } from './types.ts';
 
@@ -99,8 +104,8 @@ export interface PlayInfo {
    */
   targetCosts?: Record<string, number>;
   // ---- MTG 要素 ○ バッチC1
-  /** 捨て札から使う（フラッシュバック・再活・脱出）ときの情報なら 'discard' */
-  from?: 'discard';
+  /** 捨て札から使う（フラッシュバック・再活・脱出）ときの情報なら 'discard'、待機ゾーンから（MTG 要素 △ バッチC）なら 'waiting' */
+  from?: 'discard' | 'waiting';
   /** 印刷コスト（手札のコストの数字の色分け：下がっていれば緑、上がっていれば赤） */
   printedCost?: number;
   /** コストの内訳（対象を選ぶ前。護法は targetCosts） */
@@ -197,6 +202,10 @@ export interface ModeInfo {
 /** 起動（MTG 要素 ○ バッチC1）の情報。PlayInfo と同じ形（UI のドラッグ・CPU が使う） */
 export interface ActivateInfo {
   sourceUid: string;
+  /** Lvアップ・忠誠+1・忠誠−K（MTG 要素 △ バッチC。省略は能力「起動」） */
+  use?: ActivateUse;
+  /** ボタンの名前（「起動」「Lvアップ」「+1」「−3」） */
+  label?: string;
   kind: 'monster' | 'power';
   cardId: string;
   name: string;
@@ -364,6 +373,17 @@ function specialWarning(g: GameState, p: PlayerId, id: string, n: number): strin
     case 'fateseal':
     case 'exileMill':
       return opp.deck.length > 0 ? null : '相手の山札がありません';
+    // MTG 要素 △ バッチC
+    case 'heist':
+      return opp.deck.length > 0 ? null : '相手の山札がありません';
+    case 'manifest':
+      return me.deck.length > 0 ? null : '山札がありません';
+    case 'extraTurn':
+      return me.extraTurnUsed ? '追加ターンはこの試合でもう得ました（1試合1回）' : null;
+    case 'siege': {
+      const mine = [...g.players[0].board, ...g.players[1].board].filter((m) => m.siege?.player === p).length;
+      return mine >= BALANCE.battle.maxSieges ? `砦は1人${BALANCE.battle.maxSieges}つまでです` : null;
+    }
     default:
       return null;
   }
@@ -388,14 +408,15 @@ function noPayableTarget(targets: TargetRef[], costs: Record<string, number> | u
  * 手札のカードを使うときの情報（コスト、対象の候補、使えない理由、発動しない効果の注意）。
  * opts.from が 'discard' なら、捨て札のカードを捨て札から使うときの情報（MTG 要素 ○ バッチC1）
  */
-export function playInfo(g: GameState, p: PlayerId, card: CardInst, opts: { from?: 'discard' } = {}): PlayInfo {
+export function playInfo(g: GameState, p: PlayerId, card: CardInst, opts: { from?: 'discard' | 'waiting' } = {}): PlayInfo {
   const def = g.cards[card.cardId];
   if (card.cardId === NOISE_CARD_ID || !def) {
     return { card, cost: BALANCE.battle.noiseRemoveCost, blocked: 'ノイズ', enemyTargets: [], allyTargets: [], warnings: [], tauntLimited: false };
   }
   const fromDiscard = opts.from === 'discard';
-  const from = fromDiscard ? 'discard' : 'hand';
-  const timing = playTiming(def, from);
+  const fromWaiting = opts.from === 'waiting';
+  const from = fromDiscard ? 'discard' : fromWaiting ? 'waiting' : 'hand';
+  const timing = playTiming(def, fromDiscard ? 'discard' : 'hand');
   const rules = chosenRules(def, timing);
   const enemyTargets = enemyCandidates(g, p, rules.enemy);
   const allyTargets = rules.ally ? allyCandidates(g, p, card, timing) : [];
@@ -403,15 +424,16 @@ export function playInfo(g: GameState, p: PlayerId, card: CardInst, opts: { from
   const cost = breakdown.total;
   const energy = g.players[p].energy;
   const ps = g.players[p];
-  // 追加の支払いと払い方（MTG 要素 △ バッチB）：払い方を使えば下がるコスト
-  const pay = payOptions(g, p, card, def, from, timing);
+  // 追加の支払いと払い方（MTG 要素 △ バッチB）：払い方を使えば下がるコスト。待機ゾーンから使うときは無し（MTG 要素 △ バッチC）
+  const pay = fromWaiting ? undefined : payOptions(g, p, card, def, fromDiscard ? 'discard' : 'hand', timing);
   const reach = pay ? Math.max(0, cost - pay.minCost) : 0;
   let blocked: string | null = null;
   const fd = fromDiscard ? fromDiscardAbility(def) : undefined;
   if (g.phase !== 'main' || g.active !== p || g.pending) blocked = '今は使えません';
+  else if (fromWaiting) blocked = waitingPlayBlock(g, p, card.uid);
   else if (fromDiscard && !fd) blocked = '捨て札から使えません';
   else if (fromDiscard && !ps.discard.some((c) => c.uid === card.uid)) blocked = '捨て札にありません';
-  else if (!fromDiscard && icedBlock(g, card)) blocked = icedBlock(g, card);
+  else if (!fromDiscard && !fromWaiting && icedBlock(g, card)) blocked = icedBlock(g, card);
   else if (fd?.rule.oncePerTurn && card.retraceTurn === g.turnIndex) blocked = `${fd.name}：このカードはこのターンもう使いました`;
   else if (fd?.rule.onlyIfDiscardedThisTurn && card.discardedTurn !== g.turnIndex) blocked = `${fd.name}：このターンに捨てられていません`;
   else if (cost - reach > energy && !(pay?.alts ?? []).some((x) => !x.blocked)) blocked = 'エナジーが足りません';
@@ -449,6 +471,7 @@ export function playInfo(g: GameState, p: PlayerId, card: CardInst, opts: { from
   info.printedCost = def.cost;
   info.breakdown = breakdown;
   if (fromDiscard) info.from = 'discard';
+  if (fromWaiting) info.from = 'waiting';
   if (fromInfo) info.fromDiscard = fromInfo;
   if (pay) info.pay = pay;
   const k = kickerCost(def);
@@ -479,11 +502,13 @@ export function payOptions(g: GameState, p: PlayerId, card: CardInst, def: CardD
   // 代わりの使い方：それぞれのコスト・対象（超過は選ばない）
   const alts = altsOf(def);
   if (alts.length > 0) {
-    out.alts = alts.map((x): AltInfo => {
+    // 待機ゾーン・裏向きの使い方（ワープ・出来事・変装。MTG 要素 △ バッチC）は手札からだけ
+    out.alts = alts.filter((x) => hand || (x.kind !== 'warp' && x.kind !== 'adventure' && x.kind !== 'faceDown')).map((x): AltInfo => {
       const altDef = x.kind === 'overload' ? overloadedDef(def, timing) : def;
-      const rules = chosenRules(altDef, timing);
+      const t = x.kind === 'adventure' ? 'adventure' : timing;
+      const rules = x.kind === 'faceDown' ? { enemy: [], ally: false } : chosenRules(altDef, t);
       const enemyTargets = enemyCandidates(g, p, rules.enemy);
-      const allyTargets = rules.ally ? allyCandidates(g, p, card, timing) : [];
+      const allyTargets = rules.ally ? allyCandidates(g, p, card, t) : [];
       const cost = effectiveCost(g, p, card, { from, alt: x.kind });
       const targetCosts = wardCosts(enemyTargets, cost, (chosen) => effectiveCost(g, p, card, { chosen, from, alt: x.kind }));
       let blocked: string | null = cost > energy ? 'エナジーが足りません' : null;
@@ -496,7 +521,13 @@ export function payOptions(g: GameState, p: PlayerId, card: CardInst, def: CardD
             ? `エナジー${v}・召喚時の効果のあと破壊`
             : x.kind === 'overload'
               ? `+${v}・「選んだ1体」が全体になる`
-              : `攻撃力+${v}・反撃しない`;
+              : x.kind === 'warp'
+                ? `エナジー${v}・ターン終了時に待機ゾーンへ`
+                : x.kind === 'adventure'
+                  ? `エナジー${v}・出来事の効果を使い、あとでモンスターとして出す`
+                  : x.kind === 'faceDown'
+                    ? `エナジー${cost}・裏向き（攻撃力・体力${BALANCE.battle.faceDownStats}）。あとで表にする`
+                    : `攻撃力+${v}・反撃しない`;
       const info: AltInfo = {
         alt: x.kind,
         name: x.name,
@@ -505,11 +536,14 @@ export function payOptions(g: GameState, p: PlayerId, card: CardInst, def: CardD
         blocked,
         enemyTargets,
         allyTargets,
-        warnings: playWarnings(g, p, altDef, allyTargets, timing, undefined, card.cardId),
+        warnings: x.kind === 'faceDown' ? [] : playWarnings(g, p, altDef, allyTargets, t, undefined, card.cardId),
       };
+      // 出来事のあとは待機ゾーンへ（いっぱいなら捨て札）
+      if (x.kind === 'adventure' && waitingFull(g, p)) info.warnings.push('待機ゾーンがいっぱいなので、出来事のあとカードは捨て札に置かれます');
       if (targetCosts) info.targetCosts = targetCosts;
       return info;
     });
+    if (out.alts.length === 0) delete out.alts;
   }
   // 差し出す
   const sac = sacrificeOf(def);
@@ -603,7 +637,7 @@ function applyModes(
   card: CardInst,
   def: CardDef,
   timing: TimingId,
-  from: 'hand' | 'discard',
+  from: 'hand' | 'discard' | 'waiting',
   modes: number[],
   common: string | null,
   info: PlayInfo,
@@ -710,9 +744,9 @@ export function exilePreference(g: GameState, p: PlayerId, card: CardInst, n: nu
     .map((x) => x.c.uid);
 }
 
-/** 起動（MTG 要素 ○ バッチC1）の情報。起動の能力が無いものは null */
-export function activateInfo(g: GameState, p: PlayerId, sourceUid: string): ActivateInfo | null {
-  const src = activateSource(g, p, sourceUid);
+/** 起動（MTG 要素 ○ バッチC1）の情報。起動の能力が無いものは null。use は Lvアップ・忠誠+1・忠誠−K（MTG 要素 △ バッチC） */
+export function activateInfo(g: GameState, p: PlayerId, sourceUid: string, use?: ActivateUse): ActivateInfo | null {
+  const src = activateSource(g, p, sourceUid, use);
   if (!src) return null;
   const t = activateTargets(g, p, src);
   const energy = g.players[p].energy;
@@ -732,13 +766,110 @@ export function activateInfo(g: GameState, p: PlayerId, sourceUid: string): Acti
     tauntLimited: t.enemy.length > 0 && cardTargetableTaunts(g, other(p)).length > 0,
   };
   if (targetCosts) info.targetCosts = targetCosts;
+  if (use) {
+    info.use = use;
+    const cut = getAbility(src.ability.id)?.battle.loyalty?.cut(src.ability) ?? 0;
+    info.label = use === 'level' ? `Lv${levelOf(src)}→${levelOf(src) + 1}` : use === 'plus' ? '+1' : `−${cut}`;
+  }
   return info;
 }
 
-/** 自分の起動できるもの（場のモンスター → パワー）の情報。起動できないものも理由つき */
+/** 自分の起動できるもの（場のモンスター → パワー。起動・Lvアップ・忠誠+1／−K）の情報。起動できないものも理由つき */
 export function activateInfos(g: GameState, p: PlayerId): ActivateInfo[] {
   return activateSources(g, p).flatMap((s) => {
-    const info = activateInfo(g, p, s.uid);
+    const info = activateInfo(g, p, s.uid, s.use);
+    return info ? [info] : [];
+  });
+}
+
+// ---------------------------------------------------------------- MTG 要素 △ バッチC：待機ゾーン・裏向き
+
+/** 手札のカードを待機させる（予顕・計画・待機）ときの情報 */
+export interface SetAsideInfo {
+  card: CardInst;
+  kind: SetAsideKind;
+  /** 能力の名前（予顕・計画・待機） */
+  name: string;
+  /** 置くときに払うエナジー */
+  cost: number;
+  blocked: string | null;
+  /** 短い説明（「エナジー2で伏せ、後のターンにコスト−1」など） */
+  note: string;
+}
+
+/** 手札のカードを待機させるときの情報（このカードの待機の能力ごと。無ければ空） */
+export function setAsideInfo(g: GameState, p: PlayerId, card: CardInst): SetAsideInfo[] {
+  const def = g.cards[card.cardId];
+  if (!def || card.cardId === NOISE_CARD_ID) return [];
+  return setAsideKinds(def).map((kind) => {
+    const x = setAsideOf(def, kind)!;
+    const cost = setAsideCost(g, p, card, kind);
+    const sa = x.ad.battle.setAside!;
+    const note =
+      kind === 'foretell'
+        ? `エナジー${cost}で伏せ、後のターンにコスト−${sa.cut?.(x.a) ?? 0}で使う`
+        : kind === 'plot'
+          ? `今エナジー${cost}を払い、後のターンに無料で使う`
+          : `エナジー${cost}で待機させ、${sa.time?.(x.a) ?? 1}ターン後に無料で使う`;
+    return { card, kind, name: x.ad.name, cost, blocked: setAsideBlock(g, p, card, kind), note };
+  });
+}
+
+/** 自分の手札のうち、待機させられるカードの情報（使えないものも理由つき） */
+export function setAsideInfos(g: GameState, p: PlayerId): SetAsideInfo[] {
+  return g.players[p].hand.flatMap((c) => setAsideInfo(g, p, c));
+}
+
+/** 待機ゾーンのカードを使うときの情報（PlayInfo。待機のカードは自動で使われるので出さない） */
+export function waitingPlayInfos(g: GameState, p: PlayerId): PlayInfo[] {
+  return (g.players[p].waiting ?? []).filter((w) => w.kind !== 'suspend').map((w) => playInfo(g, p, w.card, { from: 'waiting' }));
+}
+
+/** 裏向きの自分のモンスターを表にするときの情報（PlayInfo と同じ形の対象・コスト） */
+export interface RevealInfo {
+  uid: string;
+  /** 本当のカード（持ち主にだけ見える） */
+  cardId: string;
+  name: string;
+  cost: number;
+  blocked: string | null;
+  enemyTargets: TargetRef[];
+  allyTargets: string[];
+  warnings: string[];
+  tauntLimited: boolean;
+  targetCosts?: Record<string, number>;
+}
+
+export function revealInfo(g: GameState, p: PlayerId, uid: string): RevealInfo | null {
+  const m = g.players[p].board.find((x) => x.uid === uid);
+  const card = m?.faceDown?.card;
+  if (!m || !card) return null;
+  const def = g.cards[card.cardId];
+  const src = revealSource(g, p, uid);
+  const t = src ? revealTargets(g, p, src.def) : { enemy: [], ally: [] };
+  const cost = src?.cost ?? 0;
+  let blocked = revealBlock(g, p, uid);
+  const targetCosts = wardCosts(t.enemy, cost, (chosen) => cost + wardTaxFor(g, p, chosen));
+  if (!blocked && noPayableTarget(t.enemy, targetCosts, cost, g.players[p].energy)) blocked = 'エナジーが足りません（護法）';
+  const info: RevealInfo = {
+    uid,
+    cardId: card.cardId,
+    name: def?.name ?? '？',
+    cost,
+    blocked,
+    enemyTargets: t.enemy,
+    allyTargets: t.ally,
+    warnings: def ? effectWarnings(g, p, def.effects.filter((e) => e.timing === 'revealed'), t.ally, false) : [],
+    tauntLimited: t.enemy.length > 0 && cardTargetableTaunts(g, other(p)).length > 0,
+  };
+  if (targetCosts) info.targetCosts = targetCosts;
+  return info;
+}
+
+/** 自分の裏向きのモンスターを表にするときの情報（表にできないものも理由つき） */
+export function revealInfos(g: GameState, p: PlayerId): RevealInfo[] {
+  return g.players[p].board.flatMap((m) => {
+    const info = m.faceDown ? revealInfo(g, p, m.uid) : null;
     return info ? [info] : [];
   });
 }
@@ -961,11 +1092,26 @@ export function legalActions(g: GameState, p: PlayerId): Action[] {
       }
     }
   }
-  // 起動（MTG 要素 ○ バッチC1）
+  // 起動（MTG 要素 ○ バッチC1。Lvアップ・忠誠：△ バッチC）
   for (const info of activateInfos(g, p)) {
     if (info.blocked) continue;
     for (const chosen of chosenCombos(info.enemyTargets, info.allyTargets)) {
-      if (validateActivate(g, p, info.sourceUid, chosen) === null) out.push({ type: 'activate', player: p, sourceUid: info.sourceUid, chosen });
+      if (validateActivate(g, p, info.sourceUid, chosen, info.use) === null) {
+        out.push({ type: 'activate', player: p, sourceUid: info.sourceUid, chosen, ...(info.use ? { use: info.use } : {}) });
+      }
+    }
+  }
+  // MTG 要素 △ バッチC：待機ゾーンから使う・待機させる・表にする
+  for (const info of waitingPlayInfos(g, p)) {
+    if (!info.blocked) out.push(...playActions(g, p, info, { from: 'waiting' }));
+  }
+  for (const info of setAsideInfos(g, p)) {
+    if (!info.blocked) out.push({ type: 'setAside', player: p, cardUid: info.card.uid, kind: info.kind });
+  }
+  for (const info of revealInfos(g, p)) {
+    if (info.blocked) continue;
+    for (const chosen of chosenCombos(info.enemyTargets, info.allyTargets)) {
+      if (validateReveal(g, p, info.uid, chosen) === null) out.push({ type: 'reveal', player: p, uid: info.uid, chosen });
     }
   }
   for (const m of ps.board) {

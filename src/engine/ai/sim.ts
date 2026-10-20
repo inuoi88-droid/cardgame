@@ -6,7 +6,7 @@ import { effectsForMode, resolveMode } from '../battle/modes.ts';
 import { BALANCE } from '../balance.ts';
 import { applyAction } from '../battle/apply.ts';
 import { findMonster, other } from '../battle/core.ts';
-import { activateSource } from '../battle/abilities.ts';
+import { activateSource, activateTiming } from '../battle/abilities.ts';
 import { costCtxOf, effectiveCost, playTiming } from '../battle/play.ts';
 import { NOISE_CARD_ID, type Action, type CardInst, type GameState, type PendingChoice, type PlayerId } from '../battle/types.ts';
 import type { CardDef, EffectInstance, TimingId } from '../types.ts';
@@ -244,11 +244,16 @@ export function simulate(view: GameState, action: Action, seed: number, me: Play
 export function actionCard(view: GameState, action: Action): { card?: CardInst; def: CardDef; timing: TimingId; effects: EffectInstance[] } | null {
   const ps = view.players[action.player];
   if (action.type === 'playCard') {
-    const card = (action.from === 'discard' ? ps.discard : ps.hand).find((c) => c.uid === action.cardUid);
+    const card =
+      action.from === 'waiting'
+        ? (ps.waiting ?? []).find((w) => w.card.uid === action.cardUid)?.card
+        : (action.from === 'discard' ? ps.discard : ps.hand).find((c) => c.uid === action.cardUid);
     const def = card ? view.cards[card.cardId] : undefined;
     if (!card || !def) return null;
-    const timing = playTiming(def, action.from === 'discard' ? 'discard' : 'hand');
+    const timing = playTiming(def, action.from === 'discard' ? 'discard' : 'hand', action.alt);
     // モード選択（MTG 要素 ○ バッチC2）：選んだモードの効果だけ（放題は選んだモードすべて：△ バッチB）
+    // 裏向き（変装。MTG 要素 △ バッチC）は召喚時の効果が出ない
+    if (action.alt === 'faceDown') return { card, def, timing, effects: [] };
     return { card, def, timing, effects: effectsForMode(def.effects, timing, resolveMode(def, timing, action.modes ?? action.mode)) };
   }
   if (action.type === 'handAbility') {
@@ -265,9 +270,17 @@ export function actionCard(view: GameState, action: Action): { card?: CardInst; 
     return { card, def, timing: 'renew', effects: action.ability === 'renew' ? def.effects.filter((e) => e.timing === 'renew') : [] };
   }
   if (action.type === 'activate') {
-    const src = activateSource(view, action.player, action.sourceUid);
+    const src = activateSource(view, action.player, action.sourceUid, action.use);
     if (!src) return null;
-    return { def: src.def, timing: 'activated', effects: src.def.effects.filter((e) => e.timing === 'activated') };
+    const timing = activateTiming(action.use);
+    return { def: src.def, timing, effects: src.def.effects.filter((e) => e.timing === timing) };
+  }
+  // 裏向きを表にする（MTG 要素 △ バッチC）
+  if (action.type === 'reveal') {
+    const card = ps.board.find((m) => m.uid === action.uid)?.faceDown?.card;
+    const def = card ? view.cards[card.cardId] : undefined;
+    if (!card || !def) return null;
+    return { card, def, timing: 'revealed', effects: def.effects.filter((e) => e.timing === 'revealed') };
   }
   return null;
 }

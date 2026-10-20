@@ -215,5 +215,31 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
     // ---- MTG 要素 △ バッチB
     case 'bargained':
       return opts.protectKey !== undefined && g.protect[opts.protectKey]?.bargained === true;
+    // ---- MTG 要素 △ バッチC：出どころのモンスター・パワー（紋章を含む）の達成・Lv。出どころが無ければ満たすとみなす
+    case 'achieved': {
+      if (!opts.src) return true;
+      return sourceState(g, me, opts.src)?.achieved === true;
+    }
+    case 'level2':
+    case 'level3': {
+      if (!opts.src) return true;
+      const s = sourceState(g, me, opts.src);
+      if (!s) return false;
+      return s.level >= (condition === 'level2' ? 2 : BALANCE.battle.maxLevel);
+    }
   }
+}
+
+/** 出どころのモンスター・パワーの達成と Lv（MTG 要素 △ バッチC）。場に無ければ undefined */
+function sourceState(g: GameState, me: PlayerId, src: SourceRef): { achieved: boolean; level: number } | undefined {
+  if (src.kind === 'monster') {
+    const m = findMonster(g, src.uid);
+    return m ? { achieved: m.achieved === true, level: m.counters.level ?? 1 } : undefined;
+  }
+  if (src.kind === 'power') {
+    const ps = g.players[me];
+    const pw = [...ps.powers, ...(ps.emblems ?? [])].find((x) => x.uid === src.uid);
+    return pw ? { achieved: pw.achieved === true, level: pw.level ?? 1 } : undefined;
+  }
+  return undefined;
 }

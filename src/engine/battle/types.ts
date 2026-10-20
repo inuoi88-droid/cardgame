@@ -61,6 +61,8 @@ export interface TokenSpec {
   egg?: { hatchAt: number; attack: number };
   /** 落とし子（MTG 要素 △ バッチA）：破壊されると持ち主（今の持ち主）のエナジー+1 */
   spawn?: boolean;
+  /** 砦（MTG 要素 △ バッチC）：攻撃も反撃もしない。相手のトークンの上限に数えない */
+  siege?: boolean;
 }
 
 /** 対戦中のカード1枚 */
@@ -100,6 +102,9 @@ export interface CardInst {
   retraceTurn?: number;
   /** 予見を使った通算ターン（1ターン1回） */
   forecastTurn?: number;
+  // ---- MTG 要素 △ バッチC
+  /** 強奪で相手の山札からコピーしたカード（使い切り。手札の札の表示用） */
+  heisted?: boolean;
 }
 
 export const NOISE_CARD_ID = '__noise__';
@@ -111,6 +116,22 @@ export const ARMY_CARD_ID = '__army__';
 export const CONJURE_PREFIX = '__conjure__:';
 /** 培養の「卵」トークンのカード定義のキー（MTG 要素 △ バッチA。孵化すると TOKEN_CARD_ID に変わる） */
 export const EGG_CARD_ID = '__egg__';
+/**
+ * 裏向きのモンスター（MTG 要素 △ バッチC：変装・予示）のカード定義のキー。裏向きの間、Monster.card はこのキーの代わりのカードで、
+ * 本当のカードは Monster.faceDown.card（持ち主だけに見える）。変装は護法つきの定義
+ */
+export const FACE_DOWN_CARD_ID = '__facedown__';
+export const FACE_DOWN_WARD_CARD_ID = '__facedown_ward__';
+/** 砦（MTG 要素 △ バッチC）のカード定義のキー */
+export const SIEGE_CARD_ID = '__siege__';
+
+/** 裏向きのモンスターの状態（MTG 要素 △ バッチC）。revealCost が null なら表にできない（予示したモンスター以外のカード） */
+export interface FaceDownState {
+  kind: 'disguise' | 'manifest';
+  revealCost: number | null;
+  /** 本当のカード（相手の viewFor では消える） */
+  card?: CardInst;
+}
 
 export interface Monster {
   uid: string;
@@ -164,6 +185,15 @@ export interface Monster {
   unleashed?: boolean;
   /** 一時蘇生で出た（速攻。持ち主のターン終了時に除外される） */
   unearthed?: boolean;
+  // ---- MTG 要素 △ バッチC（公開情報。faceDown.card だけは持ち主にだけ見える）
+  /** 裏向き（変装・予示） */
+  faceDown?: FaceDownState;
+  /** 進化した（達成。1回きり） */
+  achieved?: boolean;
+  /** ワープで出た（持ち主のターン終了時に待機ゾーンへ） */
+  warped?: boolean;
+  /** 砦：築いた人と、報酬のカード（GameState.cards のキー） */
+  siege?: { player: PlayerId; cardId: string };
 }
 
 /** 場に残っているパワー */
@@ -195,6 +225,17 @@ export interface PowerInst {
   age?: number;
   /** 休眠：置いたときの持ち主の turnsTaken（差が奇数のターンは休眠中） */
   dormantFrom?: number;
+  // ---- MTG 要素 △ バッチC（公開情報）
+  /** 事件を解明した（達成。1回きり） */
+  achieved?: boolean;
+  /** Lv（Lvアップ。無ければ1）と、上げた通算ターン（1ターン1回） */
+  level?: number;
+  levelTurn?: number;
+  /** 忠誠（能力「忠誠」のパワー）と、+1／−K を使った通算ターン（両方で1ターン1回） */
+  loyalty?: number;
+  loyaltyTurn?: number;
+  /** 特殊勝利の進み（カードを使った数・ターン開始の数・場のモンスターの数） */
+  progress?: number;
 }
 
 /** 1ターンの上限を数える（安全装置：決定事項 #64）。turnIndex が変わったら数え直す */
@@ -261,11 +302,39 @@ export interface PlayerState {
   exp?: number;
   /** 氷結（MTG 要素 △ バッチA）：次の自分のターン開始時（引いた後）に、手札からこの枚数が凍る。無ければ0。公開情報 */
   ice?: number;
+  // ---- MTG 要素 △ バッチC（どれも公開情報。待機ゾーンの hidden のカードだけは相手の viewFor で隠す）
+  /** 待機ゾーン（予顕・計画・待機・ワープ・出来事）。1人 battle.maxWaiting 枚まで */
+  waiting?: WaitingCard[];
+  /** 紋章（能力「紋章」のパワー。パワーの上限に数えず、解除されない）。1人 battle.maxEmblems まで */
+  emblems?: PowerInst[];
+  /** 追加ターンを得た（1試合1回）／このターンのあとに追加のターンがある */
+  extraTurnUsed?: boolean;
+  extraTurnPending?: boolean;
+  /** HP交換を使った（1試合1回） */
+  swapUsed?: boolean;
   /** 次に使うカードのコスト軽減（使うまで残る） */
   discount: number;
   /** 自分のターンを迎えた回数 */
   turnsTaken: number;
   mulligan: { done: boolean; fullCount: number };
+}
+
+/** 待機ゾーンに置く理由（MTG 要素 △ バッチC） */
+export type WaitingKind = 'foretell' | 'plot' | 'suspend' | 'warp' | 'adventure';
+/** 手札から待機させる行動（setAside）の種類 */
+export type SetAsideKind = 'foretell' | 'plot' | 'suspend';
+export const SET_ASIDE_KINDS = ['foretell', 'plot', 'suspend'] as const satisfies readonly SetAsideKind[];
+
+/** 待機ゾーンのカード（MTG 要素 △ バッチC） */
+export interface WaitingCard {
+  card: CardInst;
+  kind: WaitingKind;
+  /** 置いた通算ターン（このターンより後の自分のターンから使える） */
+  since: number;
+  /** 待機の残りターン（持ち主のターン開始時に1減り、0で無料で使われる） */
+  time?: number;
+  /** 予顕：裏向き（相手には見えない） */
+  hidden?: boolean;
 }
 
 /** 予約された効果（修飾「次のターンに」。MTG 要素 ○ バッチA）。公開情報 */
@@ -329,7 +398,18 @@ export type Step =
   /** 濫用：自分のモンスター1体を生け贄にしてよい（選んだら PlayRecord.exploited。MTG 要素 ○ バッチA） */
   | { t: 'exploitChoice'; player: PlayerId; protectKey: string; depth: number; picks?: string[] }
   /** from：手札から使った（省略）か、無料で使った（続唱）か、捨て札から使った（MTG 要素 ○ バッチC1）か。反復は手札から使ったときだけ */
-  | { t: 'cardDone'; player: PlayerId; card: CardInst; protectKey: string; depth: number; from?: PlayFrom }
+  | {
+      t: 'cardDone';
+      player: PlayerId;
+      card: CardInst;
+      protectKey: string;
+      depth: number;
+      from?: PlayFrom;
+      /** 出来事（MTG 要素 △ バッチC）として使った：使い終えたら待機ゾーンへ */
+      adventure?: boolean;
+      /** 裏向き（変装）で出した：コストを見せない（「コスト3以上のカードを使うたび」は変装のコストで判定） */
+      faceDown?: boolean;
+    }
   /**
    * 無料で使う（続唱。MTG 要素 ○ バッチB）。「選んだ1体」が要れば、相手側 → 自分側の順に選ぶ（stage）。
    * freeDepth は無料で使う連鎖の段（battle.maxFreePlayDepth まで）
@@ -340,6 +420,8 @@ export type Step =
       card: CardInst;
       depth: number;
       freeDepth: number;
+      /** 待機（MTG 要素 △ バッチC）で使われた：モンスターは速攻を持つ */
+      suspend?: boolean;
       chosen?: Chosen;
       /** モード選択のカード（MTG 要素 ○ バッチC2）は、対象より先にモードを選ぶ（stage 'mode'） */
       stage?: 'mode' | 'enemy' | 'ally';
@@ -353,7 +435,7 @@ export type Step =
   /** 英雄譚（MTG 要素 ○ バッチC2）：最後の章を解決し終えたら、パワーを消す（誘発なし） */
   | { t: 'sagaEnd'; player: PlayerId; powerUid: string; depth: number }
   /** パワーを誘発なしで取り除く（MTG 要素 △ バッチA：罠・プラン） */
-  | { t: 'powerGone'; player: PlayerId; powerUid: string; depth: number; why: 'trap' | 'plan' }
+  | { t: 'powerGone'; player: PlayerId; powerUid: string; depth: number; why: 'trap' | 'plan' | 'loyalty' }
   // ---- MTG 要素 △ バッチB
   /** 貪食：出たモンスター（uid）が、自分の他のモンスターを0〜max体生け贄にする（1体につき攻撃力・体力+amount）。among は出たときに場にいたもの */
   | { t: 'devourChoice'; player: PlayerId; uid: string; amount: number; max: number; depth: number; picks?: string[]; among?: string[] }
@@ -381,7 +463,7 @@ export type Step =
   | { t: 'turnEndFinish'; player: PlayerId; kept: string[] };
 
 /** カードをどこから使ったか（手札・無料で使う・捨て札） */
-export type PlayFrom = 'hand' | 'free' | 'discard';
+export type PlayFrom = 'hand' | 'free' | 'discard' | 'waiting';
 
 export interface ChoiceOption {
   id: string;
@@ -435,7 +517,14 @@ export interface LogEvent {
     | 'saga'
     | 'charge'
     // MTG 要素 △ バッチB：捨て札のカードの能力（status は renew / dredge / embalm）
-    | 'discardAbility';
+    | 'discardAbility'
+    // MTG 要素 △ バッチC：待機ゾーン（status は foretell / plot / suspend / warp / adventure / tick）・表にする・Lv・忠誠・達成・特殊勝利の進み
+    | 'waiting'
+    | 'reveal'
+    | 'level'
+    | 'loyalty'
+    | 'achieve'
+    | 'altWin';
   player?: PlayerId;
   target?: TargetRef;
   source?: TargetRef;
@@ -446,8 +535,10 @@ export interface LogEvent {
   status?: string;
   /** damage のとき、ダメージの種類（毒・やけど・自傷などの区別） */
   damageKind?: DamageKind;
-  /** play のとき、捨て札から使った（MTG 要素 ○ バッチC1） */
-  from?: 'discard';
+  /** play のとき、捨て札から使った（MTG 要素 ○ バッチC1）・待機ゾーンから使った（△ バッチC） */
+  from?: 'discard' | 'waiting';
+  /** turnStart のとき、追加ターン（MTG 要素 △ バッチC） */
+  extra?: boolean;
   /** play のとき、選んだモード（MTG 要素 ○ バッチC2。0 は双呪） */
   mode?: number;
 }
@@ -497,12 +588,15 @@ export interface PlayRecord {
   strive?: number;
   /** 協約で差し出した（条件「協約したなら」） */
   bargained?: boolean;
+  // ---- MTG 要素 △ バッチC
+  /** もう一度出る写し（反復の2回目）。追加ターン・HP交換は出ない */
+  copied?: boolean;
 }
 
 export interface GameResult {
   winner: PlayerId | null;
-  /** timeout：オンライン対戦で続けて時間切れになった */
-  reason: 'hp' | 'turnLimit' | 'concede' | 'timeout';
+  /** timeout：オンライン対戦で続けて時間切れになった。altWin：特殊勝利（MTG 要素 △ バッチC） */
+  reason: 'hp' | 'turnLimit' | 'concede' | 'timeout' | 'altWin';
 }
 
 export interface GameState {
@@ -538,9 +632,12 @@ export type MulliganMode = 'keep' | 'all' | 'partial';
 export type HandAbilityKind = 'cycling' | 'channel' | 'forecast';
 export const HAND_ABILITY_KINDS = ['cycling', 'channel', 'forecast'] as const satisfies readonly HandAbilityKind[];
 
-/** 代わりの使い方（MTG 要素 △ バッチB）：試作・想起・超過・解鎖 */
-export type AltPlay = 'prototype' | 'evoke' | 'overload' | 'unleash';
-export const ALT_PLAYS = ['prototype', 'evoke', 'overload', 'unleash'] as const satisfies readonly AltPlay[];
+/** 代わりの使い方（MTG 要素 △ バッチB：試作・想起・超過・解鎖。△ バッチC：ワープ・出来事・裏向き（変装）） */
+export type AltPlay = 'prototype' | 'evoke' | 'overload' | 'unleash' | 'warp' | 'adventure' | 'faceDown';
+export const ALT_PLAYS = ['prototype', 'evoke', 'overload', 'unleash', 'warp', 'adventure', 'faceDown'] as const satisfies readonly AltPlay[];
+/** 起動の使い方（MTG 要素 △ バッチC）：Lvアップ・忠誠+1・忠誠−K（省略は能力「起動」） */
+export type ActivateUse = 'level' | 'plus' | 'minus';
+export const ACTIVATE_USES = ['level', 'plus', 'minus'] as const satisfies readonly ActivateUse[];
 /** 追加の支払い（MTG 要素 △ バッチB）：切除・奮励・分隊 */
 export type ExtraPayKind = 'cleave' | 'strive' | 'squad';
 /** 差し出す能力（MTG 要素 △ バッチB）：現出・犠牲・協約 */
@@ -560,7 +657,8 @@ export type Action =
       player: PlayerId;
       cardUid: string;
       chosen?: Chosen;
-      from?: 'discard';
+      /** 'waiting' は待機ゾーンから（予顕・計画・ワープ・出来事。MTG 要素 △ バッチC） */
+      from?: 'discard' | 'waiting';
       discardUid?: string;
       exileUids?: string[];
       kick?: boolean;
@@ -582,8 +680,15 @@ export type Action =
       /** 血の支払い：HP で払うエナジーの数 */
       lifePay?: number;
     }
-  /** 起動（MTG 要素 ○ バッチC1）：場のモンスター・パワー（sourceUid）の「起動」の効果を使う */
-  | { type: 'activate'; player: PlayerId; sourceUid: string; chosen?: Chosen }
+  /**
+   * 起動（MTG 要素 ○ バッチC1）：場のモンスター・パワー（sourceUid）の「起動」の効果を使う。
+   * use（MTG 要素 △ バッチC）は Lvアップ（level）・忠誠+1（plus）・忠誠−K（minus）
+   */
+  | { type: 'activate'; player: PlayerId; sourceUid: string; chosen?: Chosen; use?: ActivateUse }
+  /** 手札のカードを待機ゾーンに置く（MTG 要素 △ バッチC：予顕・計画・待機） */
+  | { type: 'setAside'; player: PlayerId; cardUid: string; kind: SetAsideKind }
+  /** 裏向きの自分のモンスター（uid）を表にする（MTG 要素 △ バッチC：変装・予示）。chosen は「表になったとき」の対象 */
+  | { type: 'reveal'; player: PlayerId; uid: string; chosen?: Chosen }
   /** 手札から使う能力（MTG 要素 ○ バッチC1）：サイクリング・魂力 */
   | { type: 'handAbility'; player: PlayerId; cardUid: string; ability: HandAbilityKind; chosen?: Chosen }
   /** 攻撃。enlistUid は後援（MTG 要素 △ バッチB）で休ませる自分の他のモンスター */
@@ -718,6 +823,17 @@ export interface EffectRuntime {
   perpetual(player: PlayerId, cardUid: string, n: number): void;
   /** 山札の uids を元の並びのまま山札の下へ（消術。ログは「山札の上から N 枚を山札の下に置いた」） */
   deckToBottomQuiet(player: PlayerId, uids: string[]): void;
+  // ---- MTG 要素 △ バッチC
+  /** 予示：山札の一番上を裏向きのモンスターとして出す（山札が無ければ不発） */
+  manifest(player: PlayerId): void;
+  /** 追加ターン（1試合1回・写しでは出ない）。得られたら true */
+  extraTurn(): boolean;
+  /** HP交換（1試合1回・写しでは出ない）。できたら true */
+  swapHp(): boolean;
+  /** 強奪：相手（from）の山札のカード uid の使い切りのコピーを、この効果の持ち主の手札に加える */
+  heistCopy(from: PlayerId, uid: string): void;
+  /** 砦を築く：相手の場に体力 hp の砦（報酬はこの効果のカード） */
+  buildSiege(hp: number): void;
 }
 
 export type StatusKey =

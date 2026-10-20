@@ -296,6 +296,8 @@ describe('すべての効果が対戦で処理できる', () => {
     const theirs = putMonster(g, 1, unit(2, 6));
     g.players[0].discard.push({ uid: 'disc', cardId: `p0:${g.players[0].board[0]!.card.cardId.split(':')[1]}`, owner: 0 });
     g.players[1].status.strength = 1;
+    // HP交換（MTG 要素 △ バッチC）は自分のHPが相手より少ないときだけ使える
+    if (def.id === 'swapHp') g.players[0].hp = 10;
     const effect = fx({ id: def.id, value: def.value?.default, hits: def.hits?.default, target: 'chosen' });
     const targets = battle.legalActions(g, 0);
     void targets;

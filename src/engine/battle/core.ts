@@ -191,8 +191,10 @@ function cardPlaced(g: GameState, uid: string): boolean {
   return g.players.some(
     (ps) =>
       [ps.deck, ps.hand, ps.discard, ps.exile].some((z) => z.some((c) => c.uid === uid)) ||
-      ps.board.some((m) => m.card.uid === uid || (m.equipment ?? []).some((c) => c.uid === uid)) ||
-      (ps.delayed ?? []).some((d) => d.rebound?.card.uid === uid),
+      ps.board.some((m) => m.card.uid === uid || m.faceDown?.card?.uid === uid || (m.equipment ?? []).some((c) => c.uid === uid)) ||
+      (ps.delayed ?? []).some((d) => d.rebound?.card.uid === uid) ||
+      // 待機ゾーン（MTG 要素 △ バッチC）
+      (ps.waiting ?? []).some((w) => w.card.uid === uid),
   );
 }
 
@@ -218,7 +220,9 @@ export function endGame(g: GameState, winner: PlayerId | null, reason: GameResul
         ? '降参した'
         : reason === 'timeout'
           ? '続けて時間切れになった'
-          : 'HPが0になった';
+          : reason === 'altWin'
+            ? '特殊勝利を達成した'
+            : 'HPが0になった';
   log(g, 0, winner === null ? `引き分け（${why}）` : `${g.players[winner].name}の勝ち（${why}）`, 'result', undefined, {
     kind: 'result',
     ...(winner === null ? {} : { player: winner }),

@@ -196,6 +196,19 @@ export function logIcon(evKind: battle.LogEvent['kind'] | undefined, rowKind?: b
       return '📖';
     case 'charge':
       return '🔋';
+    // MTG 要素 △ バッチC
+    case 'waiting':
+      return '⏳';
+    case 'reveal':
+      return '🂠';
+    case 'level':
+      return '⬆';
+    case 'loyalty':
+      return '💠';
+    case 'achieve':
+      return '🔍';
+    case 'altWin':
+      return '🏆';
     default:
       return rowKind === 'result' ? '🏁' : rowKind === 'damage' ? '💥' : '';
   }

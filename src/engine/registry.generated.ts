@@ -34,6 +34,7 @@ import effects_equip from './defs/effects/equip.ts';
 import effects_execute from './defs/effects/execute.ts';
 import effects_exileMill from './defs/effects/exileMill.ts';
 import effects_explore from './defs/effects/explore.ts';
+import effects_extraTurn from './defs/effects/extraTurn.ts';
 import effects_fateseal from './defs/effects/fateseal.ts';
 import effects_fight from './defs/effects/fight.ts';
 import effects_finality from './defs/effects/finality.ts';
@@ -44,10 +45,12 @@ import effects_grantKeyword from './defs/effects/grantKeyword.ts';
 import effects_guard from './defs/effects/guard.ts';
 import effects_harness from './defs/effects/harness.ts';
 import effects_heal from './defs/effects/heal.ts';
+import effects_heist from './defs/effects/heist.ts';
 import effects_iceLock from './defs/effects/iceLock.ts';
 import effects_incubate from './defs/effects/incubate.ts';
 import effects_infight from './defs/effects/infight.ts';
 import effects_loot from './defs/effects/loot.ts';
+import effects_manifest from './defs/effects/manifest.ts';
 import effects_mill from './defs/effects/mill.ts';
 import effects_multiHit from './defs/effects/multiHit.ts';
 import effects_noise from './defs/effects/noise.ts';
@@ -76,11 +79,13 @@ import effects_seal from './defs/effects/seal.ts';
 import effects_search from './defs/effects/search.ts';
 import effects_seek from './defs/effects/seek.ts';
 import effects_shield from './defs/effects/shield.ts';
+import effects_siege from './defs/effects/siege.ts';
 import effects_slay from './defs/effects/slay.ts';
 import effects_startEngine from './defs/effects/startEngine.ts';
 import effects_steal from './defs/effects/steal.ts';
 import effects_strength from './defs/effects/strength.ts';
 import effects_suspect from './defs/effects/suspect.ts';
+import effects_swapHp from './defs/effects/swapHp.ts';
 import effects_token from './defs/effects/token.ts';
 import effects_train from './defs/effects/train.ts';
 import effects_vulnerable from './defs/effects/vulnerable.ts';
@@ -144,7 +149,9 @@ import drawbacks_selfDamage from './defs/drawbacks/selfDamage.ts';
 import drawbacks_selfPoison from './defs/drawbacks/selfPoison.ts';
 import drawbacks_upkeep from './defs/drawbacks/upkeep.ts';
 import abilities_activate from './defs/abilities/activate.ts';
+import abilities_adventure from './defs/abilities/adventure.ts';
 import abilities_affinity from './defs/abilities/affinity.ts';
+import abilities_altWin from './defs/abilities/altWin.ts';
 import abilities_bargain from './defs/abilities/bargain.ts';
 import abilities_buyback from './defs/abilities/buyback.ts';
 import abilities_casualty from './defs/abilities/casualty.ts';
@@ -156,23 +163,31 @@ import abilities_costCut from './defs/abilities/costCut.ts';
 import abilities_cycling from './defs/abilities/cycling.ts';
 import abilities_delve from './defs/abilities/delve.ts';
 import abilities_devour from './defs/abilities/devour.ts';
+import abilities_disguise from './defs/abilities/disguise.ts';
 import abilities_dredge from './defs/abilities/dredge.ts';
 import abilities_embalm from './defs/abilities/embalm.ts';
+import abilities_emblem from './defs/abilities/emblem.ts';
 import abilities_emerge from './defs/abilities/emerge.ts';
 import abilities_entwine from './defs/abilities/entwine.ts';
 import abilities_escape from './defs/abilities/escape.ts';
 import abilities_evoke from './defs/abilities/evoke.ts';
+import abilities_evolve from './defs/abilities/evolve.ts';
 import abilities_flashback from './defs/abilities/flashback.ts';
 import abilities_forecast from './defs/abilities/forecast.ts';
+import abilities_foretell from './defs/abilities/foretell.ts';
 import abilities_grow from './defs/abilities/grow.ts';
 import abilities_harmonize from './defs/abilities/harmonize.ts';
 import abilities_jumpStart from './defs/abilities/jumpStart.ts';
 import abilities_kicker from './defs/abilities/kicker.ts';
+import abilities_levelUp from './defs/abilities/levelUp.ts';
 import abilities_lifePay from './defs/abilities/lifePay.ts';
+import abilities_loyalty from './defs/abilities/loyalty.ts';
 import abilities_mayhem from './defs/abilities/mayhem.ts';
 import abilities_overload from './defs/abilities/overload.ts';
 import abilities_pitch from './defs/abilities/pitch.ts';
+import abilities_plot from './defs/abilities/plot.ts';
 import abilities_prototype from './defs/abilities/prototype.ts';
+import abilities_quest from './defs/abilities/quest.ts';
 import abilities_rebound from './defs/abilities/rebound.ts';
 import abilities_renew from './defs/abilities/renew.ts';
 import abilities_retrace from './defs/abilities/retrace.ts';
@@ -180,11 +195,13 @@ import abilities_shuffleBack from './defs/abilities/shuffleBack.ts';
 import abilities_spree from './defs/abilities/spree.ts';
 import abilities_squad from './defs/abilities/squad.ts';
 import abilities_strive from './defs/abilities/strive.ts';
+import abilities_suspend from './defs/abilities/suspend.ts';
 import abilities_tiered from './defs/abilities/tiered.ts';
 import abilities_trap from './defs/abilities/trap.ts';
 import abilities_unearth from './defs/abilities/unearth.ts';
 import abilities_unleash from './defs/abilities/unleash.ts';
 import abilities_villain from './defs/abilities/villain.ts';
+import abilities_warp from './defs/abilities/warp.ts';
 
 export const EFFECT_DEFS: readonly EffectDef[] = [
   effects_advanceSaga,
@@ -221,6 +238,7 @@ export const EFFECT_DEFS: readonly EffectDef[] = [
   effects_execute,
   effects_exileMill,
   effects_explore,
+  effects_extraTurn,
   effects_fateseal,
   effects_fight,
   effects_finality,
@@ -231,10 +249,12 @@ export const EFFECT_DEFS: readonly EffectDef[] = [
   effects_guard,
   effects_harness,
   effects_heal,
+  effects_heist,
   effects_iceLock,
   effects_incubate,
   effects_infight,
   effects_loot,
+  effects_manifest,
   effects_mill,
   effects_multiHit,
   effects_noise,
@@ -263,11 +283,13 @@ export const EFFECT_DEFS: readonly EffectDef[] = [
   effects_search,
   effects_seek,
   effects_shield,
+  effects_siege,
   effects_slay,
   effects_startEngine,
   effects_steal,
   effects_strength,
   effects_suspect,
+  effects_swapHp,
   effects_token,
   effects_train,
   effects_vulnerable,
@@ -339,7 +361,9 @@ export const DRAWBACK_DEFS: readonly DrawbackDef[] = [
 ];
 export const ABILITY_DEFS: readonly AbilityDef[] = [
   abilities_activate,
+  abilities_adventure,
   abilities_affinity,
+  abilities_altWin,
   abilities_bargain,
   abilities_buyback,
   abilities_casualty,
@@ -351,23 +375,31 @@ export const ABILITY_DEFS: readonly AbilityDef[] = [
   abilities_cycling,
   abilities_delve,
   abilities_devour,
+  abilities_disguise,
   abilities_dredge,
   abilities_embalm,
+  abilities_emblem,
   abilities_emerge,
   abilities_entwine,
   abilities_escape,
   abilities_evoke,
+  abilities_evolve,
   abilities_flashback,
   abilities_forecast,
+  abilities_foretell,
   abilities_grow,
   abilities_harmonize,
   abilities_jumpStart,
   abilities_kicker,
+  abilities_levelUp,
   abilities_lifePay,
+  abilities_loyalty,
   abilities_mayhem,
   abilities_overload,
   abilities_pitch,
+  abilities_plot,
   abilities_prototype,
+  abilities_quest,
   abilities_rebound,
   abilities_renew,
   abilities_retrace,
@@ -375,9 +407,11 @@ export const ABILITY_DEFS: readonly AbilityDef[] = [
   abilities_spree,
   abilities_squad,
   abilities_strive,
+  abilities_suspend,
   abilities_tiered,
   abilities_trap,
   abilities_unearth,
   abilities_unleash,
   abilities_villain,
+  abilities_warp,
 ];

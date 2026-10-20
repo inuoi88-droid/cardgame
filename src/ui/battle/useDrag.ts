@@ -81,6 +81,7 @@ export function useBattleDrag(opts: {
     const valid = new Set(plan.targets.map(targetKey));
     if (plan.zone) valid.add('zone');
     if (plan.pile) valid.add('pile');
+    if (plan.waiting) valid.add('waiting');
     return { boxes, valid };
   };
 

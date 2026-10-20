@@ -1,7 +1,7 @@
 /** 効果テキストの自動生成（例：「攻撃するたび、相手に毒1を与える。」） */
 import { BALANCE } from './balance.ts';
 import { cardBase } from './classify.ts';
-import { CONDITIONS, TIMINGS, targetNoun } from './options.ts';
+import { CONDITIONS, TIMINGS, loyaltySpec, targetNoun } from './options.ts';
 import { effectModifiers } from './points.ts';
 import { getAbility, getDrawback, getEffect, getKeyword } from './registry.ts';
 import { MODE_LABEL, type AbilityInstance, type CardDef, type CardText, type DrawbackInstance, type EffectInstance, type ModeId, type TimingId } from './types.ts';
@@ -13,6 +13,12 @@ import { MODE_LABEL, type AbilityInstance, type CardDef, type CardText, type Dra
 export function timingPrefix(timing: EffectInstance['timing'], abilities?: CardDef['abilities']): string {
   const def = TIMINGS[timing];
   if (!def) return '';
+  // MTG 要素 △ バッチC：出来事はエナジーつき（「出来事1：」）、忠誠−K は K の数字（「−3：」）
+  if (timing === 'adventure') {
+    const v = (abilities ?? []).find((a) => a.id === 'adventure')?.value;
+    return v === undefined ? def.textPrefix : `出来事${v}：`;
+  }
+  if (timing === 'loyaltyMinus' && (abilities ?? []).some((a) => a.id === 'loyalty')) return `−${loyaltySpec(abilities).cut}：`;
   const id = timing === 'activated' ? 'activate' : timing === 'channel' ? 'channel' : null;
   const v = id ? (abilities ?? []).find((a) => a.id === id)?.value : undefined;
   return v === undefined ? def.textPrefix : `${def.label}（エナジー${v}）：`;

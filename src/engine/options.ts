@@ -4,6 +4,8 @@ import type { AbilityInstance, CardBase, ConditionId, TargetId, TimingId } from 
 
 /** カードの能力の一覧（エディター・ポイント計算が渡す。省略は「能力を見ない」） */
 type Abilities = readonly Pick<AbilityInstance, 'id' | 'value' | 'option' | 'once'>[] | undefined;
+/** カードの効果の一覧（「砦を落としたとき」が効果「砦を築く」を見る。MTG 要素 △ バッチC。省略は「効果を見ない」） */
+type Effects = readonly { id: string; value?: number }[] | undefined;
 
 /** 能力 ids のどれかを持っているか */
 export function hasAnyAbility(abilities: Abilities, ids: readonly string[]): boolean {
@@ -27,7 +29,20 @@ export function abilityValue(abilities: Abilities, id: string): number | undefin
 export type ChosenMode = 'manual' | 'attackTarget' | 'damageSource' | 'triggerAlly' | 'triggerEnemy' | 'none';
 
 /** エディターの選択パネルの見出し（並び順） */
-export const TIMING_GROUPS = ['基本', 'このモンスター', 'ターン', '自分が使ったカード', '味方の出入り', '相手の行動', '手札・捨て札', '起動', '英雄譚', '蓄積'] as const;
+export const TIMING_GROUPS = [
+  '基本',
+  'このモンスター',
+  'ターン',
+  '自分が使ったカード',
+  '味方の出入り',
+  '相手の行動',
+  '手札・捨て札',
+  '起動',
+  '英雄譚',
+  '蓄積',
+  '達成・Lv・忠誠',
+  '出来事・砦',
+] as const;
 export type TimingGroup = (typeof TIMING_GROUPS)[number];
 
 export interface TimingDef {
@@ -51,6 +66,8 @@ export interface TimingDef {
   requiresAbility?: readonly string[];
   /** デメリットには使えない（使うかどうかを自分で決めるタイミング。払えば得をするだけになる） */
   noDrawbacks?: boolean;
+  /** このカードにこの効果があるときだけ選べる（砦を落としたとき＝効果「砦を築く」。MTG 要素 △ バッチC）。無ければ違反 */
+  requiresEffect?: readonly string[];
 }
 
 /** 捨て札から使える能力（MTG 要素 ○ バッチC1・△ バッチB。defs/abilities の fromDiscard を持つもの） */
@@ -364,6 +381,91 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     requiresAbility: ['forecast'],
     noDrawbacks: true,
   },
+  // ---- MTG 要素 △ バッチC
+  adventure: {
+    id: 'adventure',
+    label: '出来事',
+    textPrefix: '出来事：',
+    bases: ['monster'],
+    powerTiming: false,
+    chosen: 'manual',
+    group: '出来事・砦',
+    description:
+      '能力「出来事」で、モンスターのカードを呪文として使ったときの効果（スキルとして数える）。使ったあとカードは待機ゾーンに置かれ、後のターンにモンスターとして出せる。出来事がある時だけ選べる',
+    requiresAbility: ['adventure'],
+    noDrawbacks: true,
+  },
+  achievedNow: {
+    id: 'achievedNow',
+    label: '達成したとき',
+    textPrefix: '達成したとき、',
+    bases: ['monster', 'spell'],
+    powerTiming: true,
+    chosen: 'none',
+    group: '達成・Lv・忠誠',
+    description: 'このカードが達成した（事件を解明した・進化した）ときに1回だけ出る。能力「事件」「進化」がある時だけ選べる。モンスター以外ならパワーになる',
+    requiresAbility: ['quest', 'evolve'],
+    noDrawbacks: true,
+  },
+  leveledUp: {
+    id: 'leveledUp',
+    label: 'Lvが上がったとき',
+    textPrefix: 'Lvが上がったとき、',
+    bases: ['monster', 'spell'],
+    powerTiming: true,
+    chosen: 'none',
+    group: '達成・Lv・忠誠',
+    description: `このカードの Lv が上がるたびに出る（最大${BALANCE.battle.maxLevel - 1}回）。能力「Lvアップ」がある時だけ選べる。モンスター以外ならパワーになる`,
+    requiresAbility: ['levelUp'],
+    noDrawbacks: true,
+  },
+  loyaltyPlus: {
+    id: 'loyaltyPlus',
+    label: '忠誠+1',
+    textPrefix: '+1：',
+    bases: ['spell'],
+    powerTiming: true,
+    chosen: 'manual',
+    group: '達成・Lv・忠誠',
+    description: '能力「忠誠」のパワーで、自分のターンに忠誠を1増やして使う効果（毎ターン使える。+1 と −K で1ターン1回）。忠誠がある時だけ選べる',
+    requiresAbility: ['loyalty'],
+    noDrawbacks: true,
+  },
+  loyaltyMinus: {
+    id: 'loyaltyMinus',
+    label: '忠誠−K',
+    textPrefix: '−K：',
+    bases: ['spell'],
+    powerTiming: true,
+    chosen: 'manual',
+    group: '達成・Lv・忠誠',
+    description: '能力「忠誠」のパワーで、忠誠をK減らして使う大技（忠誠がK以上のときだけ。0になるとパワーは消える）。忠誠がある時だけ選べる',
+    requiresAbility: ['loyalty'],
+    noDrawbacks: true,
+  },
+  revealed: {
+    id: 'revealed',
+    label: '表になったとき',
+    textPrefix: '表になったとき、',
+    bases: ['monster'],
+    powerTiming: false,
+    chosen: 'manual',
+    group: 'このモンスター',
+    description: '裏向きのこのモンスターを表にしたときに出る（変装・予示。表にするときに対象を選ぶ。召喚時の効果は出ない）',
+  },
+  siegeWon: {
+    id: 'siegeWon',
+    label: '砦を落としたとき',
+    textPrefix: '砦を落としたとき、',
+    bases: ['spell'],
+    powerTiming: false,
+    chosen: 'none',
+    group: '出来事・砦',
+    description:
+      'このカードで相手の場に築いた砦が破壊されたときに出る報酬（バウンス・奪取では出ない。砦の体力が多いほどポイントの倍率が下がる）。効果「砦を築く」がある時だけ選べる。「選んだ1体」は使えない',
+    requiresEffect: ['siege'],
+    noDrawbacks: true,
+  },
 };
 
 /** 1つのカード（パワー・モンスター）につき1ターン maxRepeatTriggersPerTurn 回までのタイミング（安全装置） */
@@ -387,7 +489,7 @@ export function timingMultiplier(
   timing: TimingId,
   base: CardBase,
   attack: AttackProfile = DEFAULT_ATTACK_PROFILE,
-  card: { abilities?: Abilities } = {},
+  card: { abilities?: Abilities; effects?: Effects } = {},
 ): number {
   const t = BALANCE.timing;
   const monster = base === 'monster';
@@ -456,7 +558,41 @@ export function timingMultiplier(
       return t.renew;
     case 'forecast':
       return t.forecast;
+    // ---- MTG 要素 △ バッチC
+    case 'adventure':
+      return t.adventure * BALANCE.abilities.adventure.rate;
+    case 'achievedNow':
+      return t.achievedNow;
+    case 'leveledUp':
+      return t.leveledUp;
+    case 'loyaltyPlus':
+      return t.loyaltyPlus;
+    case 'loyaltyMinus': {
+      const L = loyaltySpec(card.abilities);
+      return L.start >= L.cut ? t.loyaltyMinus[0] : t.loyaltyMinus[1];
+    }
+    case 'revealed':
+      return t.revealed;
+    case 'siegeWon':
+      return siegeWonMultiplier(card.effects);
   }
+}
+
+/** 忠誠（MTG 要素 △ バッチC）の L（数値）と K（選択肢の数字）。能力が無ければ下限 */
+export function loyaltySpec(abilities: Abilities): { start: number; cut: number } {
+  const a = (abilities ?? []).find((x) => x.id === 'loyalty');
+  const L = BALANCE.abilities.loyalty;
+  const k = Number(a?.option);
+  return { start: a?.value ?? L.minLoyalty, cut: Number.isInteger(k) && k >= L.minCut && k <= L.maxCut ? k : L.minCut };
+}
+
+/** 「砦を落としたとき」の倍率：このカードの効果「砦を築く」の体力 N（倍率1の数字）で決まる（N が無ければ最小の体力） */
+export function siegeWonMultiplier(effects: Effects): number {
+  const table = BALANCE.timing.siegeWonByHp;
+  const e = (effects ?? []).find((x) => x.id === 'siege');
+  const n = e?.value !== undefined ? Math.round(e.value / BALANCE.scale) : BALANCE.effects.siege.minValue / BALANCE.scale;
+  const i = Math.min(Math.max(n - BALANCE.effects.siege.minValue / BALANCE.scale, 0), table.length - 1);
+  return table[i]!;
 }
 
 /** 蓄積（MTG 要素 ○ バッチC2）の能力の必要数とイベント（能力が無ければ既定値） */
@@ -496,9 +632,12 @@ export function chargedMultiplier(abilities: Abilities): number {
  * この土台で選べるタイミング（TIMING_GROUPS の順）。abilities を渡すと、能力が要るタイミング（起動・魂力・捨て札から使ったとき）は
  * その能力があるときだけ。省略すると能力が要るタイミングは出さない
  */
-export function timingsFor(base: CardBase, abilities?: Abilities): TimingId[] {
+export function timingsFor(base: CardBase, abilities?: Abilities, effects?: Effects): TimingId[] {
   const ids = (Object.keys(TIMINGS) as TimingId[]).filter(
-    (id) => TIMINGS[id].bases.includes(base) && (TIMINGS[id].requiresAbility === undefined || hasAnyAbility(abilities, TIMINGS[id].requiresAbility!)),
+    (id) =>
+      TIMINGS[id].bases.includes(base) &&
+      (TIMINGS[id].requiresAbility === undefined || hasAnyAbility(abilities, TIMINGS[id].requiresAbility!)) &&
+      (TIMINGS[id].requiresEffect === undefined || (effects ?? []).some((e) => TIMINGS[id].requiresEffect!.includes(e.id))),
   );
   return ids.sort((a, b) => TIMING_GROUPS.indexOf(TIMINGS[a].group) - TIMING_GROUPS.indexOf(TIMINGS[b].group));
 }
@@ -613,7 +752,7 @@ export function targetsForEffect(
 }
 
 /** カード自身が場にいないタイミング（引いたとき・魂力・破壊されたとき・捨てられたとき・相続・予見） */
-const OFF_BOARD_TIMINGS: readonly TimingId[] = ['drawn', 'channel', 'destroyed', 'discarded', 'renew', 'forecast'];
+const OFF_BOARD_TIMINGS: readonly TimingId[] = ['drawn', 'channel', 'destroyed', 'discarded', 'renew', 'forecast', 'adventure'];
 
 /** エディターの選択肢に出す名前 */
 export function targetLabel(target: TargetId, rule: TargetRule, timing: TimingId): string {
@@ -734,6 +873,7 @@ export const CONDITION_GROUPS = [
   '捨て札',
   'コスト・追加の支払い',
   '種族・速度・王冠',
+  '達成・Lv',
   '運・先後',
 ] as const;
 export type ConditionGroup = (typeof CONDITION_GROUPS)[number];
@@ -768,6 +908,9 @@ export interface ConditionDef {
 }
 
 const cp = BALANCE.conditionParams;
+
+/** 「達成していれば」「Lv2以上なら」が使えないタイミング（このカードがまだ場にいない・もう場にいない。MTG 要素 △ バッチC） */
+const NOT_ON_FIELD_TIMINGS: readonly TimingId[] = ['play', 'summon', 'fromDiscard', 'drawn', 'discarded', 'channel', 'renew', 'forecast', 'adventure', 'destroyed'];
 
 export const CONDITIONS: Record<ConditionId, ConditionDef> = {
   hasMonster: {
@@ -1194,7 +1337,59 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     group: 'コスト・追加の支払い',
     description: 'このカードを使うときにトークンかパワーを差し出していれば発動（協約）。カードの能力「協約」があるカードだけ',
   },
+  // ---- MTG 要素 △ バッチC
+  achieved: {
+    id: 'achieved',
+    tier: 'normal',
+    label: '達成していれば',
+    textPrefix: '達成していれば、',
+    timings: null,
+    excludeTimings: NOT_ON_FIELD_TIMINGS,
+    requiresAbility: ['quest', 'evolve'],
+    notForCost: true,
+    group: '達成・Lv',
+    description: 'このカード（事件のパワー・進化のモンスター）が達成していれば発動（能力「事件」「進化」が要る。達成の判定は持ち主のターン終了時）',
+  },
+  level2: {
+    id: 'level2',
+    tier: 'normal',
+    label: 'Lv2以上なら',
+    textPrefix: 'Lv2以上なら、',
+    timings: null,
+    excludeTimings: NOT_ON_FIELD_TIMINGS,
+    requiresAbility: ['levelUp'],
+    notForCost: true,
+    group: '達成・Lv',
+    description: 'このカード（場のモンスター・パワー）の Lv が2以上なら発動（能力「Lvアップ」が要る）',
+  },
+  level3: {
+    id: 'level3',
+    tier: 'strict',
+    label: `Lv${BALANCE.battle.maxLevel}なら`,
+    textPrefix: `Lv${BALANCE.battle.maxLevel}なら、`,
+    timings: null,
+    excludeTimings: NOT_ON_FIELD_TIMINGS,
+    requiresAbility: ['levelUp'],
+    notForCost: true,
+    group: '達成・Lv',
+    description: `このカードの Lv が${BALANCE.battle.maxLevel}（最大）なら発動（能力「Lvアップ」が要る）`,
+  },
 };
+
+/**
+ * 達成条件（MTG 要素 △ バッチC：事件・進化）に使える条件（CONDITION_GROUPS の順）：能力・種族が要るもの、乱数（コイン投げ・激突）、
+ * 1回の使用の記録（濫用）は使えない。base を渡すと、その土台に付けられない条件（「このモンスター」の条件はモンスターだけ）を外す
+ */
+export function achieveConditions(base?: CardBase): ConditionId[] {
+  const ids = (Object.keys(CONDITIONS) as ConditionId[]).filter((id) => {
+    const c = CONDITIONS[id];
+    if (c.requiresAbility || c.requiresTribe || ACHIEVE_EXCLUDED.includes(id)) return false;
+    if (base && c.bases && !c.bases.includes(base)) return false;
+    return true;
+  });
+  return ids.sort((a, b) => CONDITION_GROUPS.indexOf(CONDITIONS[a].group) - CONDITION_GROUPS.indexOf(CONDITIONS[b].group));
+}
+const ACHIEVE_EXCLUDED: readonly ConditionId[] = ['coinFlip', 'clash', 'exploit'];
 
 /**
  * 条件の倍率（条件ごとの値。決定事項 #68）。「キッカーを払っていれば」はカードのキッカーの追加エナジーで決まる

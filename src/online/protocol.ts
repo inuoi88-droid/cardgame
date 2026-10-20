@@ -1,9 +1,13 @@
 /** ブラウザ ⇄ Edge Function の送受信の形と、届いたデータの検証 */
 import {
+  ACTIVATE_USES,
   ALT_PLAYS,
   DISCARD_ABILITY_KINDS,
   HAND_ABILITY_KINDS,
+  SET_ASIDE_KINDS,
   type Action,
+  type ActivateUse,
+  type SetAsideKind,
   type AltPlay,
   type Chosen,
   type DiscardAbilityKind,
@@ -121,8 +125,8 @@ export function parseAction(x: unknown): Action | null {
       if (!isId(x.cardUid)) return null;
       const chosen = parseChosen(x.chosen);
       if (chosen === null) return null;
-      // MTG 要素 ○ バッチC1：捨て札から使う（from は 'discard' だけ）・再活で捨てる手札・脱出で除外する捨て札・キッカー
-      if (x.from !== undefined && x.from !== 'discard') return null;
+      // MTG 要素 ○ バッチC1：捨て札から使う（from は 'discard'。△ バッチC で待機ゾーンの 'waiting'）・再活で捨てる手札・脱出で除外する捨て札・キッカー
+      if (x.from !== undefined && x.from !== 'discard' && x.from !== 'waiting') return null;
       if (x.discardUid !== undefined && !isId(x.discardUid)) return null;
       if (x.exileUids !== undefined && !isIdList(x.exileUids)) return null;
       if (x.kick !== undefined && typeof x.kick !== 'boolean') return null;
@@ -142,7 +146,7 @@ export function parseAction(x: unknown): Action | null {
         player,
         cardUid: x.cardUid,
         ...(chosen ? { chosen } : {}),
-        ...(x.from === 'discard' ? { from: 'discard' as const } : {}),
+        ...(x.from === 'discard' ? { from: 'discard' as const } : x.from === 'waiting' ? { from: 'waiting' as const } : {}),
         ...(x.discardUid !== undefined ? { discardUid: x.discardUid } : {}),
         ...(x.exileUids !== undefined ? { exileUids: [...x.exileUids] } : {}),
         ...(x.kick === true ? { kick: true } : {}),
@@ -160,7 +164,21 @@ export function parseAction(x: unknown): Action | null {
       if (!isId(x.sourceUid)) return null;
       const chosen = parseChosen(x.chosen);
       if (chosen === null) return null;
-      return { type: 'activate', player, sourceUid: x.sourceUid, ...(chosen ? { chosen } : {}) };
+      // MTG 要素 △ バッチC：Lvアップ・忠誠+1・忠誠−K
+      if (x.use !== undefined && !(ACTIVATE_USES as readonly unknown[]).includes(x.use)) return null;
+      return { type: 'activate', player, sourceUid: x.sourceUid, ...(chosen ? { chosen } : {}), ...(x.use !== undefined ? { use: x.use as ActivateUse } : {}) };
+    }
+    // MTG 要素 △ バッチC：待機させる（予顕・計画・待機）・裏向きを表にする
+    case 'setAside': {
+      if (!isId(x.cardUid)) return null;
+      if (!(SET_ASIDE_KINDS as readonly unknown[]).includes(x.kind)) return null;
+      return { type: 'setAside', player, cardUid: x.cardUid, kind: x.kind as SetAsideKind };
+    }
+    case 'reveal': {
+      if (!isId(x.uid)) return null;
+      const chosen = parseChosen(x.chosen);
+      if (chosen === null) return null;
+      return { type: 'reveal', player, uid: x.uid, ...(chosen ? { chosen } : {}) };
     }
     case 'handAbility': {
       if (!isId(x.cardUid)) return null;

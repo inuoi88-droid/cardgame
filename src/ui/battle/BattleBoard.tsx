@@ -8,7 +8,8 @@
  *   詳細の「使う」「攻撃する」からは、候補ボタンで対象を選ぶ（キーボード・ドラッグしにくいとき用）
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { battle, describeEffect, getEffect, type CardDef } from '../../engine/index.ts';
+import { BALANCE, battle, describeEffect, getEffect, type CardDef } from '../../engine/index.ts';
+import { abilityGlossary, mechanicGlossary } from '../glossary.ts';
 import { CardView } from '../components/CardView.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { Modal } from '../components/controls.tsx';
@@ -50,12 +51,15 @@ type TargetRef = battle.TargetRef;
  * discardAbility は捨て札のカードの能力（MTG 要素 △ バッチB：相続・発掘・不朽）
  */
 /** mode はモード選択のカード（MTG 要素 ○ バッチC2）で選んだモード（0 は双呪）、modes は放題（△ バッチB）で選んだモード */
-type CardSel = { kind: 'card'; uid: string; from?: 'discard'; enemy?: TargetRef; ally?: string; pay?: PayChoice; mode?: number; modes?: number[] };
+/** from は捨て札（○ バッチC1）・待機ゾーン（△ バッチC）から使うとき */
+type CardSel = { kind: 'card'; uid: string; from?: 'discard' | 'waiting'; enemy?: TargetRef; ally?: string; pay?: PayChoice; mode?: number; modes?: number[] };
 type Selection =
   | null
   | CardSel
   | { kind: 'attacker'; uid: string }
-  | { kind: 'activate'; uid: string; enemy?: TargetRef; ally?: string }
+  | { kind: 'activate'; uid: string; use?: battle.ActivateUse; enemy?: TargetRef; ally?: string }
+  /** 裏向きの自分のモンスターを表にする（MTG 要素 △ バッチC） */
+  | { kind: 'reveal'; uid: string; enemy?: TargetRef; ally?: string }
   | { kind: 'channel'; uid: string; ability?: 'channel' | 'forecast'; enemy?: TargetRef; ally?: string }
   | { kind: 'discardAbility'; uid: string; ability: battle.DiscardAbilityKind; enemy?: TargetRef; ally?: string };
 type TargetSel = Exclude<Selection, null | { kind: 'attacker' }>;
@@ -66,7 +70,14 @@ type Detail =
   | { kind: 'monster'; uid: string }
   | { kind: 'card'; cardId: string }
   | { kind: 'discard'; uid: string }
-  | { kind: 'power'; player: battle.PlayerId; uid: string };
+  | { kind: 'power'; player: battle.PlayerId; uid: string }
+  /** 待機ゾーンのカード（MTG 要素 △ バッチC。自分のなら「待機ゾーンから使う」） */
+  | { kind: 'waiting'; player: battle.PlayerId; uid: string };
+
+/** 起動の情報の鍵（同じカードに Lvアップ・忠誠+1／−K など複数ある：MTG 要素 △ バッチC） */
+const actKey = (uid: string, use?: battle.ActivateUse) => `${uid}|${use ?? ''}`;
+/** 起動の使い方ごとのボタンの印 */
+const USE_ICON: Record<battle.ActivateUse, string> = { level: '⬆', plus: '+', minus: '−' };
 
 /** 対象の候補と、使えない理由（使う・捨て札から使う・起動・魂力で共通の形） */
 interface TargetInfo {
@@ -127,6 +138,8 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   const [sel, setSel] = useState<Selection>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [pile, setPile] = useState<{ player: battle.PlayerId; kind: 'discard' | 'exile' } | null>(null);
+  /** 開いている待機ゾーンの一覧（MTG 要素 △ バッチC） */
+  const [waitingOpen, setWaitingOpen] = useState<battle.PlayerId | null>(null);
   const [zoom, setZoom] = useState<CardDef | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -205,9 +218,24 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     [view, me],
   );
   const activateInfos = useMemo(
-    () => new Map(battle.activateInfos(view, me).map((i) => [i.sourceUid, { ...i, enemyTargets: battle.payableEnemyTargets(i, view.players[me].energy) }])),
+    () => new Map(battle.activateInfos(view, me).map((i) => [actKey(i.sourceUid, i.use), { ...i, enemyTargets: battle.payableEnemyTargets(i, view.players[me].energy) }])),
     [view, me],
   );
+  /** このカード（モンスター・パワー）の起動（起動・Lvアップ・忠誠+1／−K） */
+  const activatesOf = (uid: string) => [...activateInfos.values()].filter((i) => i.sourceUid === uid);
+  // MTG 要素 △ バッチC：待機ゾーンから使うカード・裏向きのモンスターを表にする・手札を待機させる（すべてエンジンから）
+  const waitingInfos = useMemo(
+    () => new Map(battle.waitingPlayInfos(view, me).map((i) => [i.card.uid, { ...i, enemyTargets: battle.payableEnemyTargets(i, view.players[me].energy) }])),
+    [view, me],
+  );
+  const revealInfos = useMemo(
+    () => new Map(battle.revealInfos(view, me).map((i) => [i.uid, { ...i, enemyTargets: battle.payableEnemyTargets(i, view.players[me].energy) }])),
+    [view, me],
+  );
+  const setAsides = useMemo(() => new Map(mine.hand.map((c) => [c.uid, battle.setAsideInfo(view, me, c)])), [view, me, mine.hand]);
+  const waitingCards = useMemo(() => (mine.waiting ?? []).map((w) => w.card), [mine.waiting]);
+  /** 手札・捨て札・待機ゾーンのどこから使うかで、使う情報を選ぶ */
+  const pickInfos = (from?: 'discard' | 'waiting') => (from === 'discard' ? discardInfos : from === 'waiting' ? waitingInfos : infos);
   const handAbilities = useMemo(
     () =>
       new Map(
@@ -225,10 +253,12 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   );
   const discardAbilitiesOf = (uid: string) => [...discardAbilities.values()].filter((i) => i.card.uid === uid);
   const usableHandAbilities = (uid: string): battle.HandAbilityKind[] => (myTurn ? (handAbilities.get(uid) ?? []).filter((h) => !h.blocked).map((h) => h.ability) : []);
+  const usableSetAside = (uid: string): battle.SetAsideKind[] => (myTurn ? (setAsides.get(uid) ?? []).filter((x) => !x.blocked).map((x) => x.kind) : []);
+  const waitingUsable = myTurn ? [...waitingInfos.values()].filter((i) => !i.blocked).length : 0;
   const discardUsable = myTurn ? new Set([...[...discardInfos.values()].filter((i) => !i.blocked), ...[...discardAbilities.values()].filter((i) => !i.blocked)].map((i) => i.card.uid)).size : 0;
   const isPlayable = (c: battle.CardInst) => {
     const i = infos.get(c.uid)!;
-    return myTurn && (c.cardId === battle.NOISE_CARD_ID ? mine.energy >= i.cost : !i.blocked || usableHandAbilities(c.uid).length > 0);
+    return myTurn && (c.cardId === battle.NOISE_CARD_ID ? mine.energy >= i.cost : !i.blocked || usableHandAbilities(c.uid).length > 0 || usableSetAside(c.uid).length > 0);
   };
   const playableCount = mine.hand.filter(isPlayable).length;
   const readyAttackers = myTurn ? mine.board.filter((m) => !battle.attackBlockReason(view, m)) : [];
@@ -239,7 +269,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   /** 選んでいるもののカード（手札・捨て札のカード、魂力のカード）と、その対象の情報 */
   const cardOf = (x: TargetSel): battle.CardInst | undefined =>
     x.kind === 'card'
-      ? (x.from === 'discard' ? mine.discard : mine.hand).find((c) => c.uid === x.uid)
+      ? (x.from === 'discard' ? mine.discard : x.from === 'waiting' ? waitingCards : mine.hand).find((c) => c.uid === x.uid)
       : x.kind === 'channel'
         ? mine.hand.find((c) => c.uid === x.uid)
         : x.kind === 'discardAbility'
@@ -247,7 +277,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           : undefined;
   const infoOf = (x: TargetSel): TargetInfo | undefined => {
     if (x.kind === 'card') {
-      const pi = x.from === 'discard' ? discardInfos.get(x.uid) : infos.get(x.uid);
+      const pi = pickInfos(x.from).get(x.uid);
       // 代わりの使い方（MTG 要素 △ バッチB）：その使い方の候補・コスト（超過は対象なし）
       const alt = x.pay?.alt ? pi?.pay?.alts?.find((a) => a.alt === x.pay!.alt) : undefined;
       if (pi && alt) {
@@ -260,14 +290,21 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       }
       return pi;
     }
-    if (x.kind === 'activate') return activateInfos.get(x.uid);
+    if (x.kind === 'activate') return activateInfos.get(actKey(x.uid, x.use));
+    if (x.kind === 'reveal') return revealInfos.get(x.uid);
     if (x.kind === 'discardAbility') return discardAbilities.get(`${x.uid}:${x.ability}`);
     return handAbilities.get(x.uid)?.find((h) => h.ability === (x.ability ?? 'channel'));
   };
   const targetSel = sel && sel.kind !== 'attacker' ? sel : null;
   const selCard = targetSel ? cardOf(targetSel) : undefined;
   const info = targetSel ? (infoOf(targetSel) ?? null) : null;
-  const selDef = selCard ? view.cards[selCard.cardId] : targetSel?.kind === 'activate' ? view.cards[activateInfos.get(targetSel.uid)?.cardId ?? ''] : undefined;
+  const selDef = selCard
+    ? view.cards[selCard.cardId]
+    : targetSel?.kind === 'activate'
+      ? view.cards[activateInfos.get(actKey(targetSel.uid, targetSel.use))?.cardId ?? '']
+      : targetSel?.kind === 'reveal'
+        ? view.cards[revealInfos.get(targetSel.uid)?.cardId ?? '']
+        : undefined;
   const needEnemy = !!targetSel && !!info && info.enemyTargets.length > 0 && !targetSel.enemy;
   const needAlly = !!targetSel && !!info && info.allyTargets.length > 0 && !targetSel.ally;
   /** 召喚するモンスターのカード自身（自分のモンスターの候補に入っているが、ボタンは別に出す） */
@@ -336,7 +373,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   /** 対象を選ぶもの（カード・起動・魂力・予見・捨て札の能力）を、足りない選択・支払いのシート・注意の確認を経て行動にする */
   const tryPlay = async (next: TargetSel) => {
     // モード選択のカード（MTG 要素 ○ バッチC2）：まだモードを選んでいなければ、モードの選択シートへ（対象はそのあと）
-    if (next.kind === 'card' && next.mode === undefined && next.modes === undefined && (next.from === 'discard' ? discardInfos : infos).get(next.uid)?.modes) {
+    if (next.kind === 'card' && next.mode === undefined && next.modes === undefined && pickInfos(next.from).get(next.uid)?.modes) {
       setSel(null);
       setAsk({ kind: 'mode', sel: next });
       return;
@@ -346,7 +383,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     const ready = (i.enemyTargets.length === 0 || next.enemy) && (i.allyTargets.length === 0 || next.ally);
     // 支払いのシート（MTG 要素 △ バッチB。キッカー・再活・脱出も）：対象が決まってから（超過は対象なしで決まる）
     if (next.kind === 'card' && !next.pay?.done) {
-      const pi = (next.from === 'discard' ? discardInfos : infos).get(next.uid);
+      const pi = pickInfos(next.from).get(next.uid);
       if (pi && needsPaySheet(pi, mine.energy) && (ready || pi.pay?.alts?.some((a) => a.alt === 'overload'))) {
         setSel(null);
         setAsk({ kind: 'pay', sel: next });
@@ -359,12 +396,21 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     }
     const chosen = chosenOf(next);
     if (next.kind === 'activate') {
-      const a = activateInfos.get(next.uid);
+      const a = activateInfos.get(actKey(next.uid, next.use));
       if (a && !(await confirmWarnings(a, { name: a.name }))) {
         setSel(null);
         return;
       }
-      act({ type: 'activate', player: me, sourceUid: next.uid, chosen });
+      act({ type: 'activate', player: me, sourceUid: next.uid, chosen, ...(next.use ? { use: next.use } : {}) });
+      return;
+    }
+    if (next.kind === 'reveal') {
+      const r = revealInfos.get(next.uid);
+      if (r && !(await confirmWarnings(r, { name: r.name }))) {
+        setSel(null);
+        return;
+      }
+      act({ type: 'reveal', player: me, uid: next.uid, chosen });
       return;
     }
     if (next.kind === 'discardAbility') {
@@ -399,7 +445,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       player: me,
       cardUid: next.uid,
       chosen: pay.alt === 'overload' ? {} : chosen,
-      ...(next.from === 'discard' ? { from: 'discard' as const } : {}),
+      ...(next.from ? { from: next.from } : {}),
       ...payFields(pay),
       ...(next.modes !== undefined ? { modes: next.modes } : next.mode !== undefined ? { mode: next.mode } : {}),
     });
@@ -490,15 +536,56 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     if (ok) void tryPlay({ kind: 'discardAbility', uid, ability });
   };
 
-  /** 起動の ⚡ を押した：対象が要らなければ起動、要るなら対象選びへ */
-  const tapActivate = (uid: string) => {
-    const a = activateInfos.get(uid);
+  /** 起動の ⚡ を押した：対象が要らなければ起動、要るなら対象選びへ（use は Lvアップ・忠誠+1／−K） */
+  const tapActivate = (uid: string, use?: battle.ActivateUse) => {
+    const a = activateInfos.get(actKey(uid, use));
     if (!a) return;
     if (a.blocked) {
       toast({ text: a.blocked, kind: 'ng' });
       return;
     }
-    void tryPlay({ kind: 'activate', uid });
+    void tryPlay({ kind: 'activate', uid, ...(use ? { use } : {}) });
+  };
+
+  /** 裏向きの自分のモンスターを表にする（MTG 要素 △ バッチC）：対象が要れば対象選びへ */
+  const tapReveal = (uid: string) => {
+    const r = revealInfos.get(uid);
+    if (!r) return;
+    if (r.blocked) {
+      toast({ text: r.blocked, kind: 'ng' });
+      return;
+    }
+    void tryPlay({ kind: 'reveal', uid });
+  };
+
+  /** 手札のカードを待機させる（MTG 要素 △ バッチC：予顕・計画・待機）。複数あれば選ばせ、確認してから */
+  const [asideAsk, setAsideAsk] = useState<null | { uid: string; kinds: battle.SetAsideKind[] }>(null);
+  const trySetAside = async (uid: string, kinds?: battle.SetAsideKind[]) => {
+    const list = (setAsides.get(uid) ?? []).filter((x) => !kinds || kinds.includes(x.kind));
+    if (list.length === 0) return;
+    if (list.length > 1) {
+      setAsideAsk({ uid, kinds: list.map((x) => x.kind) });
+      return;
+    }
+    const x = list[0]!;
+    const card = mine.hand.find((c) => c.uid === uid);
+    const def = card ? view.cards[card.cardId] : undefined;
+    if (!def) return;
+    if (x.blocked) {
+      toast({ text: x.blocked, kind: 'ng' });
+      return;
+    }
+    const ok = await confirm({
+      title: `${x.name}：「${def.name}」`,
+      message: (
+        <p>
+          {x.note}。待機ゾーン（{(mine.waiting ?? []).length}/{BALANCE.battle.maxWaiting}）に置きます{x.kind === 'foretell' ? '（相手には裏向き）' : ''}。カードを使ったことには数えません。
+        </p>
+      ),
+      okLabel: `${x.name}（⚡${x.cost}）`,
+      cancelLabel: 'やめる',
+    });
+    if (ok) act({ type: 'setAside', player: me, cardUid: uid, kind: x.kind });
   };
 
   const onTarget = (t: TargetRef) => {
@@ -532,6 +619,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       enemyTargets: i.enemyTargets,
       allyTargets: i.allyTargets,
       handAbilities: usableHandAbilities(c.uid),
+      ...(usableSetAside(c.uid).length > 0 ? { setAside: usableSetAside(c.uid) } : {}),
       ...(i.modes ? { modal: true } : {}),
       // 支払いのシート（MTG 要素 △ バッチB）
       ...(!noise && needsPaySheet(i, mine.energy) ? { pay: true } : {}),
@@ -561,26 +649,67 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       ...(needsPaySheet(i, mine.energy) ? { pay: true } : {}),
     };
   };
-  /** 起動の ⚡（MTG 要素 ○ バッチC1） */
-  const activateDragSource = (uid: string): DragSource | null => {
-    const i = activateInfos.get(uid);
+  /** 待機ゾーンのカード（MTG 要素 △ バッチC：待機ゾーンから使う） */
+  const waitingSource = (c: battle.CardInst): DragSource | null => {
+    const i = waitingInfos.get(c.uid);
     if (!i) return null;
-    return { kind: 'activate', uid, blocked: myTurn ? i.blocked : notMyTurn(), enemyTargets: i.enemyTargets, allyTargets: i.allyTargets };
-  };
-  /** 起動の ⚡ ボタンの中身（自分の起動できるモンスター・パワー） */
-  const activateButton = (uid: string): ActivateButton | null => {
-    const i = activateInfos.get(uid);
-    if (!i) return null;
+    let blocked = i.blocked;
+    if (!myTurn) blocked = notMyTurn();
+    else if (blocked === 'エナジーが足りません') blocked = `エナジーが足りません（必要${i.cost}・残り${mine.energy}）`;
     return {
+      kind: 'card',
+      uid: c.uid,
+      noise: false,
+      blocked,
+      enemyTargets: i.enemyTargets,
+      allyTargets: i.allyTargets,
+      from: 'waiting',
+      ...(i.modes ? { modal: true } : {}),
+      ...(needsPaySheet(i, mine.energy) ? { pay: true } : {}),
+    };
+  };
+  /** 起動の ⚡（MTG 要素 ○ バッチC1。use は Lvアップ・忠誠：△ バッチC） */
+  const activateDragSource = (uid: string, use?: battle.ActivateUse): DragSource | null => {
+    const i = activateInfos.get(actKey(uid, use));
+    if (!i) return null;
+    return { kind: 'activate', uid, ...(use ? { use } : {}), blocked: myTurn ? i.blocked : notMyTurn(), enemyTargets: i.enemyTargets, allyTargets: i.allyTargets };
+  };
+  /** 表にする 🂠（MTG 要素 △ バッチC） */
+  const revealDragSource = (uid: string): DragSource | null => {
+    const i = revealInfos.get(uid);
+    if (!i) return null;
+    return { kind: 'reveal', uid, blocked: myTurn ? i.blocked : notMyTurn(), enemyTargets: i.enemyTargets, allyTargets: i.allyTargets };
+  };
+  /** 起動のボタンの中身（自分の起動できるモンスター・パワー。起動・Lvアップ・忠誠+1／−K・表にする） */
+  const activateButtons = (uid: string): ActivateButton[] => {
+    const out: ActivateButton[] = activatesOf(uid).map((i) => ({
       cost: i.cost,
       blocked: myTurn ? i.blocked : notMyTurn(),
+      ...(i.use ? { icon: i.use === 'level' ? USE_ICON.level : (i.label ?? USE_ICON[i.use]), title: i.use === 'level' ? 'Lvアップ' : `忠誠${i.label ?? ''}`, key: i.use } : {}),
       onTap: () => {
         if (drag.consumeClick()) return;
-        tapActivate(uid);
+        tapActivate(uid, i.use);
       },
-      onPointerDown: view.phase === 'main' ? (e) => drag.begin(e, 'board', () => activateDragSource(uid)) : undefined,
-      dragging: drag.drag?.src.kind === 'activate' && drag.drag.src.uid === uid,
-    };
+      onPointerDown: view.phase === 'main' ? (e) => drag.begin(e, 'board', () => activateDragSource(uid, i.use)) : undefined,
+      dragging: drag.drag?.src.kind === 'activate' && drag.drag.src.uid === uid && drag.drag.src.use === i.use,
+    }));
+    const r = revealInfos.get(uid);
+    if (r) {
+      out.push({
+        cost: r.cost,
+        blocked: myTurn ? r.blocked : notMyTurn(),
+        icon: BALANCE.battle.faceDownIcon,
+        title: '表にする',
+        key: 'reveal',
+        onTap: () => {
+          if (drag.consumeClick()) return;
+          tapReveal(uid);
+        },
+        onPointerDown: view.phase === 'main' ? (e) => drag.begin(e, 'board', () => revealDragSource(uid)) : undefined,
+        dragging: drag.drag?.src.kind === 'reveal' && drag.drag.src.uid === uid,
+      });
+    }
+    return out;
   };
   const attackerSource = (m: battle.Monster): DragSource => ({
     kind: 'attacker',
@@ -654,14 +783,21 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
         // モード選択（MTG 要素 ○ バッチC2）：落とした場所を覚えてモードの選択シートへ
         setAsk({ kind: 'mode', sel: selOfSource(src, d.chosen) as CardSel });
         return 'ok';
+      case 'setAside':
+        // 待機ゾーン（MTG 要素 △ バッチC）：予顕・計画・待機（複数なら選ぶ）
+        if (src.kind !== 'card') return 'back';
+        void trySetAside(src.uid, d.kinds);
+        return 'ok';
     }
   };
 
   /** ドラッグしたものと決まった対象から、選択の途中の形を作る */
   const selOfSource = (src: DragSource, chosen: battle.Chosen): TargetSel => {
-    if (src.kind === 'activate') return { kind: 'activate', uid: src.uid, ...chosen };
+    if (src.kind === 'activate') return { kind: 'activate', uid: src.uid, ...(src.use ? { use: src.use } : {}), ...chosen };
+    if (src.kind === 'reveal') return { kind: 'reveal', uid: src.uid, ...chosen };
     if (src.kind === 'discardAbility') return { kind: 'discardAbility', uid: src.uid, ability: src.ability, ...chosen };
-    return { kind: 'card', uid: src.uid, ...(src.kind === 'card' && src.from === 'discard' ? { from: 'discard' as const } : {}), ...chosen };
+    const from = src.kind === 'card' && (src.from === 'discard' || src.from === 'waiting') ? src.from : undefined;
+    return { kind: 'card', uid: src.uid, ...(from ? { from } : {}), ...chosen };
   };
 
   const drag = useBattleDrag({
@@ -672,6 +808,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     // 捨て札の一覧からつかんだら、一覧を閉じて盤面を見せる
     onStart: (src) => {
       if ((src.kind === 'card' && src.from === 'discard') || src.kind === 'discardAbility') setPile(null);
+      if (src.kind === 'card' && src.from === 'waiting') setWaitingOpen(null);
     },
   });
   const dragging = drag.drag?.phase === 'drag' ? drag.drag : null;
@@ -682,10 +819,12 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   /** 護法（MTG 要素 ○ バッチB）：この対象を選ぶと増えるコスト（ドラッグ中・対象選択中のカード・起動・魂力。エンジンの targetCosts から） */
   const costInfo: Pick<TargetInfo, 'cost' | 'targetCosts'> | undefined = dragging
     ? dragging.src.kind === 'card'
-      ? (dragging.src.from === 'discard' ? discardInfos : infos).get(dragging.src.uid)
+      ? pickInfos(dragging.src.from === 'hand' ? undefined : dragging.src.from).get(dragging.src.uid)
       : dragging.src.kind === 'activate'
-        ? activateInfos.get(dragging.src.uid)
-        : undefined
+        ? activateInfos.get(actKey(dragging.src.uid, dragging.src.use))
+        : dragging.src.kind === 'reveal'
+          ? revealInfos.get(dragging.src.uid)
+          : undefined
     : (info ?? undefined);
   const extraCostOf = (t: TargetRef): number => {
     const c = costInfo?.targetCosts?.[t.kind === 'player' ? `player:${t.player}` : t.uid];
@@ -762,12 +901,14 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
             : '';
       const what =
         targetSel.kind === 'activate'
-          ? `「${selDef.name}」の起動`
+          ? `「${selDef.name}」の${targetSel.use === 'level' ? 'Lvアップ' : targetSel.use ? `忠誠${activateInfos.get(actKey(targetSel.uid, targetSel.use))?.label ?? ''}` : '起動'}`
+          : targetSel.kind === 'reveal'
+            ? `「${selDef.name}」を表にするとき`
           : targetSel.kind === 'channel'
             ? `「${selDef.name}」の${targetSel.ability === 'forecast' ? '予見' : '魂力'}`
             : targetSel.kind === 'discardAbility'
               ? `「${selDef.name}」の${discardAbilities.get(`${targetSel.uid}:${targetSel.ability}`)?.name ?? '能力'}`
-              : `「${selDef.name}」${targetSel.kind === 'card' && targetSel.from === 'discard' ? '（捨て札から）' : ''}${modeNote}`;
+              : `「${selDef.name}」${targetSel.kind === 'card' && targetSel.from === 'discard' ? '（捨て札から）' : targetSel.kind === 'card' && targetSel.from === 'waiting' ? '（待機ゾーンから）' : ''}${modeNote}`;
       if (needEnemy) return `${what}の${fight ? '戦わせる相手モンスター' : '対象'}を選んでください${info?.tauntLimited ? `（${battle.NOTE_TAUNT_LIMITED}）` : ''}`;
       if (needAlly) return `${what}${fight ? 'で戦わせる' : 'をかける'}自分のモンスターを選んでください`;
       return `${what}を使いますか？`;
@@ -844,7 +985,8 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               flash={replay.flash[m.uid]}
               hidden={replay.hidden.has(m.uid)}
               dying={ghost && (replay.ghosts.get(m.uid)?.dying ?? false)}
-              activate={isMine && !ghost ? activateButton(m.uid) : null}
+              activate={isMine && !ghost ? activateButtons(m.uid) : null}
+              realName={m.faceDown?.card ? view.cards[m.faceDown.card.cardId]?.name : undefined}
             />
           );
         })}
@@ -856,10 +998,10 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   const oppRef: TargetRef = { kind: 'player', player: opp };
   const meRef: TargetRef = { kind: 'player', player: me };
   const dragSrc = drag.drag?.src;
-  const dragCard =
-    dragSrc?.kind === 'card' ? (dragSrc.from === 'discard' ? mine.discard : mine.hand).find((c) => c.uid === dragSrc.uid) : undefined;
-  const dragInfo = dragCard ? (dragSrc?.kind === 'card' && dragSrc.from === 'discard' ? discardInfos.get(dragCard.uid) : infos.get(dragCard.uid)) : undefined;
-  const dragActivate = dragSrc?.kind === 'activate' ? activateInfos.get(dragSrc.uid) : undefined;
+  const dragFrom = dragSrc?.kind === 'card' && dragSrc.from !== 'hand' ? dragSrc.from : undefined;
+  const dragCard = dragSrc?.kind === 'card' ? (dragFrom === 'discard' ? mine.discard : dragFrom === 'waiting' ? waitingCards : mine.hand).find((c) => c.uid === dragSrc.uid) : undefined;
+  const dragInfo = dragCard ? pickInfos(dragFrom).get(dragCard.uid) : undefined;
+  const dragActivate = dragSrc?.kind === 'activate' ? activateInfos.get(actKey(dragSrc.uid, dragSrc.use)) : dragSrc?.kind === 'reveal' ? revealInfos.get(dragSrc.uid) : undefined;
 
   /** 詳細シートの中身と操作 */
   const renderDetail = (): ReactNode => {
@@ -938,6 +1080,22 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
                   {HAND_ICON[h.ability]} {h.name}（⚡{h.cost}）
                 </button>
               ))}
+              {/* 待機させる（MTG 要素 △ バッチC：予顕・計画・待機） */}
+              {(setAsides.get(card.uid) ?? []).map((x) => (
+                <button
+                  key={x.kind}
+                  type="button"
+                  className="btn"
+                  disabled={!myTurn || !!x.blocked}
+                  title={x.blocked ?? x.note}
+                  onClick={() => {
+                    close();
+                    void trySetAside(card.uid, [x.kind]);
+                  }}
+                >
+                  {abilityGlossary[`ability:${x.kind}`]?.icon ?? '⏳'} {x.name}（⚡{x.cost}）
+                </button>
+              ))}
               {!usable && blockedWhy && <span className="cdetail__why">{blockedWhy}</span>}
             </>
           }
@@ -947,6 +1105,8 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
             extras={{
               cost: i.cost,
               notes: [
+                ...(card.heisted ? [`${mechanicGlossary.heist!.icon} ${mechanicGlossary.heist!.short}`] : []),
+                ...(setAsides.get(card.uid) ?? []).map((x) => `${x.name}：${x.note}${myTurn && x.blocked ? `（${x.blocked}）` : ''}`),
                 ...(card.grow ? [`成長：この1枚のダメージ+${card.grow}（表示に含む）`] : []),
                 ...(card.perm ? [`永久強化：攻撃力+${card.perm.attack}・体力+${card.perm.hp}（表示に含む）`] : []),
                 ...(i.blocked === battle.WARN_ICED ? [i.blocked] : []),
@@ -1022,7 +1182,9 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       if (!m || !def) return null;
       const isMine = m.controller === me;
       const reason = isMine && myTurn ? battle.attackBlockReason(view, m) : null;
-      const actInfo = isMine ? activateInfos.get(m.uid) : undefined;
+      const acts = isMine ? activatesOf(m.uid) : [];
+      const rev = isMine ? revealInfos.get(m.uid) : undefined;
+      const realDef = m.faceDown?.card ? view.cards[m.faceDown.card.cardId] : undefined;
       return (
         <CardDetailSheet
           title={def.name}
@@ -1042,7 +1204,17 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
                   ⚔ 攻撃する
                 </button>
                 {reason && <span className="cdetail__why">{reason}</span>}
-                {actInfo && <ActivateAction info={actInfo} onUse={() => (close(), tapActivate(m.uid))} />}
+                {acts.map((a) => (
+                  <ActivateAction key={a.use ?? 'act'} info={a} onUse={() => (close(), tapActivate(m.uid, a.use))} />
+                ))}
+                {rev && (
+                  <>
+                    <button type="button" className="btn" disabled={!!rev.blocked} onClick={() => (close(), tapReveal(m.uid))}>
+                      {BALANCE.battle.faceDownIcon} 表にする（エナジー{rev.cost}）
+                    </button>
+                    {rev.blocked && <span className="cdetail__why">{rev.blocked}</span>}
+                  </>
+                )}
               </>
             ) : undefined
           }
@@ -1057,27 +1229,83 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               where: isMine ? 'あなたの場' : `${opponentLabel}の場`,
               // 装備しているカード（MTG 要素 ○ バッチB。公開情報）
               equipment: (m.equipment ?? []).map((c) => view.cards[c.cardId]).filter((d): d is CardDef => !!d),
+              ...(realDef ? { realDef } : {}),
             }}
           />
         </CardDetailSheet>
       );
     }
     if (detail.kind === 'power') {
-      const pw = view.players[detail.player].powers.find((x) => x.uid === detail.uid);
+      const ps = view.players[detail.player];
+      const emblem = (ps.emblems ?? []).find((x) => x.uid === detail.uid);
+      const pw = emblem ?? ps.powers.find((x) => x.uid === detail.uid);
       if (!pw) return null;
       const def = view.cards[pw.cardId];
-      const actInfo = detail.player === me ? activateInfos.get(pw.uid) : undefined;
+      const acts = detail.player === me ? activatesOf(pw.uid) : [];
       return (
         <CardDetailSheet
-          title={`${pw.name}（パワー）`}
+          title={`${pw.name}（${emblem ? '紋章' : 'パワー'}）`}
           onClose={close}
-          actions={actInfo && myTurn ? <ActivateAction info={actInfo} onUse={() => (close(), tapActivate(pw.uid))} /> : undefined}
+          actions={
+            acts.length > 0 && myTurn ? (
+              <>
+                {acts.map((a) => (
+                  <ActivateAction key={a.use ?? 'act'} info={a} onUse={() => (close(), tapActivate(pw.uid, a.use))} />
+                ))}
+              </>
+            ) : undefined
+          }
         >
           {def ? (
-            <CardDetailBody def={def} extras={{ power: pw, where: detail.player === me ? 'あなたのパワー' : `${opponentLabel}のパワー` }} />
+            <CardDetailBody def={def} extras={{ power: pw, where: `${detail.player === me ? 'あなた' : opponentLabel}の${emblem ? '紋章' : 'パワー'}` }} />
           ) : (
             <p>{pw.name}</p>
           )}
+        </CardDetailSheet>
+      );
+    }
+    if (detail.kind === 'waiting') {
+      // 待機ゾーンのカード（MTG 要素 △ バッチC）：自分のなら「待機ゾーンから使う」
+      const w = (view.players[detail.player].waiting ?? []).find((x) => x.card.uid === detail.uid);
+      const def = w ? view.cards[w.card.cardId] : undefined;
+      if (!w || !def) return null;
+      const i = detail.player === me ? waitingInfos.get(w.card.uid) : undefined;
+      const src = i ? waitingSource(w.card) : null;
+      const blocked = src?.kind === 'card' ? src.blocked : null;
+      const targeted = !!i && (i.enemyTargets.length > 0 || i.allyTargets.length > 0);
+      return (
+        <CardDetailSheet
+          title={def.name}
+          onClose={close}
+          actions={
+            i ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  disabled={!!blocked}
+                  onClick={() => {
+                    close();
+                    setWaitingOpen(null);
+                    if (targeted && !i.modes && !needsPaySheet(i, mine.energy)) setSel({ kind: 'card', uid: w.card.uid, from: 'waiting' });
+                    else void tryPlay({ kind: 'card', uid: w.card.uid, from: 'waiting' });
+                  }}
+                >
+                  待機ゾーンから使う（⚡{i.cost}）
+                </button>
+                {blocked && <span className="cdetail__why">{blocked}</span>}
+              </>
+            ) : undefined
+          }
+        >
+          <CardDetailBody
+            def={def}
+            extras={{
+              ...(i ? { cost: i.cost } : {}),
+              notes: [waitingNote(w, view.turnIndex), ...(i ? [...costLines(i), ...(myTurn ? i.warnings : [])] : [])],
+              where: `${detail.player === me ? 'あなた' : opponentLabel}の待機ゾーン`,
+            }}
+          />
         </CardDetailSheet>
       );
     }
@@ -1094,7 +1322,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   const renderAsk = (): ReactNode => {
     if (!ask) return null;
     const x = ask.sel;
-    const pi = (x.from === 'discard' ? discardInfos : infos).get(x.uid);
+    const pi = pickInfos(x.from).get(x.uid);
     const card = cardOf(x);
     const def = card ? view.cards[card.cardId] : undefined;
     if (!pi || !card || !def) return null;
@@ -1195,6 +1423,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           onClick={() => onTarget(oppRef)}
           onPile={(kind) => setPile({ player: opp, kind })}
           onPower={(pw) => setDetail({ kind: 'power', player: opp, uid: pw.uid })}
+          onWaiting={() => setWaitingOpen(opp)}
           hasCrown={view.crown === opp}
           powerDef={(pw) => view.cards[pw.cardId]}
           powerFlash={replay.flash}
@@ -1223,7 +1452,11 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           floats={replay.floats[keyOf(meRef)]}
           flash={replay.flash[keyOf(meRef)]}
           hpShown={replay.hp[me]}
-          powerActivate={(pw) => activateButton(pw.uid)}
+          powerActivate={(pw) => activateButtons(pw.uid)}
+          onWaiting={() => setWaitingOpen(me)}
+          waitingUsable={waitingUsable}
+          waitingLit={!!dragging?.plan.waiting}
+          waitingHover={!!dragging?.plan.waiting && dragging.hover === 'waiting'}
           discardUsable={discardUsable}
           pileLit={!!dragging?.plan.pile}
           pileHover={!!dragging?.plan.pile && dragging.hover === 'pile'}
@@ -1361,6 +1594,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
             ) : dragActivate ? (
               <span className="act-ghost">
                 ⚡{dragActivate.cost} {dragActivate.name}
+                {dragSrc?.kind === 'reveal' ? '（表にする）' : dragSrc?.kind === 'activate' && dragSrc.use ? `（${dragSrc.use === 'level' ? 'Lvアップ' : `忠誠${(dragActivate as battle.ActivateInfo).label ?? ''}`}）` : ''}
               </span>
             ) : null
           }
@@ -1486,6 +1720,66 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           onCancel={() => setPileAsk(null)}
         />
       )}
+      {asideAsk && (
+        <AbilityChoiceSheet
+          title="待機させ方を選ぶ"
+          items={asideAsk.kinds.map((k) => {
+            const x = setAsides.get(asideAsk.uid)?.find((y) => y.kind === k);
+            return { id: k, label: `${abilityGlossary[`ability:${k}`]?.icon ?? '⏳'} ${x?.name ?? k}（⚡${x?.cost ?? 0}）：${x?.note ?? ''}`, blocked: x?.blocked ?? null };
+          })}
+          onPick={(id) => {
+            const uid = asideAsk.uid;
+            setAsideAsk(null);
+            void trySetAside(uid, [id as battle.SetAsideKind]);
+          }}
+          onCancel={() => setAsideAsk(null)}
+        />
+      )}
+      {waitingOpen !== null && (
+        // 待機ゾーン（MTG 要素 △ バッチC）：自分のは使えるカードが光り、盤面へドラッグして使う（押すと詳細）。相手の予顕は裏向き
+        <Sheet open title={`${waitingOpen === me ? 'あなた' : opponentLabel}の待機ゾーン（${(view.players[waitingOpen].waiting ?? []).length}/${BALANCE.battle.maxWaiting}）`} onClose={() => setWaitingOpen(null)} desktop="modal">
+          <p className="hint pile-hint">{mechanicGlossary.waiting!.short}</p>
+          <div className="crow-list">
+            {(view.players[waitingOpen].waiting ?? []).map((w) => {
+              const def = view.cards[w.card.cardId];
+              const i = waitingOpen === me ? waitingInfos.get(w.card.uid) : undefined;
+              const usable = myTurn && !!i && !i.blocked;
+              return (
+                <div
+                  key={w.card.uid}
+                  className={cx('pile-row', i && 'pile-row--fd', usable && 'is-usable')}
+                  data-waiting-card={w.card.uid}
+                  onPointerDown={i && view.phase === 'main' ? (e) => drag.begin(e, 'list', () => waitingSource(w.card)) : undefined}
+                >
+                  {def ? (
+                    <CardRow
+                      def={def}
+                      label={battle.cardName(view, w.card.cardId)}
+                      picked={false}
+                      mark=""
+                      onToggle={() => {
+                        if (drag.consumeClick()) return;
+                        setDetail({ kind: 'waiting', player: waitingOpen, uid: w.card.uid });
+                      }}
+                      onZoom={setZoom}
+                    />
+                  ) : (
+                    // 相手の予顕のカードは裏向き（中身は見えない）
+                    <div className="pile-row__hidden">{BALANCE.battle.faceDownIcon} 裏向きのカード</div>
+                  )}
+                  <span className={cx('pile-row__tag', usable && 'is-ok')}>
+                    {waitingNote(w, view.turnIndex)}
+                    {i ? `・⚡${i.cost}` : ''}
+                    {/* 置いたターンの「使えない」は説明と重なるので出さない */}
+                    {myTurn && i?.blocked && w.since < view.turnIndex ? `（${i.blocked}）` : ''}
+                  </span>
+                </div>
+              );
+            })}
+            {(view.players[waitingOpen].waiting ?? []).length === 0 && <p className="hint">なし</p>}
+          </div>
+        </Sheet>
+      )}
       <ZoomModal def={zoom} onClose={() => setZoom(null)} />
       {phone && (
         <Sheet open={logOpen} title="ログ" onClose={() => setLogOpen(false)}>
@@ -1519,6 +1813,16 @@ const HAND_ICON: Record<battle.HandAbilityKind, string> = { cycling: '♻', chan
 /** 捨て札のカードの能力のアイコン（相続・発掘・不朽） */
 const DISCARD_ICON: Record<battle.DiscardAbilityKind, string> = { renew: '🏺', dredge: '🪣', embalm: '⚱' };
 
+/** 待機ゾーンのカードの短い説明（種類と、いつ使えるか） */
+function waitingNote(w: battle.WaitingCard, turnIndex: number): string {
+  const name = battle.WAITING_LABEL[w.kind];
+  if (w.kind === 'suspend') return `${name}：あと${w.time ?? 1}ターンで無料で使われる`;
+  const later = w.since >= turnIndex ? '（次の自分のターンから）' : '';
+  if (w.kind === 'foretell') return `${name}：後のターンに安く使える${later}`;
+  if (w.kind === 'plot') return `${name}：後のターンに無料で使える${later}`;
+  return `${name}：後のターンに出せる${later}`;
+}
+
 /** コストの内訳の行（詳細に出す。MTG 要素 ○ バッチC1） */
 function costLines(i: battle.PlayInfo): string[] {
   const steps = i.breakdown?.steps ?? [];
@@ -1543,12 +1847,12 @@ function costLines(i: battle.PlayInfo): string[] {
   return out;
 }
 
-/** 詳細の「⚡ 起動」ボタン（使えなければ理由） */
+/** 詳細の「⚡ 起動」ボタン（Lvアップ・忠誠+1／−K も。使えなければ理由） */
 function ActivateAction({ info, onUse }: { info: battle.ActivateInfo; onUse: () => void }) {
   return (
     <>
       <button type="button" className="btn" disabled={!!info.blocked} onClick={onUse}>
-        ⚡ 起動（エナジー{info.cost}）
+        {info.use === 'level' ? `⬆ Lvアップ（${info.label ?? ''}` : info.use ? `💠 忠誠${info.label ?? ''}（` : '⚡ 起動（'}エナジー{info.cost}）
       </button>
       {info.blocked && <span className="cdetail__why">{info.blocked}</span>}
     </>

@@ -3,7 +3,7 @@ import { BALANCE } from '../balance.ts';
 import { TIMINGS, type TargetRule } from '../options.ts';
 import type { EffectInstance, TimingId } from '../types.ts';
 import { getKeyword } from '../registry.ts';
-import { cardName, effectiveAttack, enqueue, findMonster, log, monsterLabel, newUid, other, playerRef, playRecord, targetExists, turnLimits } from './core.ts';
+import { cardName, checkGameEnd, effectiveAttack, enqueue, findMonster, log, monsterLabel, newUid, other, playerRef, playRecord, targetExists, turnLimits } from './core.ts';
 import { addStatus, cleanse, combatBonus, combatSourceOf, dealDamage, destroyMonster, heal, setCrown } from './damage.ts';
 import { attacksPerTurn } from './combat.ts';
 import { pick, randInt } from './rng.ts';
@@ -30,8 +30,11 @@ import {
   steal,
   takeFromDeck,
   takeFromDiscard,
+  placeFaceDown,
+  placeMonster,
+  siegeDef,
 } from './zones.ts';
-import type { Chosen, EffectRuntime, GameState, Monster, PlayerId, SourceRef, TargetRef } from './types.ts';
+import { NOISE_CARD_ID, SIEGE_CARD_ID, type Chosen, type EffectRuntime, type GameState, type Monster, type PlayerId, type SourceRef, type TargetRef } from './types.ts';
 import { advanceOne } from './powers.ts';
 
 /**
@@ -614,7 +617,82 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
     deckToBottomQuiet(p, uids) {
       deckToBottom(g, p, uids, depth, (n) => `${g.players[p].name}の山札の上から${n}枚を山札の下に置いた`);
     },
+    // ---- MTG 要素 △ バッチC
+    manifest(p) {
+      const ps = g.players[p];
+      const top = ps.deck[0];
+      if (!top) {
+        log(g, depth, `${ps.name}の山札が無いので、予示できない`);
+        return;
+      }
+      ps.deck.shift();
+      const def = top.cardId === NOISE_CARD_ID ? undefined : g.cards[top.cardId];
+      log(g, depth, `${ps.name}は山札の一番上を裏向きで場に出した（予示）`, 'effect', undefined, { kind: 'status', player: p, status: 'manifest' });
+      placeFaceDown(g, p, top, 'manifest', def?.stats ? def.cost : null, depth);
+    },
+    extraTurn() {
+      const ps = g.players[me];
+      if (isCopy()) {
+        log(g, depth, '追加ターンは、無料で使ったときや写しでは得られない');
+        return false;
+      }
+      if (ps.extraTurnUsed) {
+        log(g, depth, `${ps.name}はこの試合でもう追加ターンを得た（1試合1回）`);
+        return false;
+      }
+      ps.extraTurnUsed = true;
+      ps.extraTurnPending = true;
+      log(g, depth, `${ps.name}はこのターンのあと、追加のターンを得る`, 'effect', undefined, { kind: 'status', player: me, status: 'extraTurn' });
+      return true;
+    },
+    swapHp() {
+      const ps = g.players[me];
+      const op = g.players[other(me)];
+      if (isCopy()) {
+        log(g, depth, 'HP交換は、無料で使ったときや写しでは起きない');
+        return false;
+      }
+      if (ps.swapUsed) {
+        log(g, depth, `${ps.name}はこの試合でもうHP交換をした（1試合1回）`);
+        return false;
+      }
+      ps.swapUsed = true;
+      const mine = ps.hp;
+      const theirs = op.hp;
+      ps.hp = Math.min(theirs, mine + Math.floor(ps.maxHp * BALANCE.effects.swapHp.gainCapRate), ps.maxHp);
+      op.hp = Math.min(mine, op.maxHp);
+      log(g, depth, `HP交換：${ps.name} ${mine}→${ps.hp}、${op.name} ${theirs}→${op.hp}`, 'effect', undefined, { kind: 'status', player: me, status: 'swapHp', amount: ps.hp });
+      checkGameEnd(g);
+      return true;
+    },
+    heistCopy(from, uid) {
+      const card = g.players[from].deck.find((c) => c.uid === uid);
+      if (!card) return;
+      const ps = g.players[me];
+      ps.hand.push({ uid: newUid(g, 'hs'), cardId: card.cardId, owner: me, copy: 'temp', heisted: true });
+      log(g, depth, `${ps.name}は相手の山札のカード1枚のコピーを手札に加えた（強奪。使い切り）`, 'effect', undefined, { kind: 'status', player: me, status: 'heist' });
+      log(g, depth, `強奪したカード：「${cardName(g, card.cardId)}」`, 'info', me);
+    },
+    buildSiege(hp) {
+      const opp = other(me);
+      const max = B.maxSieges;
+      const mine = [...g.players[0].board, ...g.players[1].board].filter((m) => m.siege?.player === me).length;
+      if (mine >= max) {
+        log(g, depth, `砦は1人${max}つまでなので、築けない`);
+        return;
+      }
+      g.cards[SIEGE_CARD_ID] ??= siegeDef();
+      const card = { uid: newUid(g, 'sg'), cardId: SIEGE_CARD_ID, owner: opp, token: { attack: 0, hp, siege: true } };
+      const m = placeMonster(g, opp, card, depth);
+      if (m) m.siege = { player: me, cardId: src.cardId };
+    },
   };
+
+  /** 写し（反復の2回目）・無料で使ったとき（続唱・待機）か。追加ターン・HP交換は出ない */
+  function isCopy(): boolean {
+    const rec = opts.protectKey ? g.protect[opts.protectKey] : undefined;
+    return src.kind !== 'card' || rec?.copied === true || rec?.freeDepth !== undefined;
+  }
 }
 
 /** 封殺の種類の呼び方 */

@@ -706,6 +706,53 @@ describe('MTG 要素 △ バッチB（サーバー越し）', () => {
   });
 });
 
+describe('MTG 要素 △ バッチC（サーバー越し）', () => {
+  const foretell = card({ id: 'fore', name: '伏せ札', rarity: 'common', cost: 2, abilities: [{ id: 'foretell', value: 1 }], effects: [{ id: 'draw', value: 1, timing: 'play', target: 'self', condition: null }] });
+  const masked = card({ id: 'mask', name: '覆面の王', rarity: 'common', cost: 3, stats: { attack: 3, hp: 3, defense: 0 }, abilities: [{ id: 'disguise', value: 1 }] });
+  const extra = card({ id: 'xt', name: '時の裂け目', rarity: 'legend', cost: 5, effects: [{ id: 'extraTurn', timing: 'play', target: 'self', condition: null }] });
+
+  it('予顕・変装：相手の state には伏せたカードと裏向きの正体が出ない。本人は待機ゾーンから使い、表にできる', () => {
+    const { s, now } = playing(BEASTS, BEASTS);
+    const g = s.room!.state!;
+    const p = g.active;
+    const opp = battle.other(p);
+    const f = giveCard(g, p, foretell);
+    const m = giveCard(g, p, masked);
+    g.players[p].energy = 10;
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'setAside', player: p, cardUid: f, kind: 'foretell' }), { tokenHash: tokenOf(p), now }));
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'playCard', player: p, cardUid: m, alt: 'faceDown' }), { tokenHash: tokenOf(p), now: now + 1 }));
+    // 形の誤り（知らない置き方）は受付で断る
+    expect(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'setAside', player: p, cardUid: f, kind: 'hide' } as unknown as battle.Action), { tokenHash: tokenOf(p), now: now + 2 }).ok).toBe(false);
+    const theirs = JSON.stringify(ok(s.send(stateReq(tokenOf(opp)), { tokenHash: tokenOf(opp), now: now + 3 })).view);
+    expect(theirs).not.toContain(`p${p}:fore`);
+    expect(theirs).not.toContain(`p${p}:mask`);
+    const mine = JSON.stringify(ok(s.send(stateReq(tokenOf(p)), { tokenHash: tokenOf(p), now: now + 3 })).view);
+    expect(mine).toContain(`p${p}:fore`);
+    expect(mine).toContain(`p${p}:mask`);
+    // 相手のターンを過ごして、次の自分のターン
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'endTurn', player: p }), { tokenHash: tokenOf(p), now: now + 4 }));
+    ok(s.send(actionReq(tokenOf(opp), s.room!.version, { type: 'endTurn', player: opp }), { tokenHash: tokenOf(opp), now: now + 5 }));
+    s.room!.state!.players[p].energy = 10;
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'playCard', player: p, cardUid: f, from: 'waiting' }), { tokenHash: tokenOf(p), now: now + 6 }));
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'reveal', player: p, uid: m }), { tokenHash: tokenOf(p), now: now + 7 }));
+    expect(s.room!.state!.players[p].board.find((x) => x.uid === m)!.card.cardId).toBe(`p${p}:mask`);
+  });
+
+  it('追加ターン：締め切りは同じプレイヤーのまま次のターンへ', () => {
+    const { s, now } = playing(BEASTS, BEASTS);
+    const g = s.room!.state!;
+    const p = g.active;
+    const x = giveCard(g, p, extra);
+    g.players[p].energy = 10;
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'playCard', player: p, cardUid: x }), { tokenHash: tokenOf(p), now }));
+    const turn = s.room!.state!.turnIndex;
+    const v = ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'endTurn', player: p }), { tokenHash: tokenOf(p), now: now + 1 }));
+    expect(s.room!.state!.active).toBe(p);
+    expect(s.room!.state!.turnIndex).toBe(turn + 1);
+    expect(v.deadline).toBe(now + 1 + TURN_MS);
+  });
+});
+
 describe('通しの対戦', () => {
   it('CPU 同士がサーバー越しに最後まで対戦でき、カードは消えない', () => {
     const { s } = playing(POISON, CURSES);

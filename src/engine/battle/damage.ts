@@ -13,6 +13,7 @@ import {
   log,
   monsterDormant,
   monsterLabel,
+  newUid,
   playRecord,
   sourceOfMonster,
   statusOf,
@@ -23,7 +24,7 @@ import {
 } from './core.ts';
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
 import { chargePowers } from './powers.ts';
-import { drawCards } from './zones.ts';
+import { drawCards, unmask } from './zones.ts';
 import type { DamageKind, GameState, Monster, PlayerId, StatusKey, TargetRef } from './types.ts';
 
 export type { DamageKind } from './types.ts';
@@ -427,6 +428,9 @@ export function destroyMonster(g: GameState, m: Monster, depth: number, force = 
     log(g, depth, `${monsterLabel(g, m)}は不壊なので破壊されない`, 'effect', undefined, { kind: 'status', target: { kind: 'monster', uid: m.uid }, status: 'indestructible', amount: 0 });
     return;
   }
+  // 裏向き（MTG 要素 △ バッチC）は公開してから捨て札へ。裏向きの間は効果が無いので「破壊されたとき」は出ない
+  const wasFaceDown = m.faceDown !== undefined;
+  unmask(g, m, depth);
   board.splice(i, 1);
   const owner = g.players[m.card.owner];
   const finality = m.finality === true && !m.card.token;
@@ -448,9 +452,20 @@ export function destroyMonster(g: GameState, m: Monster, depth: number, force = 
     const turn = g.players[g.active].turn;
     turn.monstersDestroyed = (turn.monstersDestroyed ?? 0) + 1;
   }
-  if (!m.sealed) {
+  if (!m.sealed && !wasFaceDown) {
     const def = g.cards[m.card.cardId];
     if (def) enqueueCardTiming(g, sourceOfMonster(g, m), def, 'destroyed', {}, depth + 1, {});
+  }
+  // 砦（MTG 要素 △ バッチC）：築いた人が「砦を落としたとき」の報酬を得る（持ち主側の「破壊されるたび」は出ない）
+  if (m.siege) {
+    const def = g.cards[m.siege.cardId];
+    if (def && def.effects.some((e) => e.timing === 'siegeWon')) {
+      const p = m.siege.player;
+      log(g, depth + 1, `${g.players[p].name}は砦を落とした：「${def.name}」の報酬`, 'effect', undefined, { kind: 'status', player: p, cardId: m.siege.cardId, status: 'siegeWon' });
+      const src = { kind: 'card' as const, uid: newUid(g, 'sw'), cardId: m.siege.cardId, name: def.name, controller: p };
+      enqueueCardTiming(g, src, def, 'siegeWon', {}, depth + 1, {});
+    }
+    return;
   }
   // 自分の他のモンスターが破壊されるたび：破壊されたときの持ち主のパワー → 場に残っているモンスター（左から）
   enqueuePowers(g, m.controller, 'allyDestroyed', depth + 1);

@@ -128,8 +128,10 @@ export function useReplay(view: GameState, me: PlayerId, onDone?: () => void): U
       switch (e.show.t) {
         case 'turn': {
           const mine = e.show.player === me;
+          // 追加ターン（MTG 要素 △ バッチC）は見出しで分かるように
+          const extra = e.show.extra ? '追加ターン！' : '';
           n.banner = {
-            text: mine ? `あなたのターン${e.show.turn ? `（${e.show.turn}）` : ''}` : `相手のターン${e.show.turn ? `（${e.show.turn}）` : ''}`,
+            text: mine ? `${extra || 'あなたのターン'}${e.show.turn ? `（${e.show.turn}）` : ''}` : `${extra ? `相手の${extra}` : '相手のターン'}${e.show.turn ? `（${e.show.turn}）` : ''}`,
             tone: mine ? 'mine' : 'enemy',
             big: true,
           };

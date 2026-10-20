@@ -2656,3 +2656,58 @@ button.lt-card:focus-visible {
   gap: 6px;
   margin-left: 6px;
 }
+
+/* ============================================================ MTG 要素 △ バッチC：待機ゾーン・Lv・忠誠・裏向き・紋章・追加ターン */
+
+/* 起動のボタンが複数（起動・Lvアップ・忠誠+1／−K・表にする）：タイルの右端に縦に並べる */
+.mt__acts {
+  position: absolute;
+  top: 24px;
+  right: -8px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mt__acts .mt__act {
+  position: static;
+}
+/* 使い方つきのボタン（⬆・+1・−3・🂠）：印とエナジーを並べる */
+.act-btn--use {
+  gap: 2px;
+}
+.act-btn--use small {
+  font-size: 0.6rem;
+  opacity: 0.85;
+}
+/* 裏向きの自分のモンスターの正体（持ち主にだけ見える） */
+.mt__real {
+  font-size: 0.62rem;
+  line-height: 1.2;
+  color: var(--muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 待機ゾーンの山（自分のは落とし先） */
+.pile--waiting {
+  font-variant-numeric: tabular-nums;
+}
+/* 紋章：パワーの上限に数えないパワー */
+.st--emblem {
+  border-style: double;
+  border-width: 3px;
+}
+.pp__extra {
+  color: var(--ok);
+  font-weight: bold;
+}
+/* 相手の待機ゾーンの裏向きのカード（予顕） */
+.pile-row__hidden {
+  padding: 10px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-weight: bold;
+}

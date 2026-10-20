@@ -24,6 +24,7 @@ import {
   cardBase,
   conditionMultiplier,
   conditionsFor,
+  achieveConditions,
   costConditions,
   abilityContext,
   abilityPoints,
@@ -118,6 +119,11 @@ function timingReason(def: TimingDef, base: CardBase, card: CardDef): string {
   if (req && !(card.abilities ?? []).some((a) => req.includes(a.id))) {
     return `カードの能力「${req.map((id) => getAbility(id)?.name ?? id).join('」「')}」を付けると選べます`;
   }
+  // 効果が要るタイミング（砦を落としたとき。MTG 要素 △ バッチC）
+  const reqE = def.requiresEffect;
+  if (reqE && !card.effects.some((e) => reqE.includes(e.id))) {
+    return `効果「${reqE.map((id) => getEffect(id)?.name ?? id).join('」「')}」を付けると選べます`;
+  }
   return 'この効果では使えません';
 }
 
@@ -146,8 +152,8 @@ function timingOptions(card: CardDef, usableList: readonly TimingId[], points: (
 export function effectTimingOptions(effect: EffectInstance, card: CardDef): PickOption[] {
   const base = cardBase(card);
   const def = getEffect(effect.id);
-  const usable = def ? effectTimings(def, base, card.abilities) : [];
-  return timingOptions(card, usable, (t) => `${effectPoints(fitEffect({ ...effect, timing: t }, base, card.abilities), card).value}pt`);
+  const usable = def ? effectTimings(def, base, card.abilities, card.effects) : [];
+  return timingOptions(card, usable, (t) => `${effectPoints(fitEffect({ ...effect, timing: t }, base, card.abilities, card.effects), card).value}pt`);
 }
 
 export function drawbackTimingOptions(drawback: DrawbackInstance, card: CardDef): PickOption[] {
@@ -271,9 +277,13 @@ export function abilityOptionOptions(a: AbilityInstance, card: CardDef): PickOpt
   return def.option.choices.map((c) => ({ id: c.id, label: c.label, points: `${abilityPoints({ ...a, option: c.id }, ctx).value}pt` }));
 }
 
-/** 条件付き軽減の条件（コストの計算に使える条件だけ。CONDITION_GROUPS の見出しで並べる） */
+/**
+ * 条件付き軽減の条件（コストの計算に使える条件だけ）・事件／進化の達成条件（MTG 要素 △ バッチC：持ち主のターン終了時に判定できる条件だけ）。
+ * CONDITION_GROUPS の見出しで並べる
+ */
 export function abilityConditionOptions(a: AbilityInstance, card: CardDef): PickOption[] {
-  const ok = new Set(costConditions());
+  const achieve = getAbility(a.id)?.achieveCondition === true;
+  const ok = new Set(achieve ? achieveConditions(cardBase(card)) : costConditions());
   const ctx = abilityContext(card);
   const list = (Object.keys(CONDITIONS) as ConditionId[]).map((c): PickOption => {
     const def = CONDITIONS[c];
@@ -286,7 +296,11 @@ export function abilityConditionOptions(a: AbilityInstance, card: CardDef): Pick
       description: x.description,
       hint: mult(() => conditionMultiplier(c)),
       points: usable ? `${abilityPoints({ ...a, condition: c }, ctx).value}pt` : undefined,
-      disabled: usable ? undefined : 'コストを決める前に判定できない条件です（乱数・選択・このモンスター・支払いを使うもの）',
+      disabled: usable
+        ? undefined
+        : achieve
+          ? 'ターン終了時の達成の判定に使えない条件です（乱数・選択・能力や種族が要るもの・このカードの種類に合わないもの）'
+          : 'コストを決める前に判定できない条件です（乱数・選択・このモンスター・支払いを使うもの）',
     };
   });
   return byGroup(list, CONDITION_GROUPS);

@@ -116,7 +116,8 @@ export function isTrapPower(g: GameState, power: PowerInst): boolean {
 
 /** パワーの、あるタイミングの効果を積む（使った順）。休眠中のパワーは効果が出ない（デメリットは働く）。罠は効果を積んだら消える */
 export function enqueuePowers(g: GameState, p: PlayerId, timing: TimingId, depth: number, opts: EnqueueOpts = {}): void {
-  for (const power of [...g.players[p].powers]) {
+  // 紋章（MTG 要素 △ バッチC）もパワーと同じタイミングで出る（パワーのあと）
+  for (const power of [...g.players[p].powers, ...(g.players[p].emblems ?? [])]) {
     if (power.uid === opts.excludeUid) continue;
     const dormant = powerDormant(g, p, power);
     const effects = dormant ? [] : power.effects.filter((x) => !x.removed && x.effect.timing === timing).map((x) => x.effect);
@@ -229,6 +230,8 @@ function enqueueRebound(g: GameState, p: PlayerId, src: SourceRef, card: CardIns
   }
   log(g, 1, `反復：「${src.name}」の使用時の効果がもう一度発動する`, 'effect', undefined, { kind: 'status', player: p, cardId: card.cardId, uid: card.uid, status: 'rebound' });
   const protectKey = newUid(g, 'pk');
+  // もう一度出る写し（追加ターン・HP交換は出ない。MTG 要素 △ バッチC）
+  g.protect[protectKey] = { poison: 0, burn: 0, copied: true };
   for (const effect of effects) {
     enqueue(g, {
       t: 'effect',

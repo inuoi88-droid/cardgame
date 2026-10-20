@@ -32,7 +32,7 @@ export function DragLayer({
   const pos = useSyncExternalStore(subscribe, getPos, getPos);
   const { plan, origin, hover, phase, zone } = drag;
   const validKeys = new Set(plan.targets.map(targetKey));
-  const hoverValid = hover !== null && (validKeys.has(hover) || (hover === 'zone' && plan.zone !== null) || (hover === 'pile' && plan.pile));
+  const hoverValid = hover !== null && (validKeys.has(hover) || (hover === 'zone' && plan.zone !== null) || (hover === 'pile' && plan.pile) || (hover === 'waiting' && plan.waiting === true));
   const ow = origin.right - origin.left;
   const oh = origin.bottom - origin.top;
 
@@ -42,7 +42,7 @@ export function DragLayer({
     // 手札のカードは上の辺から、モンスター・起動の ⚡ ボタンは中心から
     const from = drag.src.kind === 'card' ? { x: origin.left + ow / 2, y: origin.top + 8 } : { x: origin.left + ow / 2, y: origin.top + oh / 2 };
     let to = pos;
-    if (hoverValid && hover !== 'zone' && hover !== 'pile') {
+    if (hoverValid && hover !== 'zone' && hover !== 'pile' && hover !== 'waiting') {
       const el = rootRef.current?.querySelector<HTMLElement>(`[data-drop="${CSS.escape(hover!)}"]`);
       if (el) {
         const r = el.getBoundingClientRect();

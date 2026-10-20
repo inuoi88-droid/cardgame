@@ -20,6 +20,7 @@ import {
 } from './core.ts';
 import { combatBonus, combatSourceOf, dealDamage, keywordFlags, playerBonus, setCrown, targetableTaunts } from './damage.ts';
 import { enqueueCardTiming, enqueueEnemyAttacked } from './triggers.ts';
+import { loyaltyHit } from './powers.ts';
 import type { GameState, Monster, PlayerId, TargetRef } from './types.ts';
 
 export function attacksPerTurn(g: GameState, m: Monster): number {
@@ -53,9 +54,11 @@ export function attackBlockReason(g: GameState, m: Monster): string | null {
   if (m.betraying) return '裏切ったモンスターは自分では攻撃できません';
   // MTG 要素 △ バッチA：卵（培養）・休眠
   if (m.card.token?.egg) return '卵はまだ攻撃できない（孵化を待つ）';
+  // 砦（MTG 要素 △ バッチC）は攻撃しない
+  if (m.siege) return '砦は攻撃しない';
   if (monsterDormant(g, m)) return '休眠中：このターンは攻撃できない';
-  // 一時蘇生（MTG 要素 △ バッチB）のモンスターは速攻を持つ
-  if (m.enteredTurn === g.turnIndex && !keywordFlags(g, m).haste && !m.unearthed) return '場に出たターンは攻撃できません';
+  // 一時蘇生（MTG 要素 △ バッチB）・待機（△ バッチC）で出たモンスターは速攻を持つ
+  if (m.enteredTurn === g.turnIndex && !keywordFlags(g, m).haste && !m.unearthed && m.counters.hasteTurn !== g.turnIndex) return '場に出たターンは攻撃できません';
   if (m.attacksUsed >= attacksPerTurn(g, m)) return 'このターンはもう攻撃しました';
   return null;
 }
@@ -125,7 +128,7 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   const retaliationAmount = defender ? effectiveAttack(g, defender) + combatBonus(g, defender) : 0;
   // 容疑（MTG 要素 △ バッチA）・解鎖（△ バッチB）のモンスターは反撃しない
   const retaliation =
-    defender && BALANCE.battle.retaliation.enabled && retaliationAmount > 0 && !defender.suspected && !defender.unleashed
+    defender && BALANCE.battle.retaliation.enabled && retaliationAmount > 0 && !defender.suspected && !defender.unleashed && !defender.siege
       ? { amount: retaliationAmount, weak: defender.status.weak > 0, label: monsterLabel(g, defender), source: combatSourceOf(g, defender) }
       : null;
   /** 先制攻撃：攻撃で相手モンスターを倒したら反撃を受けない */
@@ -140,12 +143,15 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   let hitEnemy = target.kind === 'player' && target.player === enemy && r.hpLost > 0;
   // 王冠（MTG 要素 ○ バッチC2）：王冠を持つプレイヤーのHPを相手のモンスターの攻撃が減らしたら、王冠はそのモンスターの持ち主へ
   if (target.kind === 'player' && r.hpLost > 0) crownByAttack(g, m.controller, target.player, depth + 1);
+  // 忠誠（MTG 要素 △ バッチC）：相手のモンスターの攻撃で HP が減ったら、忠誠のパワーの忠誠−1
+  if (target.kind === 'player' && r.hpLost > 0 && target.player !== m.controller) loyaltyHit(g, target.player, depth + 1);
   // 貫通：モンスターを倒して余ったダメージは、そのモンスターの持ち主のプレイヤーへ
   if (defender && r.destroyed && r.overflow > 0 && findMonster(g, m.uid) && keywordFlags(g, m).trample) {
     log(g, depth + 1, `貫通：余った${r.overflow}ダメージが${g.players[defender.controller].name}に通る`);
     const t = dealDamage(g, playerRef(defender.controller), r.overflow, { kind: 'trample', source: attackerRef, depth: depth + 2 });
     if (defender.controller === enemy && t.hpLost > 0) hitEnemy = true;
     if (t.hpLost > 0) crownByAttack(g, m.controller, defender.controller, depth + 2);
+    if (t.hpLost > 0 && defender.controller !== m.controller) loyaltyHit(g, defender.controller, depth + 2);
     if (isEnded(g)) return;
   }
   // 反撃：守備側が倒れていても、封印・凍結・隠密でも返す。守備側の「攻撃するたび」は発動しない。

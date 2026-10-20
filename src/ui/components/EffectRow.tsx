@@ -223,7 +223,7 @@ export function EffectRow({ index, count, effect, card, violations, expanded, on
           title={`${nth}のタイミング`}
           value={effect.timing}
           options={effectTimingOptions(effect, card)}
-          onChange={(t) => onChange(fitEffect({ ...effect, timing: t as TimingId }, base, card.abilities))}
+          onChange={(t) => onChange(fitEffect({ ...effect, timing: t as TimingId }, base, card.abilities, card.effects))}
           id={fieldId(`effects.${index}.timing`)}
           invalid={has('.timing')}
           note="いつ発動するか。倍率がポイントに掛かります"
@@ -297,7 +297,7 @@ export function EffectRow({ index, count, effect, card, violations, expanded, on
                     const next: EffectInstance = { ...effect, mods };
                     if (mods.length === 0) delete next.mods;
                     // 遅延と X は同時に付けられない（fitEffect が先に付いていたほうを外す）
-                    onChange(fitEffect(next, cardBase(card), card.abilities));
+                    onChange(fitEffect(next, cardBase(card), card.abilities, card.effects));
                   }}
                 />
                 {m.name}（{m.rate >= 0 ? '+' : '−'}{Math.round(Math.abs(m.rate) * 100)}%{scale ? '・数値の倍数' : m.scope === 'delay' ? '・予約' : ''}）

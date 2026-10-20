@@ -1,8 +1,8 @@
 /** 対戦画面の部品：プレイヤー情報、モンスター、手札、ログ、状態異常の札（説明はポップオーバー） */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { BALANCE, battle, CARD_TYPE_LABEL, analyzeCard, describeEffect, getEffect, TIMINGS, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
+import { BALANCE, battle, CARD_TYPE_LABEL, CONDITIONS, analyzeCard, describeEffect, getEffect, TIMINGS, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
 import { Popover, type PopoverCard } from '../components/Popover.tsx';
-import { glossary, keywordGlossary, mechanicGlossary, type GlossaryEntry } from '../glossary.ts';
+import { abilityGlossary, glossary, keywordGlossary, mechanicGlossary, type GlossaryEntry } from '../glossary.ts';
 import { cx } from '../util.ts';
 import { logIcon, tokenizeLog, type LogNames } from './logFormat.ts';
 import type { Float } from './useReplay.ts';
@@ -114,7 +114,7 @@ interface PlayerPanelProps {
   onPower?: (pw: battle.PowerInst) => void;
   // ---- MTG 要素 ○ バッチC1
   /** パワーの起動の ⚡ ボタン（起動の能力があるパワーだけ） */
-  powerActivate?: (pw: battle.PowerInst) => ActivateButton | null;
+  powerActivate?: (pw: battle.PowerInst) => ActivateButton[];
   /** 捨て札から使えるカードの数（捨て札の山にバッジ） */
   discardUsable?: number;
   /** ドラッグ中、捨て札の山に落とせる（サイクリング・魂力） */
@@ -128,11 +128,26 @@ interface PlayerPanelProps {
   powerDef?: (pw: battle.PowerInst) => CardDef | undefined;
   /** 演出中のパワーの札の光（キーはパワーの uid。起動・英雄譚の章・蓄積） */
   powerFlash?: Record<string, string>;
+  // ---- MTG 要素 △ バッチC
+  /** 待機ゾーンを押したとき（一覧を開く） */
+  onWaiting?: () => void;
+  /** ドラッグ中、待機ゾーンに落とせる（予顕・計画・待機） */
+  waitingLit?: boolean;
+  /** ドラッグ中、待機ゾーンの上で離すと決まる */
+  waitingHover?: boolean;
+  /** 待機ゾーンから使えるカードの数（バッジ） */
+  waitingUsable?: number;
 }
 
 /** 起動の ⚡ ボタン（モンスター・パワー）。使えないときは灰色で、押すと理由を出す */
 export interface ActivateButton {
   cost: number;
+  /** ボタンの印（省略は ⚡。MTG 要素 △ バッチC：Lvアップ ⬆・忠誠 +1／−K・表にする 🂠） */
+  icon?: string;
+  /** 何をするか（読み上げ・理由の見出し。省略は「起動」） */
+  title?: string;
+  /** 区別のための鍵（同じカードに複数あるとき） */
+  key?: string;
   blocked: string | null;
   /** 押したとき（対象が要らなければ起動、要るなら対象選びへ） */
   onTap: () => void;
@@ -147,10 +162,10 @@ export function ActivateBtn({ a, name, className }: { a: ActivateButton; name: s
   const btn = (
     <button
       type="button"
-      className={cx('act-btn', a.blocked && 'is-blocked', a.dragging && 'is-dragging', className)}
-      aria-label={`「${name}」を起動（エナジー${a.cost}）${a.blocked ? `：${a.blocked}` : ''}`}
+      className={cx('act-btn', a.blocked && 'is-blocked', a.dragging && 'is-dragging', a.icon && 'act-btn--use', className)}
+      aria-label={`「${name}」の${a.title ?? '起動'}（エナジー${a.cost}）${a.blocked ? `：${a.blocked}` : ''}`}
       aria-disabled={a.blocked ? true : undefined}
-      data-activate={name}
+      data-activate={a.key ? `${name}:${a.key}` : name}
       onClick={(e) => {
         e.stopPropagation();
         if (!a.blocked) a.onTap();
@@ -161,12 +176,13 @@ export function ActivateBtn({ a, name, className }: { a: ActivateButton; name: s
       }}
       onKeyDown={(e) => e.stopPropagation()}
     >
-      ⚡{a.cost}
+      {a.icon ?? '⚡'}
+      {a.icon ? <small>⚡{a.cost}</small> : a.cost}
     </button>
   );
   if (!a.blocked) return btn;
   return (
-    <Popover content={{ title: `⚡ 起動（エナジー${a.cost}）`, description: a.blocked }} placement="top" hover={false}>
+    <Popover content={{ title: `${a.icon ?? '⚡'} ${a.title ?? '起動'}（エナジー${a.cost}）`, description: a.blocked }} placement="top" hover={false}>
       {btn}
     </Popover>
   );
@@ -193,7 +209,12 @@ export function PlayerPanel({
   hasCrown,
   powerDef,
   powerFlash,
+  onWaiting,
+  waitingLit,
+  waitingHover,
+  waitingUsable = 0,
 }: PlayerPanelProps) {
+  const waiting = ps.waiting ?? [];
   const hp = hpShown ?? ps.hp;
   const pct = Math.max(0, Math.min(100, (hp / ps.maxHp) * 100));
   const next = [
@@ -262,6 +283,27 @@ export function PlayerPanel({
         <button type="button" className="pile pile--btn" onClick={(e) => (e.stopPropagation(), onPile('exile'))} aria-label={`除外${ps.exile.length}枚を見る`}>
           ⛔{ps.exile.length}
         </button>
+        {/* 待機ゾーン（MTG 要素 △ バッチC）：自分のは常に出す（ドラッグの落とし先）。相手のはカードがあるときだけ */}
+        {(isMe || waiting.length > 0) && (
+          <button
+            type="button"
+            className={cx('pile pile--btn pile--waiting', isMe && 'pile--drop', waitingLit && 'is-lit', waitingHover && 'is-drop-hover')}
+            onClick={(e) => (e.stopPropagation(), onWaiting?.())}
+            aria-label={`待機ゾーン${waiting.length}枚を見る${waitingUsable > 0 ? `（使えるカード${waitingUsable}枚）` : ''}`}
+            data-drop={isMe ? 'waiting' : undefined}
+            data-fx={isMe ? 'waiting:me' : 'waiting:opp'}
+          >
+            {mechanicGlossary.waiting!.icon}
+            {waiting.length}/{BALANCE.battle.maxWaiting}
+            {waitingUsable > 0 && <span className="pile__usable">使える{waitingUsable}</span>}
+          </button>
+        )}
+        {/* 追加ターン（MTG 要素 △ バッチC）：このターンのあとにもう一度 */}
+        {ps.extraTurnPending && (
+          <Popover content={{ title: `${mechanicGlossary.extraTurn!.icon} 追加ターン`, description: mechanicGlossary.extraTurn!.short }} placement="top">
+            <span className="pp__next pp__extra">{mechanicGlossary.extraTurn!.icon}追加ターン</span>
+          </Popover>
+        )}
         {!isMe && (
           <Popover content={{ title: `🂠 手札 ${ps.hand.length}枚`, description: '相手の手札の中身は見えない' }} placement="top">
             <span className="pile">🂠{ps.hand.length}</span>
@@ -339,8 +381,30 @@ export function PlayerPanel({
           </Popover>
         )}
         <Chips chips={statusChips(ps.status, true)} />
+        {/* 紋章（MTG 要素 △ バッチC）：パワーの上限に数えない */}
+        {(ps.emblems ?? []).map((pw) => {
+          const meter = powerMeter(pw, powerDef?.(pw), ps.turnsTaken);
+          return (
+            <span key={pw.uid} className={cx('pw-chip pw-chip--emblem', powerFlash?.[pw.uid])} data-fx={pw.uid}>
+              <button
+                type="button"
+                className="st st--power st--btn st--emblem"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPower?.(pw);
+                }}
+                aria-label={`紋章「${pw.name}」の詳細`}
+              >
+                {mechanicGlossary.emblem!.icon}
+                {pw.name}
+                {meter && <span className="st__meter">{` ${meter}`}</span>}
+              </button>
+            </span>
+          );
+        })}
         {ps.powers.map((pw) => {
-          const act = powerActivate?.(pw) ?? null;
+          const acts = powerActivate?.(pw) ?? [];
+          const act = acts.length > 0;
           const meter = powerMeter(pw, powerDef?.(pw), ps.turnsTaken);
           return (
             <span key={pw.uid} className={cx('pw-chip', act && 'pw-chip--act', powerFlash?.[pw.uid])} data-fx={pw.uid}>
@@ -357,7 +421,9 @@ export function PlayerPanel({
                 {pw.life !== undefined && <span className="st__life">{` ${mechanicGlossary.lifespan!.icon}${pw.life}`}</span>}
                 {meter && <span className="st__meter">{` ${meter}`}</span>}
               </button>
-              {act && <ActivateBtn a={act} name={pw.name} />}
+              {acts.map((a) => (
+                <ActivateBtn key={a.key ?? 'act'} a={a} name={pw.name} />
+              ))}
             </span>
           );
         })}
@@ -398,6 +464,12 @@ export function powerMeter(pw: battle.PowerInst, def: CardDef | undefined, owner
   if (def?.abilities?.some((a) => a.id === 'trap')) parts.push(M.trap!.icon);
   if (ownerTurns !== undefined && pw.dormantFrom !== undefined && (ownerTurns - pw.dormantFrom) % 2 === 1) parts.push(`${M.dormant!.icon}休眠中`);
   if (pw.age) parts.push(`${M.cumulativeUpkeep!.icon}${pw.age}`);
+  // MTG 要素 △ バッチC：忠誠・Lv・達成・特殊勝利の進み
+  if (pw.loyalty !== undefined) parts.push(`${M.loyalty!.icon}${pw.loyalty}`);
+  if (def?.abilities?.some((a) => a.id === 'levelUp')) parts.push(`Lv${pw.level ?? 1}`);
+  if (pw.achieved) parts.push(`${M.achieve!.icon}達成`);
+  const goal = battle.altWinGoalOf(def);
+  if (goal) parts.push(`${M.altWin!.icon}${pw.progress ?? 0}/${battle.altWinTarget(goal)}`);
   return parts.length > 0 ? parts.join(' ') : null;
 }
 
@@ -418,6 +490,15 @@ export function powerLines(pw: battle.PowerInst, def?: CardDef): ReactNode[] {
   if (def?.abilities?.some((a) => a.id === 'trap')) extra.push(`${mechanicGlossary.trap!.icon} ${mechanicGlossary.trap!.short}`);
   if (pw.dormantFrom !== undefined) extra.push(`${mechanicGlossary.dormant!.icon} ${mechanicGlossary.dormant!.short}`);
   if (pw.age) extra.push(`${mechanicGlossary.cumulativeUpkeep!.icon} 累加維持費：場にあるターン数 ${pw.age}`);
+  // MTG 要素 △ バッチC
+  const G = mechanicGlossary;
+  if (pw.loyalty !== undefined) extra.push(`${G.loyalty!.icon} 忠誠：${pw.loyalty}（最大${BALANCE.battle.loyaltyMax}。0で消える）`);
+  if (def?.abilities?.some((a) => a.id === 'levelUp')) extra.push(`${G.level!.icon} Lv${pw.level ?? 1}／${BALANCE.battle.maxLevel}`);
+  const ach = battle.achieveOf(def);
+  if (ach) extra.push(`${G.achieve!.icon} ${pw.achieved ? '達成した' : 'まだ達成していない'}（達成条件：${(ach.a.condition ? CONDITIONS[ach.a.condition]?.label : undefined) ?? '？'}）`);
+  const goal = battle.altWinGoalOf(def);
+  if (goal) extra.push(`${G.altWin!.icon} 特殊勝利：${ALT_WIN_TEXT[goal]} ${pw.progress ?? 0}/${battle.altWinTarget(goal)}`);
+  if (battle.isEmblemCard(def)) extra.push(`${G.emblem!.icon} ${G.emblem!.short}`);
   return [...extra, ...effects, ...pw.drawbacks.map((d) => `☠ デメリット（${d.timing ? TIMINGS[d.timing].label : ''}）`), ...life];
 }
 
@@ -453,11 +534,19 @@ interface MonsterTileProps {
   ownerTurns?: number;
   /** 実効攻撃力（激励を含む。battle.effectiveAttack(view, m)。省略すると攻撃力＋一時強化） */
   attackNow?: number;
-  /** 起動の ⚡ ボタン（自分のモンスターで起動の能力があるとき。MTG 要素 ○ バッチC1） */
-  activate?: ActivateButton | null;
+  /** 起動の ⚡ ボタン（自分のモンスターで起動の能力があるとき。MTG 要素 ○ バッチC1。△ バッチC：Lvアップ・表にする） */
+  activate?: ActivateButton[] | null;
   /** 対象にするとき増えるコスト（護法。MTG 要素 ○ バッチB）。0 なら出さない */
   extraCost?: number;
+  /** 裏向きの自分のモンスターの正体の名前（MTG 要素 △ バッチC。持ち主にだけ） */
+  realName?: string;
 }
+
+/** カードの能力のアイコン */
+const abilityIcon = (id: string): string => abilityGlossary[`ability:${id}`]?.icon ?? '✦';
+
+/** 特殊勝利の目標の言い方（MTG 要素 △ バッチC） */
+const ALT_WIN_TEXT: Record<NonNullable<ReturnType<typeof battle.altWinGoalOf>>, string> = { cards: 'カードを使った数', turns: '自分のターン数', board: '場のモンスターの数' };
 
 /** 実効攻撃力（激励は盤面が要るので、呼び出し側が渡す。無ければ攻撃力＋一時強化） */
 export const attackOf = (m: battle.Monster, attackNow?: number): number => attackNow ?? m.attack + (m.tempAttack ?? 0);
@@ -474,6 +563,8 @@ export function monsterChips(
   ownerTurns?: number,
   /** 実効攻撃力（激励を含む） */
   attackNow?: number,
+  /** 裏向きのモンスターの正体の名前（持ち主にだけ。MTG 要素 △ バッチC） */
+  realName?: string,
 ): Chip[] {
   const kws: Chip[] = (def?.keywords ?? []).map((k) => {
     const g = keywordGlossary[k.id];
@@ -489,7 +580,7 @@ export function monsterChips(
   if (m.stealth) extra.push({ id: 'stealth', label: `${glossary.stealth.icon}隠密中`, tone: 'info', card: { title: '👤 隠密', description: glossary.stealth.short } });
   if (m.betraying) extra.push({ id: 'betraying', label: `${glossary.betrayal.icon}裏切り`, tone: 'bad', card: { title: '🗡 裏切り', description: glossary.betrayal.short } });
   const M = mechanicGlossary;
-  if (m.card.token) extra.push({ id: 'token', label: `${M.token!.icon}トークン`, tone: 'info', card: { title: `${M.token!.icon} ${M.token!.name}`, description: M.token!.short } });
+  if (m.card.token && !m.siege) extra.push({ id: 'token', label: `${M.token!.icon}トークン`, tone: 'info', card: { title: `${M.token!.icon} ${M.token!.name}`, description: M.token!.short } });
   if (!m.sealed) {
     for (const id of m.granted ?? []) {
       const g = keywordGlossary[id];
@@ -596,6 +687,28 @@ export function monsterChips(
   if (m.card.lostKeywords?.includes('doubleTeam')) {
     extra.push({ id: 'dt-used', label: `${keywordGlossary.doubleTeam?.icon ?? ''}分身 使用済み`, tone: 'info', card: { title: '分身（使用済み）', description: keywordGlossary.doubleTeam?.short ?? '' } });
   }
+  // MTG 要素 △ バッチC：裏向き（正体は持ち主にだけ）・進化・Lv・ワープ・砦
+  if (m.faceDown) {
+    const real = m.faceDown.card;
+    const cost = m.faceDown.revealCost;
+    extra.push({
+      id: 'faceDown',
+      label: `${M.faceDown!.icon}裏向き`,
+      tone: 'info',
+      card: {
+        title: `${M.faceDown!.icon} ${M.faceDown!.name}（${m.faceDown.kind === 'disguise' ? '変装' : '予示'}）`,
+        description: M.faceDown!.short,
+        lines: real ? [`正体：「${realName ?? '？'}」`, cost === null ? '表にできない（モンスターでない）' : `エナジー${cost}で表にできる`] : [],
+      },
+    });
+  }
+  if (m.achieved) extra.push({ id: 'achieved', label: `${abilityIcon('evolve')}進化`, tone: 'good', card: { title: `${M.achieve!.icon} 進化した`, description: M.achieve!.short } });
+  if (def?.abilities?.some((a) => a.id === 'levelUp')) {
+    const lv = m.counters.level ?? 1;
+    extra.push({ id: 'level', label: `${M.level!.icon}Lv${lv}`, tone: 'good', card: { title: `${M.level!.icon} Lv${lv}／${BALANCE.battle.maxLevel}`, description: M.level!.short } });
+  }
+  if (m.warped) extra.push({ id: 'warped', label: `${abilityIcon('warp')}ワープ`, tone: 'info', card: { title: 'ワープ', description: 'ワープで出たモンスター。持ち主のターン終了時に待機ゾーンへ移り、後の自分のターンに出し直せる' } });
+  if (m.siege) extra.push({ id: 'siege', label: `${M.siege!.icon}${M.siege!.name}`, tone: 'info', card: { title: `${M.siege!.icon} ${M.siege!.name}`, description: M.siege!.short } });
   for (const f of monsterForecasts(def, m)) extra.push({ id: `fc:${f.title}`, label: f.label, tone: f.tone, card: { title: f.title, description: f.description } });
   if ((flags.attacksPerTurn ?? 1) > 1 && m.attacksUsed > 0) {
     extra.push({ id: 'attacks', label: `攻撃${m.attacksUsed}/${flags.attacksPerTurn}`, tone: 'info', card: { title: 'このターンの攻撃回数', description: `${flags.attacksPerTurn}回まで攻撃できる` } });
@@ -625,9 +738,10 @@ export function MonsterTile({
   attackNow,
   activate,
   extraCost = 0,
+  realName,
 }: MonsterTileProps) {
   const press = useLongPress(onDetail);
-  const chips = monsterChips(def, m, flags, ownerTurns, attackNow);
+  const chips = monsterChips(def, m, flags, ownerTurns, attackNow, realName);
   const label = def?.name ?? '？';
   // 護法（MTG 要素 ○ バッチB）：対象にすると増えるエナジーを「対象」の札に添える
   const state = targetable ? (extraCost > 0 ? `対象 護法+${extraCost}⚡` : '対象') : selected ? '選択中' : ready ? '攻撃できる' : blockLabel ?? null;
@@ -671,6 +785,7 @@ export function MonsterTile({
         {def?.icon ?? '？'}
       </span>
       <span className="mt__name">{label}</span>
+      {realName && <span className="mt__real">（{realName}）</span>}
       {def?.tribe && (
         <span className="mt__tribe" title={`種族：${TRIBE_LABEL[def.tribe]}`}>
           {TRIBE_LABEL[def.tribe]}
@@ -691,7 +806,13 @@ export function MonsterTile({
         </span>
       </span>
       <Chips chips={chips} className="mt__chips" passive />
-      {activate && !dying && <ActivateBtn a={activate} name={label} className="mt__act" />}
+      {activate && activate.length > 0 && !dying && (
+        <span className="mt__acts">
+          {activate.map((a) => (
+            <ActivateBtn key={a.key ?? 'act'} a={a} name={label} className="mt__act" />
+          ))}
+        </span>
+      )}
       <Floats items={floats} />
     </div>
   );

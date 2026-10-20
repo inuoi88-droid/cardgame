@@ -131,6 +131,18 @@ export const BALANCE = {
     /** MTG 要素 △ バッチB（決定事項ログ）。能力「相続」（捨て札から除外して使う）・能力「予見」（手札に残したまま使う） */
     renew: 0.9,
     forecast: 1.0,
+    /**
+     * MTG 要素 △ バッチC（決定事項ログ）。出来事（モンスターのカードを呪文として使う。能力「出来事」の abilities.adventure.rate も掛ける）・
+     * 達成したとき・Lvが上がったとき（最大2回）・忠誠+1（毎ターン使える）・忠誠−K（忠誠 L ≥ K なら最初から使えるので [0]、そうでなければ [1]）・
+     * 表になったとき・砦を落としたとき（砦の体力 N（倍率1の数字）2〜6 の順。体力が多いほど落としにくい）
+     */
+    adventure: 1.0,
+    achievedNow: 0.7,
+    leveledUp: 1.6,
+    loyaltyPlus: 4.0,
+    loyaltyMinus: [1.2, 0.8],
+    revealed: 0.9,
+    siegeWonByHp: [0.9, 0.8, 0.7, 0.6, 0.5],
   },
   /** タイミングに出てくる数（MTG 要素 ○ バッチA） */
   timingParams: {
@@ -223,6 +235,10 @@ export const BALANCE = {
     rested: 0.7,
     /** MTG 要素 △ バッチB：協約したなら（トークンかパワーを差し出したとき） */
     bargained: 0.6,
+    /** MTG 要素 △ バッチC：達成していれば（事件・進化）・Lv2以上なら・Lv3なら */
+    achieved: 0.5,
+    level2: 0.6,
+    level3: 0.4,
   },
   /** 「キッカーを払っていれば」の倍率（キッカーの追加エナジー1・2 の順。MTG 要素 ○ バッチC1） */
   conditionByKicker: [0.6, 0.45],
@@ -478,6 +494,16 @@ export const BALANCE = {
     tokenSpawn: { perToken: x(1.5) },
     /** 倍化の「3倍」（レジェンドだけ）：固定ポイントに足す */
     doubleTriple: { flat: x(20) },
+    /**
+     * MTG 要素 △ バッチC（決定事項ログ）。価格は目安。予示（山札の一番上を裏向きで出す）・追加ターン（レジェンド・1試合1回）・
+     * HP交換（レジェンド・1試合1回。自分が得る HP は最大HP×gainCapRate まで）・強奪（相手の山札から look 枚を見て1枚のコピー）・
+     * 砦を築く（体力 minValue〜maxValue。報酬は「砦を落としたとき」の倍率で払う）
+     */
+    manifest: { flat: x(9) },
+    extraTurn: { flat: x(40) },
+    swapHp: { flat: x(30), gainCapRate: 0.5 },
+    heist: { flat: x(8), look: 3 },
+    siege: { flat: x(1), minValue: x(2), maxValue: x(6) },
   },
 
   /** モンスター専用キーワードのポイント（A は攻撃力）。挑発は #83（カードの効果の対象も挑発に限る）のあと #84 で 6→8 */
@@ -623,6 +649,34 @@ export const BALANCE = {
     embalm: { rate: [0.4, 0.3, 0.2], eternalStats: x(4), eternalFlat: x(2), flat: x(0) },
     /** 予見：エナジー0〜maxCost（ポイントは「予見」のタイミングの倍率 timing.forecast） */
     forecast: { maxCost: 2, flat: x(0) },
+    /**
+     * MTG 要素 △ バッチC（決定事項ログ）。待機ゾーン（予顕・計画・待機・ワープ・出来事）・達成（事件・進化）・Lvアップ・忠誠・
+     * 裏向き（変装）・特殊勝利・紋章。数（エナジー・ターン・回数）には倍率を掛けない
+     */
+    /** 予顕：エナジー setCost で伏せ、後のターンにコスト−K。base＋(K−1)×perCut（K は1〜maxCut） */
+    foretell: { setCost: 2, base: x(2), perCut: x(6), maxCut: 2 },
+    /** 計画：今の実コストを払って表向きで待機させ、後のターンに無料で使う */
+    plot: { flat: x(2) },
+    /** 待機：エナジーK（0〜maxCost。印刷コスト未満）で待機させ、Nターン（1〜maxTurns）後に無料で使う */
+    suspend: { flat: x(3), maxTurns: 3, maxCost: 2 },
+    /** ワープ：エナジーK（1〜maxCost。印刷コスト未満）で出し、ターン終了時に待機ゾーンへ。flat＋召喚時の効果×summonRate */
+    warp: { flat: x(2), summonRate: 0.4, maxCost: 3 },
+    /** 出来事：出来事の効果は×rate（タイミングの倍率に掛ける。能力自体は0pt）。出来事のエナジーは0〜maxCost */
+    adventure: { rate: 0.8, maxCost: 3, flat: x(0) },
+    /** 事件：固定（条件の重さは「達成していれば」「達成したとき」の倍率で払う） */
+    quest: { flat: x(1) },
+    /** 進化 N：flat＋N×perValue（N は minValue〜maxValue。量） */
+    evolve: { flat: x(1), perValue: 2.7, minValue: x(1), maxValue: x(3) },
+    /** Lvアップ：エナジーK（1〜maxCost）。モンスターは N（0〜maxValue。量）×perValue、パワーは0（条件・タイミングの倍率で払う） */
+    levelUp: { perValue: 5, maxCost: 3, maxValue: x(2), powerFlat: x(0) },
+    /** 忠誠 L（minLoyalty〜maxLoyalty）と −K（minCut〜maxCut）。能力は0pt（タイミングの倍率で払う） */
+    loyalty: { minLoyalty: 2, maxLoyalty: 5, minCut: 2, maxCut: 4, flat: x(0) },
+    /** 変装：エナジー playCost で裏向きに出し、K（0〜maxCost）で表にする */
+    disguise: { playCost: 2, flat: x(3), maxCost: 3 },
+    /** 特殊勝利：固定。目標（カードを cards 枚使う／自分のターン開始を turns 回／自分のターン開始時にモンスター board 体） */
+    altWin: { flat: x(30), goals: { cards: 12, turns: 4, board: 5 } },
+    /** 紋章：パワーの効果×rate（能力のポイントは（rate−1）×パワーの効果） */
+    emblem: { rate: 1.3 },
   },
 
   /**
@@ -775,6 +829,22 @@ export const BALANCE = {
     /** MTG 要素 △ バッチB：代替コスト・発掘は1人1ターンこの回数まで */
     maxPitchPerTurn: 1,
     maxDredgePerTurn: 1,
+    /**
+     * MTG 要素 △ バッチC：待機ゾーンの枚数・Lv の上限・忠誠の上限・裏向きのモンスターの攻撃力と体力・変装の護法・紋章の数・
+     * 1人が築ける砦の数・特殊勝利で勝てる最初の通算ターン
+     */
+    maxWaiting: 5,
+    maxLevel: 3,
+    loyaltyMax: 9,
+    faceDownStats: x(2),
+    faceDownWard: 1,
+    faceDownName: '裏向きのモンスター',
+    faceDownIcon: '🂠',
+    maxEmblems: 1,
+    maxSieges: 1,
+    siegeName: '砦',
+    siegeIcon: '🏰',
+    altWinEarliestTurn: 8,
   },
 
   /** 速度ゲージ（MTG 要素 ○ バッチC2）：エンジン始動で start、自分のターンに相手のHPを減らすと1ターン1回+1、max まで */

@@ -5,7 +5,22 @@
  * エディター・ポイント計算・効果テキストのすべてに反映される（索引は scripts/gen-registry.mjs が自動生成）。
  */
 import { BALANCE } from './balance.ts';
-import type { AltPlay, CardInst, ChoiceSpec, DiscardAbilityKind, EffectRuntime, ExtraPayKind, GameState, HandAbilityKind, Monster, PlayerId, PowerInst, SacrificeKind, TargetRef } from './battle/types.ts';
+import type {
+  AltPlay,
+  CardInst,
+  ChoiceSpec,
+  DiscardAbilityKind,
+  EffectRuntime,
+  ExtraPayKind,
+  GameState,
+  HandAbilityKind,
+  Monster,
+  PlayerId,
+  PowerInst,
+  SacrificeKind,
+  SetAsideKind,
+  TargetRef,
+} from './battle/types.ts';
 import type { ChargeEvent, TargetRule } from './options.ts';
 import type {
   AbilityInstance,
@@ -126,6 +141,8 @@ export interface EffectDef {
   shortValue?(e: EffectInstance): string;
   /** 対戦での処理 */
   battle: {
+    /** このカードを今使えない理由（HP交換：自分のHPが相手より少ないときだけ。MTG 要素 △ バッチC）。使えるなら null */
+    canPlay?(g: GameState, p: PlayerId): string | null;
     /** 選択が要る効果（サーチ・回収など）は選択肢を返す。null なら選択なし */
     choose?(rt: EffectRuntime, e: EffectInstance): ChoiceSpec | null;
     /** 効果を処理する。picks は選んだ選択肢の ID */
@@ -291,6 +308,11 @@ export interface AbilityPointContext {
   conditionalGain: number;
   /** 使用時（モンスターなら召喚時）の「選んだ1体」の効果のポイントと作用先（奮励・超過） */
   chosenEffects: { points: number; rule: TargetRule }[];
+  // ---- MTG 要素 △ バッチC
+  /** タイミングごとの効果のポイントの合計（ワープの召喚時・紋章のパワーの効果など） */
+  timingPoints: Partial<Record<TimingId, number>>;
+  /** パワーになるタイミング（ターン開始時など）の効果のポイントの合計（紋章） */
+  powerEffectPoints: number;
 }
 
 /** 動的コスト（親和・条件付き軽減。MTG 要素 ○ バッチC1）の計算に渡す道具。条件の判定は battle 側が作る */
@@ -326,7 +348,7 @@ export interface FromDiscardRule {
 }
 
 /** カードの能力の見出し（エディターの選択パネル。MTG 要素 △ バッチB） */
-export const ABILITY_GROUPS = ['使い終わり', '捨て札から', '手札・捨て札の能力', 'コスト', '追加の支払い', 'モード', '場・パワー'] as const;
+export const ABILITY_GROUPS = ['使い終わり', '捨て札から', '手札・捨て札の能力', 'コスト', '追加の支払い', 'モード', '待機ゾーン', '達成・Lv・忠誠', '場・パワー'] as const;
 export type AbilityGroup = (typeof ABILITY_GROUPS)[number];
 
 /**
@@ -401,6 +423,24 @@ export interface AbilityDef {
     pitch?: boolean;
     /** 捨て札のカードの能力（相続・発掘・不朽）と、そのエナジー */
     discardAbility?: { kind: DiscardAbilityKind; cost(a: AbilityInstance): number };
+    // ---- MTG 要素 △ バッチC
+    /**
+     * 手札から待機ゾーンに置く（予顕・計画・待機）。setCost は置くときのエナジー（省略は今の実コスト＝計画）、
+     * cut は待機ゾーンから使うときのコストの軽減（予顕）、free は待機ゾーンから無料で使う（計画）、time は待機のターン数（待機）
+     */
+    setAside?: { kind: SetAsideKind; setCost?(a: AbilityInstance): number; cut?(a: AbilityInstance): number; free?: boolean; time?(a: AbilityInstance): number };
+    /** Lvアップ：Lv を1上げるエナジーと、モンスターの攻撃力・体力の上がる量 */
+    levelUp?: { cost(a: AbilityInstance): number; amount(a: AbilityInstance): number };
+    /** 忠誠：場に出たときの忠誠 L と、−K の K */
+    loyalty?: { start(a: AbilityInstance): number; cut(a: AbilityInstance): number };
+    /** 変装：裏向きを表にするエナジー */
+    revealCost?(a: AbilityInstance): number;
+    /** 達成（事件はパワー、進化はモンスター。進化は攻撃力・体力+amount） */
+    achieve?: { kind: 'quest' | 'evolve'; amount?(a: AbilityInstance): number };
+    /** 特殊勝利の目標 */
+    altWin?(a: AbilityInstance): AltWinGoal;
+    /** 紋章：場のパワーではなく紋章になる */
+    emblem?: boolean;
   };
   // ---- MTG 要素 △ バッチB
   /** 支払いの種類（extra：追加の支払い・代わりの使い方は1枚に1つ＝EXTRA_CONFLICT／sacrifice：差し出す能力は1つ＝SACRIFICE_CONFLICT） */
@@ -421,7 +461,20 @@ export interface AbilityDef {
   takesCondition?: boolean;
   /** このタイミングの効果が要る（起動・魂力。無ければ違反） */
   requiresTiming?: TimingId;
+  // ---- MTG 要素 △ バッチC
+  /** このどれかのタイミングの効果が要る（忠誠：+1 か −K） */
+  requiresAnyTiming?: readonly TimingId[];
+  /** 能力に達成条件を付ける（事件・進化。条件は options.ts の achieveConditions()） */
+  achieveCondition?: boolean;
+  /** 英雄譚（章の効果）と同時に付けられない（事件・忠誠・紋章） */
+  noSaga?: boolean;
+  /** 印刷コストより小さい数値が要る（待機・ワープの K）。value か option（数字の選択肢）のどちらか */
+  belowPrintedCost?: 'value' | 'option';
 }
+
+/** 特殊勝利（MTG 要素 △ バッチC）の目標：カードを使う／自分のターン開始を迎える／自分のターン開始時に場のモンスターがそろう */
+export type AltWinGoal = 'cards' | 'turns' | 'board';
+export const ALT_WIN_GOALS = ['cards', 'turns', 'board'] as const satisfies readonly AltWinGoal[];
 
 export const defineEffect = (def: Omit<EffectDef, 'kind'>): EffectDef => ({ kind: 'effect', ...def });
 export const defineAbility = (def: Omit<AbilityDef, 'kind'>): AbilityDef => ({ kind: 'ability', ...def });

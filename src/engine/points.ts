@@ -17,6 +17,7 @@ import {
   TIMINGS,
   TRAP_TIMINGS,
   conditionMultiplier,
+  isPowerTiming,
   defaultTiming,
   targetLabel,
   targetMultiplier,
@@ -221,9 +222,15 @@ export function abilityContext(card: Pick<CardDef, 'stats' | 'keywords' | 'effec
   let channel = 0;
   let conditionalGain = 0;
   const chosenEffects: AbilityPointContext['chosenEffects'] = [];
+  const timingPoints: AbilityPointContext['timingPoints'] = {};
+  let powerEffectPoints = 0;
+  const base = cardBase(card);
   for (const e of card.effects) {
     const v = effectPoints(e, card).value;
     all += v;
+    // MTG 要素 △ バッチC：タイミングごと（ワープ）・パワーの効果（紋章）
+    timingPoints[e.timing] = (timingPoints[e.timing] ?? 0) + v;
+    if (isPowerTiming(e.timing, base)) powerEffectPoints += v;
     if (e.timing === timing) play += v;
     if (e.timing === 'channel') channel += v;
     // MTG 要素 △ バッチB：切除（条件を外したときに増える分）・奮励／超過（「選んだ1体」の効果）
@@ -241,6 +248,8 @@ export function abilityContext(card: Pick<CardDef, 'stats' | 'keywords' | 'effec
     modeOtherPoints: modeSummary(card)?.others ?? 0,
     conditionalGain,
     chosenEffects,
+    timingPoints,
+    powerEffectPoints,
   };
 }
 

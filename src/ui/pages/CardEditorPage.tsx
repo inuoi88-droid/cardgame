@@ -308,7 +308,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
   };
   const addEffect = (id: string) => {
     const key = genKey();
-    setEffects([...card.effects, createEffect(id, base, card.abilities)], [...eKeys, key]);
+    setEffects([...card.effects, createEffect(id, base, card.abilities, card.effects)], [...eKeys, key]);
     setExpanded(new Set([key])); // 追加・複製した行だけを開き、ほかは要約にたたむ
     setFocusKey(key);
   };
@@ -771,6 +771,19 @@ function Editor({ saved }: { saved: CardDef | null }) {
                             options={abilityOptionOptions(a, card)}
                             onChange={(option) => setAbilities(abilities.map((x, j) => (j === i ? { ...x, option } : x)))}
                             id={fieldId(`abilities.${i}.option`)}
+                          />
+                        )}
+                        {def.achieveCondition && (
+                          // 事件・進化（MTG 要素 △ バッチC）：達成条件の選択パネル
+                          <OptionPicker
+                            className="ed-row__option"
+                            label="達成条件（持ち主のターン終了時に判定）"
+                            title={`${def.name}の達成条件`}
+                            value={a.condition ?? ''}
+                            options={abilityConditionOptions(a, card)}
+                            onChange={(c) => setAbilities(abilities.map((x, j) => (j === i ? { ...x, condition: c as ConditionId } : x)))}
+                            id={fieldId(`abilities.${i}.condition`)}
+                            invalid={violationsAt(analysis.violations, `abilities.${i}.condition`).length > 0}
                           />
                         )}
                         {def.takesCondition && (

@@ -18,7 +18,7 @@ export type FxKey = string;
 export const keyOf = (t: TargetRef): FxKey => (t.kind === 'player' ? `p${t.player}` : t.uid);
 
 export type Show =
-  | { t: 'turn'; player: PlayerId; turn: number | null }
+  | { t: 'turn'; player: PlayerId; turn: number | null; extra?: boolean }
   /** 相手がカードを使った：カードを見せる */
   | { t: 'reveal'; player: PlayerId; cardId: string }
   /** 自分がカードを使った：短い見出しだけ */
@@ -119,8 +119,11 @@ function damageTone(kind: battle.DamageKind | undefined): FxTone {
   }
 }
 
+/** 待機ゾーンに置いたときの浮かぶ文字（MTG 要素 △ バッチC） */
+const WAITING_NOTICE: Record<string, string> = { foretell: '🂠予顕', plot: '🗓計画', suspend: '⏳待機', warp: '🌀ワープ', adventure: '📗出来事' };
+
 /** 場に残っているパワーか（パワーの札を光らせる） */
-const hasPower = (view: GameState, uid: string): boolean => view.players.some((ps) => ps.powers.some((pw) => pw.uid === uid));
+const hasPower = (view: GameState, uid: string): boolean => view.players.some((ps) => [...ps.powers, ...(ps.emblems ?? [])].some((pw) => pw.uid === uid));
 
 /** ログの行を演出に変える。演出にならない行（効果の説明文など）は省く */
 export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, firstId: number): BattleEvent[] {
@@ -141,7 +144,7 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
     }
     switch (ev.kind) {
       case 'turnStart':
-        push(e.text, ev.player ?? null, { t: 'turn', player: ev.player ?? 0, turn: parseTurn(e.text) }, DURATION.turn);
+        push(e.text, ev.player ?? null, { t: 'turn', player: ev.player ?? 0, turn: parseTurn(e.text), ...(ev.extra ? { extra: true } : {}) }, DURATION.turn);
         break;
       case 'play':
         if (ev.player === undefined || !ev.cardId) break;
@@ -201,6 +204,50 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
           push(e.text, ev.player, { t: 'notice', text: '🔋 蓄積がたまった', tone: ev.player === me ? 'mine' : 'enemy', ...(ev.uid && hasPower(view, ev.uid) ? { key: ev.uid } : {}) }, DURATION.notice);
         else push(e.text, ev.player, { t: 'tick' }, DURATION.tick);
         break;
+      // MTG 要素 △ バッチC：待機ゾーン・表にする・Lv・忠誠・達成・特殊勝利
+      case 'waiting': {
+        if (ev.player === undefined) break;
+        const tone = ev.player === me ? 'mine' : 'enemy';
+        if (ev.status === 'tick') {
+          // 待機の残りが減っただけならティッカー、0になって使われるときは見出し
+          if ((ev.amount ?? 1) === 0) push(e.text, ev.player, { t: 'notice', text: '⏳ 待機が明けた：無料で使う', tone }, DURATION.notice);
+          else push(e.text, ev.player, { t: 'tick' }, DURATION.tick);
+          break;
+        }
+        const label = WAITING_NOTICE[ev.status ?? ''] ?? '⏳ 待機ゾーンへ';
+        push(e.text, ev.player, { t: 'float', key: `p${ev.player}`, text: label, tone: 'good', flash: 'status' }, DURATION.float);
+        break;
+      }
+      case 'reveal': {
+        if (ev.player === undefined || !ev.cardId) break;
+        // 相手が表にした：カードを見せる。場を離れて正体が分かった・自分が表にした：見出し
+        if (e.kind === 'action' && ev.player !== me && view.cards[ev.cardId]) push(e.text, ev.player, { t: 'reveal', player: ev.player, cardId: ev.cardId }, DURATION.reveal);
+        else if (e.kind === 'action' && ev.uid && battle.findMonster(view, ev.uid)) push(e.text, ev.player, { t: 'activate', key: ev.uid, player: ev.player, cardId: ev.cardId }, DURATION.activate);
+        else push(e.text, ev.player, { t: 'notice', text: `🂠 正体：${view.cards[ev.cardId]?.name ?? '？'}`, tone: 'neutral' }, DURATION.notice);
+        break;
+      }
+      case 'level':
+      case 'loyalty': {
+        if (ev.player === undefined || !ev.uid) break;
+        const key = battle.findMonster(view, ev.uid) || hasPower(view, ev.uid) ? ev.uid : `p${ev.player}`;
+        if (e.kind === 'action' && ev.cardId) {
+          push(e.text, ev.player, { t: 'activate', key, player: ev.player, cardId: ev.cardId }, DURATION.activate);
+          if (ev.kind === 'level' && battle.findMonster(view, ev.uid)) push(e.text, ev.player, { t: 'float', key: ev.uid, text: `⬆Lv${ev.amount ?? ''}`, tone: 'good', flash: 'status' }, DURATION.float);
+        } else push(e.text, ev.player, { t: 'notice', text: `💠 忠誠 ${ev.amount ?? ''}`, tone: ev.player === me ? 'mine' : 'enemy', ...(hasPower(view, ev.uid) ? { key: ev.uid } : {}) }, DURATION.notice);
+        break;
+      }
+      case 'achieve': {
+        if (ev.player === undefined || !ev.uid) break;
+        if (battle.findMonster(view, ev.uid)) push(e.text, ev.player, { t: 'float', key: ev.uid, text: '🦋進化', tone: 'good', flash: 'status' }, DURATION.float);
+        else push(e.text, ev.player, { t: 'notice', text: '🔍 事件を解明した', tone: ev.player === me ? 'mine' : 'enemy', ...(hasPower(view, ev.uid) ? { key: ev.uid } : {}) }, DURATION.notice);
+        break;
+      }
+      case 'altWin': {
+        if (ev.player === undefined) break;
+        if (e.kind === 'effect') push(e.text, ev.player, { t: 'notice', text: '🏆 特殊勝利の目標を達成！', tone: ev.player === me ? 'mine' : 'enemy' }, DURATION.notice);
+        else push(e.text, ev.player, { t: 'tick' }, DURATION.tick);
+        break;
+      }
       case 'damage':
       case 'retaliate': {
         if (!ev.target) break;
@@ -278,6 +325,13 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
           rad: '☢ 放射能',
           exileMill: '⛔ 山札消滅',
           pitch: '♠ 代替コスト',
+          // MTG 要素 △ バッチC
+          extraTurn: '🔁 追加ターンを得た',
+          swapHp: '⇄ HP交換',
+          heist: '🦝 強奪',
+          emblem: '🔰 紋章になった',
+          siegeWon: '🏰 砦を落とした',
+          manifest: '🂠 予示',
         };
         if (!ev.target && ev.status && PLAYER_NOTICE[ev.status]) {
           push(e.text, ev.player ?? null, { t: 'notice', text: `${PLAYER_NOTICE[ev.status]}${ev.amount && ev.amount > 1 ? `（${ev.amount}）` : ''}`, tone: 'neutral' }, DURATION.notice);

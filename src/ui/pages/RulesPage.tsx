@@ -107,7 +107,10 @@ export function RulesPage() {
             プレイヤーのHPは <b>{B.playerHp}</b>。相手のHPを0にしたら勝ちです。
           </li>
           <li>
-            両方のプレイヤーが <b>{B.maxTurns}ターン</b> ずつ終えても決着しなければ引き分けです。
+            両方のプレイヤーが <b>{B.maxTurns}ターン</b> ずつ終えても決着しなければ引き分けです（追加ターンも1ターンに数えます）。
+          </li>
+          <li>
+            <b>{mechanicGlossary.altWin!.name}</b>：{mechanicGlossary.altWin!.short}。
           </li>
           <li>降参すると負けになります。オンライン対戦では、続けて時間切れになると負けです（「オンライン対戦」の節）。</li>
         </ul>
@@ -138,6 +141,7 @@ export function RulesPage() {
             放射能（山札の上を捨て札に置き、モンスター以外1枚ごとに{B.radDamage}ダメージ）→ 氷結（手札がランダムに凍る）→ 卵の孵化。
           </li>
           <li>予約していた効果（修飾「次のターンに」・カードの能力「反復」）が古い順に発動します（1人{B.maxDelayedPerPlayer}件まで）。</li>
+          <li>待機ゾーンの「待機」のカードの残りが1減り、0になったものを無料で使います（モンスターは速攻）。特殊勝利の目標（ターン数など）を確かめます。</li>
           <li>「自分のターン開始時」の効果（パワー → 場のモンスターの左から）。混乱・裏切りのモンスターが自動で攻撃します。</li>
         </ol>
         <h3>ターン中</h3>
@@ -152,14 +156,16 @@ export function RulesPage() {
         </ul>
         <h3>ターン終了時（この順）</h3>
         <ol>
+          <li>事件・進化の達成条件を確かめます（満たしていれば達成し、「達成したとき」の効果）。</li>
           <li>「自分のターン終了時」の効果。</li>
           <li>
             やけどのダメージ（{B.burnDamage}）。出血が半分、弱体・脆弱の残りターンが1減り、凍結・混乱が切れます。
           </li>
-          <li>応召のトークンが消え、一時蘇生のモンスターが除外され、借用の残りが1減ります（0なら元の持ち主の場へ）。腐乱のモンスター（このターンに攻撃したもの）が破壊され、寿命が1減ります（0になると場から消えます）。</li>
+          <li>ワープで出したモンスターが待機ゾーンへ移り、応召のトークンが消え、一時蘇生のモンスターが除外され、借用の残りが1減ります（0なら元の持ち主の場へ）。腐乱のモンスター（このターンに攻撃したもの）が破壊され、寿命が1減ります（0になると場から消えます）。</li>
           <li>
             <b>手札をすべて捨て札にします</b>（「保持」で残したカードを除く。「捨てられたとき」は出ません）。気合と、両者のモンスターの一時強化・賛助のキーワードが消えます。期限の来た封殺が消えます。
           </li>
+          <li>{mechanicGlossary.extraTurn!.short}。</li>
         </ol>
       </Section>
 
@@ -212,6 +218,14 @@ export function RulesPage() {
               'villain',
               'discardAbility',
               'forecast',
+              // MTG 要素 △ バッチC
+              'waiting',
+              'achieve',
+              'level',
+              'loyalty',
+              'extraTurn',
+              'emblem',
+              'heist',
             ] as const
           ).map((id) => (
             <li key={id}>
@@ -287,6 +301,9 @@ export function RulesPage() {
               'prototype',
               'unleashed',
               'unearthed',
+              // MTG 要素 △ バッチC
+              'faceDown',
+              'siege',
             ] as const
           ).map((id) => (
             <li key={id}>

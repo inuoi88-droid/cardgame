@@ -291,3 +291,60 @@ describe('支払いのシート・捨て札のカードの能力（MTG 要素 �
     expect(planDrag(card({ handAbilities: ['forecast'] })).hint).toContain('予見');
   });
 });
+
+describe('待機ゾーン・Lv・忠誠・表にする（MTG 要素 △ バッチC）', () => {
+  it('waiting の鍵も行き来できる', () => {
+    expect(spotKey(parseSpot('waiting'))).toBe('waiting');
+  });
+  it('待機させられる手札は待機ゾーンが光り、落とすと setAside（複数なら画面が選ばせる）', () => {
+    const src = card({ enemyTargets: [opp], setAside: ['foretell', 'suspend'] });
+    const p = planDrag(src);
+    expect(p.waiting).toBe(true);
+    expect(p.targets).toEqual([opp]);
+    expect(p.hint).toContain('予顕');
+    expect(resolveDrop(src, { kind: 'waiting' })).toEqual({ t: 'setAside', kinds: ['foretell', 'suspend'] });
+    // 使うだけならふつうに対象へ
+    expect(resolveDrop(src, { kind: 'player', player: 1 })).toEqual({ t: 'play', chosen: { enemy: opp } });
+  });
+  it('使えない（エナジー不足）でも待機させられるなら、待機ゾーンにだけ落とせる', () => {
+    const src = card({ blocked: 'エナジーが足りません', setAside: ['plot'] });
+    const p = planDrag(src);
+    expect(p).toMatchObject({ mode: 'ghost', zone: null, waiting: true });
+    expect(resolveDrop(src, { kind: 'waiting' })).toEqual({ t: 'setAside', kinds: ['plot'] });
+    expect(resolveDrop(src, { kind: 'zone' }).t).toBe('invalid');
+  });
+  it('待機させられないカードを待機ゾーンに落とすと理由、待機ゾーンから持ってきたカードは戻すだけ', () => {
+    expect(resolveDrop(card(), { kind: 'waiting' })).toMatchObject({ t: 'invalid' });
+    expect(planDrag(card()).waiting).toBeUndefined();
+    const w = card({ from: 'waiting', setAside: ['foretell'] });
+    expect(planDrag(w).waiting).toBeUndefined();
+    expect(resolveDrop(w, { kind: 'waiting' })).toEqual({ t: 'cancel' });
+    expect(resolveDrop(w, { kind: 'zone' })).toEqual({ t: 'play', chosen: {} });
+  });
+  it('起動の use（Lvアップ・忠誠）：対象が要らなければ場で離す。案内に名前', () => {
+    const lv: DragSource = { kind: 'activate', uid: 'm1', use: 'level', blocked: null, enemyTargets: [], allyTargets: [] };
+    expect(planDrag(lv).hint).toContain('Lvアップ');
+    expect(resolveDrop(lv, { kind: 'zone' })).toEqual({ t: 'play', chosen: {} });
+    const minus: DragSource = { kind: 'activate', uid: 'p1', use: 'minus', blocked: null, enemyTargets: [opp, m('e1')], allyTargets: [] };
+    expect(planDrag(minus).targets).toEqual([opp, m('e1')]);
+    expect(resolveDrop(minus, { kind: 'monster', uid: 'e1' })).toEqual({ t: 'play', chosen: { enemy: m('e1') } });
+  });
+  it('表にする：使えなければ理由、対象が要れば候補が光る', () => {
+    const r: DragSource = { kind: 'reveal', uid: 'm1', blocked: null, enemyTargets: [m('e1'), m('e2')], allyTargets: [] };
+    expect(planDrag(r)).toMatchObject({ mode: 'arrow', targets: [m('e1'), m('e2')] });
+    expect(resolveDrop(r, { kind: 'zone' })).toMatchObject({ t: 'invalid' });
+    expect(resolveDrop(r, { kind: 'monster', uid: 'e2' })).toEqual({ t: 'play', chosen: { enemy: m('e2') } });
+    const no: DragSource = { kind: 'reveal', uid: 'm1', blocked: '場に出したターンは表にできません', enemyTargets: [], allyTargets: [] };
+    expect(resolveDrop(no, { kind: 'zone' })).toEqual({ t: 'invalid', reason: '場に出したターンは表にできません' });
+    expect(planDrag({ ...no, blocked: null }).hint).toContain('表にする');
+  });
+  it('当たり判定：落とせる待機ゾーンは、それを含むプレイヤーの枠より優先（少し外れても吸い付く）', () => {
+    const boxes = [
+      { key: 'p:0', box: { left: 0, top: 0, right: 300, bottom: 100 } },
+      { key: 'waiting', box: { left: 200, top: 60, right: 240, bottom: 80 } },
+    ];
+    expect(pickSpot(210, 70, boxes, new Set(['waiting']))).toBe('waiting');
+    expect(pickSpot(250, 70, boxes, new Set(['waiting']))).toBe('waiting');
+    expect(pickSpot(210, 70, boxes, new Set(['p:0']))).toBe('p:0');
+  });
+});

@@ -20,6 +20,14 @@ export function viewFor(g: GameState, p: PlayerId): GameState {
   v.players[opp].deck = hide(v.players[opp].deck, opp);
   v.players[p].deck = hide(v.players[p].deck, p);
   v.log = v.log.filter((e) => e.private === undefined || e.private === p);
+  // MTG 要素 △ バッチC：相手の待機ゾーンの予顕（裏向き）のカードと、相手が操る裏向きのモンスターの正体を隠す
+  const oppWaiting = v.players[opp].waiting;
+  if (oppWaiting) v.players[opp].waiting = oppWaiting.map((w) => (w.hidden ? { ...w, card: { uid: w.card.uid, cardId: HIDDEN_CARD_ID, owner: w.card.owner } } : w));
+  for (const pl of v.players) {
+    for (const m of pl.board) {
+      if (m.faceDown && m.controller !== p) m.faceDown = { kind: m.faceDown.kind, revealCost: null };
+    }
+  }
   if (v.pending && v.pending.player !== p) {
     v.pending = { ...v.pending, prompt: '相手が選んでいます', options: [] };
   }
@@ -35,7 +43,13 @@ export function viewFor(g: GameState, p: PlayerId): GameState {
       for (const c of m.equipment ?? []) visible.add(c.cardId);
     }
     for (const c of [...pl.discard, ...pl.exile]) visible.add(c.cardId);
-    for (const pw of pl.powers) visible.add(pw.cardId);
+    for (const pw of [...pl.powers, ...(pl.emblems ?? [])]) visible.add(pw.cardId);
+    // MTG 要素 △ バッチC：待機ゾーン（隠したものは HIDDEN）・自分が操る裏向きのモンスターの正体・砦の報酬のカード
+    for (const w of pl.waiting ?? []) visible.add(w.card.cardId);
+    for (const m of pl.board) {
+      if (m.faceDown?.card) visible.add(m.faceDown.card.cardId);
+      if (m.siege) visible.add(m.siege.cardId);
+    }
     // 予約（反復のカードを含む。公開）
     for (const d of pl.delayed ?? []) {
       visible.add(d.src.cardId);

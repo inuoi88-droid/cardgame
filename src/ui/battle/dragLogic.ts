@@ -11,6 +11,8 @@
  * 落とした場所が合法な対象ならそれを使い、違えば対象選びに入る（resolveModeDrop）。
  * MTG 要素 △ バッチB：支払いのシートで選ぶものがあるカードは、対象が決まると 'pay'（超過のように対象を選ばない使い方があれば、
  * 場のどこに落としても 'pay'）。捨て札のカードの能力（相続・発掘・不朽）は 'discardAbility' としてつかむ
+ * MTG 要素 △ バッチC：待機ゾーン（予顕・計画・待機）のある手札は、自分の待機ゾーン（spot 'waiting'）に落とすと 'setAside'。
+ * 待機ゾーンのカードは from 'waiting' でつかんで使う。裏向きの自分のモンスターは 'reveal'（表にする）、起動の ⚡ は use（Lvアップ・忠誠）つき
  */
 import type { battle } from '../../engine/index.ts';
 
@@ -19,6 +21,7 @@ type TargetRef = battle.TargetRef;
 type Chosen = battle.Chosen;
 type HandAbilityKind = battle.HandAbilityKind;
 type DiscardAbilityKind = battle.DiscardAbilityKind;
+type SetAsideKind = battle.SetAsideKind;
 
 /** つかんだもの */
 export type DragSource =
@@ -32,8 +35,10 @@ export type DragSource =
       enemyTargets: TargetRef[];
       /** 自分のモンスターの候補（モンスターカードならこのカード自身の uid も入る） */
       allyTargets: string[];
-      /** どこから使うか（省略は手札。MTG 要素 ○ バッチC1：捨て札から使う） */
-      from?: 'hand' | 'discard';
+      /** どこから使うか（省略は手札。MTG 要素 ○ バッチC1：捨て札から使う。△ バッチC：待機ゾーンから使う） */
+      from?: 'hand' | 'discard' | 'waiting';
+      /** 自分の待機ゾーンに落とせば待機させられる（予顕・計画・待機。MTG 要素 △ バッチC。使えるものだけ） */
+      setAside?: SetAsideKind[];
       /** 捨て札の山に落とせば使える、手札から使う能力（サイクリング・魂力。使えるものだけ） */
       handAbilities?: HandAbilityKind[];
       /**
@@ -47,13 +52,22 @@ export type DragSource =
       anyDrop?: boolean;
     }
   | { kind: 'attacker'; uid: string; blocked: string | null; targets: TargetRef[] }
-  /** 起動の ⚡（MTG 要素 ○ バッチC1）。uid は起動するモンスター・パワー */
-  | { kind: 'activate'; uid: string; blocked: string | null; enemyTargets: TargetRef[]; allyTargets: string[] }
+  /** 起動の ⚡（MTG 要素 ○ バッチC1）。uid は起動するモンスター・パワー。use は Lvアップ・忠誠+1／−K（△ バッチC） */
+  | { kind: 'activate'; uid: string; use?: battle.ActivateUse; blocked: string | null; enemyTargets: TargetRef[]; allyTargets: string[] }
+  /** 裏向きの自分のモンスターを表にする（MTG 要素 △ バッチC）。uid はそのモンスター */
+  | { kind: 'reveal'; uid: string; blocked: string | null; enemyTargets: TargetRef[]; allyTargets: string[] }
   /** 捨て札のカードの能力（MTG 要素 △ バッチB：相続・発掘・不朽）。uid は捨て札のカード */
   | { kind: 'discardAbility'; uid: string; ability: DiscardAbilityKind; blocked: string | null; enemyTargets: TargetRef[]; allyTargets: string[] };
 
-/** 落とせる場所（pile は自分の捨て札の山） */
-export type Spot = { kind: 'monster'; uid: string } | { kind: 'player'; player: PlayerId } | { kind: 'zone' } | { kind: 'hand' } | { kind: 'pile' } | { kind: 'none' };
+/** 落とせる場所（pile は自分の捨て札の山、waiting は自分の待機ゾーン：MTG 要素 △ バッチC） */
+export type Spot =
+  | { kind: 'monster'; uid: string }
+  | { kind: 'player'; player: PlayerId }
+  | { kind: 'zone' }
+  | { kind: 'hand' }
+  | { kind: 'pile' }
+  | { kind: 'waiting' }
+  | { kind: 'none' };
 
 export const spotKey = (s: Spot): string =>
   s.kind === 'monster' ? `m:${s.uid}` : s.kind === 'player' ? `p:${s.player}` : s.kind;
@@ -64,7 +78,7 @@ export function parseSpot(key: string | null | undefined): Spot {
   if (!key) return { kind: 'none' };
   if (key.startsWith('m:')) return { kind: 'monster', uid: key.slice(2) };
   if (key === 'p:0' || key === 'p:1') return { kind: 'player', player: Number(key[2]) as PlayerId };
-  if (key === 'zone' || key === 'hand' || key === 'pile') return { kind: key };
+  if (key === 'zone' || key === 'hand' || key === 'pile' || key === 'waiting') return { kind: key };
   return { kind: 'none' };
 }
 
@@ -88,6 +102,8 @@ export interface DragPlan {
   hint: string;
   /** 自分の捨て札の山を光らせる（落とすとサイクリング・魂力。MTG 要素 ○ バッチC1） */
   pile: boolean;
+  /** 自分の待機ゾーンを光らせる（落とすと予顕・計画・待機。MTG 要素 △ バッチC。光らせるときだけ true） */
+  waiting?: boolean;
 }
 
 /** 対象を選ぶもの（手札・捨て札のカード、起動）。selfUid は召喚するモンスターのカード自身（自分のモンスターの候補に入る） */
@@ -101,6 +117,9 @@ const PILE_NAME: Record<HandAbilityKind, string> = { cycling: 'サイクリン�
 /** 捨て札のカードの能力の名前 */
 const DISCARD_NAME: Record<DiscardAbilityKind, string> = { renew: '相続', dredge: '発掘', embalm: '不朽' };
 const pileHint = (kinds: readonly HandAbilityKind[]) => `🗑で離すと${kinds.map((k) => PILE_NAME[k]).join('・')}`;
+/** 待機させ方の名前（MTG 要素 △ バッチC） */
+export const SET_ASIDE_NAME: Record<SetAsideKind, string> = { foretell: '予顕', plot: '計画', suspend: '待機' };
+const waitingHint = (kinds: readonly SetAsideKind[]) => `⏳で離すと${kinds.map((k) => SET_ASIDE_NAME[k]).join('・')}`;
 
 /** 対象を選ぶもの（カード・起動）の見た目と光らせる対象 */
 function planTargeted(src: Targeted, noTargetHint: string): Omit<DragPlan, 'pile'> {
@@ -129,8 +148,13 @@ export function planDrag(src: DragSource): DragPlan {
     return { mode: 'arrow', targets: src.targets, zone: null, hint: src.targets.length ? '攻撃する相手の上で離す' : '攻撃できる相手がいません', pile: false };
   }
   if (src.kind === 'activate') {
-    // 起動：対象が要らなければ場のどこかで離す
-    return { ...planTargeted(src, '場で離すと起動'), pile: false };
+    // 起動：対象が要らなければ場のどこかで離す（Lvアップ・忠誠も同じ）
+    const what = src.use === 'level' ? 'Lvアップ' : src.use === 'plus' || src.use === 'minus' ? '忠誠の能力を使う' : '起動';
+    return { ...planTargeted(src, `場で離すと${what}`), pile: false };
+  }
+  if (src.kind === 'reveal') {
+    // 裏向きのモンスターを表にする（MTG 要素 △ バッチC）
+    return { ...planTargeted(src, '場で離すと表にする'), pile: false };
   }
   if (src.kind === 'discardAbility') {
     // 捨て札のカードの能力（MTG 要素 △ バッチB）：対象が要らなければ場のどこかで離す
@@ -140,14 +164,17 @@ export function planDrag(src: DragSource): DragPlan {
     if (src.blocked && src.blocked !== 'ノイズ') return { mode: 'ghost', targets: [], zone: null, hint: src.blocked, pile: false };
     return { mode: 'ghost', targets: [], zone: 'noise', hint: '場で離すと除外', pile: false };
   }
-  const kinds = src.from === 'discard' ? [] : (src.handAbilities ?? []);
+  const kinds = src.from === 'discard' || src.from === 'waiting' ? [] : (src.handAbilities ?? []);
+  const aside = src.from === 'discard' || src.from === 'waiting' ? [] : (src.setAside ?? []);
   let plan = modalPlan(src) ?? planTargeted(cardTargeted(src), '場で離すと使う');
   // 超過（MTG 要素 △ バッチB）：対象を選ばずにも使えるので、場のどこでも落とせる
   if (src.anyDrop && !src.blocked && plan.zone === null) plan = { ...plan, zone: 'play', hint: `${plan.hint}（場で離すと使い方を選ぶ）` };
-  if (kinds.length === 0) return { ...plan, pile: false };
-  // サイクリング・魂力のカード：捨て札の山も光る。使えないカードでも、山に落とせばよい
-  if (src.blocked) return { mode: 'ghost', targets: [], zone: null, hint: pileHint(kinds), pile: true };
-  return { ...plan, hint: `${plan.hint}・${pileHint(kinds)}`, pile: true };
+  const extra = { ...(aside.length > 0 ? { waiting: true } : {}) };
+  if (kinds.length === 0 && aside.length === 0) return { ...plan, pile: false };
+  const hints = [...(kinds.length > 0 ? [pileHint(kinds)] : []), ...(aside.length > 0 ? [waitingHint(aside)] : [])].join('・');
+  // サイクリング・魂力・待機のカード：捨て札の山・待機ゾーンも光る。使えないカードでも、そこに落とせばよい
+  if (src.blocked) return { mode: 'ghost', targets: [], zone: null, hint: hints, pile: kinds.length > 0, ...extra };
+  return { ...plan, hint: `${plan.hint}・${hints}`, pile: kinds.length > 0, ...extra };
 }
 
 /** モード選択のカード：候補（どれかのモードの対象）は光らせ、場のどこでも落とせる（落とすとモードを選ぶ） */
@@ -173,7 +200,9 @@ export type DropDecision =
   /** モード選択のカードを場に落とした：モードを選ばせる。chosen は落とした場所（どれかのモードの対象なら） */
   | { t: 'modes'; chosen: Chosen }
   /** 支払いのシートで選ぶものがあるカードを落とした（MTG 要素 △ バッチB）。chosen は決まった対象（超過なら空のことも） */
-  | { t: 'pay'; chosen: Chosen };
+  | { t: 'pay'; chosen: Chosen }
+  /** 自分の待機ゾーンに落とした（MTG 要素 △ バッチC：予顕・計画・待機）。複数あれば画面が選ばせる */
+  | { t: 'setAside'; kinds: SetAsideKind[] };
 
 /** 残りの選択が1つしかなければ自動で埋める */
 function complete(src: Targeted, chosen: Chosen): DropDecision {
@@ -199,15 +228,22 @@ export function resolveDrop(src: DragSource, spot: Spot): DropDecision {
     return { t: 'invalid', reason: '攻撃する相手の上で離してください' };
   }
   if (src.kind === 'activate') return resolveTargeted(src, spot, '場の上で離すと起動します');
+  if (src.kind === 'reveal') return resolveTargeted(src, spot, '場の上で離すと表にします');
   if (src.kind === 'discardAbility') return resolveTargeted(src, spot, `場の上で離すと${DISCARD_NAME[src.ability]}を使えます`);
   if (src.noise) {
     if (src.blocked && src.blocked !== 'ノイズ') return { t: 'invalid', reason: src.blocked };
     return spot.kind === 'none' ? { t: 'invalid', reason: '場の上で離すと除外します' } : { t: 'noise' };
   }
   // 捨て札の山：サイクリング・魂力（手札のカードだけ）。捨て札から持ってきたカードは何もしない
-  const kinds = src.from === 'discard' ? [] : (src.handAbilities ?? []);
+  const fromZone = src.from === 'discard' || src.from === 'waiting';
+  const kinds = fromZone ? [] : (src.handAbilities ?? []);
   if (spot.kind === 'pile' && kinds.length > 0) return { t: 'pile', abilities: [...kinds] };
   if (spot.kind === 'pile' && src.from === 'discard') return { t: 'cancel' };
+  // 待機ゾーン（MTG 要素 △ バッチC）：手札のカードを待機させる。待機ゾーンから持ってきたカードは戻すだけ
+  const aside = fromZone ? [] : (src.setAside ?? []);
+  if (spot.kind === 'waiting' && aside.length > 0) return { t: 'setAside', kinds: [...aside] };
+  if (spot.kind === 'waiting' && src.from === 'waiting') return { t: 'cancel' };
+  if (spot.kind === 'waiting') return { t: 'invalid', reason: 'このカードは待機させられません' };
   if (src.modal) {
     // モード選択（MTG 要素 ○ バッチC2）：場のどこかに落とせばモードを選ぶ。落とした対象は、選んだモードで使えれば使う
     if (src.blocked) return { t: 'invalid', reason: src.blocked };
@@ -280,7 +316,7 @@ export const SNAP_PX = 18;
  * 当たりの優先順：落とせる捨て札の山（プレイヤーの枠の中にある）＞ 対象（モンスター・プレイヤー）＞ 使う場所 ＞ 手札・落とせない山
  */
 const rankOf = (key: string, valid: ReadonlySet<string>) =>
-  key === 'pile' ? (valid.has('pile') ? -1 : 2) : key.startsWith('m:') || key.startsWith('p:') ? 0 : key === 'zone' ? 1 : 2;
+  key === 'pile' || key === 'waiting' ? (valid.has(key) ? -1 : 2) : key.startsWith('m:') || key.startsWith('p:') ? 0 : key === 'zone' ? 1 : 2;
 
 /**
  * 指の位置にある落とし先の鍵を返す（なければ null）。
@@ -293,6 +329,9 @@ export function pickSpot(x: number, y: number, boxes: readonly { key: string; bo
   // 落とせる捨て札の山は小さいので、プレイヤーの枠（落とせない）の中でも少し外れていれば吸い付く
   const pile = valid.has('pile') ? boxes.find((b) => b.key === 'pile' && inside(x, y, b.box, SNAP_PX)) : undefined;
   if (pile && (!exact || !valid.has(exact.key))) return 'pile';
+  // 待機ゾーン（MTG 要素 △ バッチC）も同じく、落とせるときは少し外れていても吸い付く
+  const waiting = valid.has('waiting') ? boxes.find((b) => b.key === 'waiting' && inside(x, y, b.box, SNAP_PX)) : undefined;
+  if (waiting && (!exact || !valid.has(exact.key))) return 'waiting';
   if (exact && rank(exact.key) <= 0) return exact.key;
   let best: { key: string; d: number } | null = null;
   for (const b of boxes) {

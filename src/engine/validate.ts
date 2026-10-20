@@ -12,6 +12,7 @@ import {
   TIMINGS,
   TRAP_TIMINGS,
   TRIBE_TARGETS,
+  achieveConditions,
   chapterOf,
   conditionsFor,
   costConditions,
@@ -33,6 +34,21 @@ const ABILITY_TIMING_CODE: Partial<Record<TimingId, string>> = {
   // MTG 要素 △ バッチB
   renew: 'RENEW_MISMATCH',
   forecast: 'FORECAST_MISMATCH',
+  // MTG 要素 △ バッチC
+  adventure: 'ADVENTURE_MISMATCH',
+  achievedNow: 'ACHIEVE_MISMATCH',
+  leveledUp: 'LEVEL_MISMATCH',
+  loyaltyPlus: 'LOYALTY_MISMATCH',
+  loyaltyMinus: 'LOYALTY_MISMATCH',
+};
+
+/** 能力が要る条件の違反コード（MTG 要素 ○ バッチC1・△ バッチB・C） */
+const ABILITY_CONDITION_CODE: Partial<Record<string, string>> = {
+  kicked: 'KICKER_MISMATCH',
+  bargained: 'BARGAIN_MISMATCH',
+  achieved: 'ACHIEVE_MISMATCH',
+  level2: 'LEVEL_MISMATCH',
+  level3: 'LEVEL_MISMATCH',
 };
 
 /** 相手に作用する効果か（最悪の二択のモード。MTG 要素 △ バッチB）：作用先が相手側か場全体、または「お互い」 */
@@ -185,6 +201,11 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
         message: `「${timing.label}」の効果は、カードの能力${names}があるカードにしか付けられません`,
       });
     }
+    // 効果が要るタイミング（砦を落としたとき＝効果「砦を築く」。MTG 要素 △ バッチC）
+    if (timing.requiresEffect && !card.effects.some((x) => timing.requiresEffect!.includes(x.id))) {
+      const names = timing.requiresEffect.map((id) => `「${getEffect(id)?.name ?? id}」`).join('・');
+      out.push({ code: 'SIEGE_MISMATCH', path: `${path}.timing`, message: `「${timing.label}」の効果は、効果${names}があるカードにしか付けられません` });
+    }
     if (!targetsForEffect(def, e.timing, base).includes(e.target)) {
       const label = BALANCE.target[e.target] !== undefined ? targetLabel(e.target, def.targetRule, e.timing) : e.target;
       out.push({ code: 'EFFECT_TARGET', path: `${path}.target`, message: `${what}（${timing.label}）の対象に「${label}」は選べません` });
@@ -197,7 +218,7 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
         // キッカーを払っていれば（MTG 要素 ○ バッチC1）・協約したなら（△ バッチB）：その能力のあるカードだけ
         const need = cond.requiresAbility.map((id) => `「${getAbility(id)?.name ?? id}」`).join('・');
         out.push({
-          code: e.condition === 'bargained' ? 'BARGAIN_MISMATCH' : 'KICKER_MISMATCH',
+          code: ABILITY_CONDITION_CODE[e.condition] ?? 'KICKER_MISMATCH',
           path: `${path}.condition`,
           message: `条件「${cond.label}」は、カードの能力${need}があるカードにしか付けられません`,
         });
@@ -292,12 +313,12 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     const otherPower =
       card.effects.some((e) => chapterOf(e.timing) === 0 && isPowerTiming(e.timing, base)) ||
       card.drawbacks.some((d) => isPowerTiming(d.timing, base) || getDrawback(d.id)?.battle.lifespan !== undefined) ||
-      (card.abilities ?? []).some((a) => getAbility(a.id)?.battle.charge !== undefined);
+      (card.abilities ?? []).some((a) => getAbility(a.id)?.battle.charge !== undefined || getAbility(a.id)?.noSaga === true);
     if (otherPower) {
       out.push({
         code: 'SAGA_MIXED',
         path: 'effects',
-        message: '英雄譚（章の効果があるカード）には、ほかのパワー用のタイミング（ターン開始時など）の効果・デメリット、寿命、蓄積は付けられません',
+        message: '英雄譚（章の効果があるカード）には、ほかのパワー用のタイミング（ターン開始時など）の効果・デメリット、寿命、蓄積・事件・忠誠・紋章は付けられません',
       });
     }
   }
@@ -533,8 +554,34 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     if (a.id === 'affinity' && card.cost < BALANCE.abilities.affinity.minCost + 1) {
       out.push({ code: 'AFFINITY_LOW_COST', path, message: `${what}は、コスト${BALANCE.abilities.affinity.minCost + 1}以上のカードにしか付けられません` });
     }
+    // ---- MTG 要素 △ バッチC
+    // 忠誠は「忠誠+1」か「忠誠−K」の効果が要る
+    if (def.requiresAnyTiming && !card.effects.some((e) => def.requiresAnyTiming!.includes(e.timing))) {
+      out.push({
+        code: 'LOYALTY_MISMATCH',
+        path,
+        message: `${what}は、${def.requiresAnyTiming.map((t) => `「${TIMINGS[t].label}」`).join('か')}の効果があるカードにしか付けられません`,
+      });
+    }
+    // 待機・ワープの K は印刷コスト未満
+    if (def.belowPrintedCost) {
+      const k = def.belowPrintedCost === 'value' ? (a.value ?? 0) : Number(a.option ?? def.option?.default ?? 0);
+      if (k >= card.cost) out.push({ code: 'ALT_COST', path: `${path}.${def.belowPrintedCost}`, message: `${what}のエナジーは、印刷コスト（${card.cost}）より小さくしてください` });
+    }
+    // 事件・進化は達成条件が要る（乱数・能力・種族の条件、このモンスターの条件（パワーのとき）は使えない）
+    if (def.achieveCondition) {
+      if (!a.condition || !achieveConditions(base).includes(a.condition)) {
+        out.push({
+          code: 'ACHIEVE_CONDITION',
+          path: `${path}.condition`,
+          message: a.condition ? `条件「${CONDITIONS[a.condition]?.label ?? a.condition}」は達成条件には使えません` : `${what}の達成条件を選んでください`,
+        });
+      }
+    }
     // 条件付き軽減は、コストの計算に使える条件が要る。それ以外の能力に条件は付けない
-    if (def.takesCondition) {
+    if (def.achieveCondition) {
+      // 上で確かめた
+    } else if (def.takesCondition) {
       if (!a.condition || !costConditions().includes(a.condition)) {
         out.push({
           code: 'COST_CUT_CONDITION',

@@ -5,6 +5,7 @@
 import { normalizeName, uniqueName } from './deck.ts';
 import { toCurrentScale } from './scaling.ts';
 import {
+  CARD_DESCRIPTION_MAX,
   CONDITION_IDS,
   MODIFIER_IDS,
   RARITIES,
@@ -104,6 +105,26 @@ function parseList<T>(x: unknown, parse: (y: unknown) => T | null): T[] | null {
   return out;
 }
 
+/** 制御文字・改行・文字の向きを変える記号（なりすまし表示に使われる）。まとめて1つの空白にする */
+const DESCRIPTION_JUNK = /[\p{Cc}\u2028\u2029\u202A-\u202E\u2066-\u2069]+/gu;
+
+/**
+ * カードの説明をそろえる：文字列以外は undefined、制御文字・改行は空白に、空白の連続は1つに、前後の空白は除く。
+ * CARD_DESCRIPTION_MAX 文字（コードポイント数）を超えた分は切り詰める。空になったら undefined
+ */
+export function normalizeDescription(x: unknown): string | undefined {
+  if (!isStr(x)) return undefined;
+  const cleaned = x.replace(DESCRIPTION_JUNK, ' ').replace(/\s+/gu, ' ').trim();
+  const chars = [...cleaned];
+  const out = chars.length > CARD_DESCRIPTION_MAX ? chars.slice(0, CARD_DESCRIPTION_MAX).join('').trimEnd() : cleaned;
+  return out === '' ? undefined : out;
+}
+
+/** 説明の文字数（絵文字などを1文字と数える。エディターの文字数表示と上限の判定に使う） */
+export function descriptionLength(text: string): number {
+  return [...text.replace(DESCRIPTION_JUNK, ' ').replace(/\s+/gu, ' ').trim()].length;
+}
+
 /** カード1枚を読み取る。形が正しくなければ理由を返す（ルール違反かどうかは analyzeCard で別に見る） */
 export function parseCard(x: unknown): Result<CardDef> {
   if (!isObj(x)) return { ok: false, error: 'カードの形式ではありません' };
@@ -129,6 +150,9 @@ export function parseCard(x: unknown): Result<CardDef> {
   if (!drawbacks) return { ok: false, error: `${label}のデメリットが正しくありません` };
   if (x.scale !== undefined && (!isNum(x.scale) || x.scale <= 0)) return { ok: false, error: `${label}の倍率が正しくありません` };
   const card: CardDef = { v: 1, id: x.id, name: x.name, icon: x.icon, rarity: x.rarity, cost: x.cost, stats, keywords, effects, drawbacks };
+  // 説明は見た目だけの任意項目。文字列でなければ無いものとして読み、長すぎれば切り詰める（カードごと捨てない）
+  const description = normalizeDescription(x.description);
+  if (description !== undefined) card.description = description;
   if (isNum(x.scale)) card.scale = x.scale;
   // 古い倍率で書かれたカードは、今の倍率にそろえる（決定事項 #65）
   return { ok: true, value: toCurrentScale(card) };

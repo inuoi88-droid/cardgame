@@ -1,0 +1,158 @@
+/* カードの説明文（CardView）とカードの詳細（CardDetail） */
+
+/* ------------------------------------------------------------ 説明文 */
+.card__desc {
+  margin: 6px 0 0;
+  padding-top: 5px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.18);
+  font-style: italic;
+  color: var(--muted);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.card__text p.card__desc {
+  margin: 6px 0 0;
+}
+
+/* ------------------------------------------------------------ 詳細 */
+.cd {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.cd__card {
+  display: flex;
+  justify-content: center;
+}
+.cd__info {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.cd__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cd__ng {
+  padding: 8px 10px;
+  border: 1px solid var(--ng);
+  background: var(--ng-bg);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+}
+.cd__ng b {
+  color: var(--ng);
+}
+.cd__ng ul {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}
+.cd__points {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.cd__points-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.cd__points-head b {
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-variant-numeric: tabular-nums;
+}
+.cd__bar {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--field);
+  overflow: hidden;
+}
+.cd__bar span {
+  display: block;
+  height: 100%;
+  background: var(--ok);
+  border-radius: inherit;
+}
+.cd__bar.is-over span {
+  background: var(--ng);
+}
+.cd__lines summary {
+  cursor: pointer;
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  font-size: var(--fs-sm);
+  color: var(--accent);
+}
+.cd__lines ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.cd__lines li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+}
+.cd__lines li b {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.cd__lines li.is-drawback b,
+.cd__lines li.is-cost b {
+  color: var(--ok);
+}
+.cd__line-label {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cd__line-label small {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.cd__status {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  display: grid;
+  gap: 4px;
+}
+.cd__status .text-ng,
+.cd__status .text-warn {
+  font-weight: bold;
+}
+.cd__status .text-warn {
+  color: var(--warn);
+}
+.cd__actions .btn {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 719px) {
+  .cd {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cd__actions {
+    position: sticky;
+    bottom: -16px;
+    margin: 0 -16px -16px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+  }
+}

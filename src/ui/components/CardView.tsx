@@ -2,15 +2,18 @@
 import { useMemo } from 'react';
 import { analyzeCard, CARD_TYPE_LABEL, CURSE_LABEL, RARITY_LABEL, type CardAnalysis, type CardDef } from '../../engine/index.ts';
 import { cx } from '../util.ts';
+import './cards.css';
 
 interface Props {
   card: CardDef;
   analysis?: CardAnalysis;
   size?: 'sm' | 'lg';
   onClick?: () => void;
+  /** onClick があるときの読み上げ名（既定は「〇〇の詳細を見る」） */
+  actionLabel?: string;
 }
 
-export function CardView({ card, analysis, size = 'lg', onClick }: Props) {
+export function CardView({ card, analysis, size = 'lg', onClick, actionLabel }: Props) {
   const a = useMemo(() => analysis ?? analyzeCard(card), [analysis, card]);
   const name = card.name.trim() || '（名前なし）';
   return (
@@ -19,8 +22,16 @@ export function CardView({ card, analysis, size = 'lg', onClick }: Props) {
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      onKeyDown={onClick ? (e) => (e.key === 'Enter' || e.key === ' ') && onClick() : undefined}
-      aria-label={onClick ? `${name}を編集` : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+              e.preventDefault();
+              onClick();
+            }
+          : undefined
+      }
+      aria-label={onClick ? (actionLabel ?? `${name}の詳細を見る`) : undefined}
     >
       <div className="card__head">
         <span className="card__cost" title="コスト">
@@ -54,6 +65,7 @@ export function CardView({ card, analysis, size = 'lg', onClick }: Props) {
             {t}
           </p>
         ))}
+        {card.description && <p className="card__desc">{card.description}</p>}
       </div>
       {card.stats && (
         <div className="card__stats">

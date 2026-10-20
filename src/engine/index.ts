@@ -15,7 +15,9 @@ export { EFFECT_GROUPS } from './define.ts';
 export { analyzeDeck, isNameTaken, normalizeName, uniqueName, type DeckAnalysis, type RarityRow } from './deck.ts';
 export {
   buildExport,
+  descriptionLength,
   exportDeck,
+  normalizeDescription,
   mergeImport,
   parseCard,
   parseDeck,

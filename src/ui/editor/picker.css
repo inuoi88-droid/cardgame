@@ -1,0 +1,221 @@
+/* 選択パネル（OptionPicker）：きっかけのボタン・PC のパネル・中身の一覧 */
+
+/* ------------------------------------------------------------ きっかけのボタン */
+.opk-field {
+  min-width: 0;
+}
+.opk-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 8px 10px 8px 12px;
+  font: inherit;
+  font-size: var(--fs-md);
+  color: var(--text);
+  text-align: left;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--dur-fast);
+}
+.opk-trigger:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.opk-trigger.is-open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.opk-trigger.is-invalid {
+  border-color: var(--ng);
+}
+.opk-trigger:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+.opk-trigger__label {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.opk-trigger__hint {
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  font-variant-numeric: tabular-nums;
+}
+.opk-trigger__chev {
+  flex: none;
+  color: var(--muted);
+  transition: transform var(--dur-fast);
+}
+.opk-trigger.is-open .opk-trigger__chev {
+  transform: rotate(180deg);
+}
+
+/* ------------------------------------------------------------ PC のパネル */
+.opk-pop {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-3);
+  outline: none;
+  animation: pop-in var(--dur) var(--ease);
+}
+.opk-pop .opk {
+  flex: 1;
+  min-height: 0;
+}
+.opk-pop .opk__list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ------------------------------------------------------------ 中身 */
+.opk {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.opk:focus {
+  outline: none;
+}
+.opk__search input {
+  width: 100%;
+}
+.opk .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.opk__note {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.opk__list {
+  min-height: 0;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.opk__empty {
+  margin: 0;
+  padding: 20px 0;
+  text-align: center;
+  color: var(--muted);
+}
+.opk__group {
+  display: grid;
+  gap: 4px;
+}
+.opk__group-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 2px 4px;
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  color: var(--muted);
+  background: var(--panel);
+}
+.opk-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 6px 10px 6px 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast),
+    background-color var(--dur-fast);
+}
+.opk-opt.is-active {
+  border-color: var(--accent);
+  background: var(--panel-3);
+}
+.opk-opt.is-selected {
+  border-color: var(--ok);
+}
+.opk-opt.is-selected.is-active {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.opk-opt.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+.opk-opt.is-disabled.is-active {
+  background: var(--panel-2);
+}
+.opk-opt__check {
+  flex: none;
+  width: 18px;
+  text-align: center;
+  color: var(--ok);
+  font-weight: bold;
+}
+.opk-opt__main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.opk-opt__label {
+  font-weight: bold;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.opk-opt__desc {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  line-height: 1.4;
+}
+.opk-opt__reason {
+  font-size: var(--fs-xs);
+  color: var(--warn);
+}
+.opk-opt__pts {
+  flex: none;
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.opk-opt__pts b {
+  font-size: var(--fs-sm);
+}
+.opk-opt__pts small {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .opk-pop {
+    animation: none;
+  }
+  .opk-trigger__chev {
+    transition: none;
+  }
+}

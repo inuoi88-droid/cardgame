@@ -15,6 +15,7 @@ import {
   type CardType,
   type Rarity,
 } from '../../engine/index.ts';
+import { CardDetail } from '../components/CardDetail.tsx';
 import { CardView } from '../components/CardView.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { ExportDialog, ImportDialog } from '../components/ImportExport.tsx';
@@ -33,6 +34,7 @@ export function CardListPage() {
   const [rarity, setRarity] = useState<RarityFilter>('all');
   const [type, setType] = useState<CardType | 'all'>('all');
   const [dialog, setDialog] = useState<'import' | 'export' | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const hasNewDraft = useMemo(() => cardDrafts.get(NEW_DRAFT) !== null, []);
 
   const analyzed = useMemo(() => cards.map((c) => ({ card: c, a: analyzeCard(c) })), [cards]);
@@ -43,6 +45,8 @@ export function CardListPage() {
     return true;
   });
   const invalidCount = analyzed.filter((x) => !x.a.valid).length;
+  const detail = detailId ? analyzed.find((x) => x.card.id === detailId) : undefined;
+  const edit = (card: CardDef) => navigate(`/cards/${encodeURIComponent(card.id)}`);
 
   const addSamples = () => {
     const { cards: cur, decks: curDecks } = getState();
@@ -56,6 +60,7 @@ export function CardListPage() {
     const taken = new Set(getState().cards.map((c) => normalizeName(c.name)));
     const copy = { ...card, id: uuid(), name: uniqueName(card.name, taken) };
     actions.saveCard(copy);
+    setDetailId(null);
     toast({ text: `「${copy.name}」として複製しました`, kind: 'ok', action: { label: '編集', onClick: () => navigate(`/cards/${encodeURIComponent(copy.id)}`) } });
   };
 
@@ -135,16 +140,13 @@ export function CardListPage() {
         <div className="card-grid">
           {shown.map(({ card, a }) => (
             <div key={card.id} className="card-grid__item">
-              <CardView card={card} analysis={a} size="sm" onClick={() => navigate(`/cards/${encodeURIComponent(card.id)}`)} />
+              <CardView card={card} analysis={a} size="sm" onClick={() => setDetailId(card.id)} actionLabel={`${card.name || '（名前なし）'}の詳細を見る`} />
               <div className="card-grid__actions">
                 <span className="card-grid__pts">
                   {formatPoints(a.points.total)}/{a.points.cap}pt
                 </span>
-                <button type="button" className="btn btn--small" onClick={() => duplicate(card)}>
-                  複製
-                </button>
-                <button type="button" className="btn btn--small btn--danger" onClick={() => void remove(card)}>
-                  削除
+                <button type="button" className="btn btn--small" onClick={() => edit(card)} aria-label={`${card.name || '（名前なし）'}を編集`}>
+                  編集
                 </button>
               </div>
             </div>
@@ -162,6 +164,38 @@ export function CardListPage() {
         />
       )}
       {dialog === 'import' && <ImportDialog onClose={() => setDialog(null)} />}
+      {detail && (
+        <CardDetail
+          card={detail.card}
+          analysis={detail.a}
+          onClose={() => setDetailId(null)}
+          status={(() => {
+            const used = decks.filter((d) => d.entries.some((e) => e.cardId === detail.card.id));
+            return used.length > 0 ? `使っているデッキ：${used.map((d) => `「${d.name || '（名前なし）'}」`).join('')}` : 'まだどのデッキにも入っていません';
+          })()}
+          actions={
+            <>
+              <button type="button" className="btn btn--primary" onClick={() => edit(detail.card)}>
+                編集
+              </button>
+              <button type="button" className="btn" onClick={() => duplicate(detail.card)}>
+                複製
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger"
+                onClick={() => {
+                  // 確認ダイアログとフォーカスの閉じ込めが重ならないよう、先に詳細を閉じる
+                  setDetailId(null);
+                  void remove(detail.card);
+                }}
+              >
+                削除
+              </button>
+            </>
+          }
+        />
+      )}
     </>
   );
 }

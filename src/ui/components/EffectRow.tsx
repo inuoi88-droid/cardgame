@@ -6,30 +6,19 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import {
   CONDITIONS,
-  CONDITION_TIER_LABEL,
   TIMINGS,
-  allowedTargets,
-  attackProfile,
   cardBase,
-  conditionMultiplier,
-  conditionsFor,
   describeDrawback,
   describeEffect,
   drawbackPoints,
   effectPoints,
   fitDrawback,
   fitEffect,
-  formatMultiplier,
   getDrawback,
   getEffect,
   listModifiers,
   targetLabel,
-  targetMultiplier,
-  timingMultiplier,
-  timingsFor,
   type CardDef,
-  type ConditionId,
-  type ConditionTier,
   type DrawbackInstance,
   type EffectInstance,
   type ModifierId,
@@ -39,12 +28,12 @@ import {
 } from '../../engine/index.ts';
 import { GROUP_ICON } from '../editor/EffectPicker.tsx';
 import { drawbackHint, effectHint } from '../editor/hints.ts';
+import { OptionPicker } from '../editor/OptionPicker.tsx';
+import { conditionFromValue, conditionOptions, conditionValue, drawbackTimingOptions, effectOptionOptions, effectTimingOptions, targetOptions } from '../editor/pickOptions.ts';
 import { fieldId } from '../editor/validation.ts';
 import { cx, stepOf } from '../util.ts';
 import { Popover } from './Popover.tsx';
 import { Stepper, Violations } from './controls.tsx';
-
-const TIERS: ConditionTier[] = ['loose', 'normal', 'strict'];
 
 interface RowShellProps {
   id: string;
@@ -118,9 +107,7 @@ export function EffectRow({ index, count, effect, card, violations, expanded, on
   const base = cardBase(card);
   const def = getEffect(effect.id);
   const p = effectPoints(effect, card);
-  const targets = def ? allowedTargets(def.targetRule, effect.timing) : [];
-  const conditions = conditionsFor(effect.timing, base);
-  const attack = attackProfile(card.keywords);
+  const targets = targetOptions(effect, card);
   const has = (suffix: string) => violations.some((v) => v.path?.endsWith(suffix));
   const firstRef = useRef<HTMLDivElement>(null);
   const nth = `${index + 1}番目の効果`;
@@ -192,67 +179,52 @@ export function EffectRow({ index, count, effect, card, violations, expanded, on
           <Stepper label={def.hits.label} value={effect.hits} min={def.hits.min} max={def.hits.max} invalid={has('.hits')} onChange={(v) => onChange({ ...effect, hits: v })} />
         )}
         {def?.option && (
-          <label className="field">
-            <span>{def.option.label}</span>
-            <select value={effect.option ?? def.option.default} onChange={(e) => onChange({ ...effect, option: e.target.value })} aria-label={`${nth}の${def.option.label}`}>
-              {def.option.choices.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <OptionPicker
+            className="ed-row__option"
+            label={def.option.label}
+            title={`${nth}の${def.option.label}`}
+            value={effect.option ?? def.option.default}
+            options={effectOptionOptions(effect, card)}
+            onChange={(option) => onChange({ ...effect, option })}
+            id={fieldId(`effects.${index}.option`)}
+            invalid={has('.option')}
+          />
         )}
       </div>
 
       <div className="ed-row__selects">
-        <label className={cx('field', has('.timing') && 'field--invalid')}>
-          <span>タイミング</span>
-          <select value={effect.timing} aria-label={`${nth}のタイミング`} onChange={(e) => onChange(fitEffect({ ...effect, timing: e.target.value as TimingId }, base))}>
-            {timingsFor(base).map((t) => (
-              <option key={t} value={t}>
-                {TIMINGS[t].label}（×{formatMultiplier(timingMultiplier(t, base, attack))}）
-              </option>
-            ))}
-            {!timingsFor(base).includes(effect.timing) && <option value={effect.timing}>{TIMINGS[effect.timing]?.label}（使えません）</option>}
-          </select>
-        </label>
+        <OptionPicker
+          label="タイミング"
+          title={`${nth}のタイミング`}
+          value={effect.timing}
+          options={effectTimingOptions(effect, card)}
+          onChange={(t) => onChange(fitEffect({ ...effect, timing: t as TimingId }, base))}
+          id={fieldId(`effects.${index}.timing`)}
+          invalid={has('.timing')}
+          note="いつ発動するか。倍率がポイントに掛かります"
+        />
         {def && (
-          <label className={cx('field', has('.target') && 'field--invalid')}>
-            <span>対象</span>
-            <select
-              value={effect.target}
-              aria-label={`${nth}の対象`}
-              disabled={targets.length === 1 && targets[0] === effect.target}
-              onChange={(e) => onChange({ ...effect, target: e.target.value as TargetId })}
-            >
-              {targets.map((t) => (
-                <option key={t} value={t}>
-                  {targetLabel(t, def.targetRule, effect.timing)}（×{formatMultiplier(targetMultiplier(t, def.targetRule))}）
-                </option>
-              ))}
-              {!targets.includes(effect.target) && <option value={effect.target}>（選べない対象）</option>}
-            </select>
-          </label>
+          <OptionPicker
+            label="対象"
+            title={`${nth}の対象`}
+            value={effect.target}
+            options={targets}
+            onChange={(t) => onChange({ ...effect, target: t as TargetId })}
+            id={fieldId(`effects.${index}.target`)}
+            invalid={has('.target')}
+            disabled={targets.length === 1 && targets[0]!.id === effect.target}
+          />
         )}
-        <label className={cx('field', has('.condition') && 'field--invalid')}>
-          <span>条件（付けると安くなる）</span>
-          <select value={effect.condition ?? ''} aria-label={`${nth}の条件`} onChange={(e) => onChange({ ...effect, condition: (e.target.value || null) as ConditionId | null })}>
-            <option value="">なし（×1.0）</option>
-            {TIERS.map((tier) => (
-              <optgroup key={tier} label={CONDITION_TIER_LABEL[tier]}>
-                {conditions
-                  .filter((c) => CONDITIONS[c].tier === tier)
-                  .map((c) => (
-                    <option key={c} value={c}>
-                      {CONDITIONS[c].label}（×{formatMultiplier(conditionMultiplier(c))}）
-                    </option>
-                  ))}
-              </optgroup>
-            ))}
-            {effect.condition && !conditions.includes(effect.condition) && <option value={effect.condition}>{CONDITIONS[effect.condition]?.label}（使えません）</option>}
-          </select>
-        </label>
+        <OptionPicker
+          label="条件（付けると安くなる）"
+          title={`${nth}の条件`}
+          value={conditionValue(effect.condition)}
+          options={conditionOptions(effect, card)}
+          onChange={(v) => onChange({ ...effect, condition: conditionFromValue(v) })}
+          id={fieldId(`effects.${index}.condition`)}
+          invalid={has('.condition')}
+          note="条件を満たしたときだけ発動する代わりに、ポイントが安くなります"
+        />
       </div>
 
       {def?.allowsMods && (
@@ -323,7 +295,6 @@ export function DrawbackRow({ index, drawback, card, violations, expanded, onTog
   const base = cardBase(card);
   const def = getDrawback(drawback.id);
   const p = drawbackPoints(drawback, card);
-  const attack = attackProfile(card.keywords);
   const has = (suffix: string) => violations.some((v) => v.path?.endsWith(suffix));
   const firstRef = useRef<HTMLDivElement>(null);
   const nth = `${index + 1}番目のデメリット`;
@@ -370,16 +341,15 @@ export function DrawbackRow({ index, drawback, card, violations, expanded, onTog
           />
         )}
         {def && !def.fixed && (
-          <label className={cx('field', has('.timing') && 'field--invalid')}>
-            <span>タイミング</span>
-            <select value={drawback.timing ?? ''} aria-label={`${nth}のタイミング`} onChange={(e) => onChange(fitDrawback({ ...drawback, timing: e.target.value as TimingId }, base))}>
-              {timingsFor(base).map((t) => (
-                <option key={t} value={t}>
-                  {TIMINGS[t].label}（×{formatMultiplier(timingMultiplier(t, base, attack))}）
-                </option>
-              ))}
-            </select>
-          </label>
+          <OptionPicker
+            label="タイミング"
+            title={`${nth}のタイミング`}
+            value={drawback.timing ?? ''}
+            options={drawbackTimingOptions(drawback, card)}
+            onChange={(t) => onChange(fitDrawback({ ...drawback, timing: t as TimingId }, base))}
+            id={fieldId(`drawbacks.${index}.timing`)}
+            invalid={has('.timing')}
+          />
         )}
         {def?.fixed && <p className="hint">固定 −{p.value}pt（タイミングなし）</p>}
       </div>

@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BALANCE,
+  CARD_DESCRIPTION_MAX,
   CARD_TYPE_LABEL,
   CURSE_LABEL,
   RARITIES,
@@ -16,10 +17,12 @@ import {
   cardBase,
   createDrawback,
   createEffect,
+  descriptionLength,
   getDrawback,
   getKeyword,
   isNameTaken,
   newCard,
+  normalizeDescription,
   setMonster,
   type CardDef,
   type DrawbackInstance,
@@ -27,6 +30,7 @@ import {
   type Violation,
 } from '../../engine/index.ts';
 import '../editor.css';
+import '../editor/extras.css';
 import { CardView } from '../components/CardView.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { Stepper } from '../components/controls.tsx';
@@ -45,7 +49,13 @@ import { navigate, setNavigationGuard } from '../router.ts';
 import { NEW_DRAFT, actions, cardDrafts, useStore } from '../store.ts';
 import { cx, uuid, stepOf } from '../util.ts';
 
-const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+/** 比べるときの形：説明は空白や空欄の違いを無視し、項目の順番にも左右されないように別に並べる */
+const comparable = (c: CardDef | null) => {
+  if (!c) return 'null';
+  const { description, ...rest } = c;
+  return JSON.stringify([rest, normalizeDescription(description) ?? null]);
+};
+const sameCard = (a: CardDef | null, b: CardDef | null) => comparable(a) === comparable(b);
 
 let keySeq = 0;
 const genKey = () => `r${++keySeq}`;
@@ -89,7 +99,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
   const draftKey = saved?.id ?? NEW_DRAFT;
   const [restored] = useState(() => {
     const d = cardDrafts.get(draftKey);
-    return d && !sameJson(d, saved) ? d : null;
+    return d && !sameCard(d, saved) ? d : null;
   });
   const [card, setCard] = useState<CardDef>(() => restored ?? saved ?? newCard(uuid()));
   const [effectKeys, setEffectKeys] = useState<string[]>(() => keysFor(card.effects.length));
@@ -113,7 +123,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
 
   // 保存していない編集内容は下書きとして残す
   useEffect(() => {
-    const pristine = saved ? sameJson(card, saved) : sameJson(card, newCard(card.id));
+    const pristine = saved ? sameCard(card, saved) : sameCard(card, newCard(card.id));
     if (pristine) cardDrafts.clear(draftKey);
     else cardDrafts.set(draftKey, card);
   }, [card, saved, draftKey]);
@@ -133,13 +143,16 @@ function Editor({ saved }: { saved: CardDef | null }) {
   const budget = useMemo(() => budgetOf(analysis, card), [analysis, card]);
   const base = cardBase(card);
   const nameTaken = card.name.trim() !== '' && isNameTaken(cards, card.name, card.id);
-  const extra: Violation[] = nameTaken
-    ? [{ code: 'NAME_TAKEN', path: 'name', message: `「${card.name.trim()}」という名前のカードはすでにあります` }]
-    : [];
+  const descLength = descriptionLength(card.description ?? '');
+  const descOver = descLength > CARD_DESCRIPTION_MAX;
+  const extra: Violation[] = [
+    ...(nameTaken ? [{ code: 'NAME_TAKEN', path: 'name', message: `「${card.name.trim()}」という名前のカードはすでにあります` }] : []),
+    ...(descOver ? [{ code: 'DESCRIPTION_TOO_LONG', path: 'description', message: `説明は${CARD_DESCRIPTION_MAX}文字までです（いま${descLength}文字）` }] : []),
+  ];
   const allViolations = [...analysis.violations, ...extra];
   const canSave = allViolations.length === 0;
-  const dirty = !saved || !sameJson(card, saved);
-  const pristine = !saved && sameJson(card, newCard(card.id));
+  const dirty = !saved || !sameCard(card, saved);
+  const pristine = !saved && sameCard(card, newCard(card.id));
   const showProblems = attempted || !pristine;
   const shownViolations = showProblems ? allViolations : [];
   const maxEffects = BALANCE.rarity[card.rarity].maxEffects;
@@ -168,8 +181,8 @@ function Editor({ saved }: { saved: CardDef | null }) {
     setPendingJump(null);
     if (!el) return;
     el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    const target = el.matches('input, select, button, [tabindex]') ? el : (el.querySelector<HTMLElement>('input, select, button, [tabindex]') ?? el);
-    if (!target.hasAttribute('tabindex') && !target.matches('input, select, button')) target.tabIndex = -1;
+    const target = el.matches('input, select, textarea, button, [tabindex]') ? el : (el.querySelector<HTMLElement>('input, select, textarea, button, [tabindex]') ?? el);
+    if (!target.hasAttribute('tabindex') && !target.matches('input, select, textarea, button')) target.tabIndex = -1;
     target.focus({ preventScroll: true });
   }, [pendingJump]);
 
@@ -235,8 +248,12 @@ function Editor({ saved }: { saved: CardDef | null }) {
       return;
     }
     const name = card.name.trim();
+    const description = normalizeDescription(card.description);
+    const out: CardDef = { ...card, name };
+    if (description) out.description = description;
+    else delete out.description;
     setNavigationGuard(null);
-    actions.saveCard({ ...card, name });
+    actions.saveCard(out);
     cardDrafts.clear(draftKey);
     toast({ text: `「${name}」を保存しました`, kind: 'ok' });
     navigate('/cards');
@@ -455,6 +472,23 @@ function Editor({ saved }: { saved: CardDef | null }) {
                 </button>
               </div>
             </div>
+            <label className={cx('field ed-desc', descOver && 'field--invalid')} id={fieldId('description')}>
+              <span>説明（任意）</span>
+              <textarea
+                value={card.description ?? ''}
+                rows={2}
+                placeholder="例：序盤に出して毒をためる。フレーバーや使い方のメモをどうぞ"
+                maxLength={CARD_DESCRIPTION_MAX * 2}
+                aria-invalid={descOver || undefined}
+                aria-describedby="ed-desc-count"
+                onChange={(e) => update({ description: e.target.value })}
+              />
+              <small className={cx('field__count', descOver && 'text-ng')} id="ed-desc-count">
+                {descLength} / {CARD_DESCRIPTION_MAX}
+              </small>
+              {descOver && <span className="field__error">説明は{CARD_DESCRIPTION_MAX}文字までです。{descLength - CARD_DESCRIPTION_MAX}文字減らしてください</span>}
+              <small className="field__help">カードの下に小さく表示されます。ポイントやルールには影響しません</small>
+            </label>
             <div className="field" id={fieldId('rarity')}>
               <span>レアリティ（基本の予算が決まります）</span>
               <div className="seg" role="radiogroup" aria-label="レアリティ">

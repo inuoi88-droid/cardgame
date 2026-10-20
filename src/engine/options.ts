@@ -874,6 +874,7 @@ export const CONDITION_GROUPS = [
   'コスト・追加の支払い',
   '種族・速度・王冠',
   '達成・Lv',
+  '昼と夜',
   '運・先後',
 ] as const;
 export type ConditionGroup = (typeof CONDITION_GROUPS)[number];
@@ -1373,6 +1374,25 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     notForCost: true,
     group: '達成・Lv',
     description: `このカードの Lv が${BALANCE.battle.maxLevel}（最大）なら発動（能力「Lvアップ」が要る）`,
+  },
+  // ---- MTG 要素 △ バッチD
+  isDay: {
+    id: 'isDay',
+    tier: 'normal',
+    label: '昼なら',
+    textPrefix: '昼なら、',
+    timings: null,
+    group: '昼と夜',
+    description: `今が昼なら発動（昼と夜がまだ始まっていなければ偽。このカードを使う・場に出すと昼で始まる。昼のターンに手番の人がカードを${BALANCE.dayNight.toNight === 0 ? '1枚も使わない' : `${BALANCE.dayNight.toNight}枚以下しか使わない`}と夜になる）`,
+  },
+  isNight: {
+    id: 'isNight',
+    tier: 'normal',
+    label: '夜なら',
+    textPrefix: '夜なら、',
+    timings: null,
+    group: '昼と夜',
+    description: `今が夜なら発動（夜のターンに手番の人がカードを${BALANCE.dayNight.toDay}枚以上使うと昼に戻る）`,
   },
 };
 

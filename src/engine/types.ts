@@ -129,6 +129,9 @@ export const CONDITION_IDS = [
   'achieved',
   'level2',
   'level3',
+  // MTG 要素 △ バッチD：昼なら・夜なら（昼と夜）
+  'isDay',
+  'isNight',
 ] as const;
 export type ConditionId = (typeof CONDITION_IDS)[number];
 

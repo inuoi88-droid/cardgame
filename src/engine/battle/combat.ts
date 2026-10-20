@@ -21,6 +21,7 @@ import {
 import { combatBonus, combatSourceOf, dealDamage, keywordFlags, playerBonus, setCrown, targetableTaunts } from './damage.ts';
 import { enqueueCardTiming, enqueueEnemyAttacked } from './triggers.ts';
 import { loyaltyHit } from './powers.ts';
+import { fogDamage, ruleHooks } from './rules.ts';
 import type { GameState, Monster, PlayerId, TargetRef } from './types.ts';
 
 export function attacksPerTurn(g: GameState, m: Monster): number {
@@ -58,7 +59,9 @@ export function attackBlockReason(g: GameState, m: Monster): string | null {
   if (m.siege) return '砦は攻撃しない';
   if (monsterDormant(g, m)) return '休眠中：このターンは攻撃できない';
   // 一時蘇生（MTG 要素 △ バッチB）・待機（△ バッチC）で出たモンスターは速攻を持つ
-  if (m.enteredTurn === g.turnIndex && !keywordFlags(g, m).haste && !m.unearthed && m.counters.hasteTurn !== g.turnIndex) return '場に出たターンは攻撃できません';
+  // フィールド「闘技場」（MTG 要素 △ バッチD）では出たターンから攻撃できる
+  if (m.enteredTurn === g.turnIndex && !keywordFlags(g, m).haste && !m.unearthed && m.counters.hasteTurn !== g.turnIndex && !ruleHooks(g, m.controller).noSummoningSickness)
+    return '場に出たターンは攻撃できません';
   if (m.attacksUsed >= attacksPerTurn(g, m)) return 'このターンはもう攻撃しました';
   return null;
 }
@@ -136,7 +139,10 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   // 武士道：モンスターと戦うときだけ攻撃力に足す。猛襲：相手プレイヤーを攻撃するときだけ足す
   const enemy = other(m.controller);
   const toEnemyPlayer = target.kind === 'player' && target.player === enemy;
-  const amount = effectiveAttack(g, m) + (defender ? combatBonus(g, m) : toEnemyPlayer ? playerBonus(g, m) : 0) + enlistBonus;
+  const raw = effectiveAttack(g, m) + (defender ? combatBonus(g, m) : toEnemyPlayer ? playerBonus(g, m) : 0) + enlistBonus;
+  // フィールド「霧」（MTG 要素 △ バッチD）：モンスターの攻撃で相手プレイヤーに与えるダメージが減る
+  const amount = toEnemyPlayer ? fogDamage(g, raw) : raw;
+  if (amount < raw) log(g, depth + 1, `霧：攻撃のダメージが${raw}→${amount}に減る`, 'info');
   const r = dealDamage(g, target, amount, { kind: 'attack', source: attackerRef, playKey, depth: depth + 1 });
   if (isEnded(g)) return;
   /** 相手プレイヤーのHPを減らしたか（「相手プレイヤーにダメージを与えたとき」。裏切り・混乱で自分を殴ったときは数えない） */
@@ -147,8 +153,10 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   if (target.kind === 'player' && r.hpLost > 0 && target.player !== m.controller) loyaltyHit(g, target.player, depth + 1);
   // 貫通：モンスターを倒して余ったダメージは、そのモンスターの持ち主のプレイヤーへ
   if (defender && r.destroyed && r.overflow > 0 && findMonster(g, m.uid) && keywordFlags(g, m).trample) {
-    log(g, depth + 1, `貫通：余った${r.overflow}ダメージが${g.players[defender.controller].name}に通る`);
-    const t = dealDamage(g, playerRef(defender.controller), r.overflow, { kind: 'trample', source: attackerRef, depth: depth + 2 });
+    // 霧（MTG 要素 △ バッチD）は貫通の余りにも効く
+    const over = defender.controller === enemy ? fogDamage(g, r.overflow) : r.overflow;
+    log(g, depth + 1, `貫通：余った${over}ダメージが${g.players[defender.controller].name}に通る${over < r.overflow ? '（霧で減った）' : ''}`);
+    const t = dealDamage(g, playerRef(defender.controller), over, { kind: 'trample', source: attackerRef, depth: depth + 2 });
     if (defender.controller === enemy && t.hpLost > 0) hitEnemy = true;
     if (t.hpLost > 0) crownByAttack(g, m.controller, defender.controller, depth + 2);
     if (t.hpLost > 0 && defender.controller !== m.controller) loyaltyHit(g, defender.controller, depth + 2);

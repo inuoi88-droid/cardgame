@@ -15,6 +15,7 @@ import {
   type RarityRow,
 } from '../../engine/index.ts';
 import { CardDetail } from '../components/CardDetail.tsx';
+import { CostCurve } from '../components/CostCurve.tsx';
 import { Stepper, Violations } from '../components/controls.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { navigate } from '../router.ts';
@@ -173,6 +174,7 @@ function Builder({ saved }: { saved: Deck | null }) {
             </li>
           </ul>
         </div>
+        {a.total > 0 && <CostCurve deck={deck} cards={cards} />}
         {a.valid ? <p className="ok-msg">✓ このデッキは保存できます</p> : <Violations items={a.violations} />}
       </section>
 

@@ -753,6 +753,56 @@ describe('MTG 要素 △ バッチC（サーバー越し）', () => {
   });
 });
 
+describe('MTG 要素 △ バッチD（リーダー・対戦のルール）', () => {
+  it('部屋を作るときのルールとリーダー、入るときのリーダーが createGame に渡り、両者に見える', () => {
+    const s = new FakeServer();
+    const created = ok(s.send({ ...createReq(), leader: 'knight', rules: { field: 'planar', dayNight: true } }, { tokenHash: HOST, now: T0 }));
+    expect(created.rules).toEqual({ field: 'planar', dayNight: true });
+    expect(created.leaders).toEqual(['knight', null]);
+    // DB の列を増やさない：入室前は預かったデッキと席に持つ
+    expect(s.room!.hostDeck!.rules).toEqual({ field: 'planar', dayNight: true });
+    expect(s.room!.seats[0]!.leader).toBe('knight');
+    const joined = ok(s.send({ ...joinReq(), leader: 'scholar' }, { tokenHash: GUEST, now: T0 + 1000 }));
+    expect(joined.rules).toEqual({ field: 'planar', dayNight: true });
+    expect(joined.leaders).toEqual(['knight', 'scholar']);
+    const g = s.room!.state!;
+    expect(g.rules).toEqual({ field: 'planar', dayNight: true });
+    expect(g.field?.by).toBeNull();
+    expect(g.dayNight).toBe('day');
+    expect([g.players[0].leader, g.players[1].leader]).toEqual(['knight', 'scholar']);
+    expect(g.players[0].maxHp).toBe(BALANCE.battle.playerHp + BALANCE.leaders.knight.hp);
+    // 公開情報：相手から見てもリーダー・フィールド・昼と夜が分かる
+    const v = joined.view!;
+    expect([v.players[0].leader, v.field?.id, v.dayNight]).toEqual(['knight', g.field?.id, 'day']);
+    expect(s.room!.hostDeck).toBeNull();
+    // 対戦が始まったあとのルールは対戦の状態から返す
+    expect(ok(s.send(stateReq(HOST), { tokenHash: HOST, now: T0 + 2000 })).rules).toEqual({ field: 'planar', dayNight: true });
+  });
+
+  it('知らないリーダー・ルールは無し扱い（作り直す）', () => {
+    const p = parseRequest({ ...createReq(), leader: 'dragon', rules: { field: 'chaos', dayNight: 'yes', extra: 1 } });
+    expect(p.ok && p.value.op === 'create' && p.value.leader).toBe('none');
+    expect(p.ok && p.value.op === 'create' && 'rules' in p.value).toBe(false);
+    const j = parseRequest({ ...joinReq(), leader: 7 });
+    expect(j.ok && j.value.op === 'join' && j.value.leader).toBe('none');
+    const r = parseRequest({ ...createReq(), rules: { field: 'random', dayNight: true, junk: 'x' } });
+    expect(r.ok && r.value.op === 'create' && r.value.rules).toEqual({ field: 'random', dayNight: true });
+  });
+
+  it('古い部屋（ルール・リーダーなし）でも入れて、リーダーは none・ルールは無し', () => {
+    const s = new FakeServer();
+    ok(s.send(createReq(), { tokenHash: HOST, now: T0 }));
+    // 古い保存データ：hostDeck に rules が無く、席に leader が無い
+    expect(s.room!.hostDeck!.rules).toBeUndefined();
+    expect(s.room!.seats[0]!.leader).toBeUndefined();
+    const joined = ok(s.send(joinReq(), { tokenHash: GUEST, now: T0 + 1000 }));
+    expect(joined.rules).toBeUndefined();
+    expect(joined.leaders).toEqual(['none', 'none']);
+    const g = s.room!.state!;
+    expect([g.rules, g.field, g.dayNight, g.players[0].leader]).toEqual([undefined, undefined, undefined, undefined]);
+  });
+});
+
 describe('通しの対戦', () => {
   it('CPU 同士がサーバー越しに最後まで対戦でき、カードは消えない', () => {
     const { s } = playing(POISON, CURSES);

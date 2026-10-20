@@ -78,6 +78,7 @@ import effects_scry from './defs/effects/scry.ts';
 import effects_seal from './defs/effects/seal.ts';
 import effects_search from './defs/effects/search.ts';
 import effects_seek from './defs/effects/seek.ts';
+import effects_setField from './defs/effects/setField.ts';
 import effects_shield from './defs/effects/shield.ts';
 import effects_siege from './defs/effects/siege.ts';
 import effects_slay from './defs/effects/slay.ts';
@@ -282,6 +283,7 @@ export const EFFECT_DEFS: readonly EffectDef[] = [
   effects_seal,
   effects_search,
   effects_seek,
+  effects_setField,
   effects_shield,
   effects_siege,
   effects_slay,

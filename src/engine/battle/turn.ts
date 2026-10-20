@@ -11,6 +11,10 @@ import { enqueueDelayed, enqueueMonsters, enqueuePowers, powerSource } from './t
 import { advanceSagas, altWinOnTurnStart, chargePowers, checkAchievements } from './powers.ts';
 import { deckToDiscard, discardCard, drawCards, exileFromBoard, hatchEggs, returnBorrowed, vanish, warpAway } from './zones.ts';
 import { tickSuspend } from './waiting.ts';
+import { dayNightAtTurnEnd, planarTick } from './matchRules.ts';
+import { ruleHooks } from './rules.ts';
+import { FIELDS } from '../fields.ts';
+import { LEADERS } from '../leaders.ts';
 import { NOISE_CARD_ID } from './types.ts';
 import type { GameState, PlayerId, Statuses } from './types.ts';
 
@@ -41,6 +45,8 @@ export function startTurn(g: GameState, p: PlayerId, extra = false): void {
   ps.turnsTaken += 1;
   g.protect = {};
   log(g, 0, `── ${ps.name}の${extra ? '追加' : ''}ターン（${ps.turnsTaken}ターン目）──`, 'turn', undefined, { kind: 'turnStart', player: p, ...(extra ? { extra: true } : {}) });
+  // 次元（MTG 要素 △ バッチD）：通算 fields.planarEvery ターンごとに別のフィールドへ
+  planarTick(g);
 
   // シールドと反撃が消える。凍結・混乱が発効する
   ps.shield = 0;
@@ -88,6 +94,12 @@ export function startTurn(g: GameState, p: PlayerId, extra = false): void {
     heal(g, playerRef(p), ps.status.regen, 1);
     ps.status.regen = decay(ps.status.regen, B.regenKeepRate);
   }
+  // フィールド「聖域」（MTG 要素 △ バッチD）
+  const hooks = ruleHooks(g, p);
+  if (hooks.startHeal > 0 && ps.hp < ps.maxHp) {
+    log(g, 1, `${FIELDS.sanctuary.icon}聖域：${ps.name}のHPが回復する`, 'info');
+    heal(g, playerRef(p), hooks.startHeal, 1);
+  }
 
   // 維持費・裏切りの経過（封印されても働く）、自己修復
   for (const m of [...ps.board]) {
@@ -118,7 +130,9 @@ export function startTurn(g: GameState, p: PlayerId, extra = false): void {
   const secondBonus = secondFirstTurn ? B.secondPlayerFirstTurnBonusEnergy : 0;
   // 最大エナジー増加（MTG 要素 ○ バッチB）：基本エナジーに足す（1ターンの増加の上限には数えない）
   const ramp = ps.energyBonus ?? 0;
-  const base = scheduled - firstPenalty + secondBonus + ramp;
+  // リーダー「錬金術師」（MTG 要素 △ バッチD）：3・6・9…ターン目に+1（1ターンの増加の上限には数えない）
+  const alchemy = hooks.extraEnergy;
+  const base = scheduled - firstPenalty + secondBonus + ramp + alchemy;
   const limits = turnLimits(g, ps);
   const carried = ps.next.energy > 0 ? Math.min(ps.next.energy, B.maxEnergyGainPerTurn) : ps.next.energy;
   if (carried > 0) limits.energyGained += carried;
@@ -129,6 +143,7 @@ export function startTurn(g: GameState, p: PlayerId, extra = false): void {
     secondBonus ? `後攻の1ターン目は+${secondBonus}` : '',
     B.energySchedule.some((s) => s.fromTurn === ps.turnsTaken && s.fromTurn > 1) ? `このターンから基本${scheduled}` : '',
     ramp ? `最大エナジー増加で+${ramp}` : '',
+    alchemy ? `${LEADERS.alchemist.name}で+${alchemy}` : '',
     carried ? `基本${base}${carried > 0 ? '+' : '−'}${Math.abs(carried)}${capNote}` : '',
   ].filter(Boolean);
   log(g, 1, `${ps.name}のエナジー：${ps.energy}${notes.length ? `（${notes.join('、')}）` : ''}`, 'info', undefined, {
@@ -142,7 +157,13 @@ export function startTurn(g: GameState, p: PlayerId, extra = false): void {
   // 王冠（MTG 要素 ○ バッチC2）：持っていれば1枚多く引く（1ターン目も。上限は1ターンに引ける枚数）
   const crownDraw = g.crown === p ? BALANCE.crown.extraDraw : 0;
   if (crownDraw > 0) log(g, 1, `👑${ps.name}は王冠を持っているので${crownDraw}枚多く引く`, 'info');
-  const drawCount = (ps.turnsTaken === 1 ? Math.max(0, ps.next.draw + extraDraw) : Math.max(0, B.drawPerTurn + ps.next.draw)) + crownDraw;
+  // フィールド「大図書館」・リーダー「賢者」（MTG 要素 △ バッチD）：多く引く（1ターン目も。上限は1ターンに引ける枚数）
+  const ruleDraw = hooks.extraDraw;
+  if (ruleDraw > 0) {
+    const why = [hooks.fieldDraw ? `${FIELDS.library.icon}${FIELDS.library.name}` : '', hooks.leaderDraw ? `${LEADERS.scholar.icon}${LEADERS.scholar.name}` : ''].filter(Boolean).join('・');
+    log(g, 1, `${ps.name}は${why}で${ruleDraw}枚多く引く`, 'info');
+  }
+  const drawCount = (ps.turnsTaken === 1 ? Math.max(0, ps.next.draw + extraDraw) : Math.max(0, B.drawPerTurn + ps.next.draw)) + crownDraw + ruleDraw;
   ps.next = { draw: 0, energy: 0 };
   drawCards(g, p, drawCount, 1);
   if (isEnded(g)) return;
@@ -376,6 +397,9 @@ export function turnEndFinish(g: GameState, p: PlayerId, kept: string[]): void {
       log(g, 1, `${monsterLabel(g, m)}の隠密が切れた`, 'info');
     }
   }
+
+  // 昼と夜（MTG 要素 △ バッチD）：このターンに使ったカードの枚数で切り替わる
+  dayNightAtTurnEnd(g, p);
 
   // 30ターン経過で引き分け（各プレイヤー30ターン：決定事項 #26。追加ターンも1ターンに数えるので、通算ターンで数える：MTG 要素 △ バッチC）
   if (g.turnIndex >= B.maxTurns * 2) {

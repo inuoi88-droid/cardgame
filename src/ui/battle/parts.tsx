@@ -1,12 +1,13 @@
 /** 対戦画面の部品：プレイヤー情報、モンスター、手札、ログ、状態異常の札（説明はポップオーバー） */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { BALANCE, battle, CARD_TYPE_LABEL, CONDITIONS, analyzeCard, describeEffect, getEffect, TIMINGS, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
+import { BALANCE, battle, CARD_TYPE_LABEL, CONDITIONS, analyzeCard, describeEffect, getEffect, LEADERS, TIMINGS, toLeaderId, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
 import { Popover, type PopoverCard } from '../components/Popover.tsx';
 import { abilityGlossary, glossary, keywordGlossary, mechanicGlossary, type GlossaryEntry } from '../glossary.ts';
 import { cx } from '../util.ts';
 import { logIcon, tokenizeLog, type LogNames } from './logFormat.ts';
 import type { Float } from './useReplay.ts';
 import { monsterForecasts, summarizeCard } from './summary.ts';
+import { dayNightBand, fieldBand } from './matchOptions.ts';
 
 type Statuses = battle.Statuses;
 type PlayerId = battle.PlayerId;
@@ -243,6 +244,7 @@ export function PlayerPanel({
             </span>
           </Popover>
         )}
+        {toLeaderId(ps.leader) !== 'none' && <LeaderChip leader={toLeaderId(ps.leader)} />}
         {targetable && <span className="pp__target">対象</span>}
         <span className="pp__energy" aria-label={`エナジー${ps.energy}`}>
           ⚡{ps.energy}
@@ -429,6 +431,47 @@ export function PlayerPanel({
         })}
       </div>
       <Floats items={floats} />
+    </div>
+  );
+}
+
+/** リーダー（MTG 要素 △ バッチD）の札：アイコンだけ。タップで名前と説明 */
+function LeaderChip({ leader }: { leader: ReturnType<typeof toLeaderId> }) {
+  const l = LEADERS[leader];
+  return (
+    <Popover content={{ title: `${l.icon} リーダー：${l.name}`, description: l.description }} placement="bottom">
+      <span className="pp__leader" aria-label={`リーダー：${l.name}`}>
+        {l.icon}
+      </span>
+    </Popover>
+  );
+}
+
+/**
+ * フィールドと昼と夜（MTG 要素 △ バッチD）の札。見出しの行に出す（どちらも無ければ何も出さない）。
+ * data-fx はイベント再生で光らせる目印
+ */
+export function MatchBand({ view, flash = {} }: { view: battle.GameState; flash?: Record<string, string> }) {
+  const f = fieldBand(view);
+  const d = dayNightBand(view);
+  if (!f && !d) return null;
+  return (
+    <div className="match-band">
+      {f && (
+        <Popover content={{ title: `${f.icon} フィールド：${f.name}`, description: `${f.description}（両者に効く。${f.note}）` }} placement="bottom">
+          <span className={cx('match-band__chip', 'match-band__field', flash.field)} data-fx="field" aria-label={`フィールド：${f.name}`}>
+            <span aria-hidden="true">{f.icon}</span>
+            <span className="match-band__name">{f.name}</span>
+          </span>
+        </Popover>
+      )}
+      {d && (
+        <Popover content={{ title: `${d.icon} ${d.name}`, description: d.description }} placement="bottom">
+          <span className={cx('match-band__chip', 'match-band__daynight', `is-${view.dayNight}`, flash.dayNight)} data-fx="dayNight" aria-label={d.name}>
+            {d.icon}
+          </span>
+        </Popover>
+      )}
     </div>
   );
 }

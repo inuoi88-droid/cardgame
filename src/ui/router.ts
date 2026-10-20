@@ -8,6 +8,7 @@ export type Route =
   | { page: 'deckEdit'; id: string | null }
   | { page: 'battleSetup' }
   | { page: 'battle' }
+  | { page: 'draft' }
   | { page: 'online'; code: string | null }
   | { page: 'onlineBattle' }
   | { page: 'rules'; section: string | null }
@@ -20,7 +21,7 @@ export function parseRoute(hash: string): Route {
     if (id === 'play') return { page: 'onlineBattle' };
     return { page: 'online', code: id === 'join' && extra ? extra : null };
   }
-  if (section === 'battle') return id === 'play' ? { page: 'battle' } : { page: 'battleSetup' };
+  if (section === 'battle') return id === 'play' ? { page: 'battle' } : id === 'draft' ? { page: 'draft' } : { page: 'battleSetup' };
   if (section === 'decks') {
     if (id === undefined) return { page: 'decks' };
     return { page: 'deckEdit', id: id === 'new' ? null : id };

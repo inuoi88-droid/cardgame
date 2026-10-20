@@ -9,6 +9,13 @@ import {
   CONDITION_GROUPS,
   CONDITIONS,
   EFFECT_GROUPS,
+  FIELD_IDS,
+  FIELDS,
+  LEADER_IDS,
+  LEADERS,
+  PLANAR_DESCRIPTION,
+  PLANAR_LABEL,
+  PLANAR_MODES,
   RARITIES,
   RARITY_LABEL,
   TIMING_GROUPS,
@@ -19,7 +26,8 @@ import {
   listKeywords,
   listModifiers,
 } from '../../engine/index.ts';
-import { abilityGlossary, glossary, keywordGlossary, mechanicGlossary, modifierGlossary, type StatusId } from '../glossary.ts';
+import { abilityGlossary, glossary, keywordGlossary, mechanicGlossary, MTG_GUIDE, modifierGlossary, type StatusId } from '../glossary.ts';
+import { TEMPLATES } from '../editor/templates.ts';
 import { cx } from '../util.ts';
 
 const B = BALANCE.battle;
@@ -68,6 +76,8 @@ const SECTIONS: { id: string; icon: string; title: string }[] = [
   { id: 'options', icon: '⏱', title: 'タイミング・対象・条件・オプション' },
   { id: 'drawbacks', icon: '😈', title: 'デメリット一覧' },
   { id: 'create', icon: '✏️', title: 'カード作成のルール' },
+  { id: 'match', icon: '🗺', title: 'リーダー・フィールド・昼と夜' },
+  { id: 'mtg', icon: '📖', title: 'MTG の仕組みの作り方（対応表）' },
   { id: 'limits', icon: '🔧', title: '安全装置（1ターンの上限）' },
   { id: 'online', icon: '🌐', title: 'オンライン対戦' },
 ];
@@ -144,6 +154,9 @@ export function RulesPage() {
           <li>待機ゾーンの「待機」のカードの残りが1減り、0になったものを無料で使います（モンスターは速攻）。特殊勝利の目標（ターン数など）を確かめます。</li>
           <li>「自分のターン開始時」の効果（パワー → 場のモンスターの左から）。混乱・裏切りのモンスターが自動で攻撃します。</li>
         </ol>
+        <p className="hint">
+          リーダー・フィールドがあるときは、ターンの初めに次元が移り変わり、聖域の回復（再生のあと）・錬金術師のエナジー・大図書館と賢者のドローが加わります（「リーダー・フィールド・昼と夜」の節）。
+        </p>
         <h3>ターン中</h3>
         <ul>
           <li>エナジーの範囲で何枚でもカードを使えます。モンスターは1ターンに1回攻撃できます（二回攻撃なら2回）。</li>
@@ -165,6 +178,7 @@ export function RulesPage() {
           <li>
             <b>手札をすべて捨て札にします</b>（「保持」で残したカードを除く。「捨てられたとき」は出ません）。気合と、両者のモンスターの一時強化・賛助のキーワードが消えます。期限の来た封殺が消えます。
           </li>
+          <li>昼と夜があれば、このターンに使ったカードの枚数で昼と夜が入れ替わります。</li>
           <li>{mechanicGlossary.extraTurn!.short}。</li>
         </ol>
       </Section>
@@ -505,6 +519,73 @@ export function RulesPage() {
             1枚のカードのダメージの合計（値×回数）は{BALANCE.params.damagePerCardMax}まで。毒は1つの効果で{BALANCE.effects.poison.maxValue}まで。
           </li>
         </ul>
+      </Section>
+
+      <Section {...sec('match')}>
+        <p className="hint">CPU 戦の準備画面と、オンライン対戦の部屋を作るときに選べます（どれも選ばなくても遊べます）。</p>
+        <h3>リーダー</h3>
+        <p className="hint">{mechanicGlossary.leader!.short.split('。')[0]}。</p>
+        <dl className="terms">
+          {LEADER_IDS.filter((id) => id !== 'none').map((id) => (
+            <Term key={id} name={LEADERS[id].name} icon={LEADERS[id].icon}>
+              {LEADERS[id].description}
+            </Term>
+          ))}
+        </dl>
+        <h3>フィールド（次元）</h3>
+        <ul>
+          {PLANAR_MODES.map((m) => (
+            <li key={m}>
+              <b>次元：{PLANAR_LABEL[m]}</b>：{PLANAR_DESCRIPTION[m]}
+            </li>
+          ))}
+          <li>
+            効果「フィールド」でも置き換えられます（両者に効く・場に1つだけ・後から置いた方が上書き。「移り変わる」の対戦では次の切り替えまで）。
+          </li>
+        </ul>
+        <dl className="terms">
+          {FIELD_IDS.map((id) => (
+            <Term key={id} name={FIELDS[id].name} icon={FIELDS[id].icon}>
+              {FIELDS[id].description}
+            </Term>
+          ))}
+        </dl>
+        <h3>昼と夜</h3>
+        <p>{mechanicGlossary.dayNight!.short}。条件「昼なら」「夜なら」で効果が切り替わります（MTG の日暮／夜明の両面カードは、この2つの条件の効果を持つ1枚で作ります）。</p>
+        <h3>ドラフト戦とコスト分布</h3>
+        <ul>
+          <li>
+            <b>{mechanicGlossary.draft!.name}</b>：{mechanicGlossary.draft!.short}。候補は保存したカードとプリセットのカード（ルール違反・レジェンドは除く）で、デッキのルール（レアリティの枚数・同名の上限）を破るものは出ません。
+          </li>
+          <li>
+            <b>{mechanicGlossary.manaCurve!.name}</b>：{mechanicGlossary.manaCurve!.short}。デッキ構築・CPU 戦の準備・ドラフト戦の画面に出ます。
+          </li>
+        </ul>
+      </Section>
+
+      <Section {...sec('mtg')}>
+        <p className="hint">MTG の次の仕組みは、新しい要素を足さずに今の要素の組み合わせで作れます。★ はエディターの「テンプレートから作る」にあります。</p>
+        <div className="rules__table-wrap">
+          <table className="rules__table">
+            <thead>
+              <tr>
+                <th scope="col">MTG</th>
+                <th scope="col">このゲームでの作り方</th>
+              </tr>
+            </thead>
+            <tbody>
+              {MTG_GUIDE.map((r) => (
+                <tr key={r.mtg}>
+                  <th scope="row">{r.mtg}</th>
+                  <td>
+                    {r.how}
+                    {r.template && <span className="rules__tpl">★テンプレート「{TEMPLATES.find((t) => t.id === r.template)?.title ?? r.template}」</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Section>
 
       <Section {...sec('limits')}>

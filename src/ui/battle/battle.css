@@ -2711,3 +2711,105 @@ button.lt-card:focus-visible {
   color: var(--muted);
   font-weight: bold;
 }
+
+/* ------------------------------------------------------------ リーダー・フィールド・昼と夜（MTG 要素 △ バッチD） */
+.pp__leader {
+  font-size: 1rem;
+  line-height: 1;
+  cursor: help;
+}
+.match-band {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.match-band__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 28px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong);
+  background: var(--field);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  cursor: help;
+}
+.match-band__daynight.is-day {
+  border-color: rgba(246, 196, 69, 0.6);
+}
+.match-band__daynight.is-night {
+  border-color: rgba(111, 141, 255, 0.6);
+}
+.match-band__chip.is-activate {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 12px var(--accent);
+}
+@media (max-width: 480px) {
+  .match-band__name {
+    display: none;
+  }
+  .match-band__chip {
+    padding: 2px 6px;
+  }
+}
+
+/* ------------------------------------------------------------ ドラフト戦（MTG 要素 △ バッチD） */
+.draft__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.draft__head h2 {
+  margin: 0;
+}
+.draft__offer {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 200px));
+  gap: 10px;
+  justify-content: center;
+}
+.draft__cand {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 6px;
+  align-content: start;
+  min-width: 0;
+}
+.draft__cand .btn {
+  width: 100%;
+}
+.draft__picked {
+  margin-top: 8px;
+}
+.draft__sum {
+  display: none;
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  line-height: 1.35;
+}
+.setup__leaders {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.match-opt {
+  display: grid;
+  gap: 8px;
+}
+@media (max-width: 480px) {
+  .draft__offer {
+    gap: 6px;
+  }
+  .draft__sum {
+    display: block;
+  }
+  .draft__cand .btn {
+    padding-inline: 4px;
+    font-size: var(--fs-xs);
+  }
+}

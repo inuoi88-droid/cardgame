@@ -7,6 +7,8 @@ import { BALANCE } from '../engine/balance.ts';
 import { analyzeDeck } from '../engine/deck.ts';
 import { parseCard, parseDeck } from '../engine/io.ts';
 import type { CardDef, Deck } from '../engine/types.ts';
+import { normalizeRules, type MatchRules } from '../engine/fields.ts';
+import { toLeaderId, type LeaderId } from '../engine/leaders.ts';
 import { applyAction } from '../engine/battle/apply.ts';
 import { other } from '../engine/battle/core.ts';
 import { createGame } from '../engine/battle/setup.ts';
@@ -34,6 +36,8 @@ export interface Seat {
   lastSeen: number;
   /** 続けて時間切れになった回数 */
   timeouts: number;
+  /** リーダー（MTG 要素 △ バッチD。無い古い部屋は none） */
+  leader?: LeaderId;
 }
 
 export interface RoomRecord {
@@ -43,8 +47,11 @@ export interface RoomRecord {
   version: number;
   state: GameState | null;
   seats: Seat[];
-  /** 相手が入るまで預かる、作成者のデッキ */
-  hostDeck: { deck: Deck; cards: CardDef[] } | null;
+  /**
+   * 相手が入るまで預かる、作成者のデッキ。rules は部屋を作ったときに選んだ対戦のルール（MTG 要素 △ バッチD）。
+   * DB の列を増やさないよう、入室前はここに、対戦が始まったら GameState.rules に持つ
+   */
+  hostDeck: { deck: Deck; cards: CardDef[]; rules?: MatchRules } | null;
   /** 今の手番（またはマリガン）の締め切り */
   deadline: number | null;
   updatedAt: number;
@@ -78,11 +85,15 @@ export interface PlayerInput {
   name: unknown;
   deck: unknown;
   cards: unknown;
+  /** リーダー（MTG 要素 △ バッチD。無い・知らない値は none） */
+  leader?: unknown;
 }
 
-export function createRoom(input: PlayerInput, ctx: { now: number; code: string; tokenHash: string }): Result<RoomRecord> {
+export function createRoom(input: PlayerInput & { rules?: unknown }, ctx: { now: number; code: string; tokenHash: string }): Result<RoomRecord> {
   const checked = checkDeck(input.deck, input.cards);
   if (!checked.ok) return checked;
+  const rules = normalizeRules(input.rules);
+  const leader = toLeaderId(input.leader);
   return {
     ok: true,
     value: {
@@ -90,8 +101,8 @@ export function createRoom(input: PlayerInput, ctx: { now: number; code: string;
       status: 'waiting',
       version: 1,
       state: null,
-      seats: [{ name: normalizeName(input.name), tokenHash: ctx.tokenHash, lastSeen: ctx.now, timeouts: 0 }],
-      hostDeck: checked.value,
+      seats: [{ name: normalizeName(input.name), tokenHash: ctx.tokenHash, lastSeen: ctx.now, timeouts: 0, ...(leader !== 'none' ? { leader } : {}) }],
+      hostDeck: { ...checked.value, ...(rules ? { rules } : {}) },
       deadline: null,
       updatedAt: ctx.now,
     },
@@ -106,12 +117,15 @@ export function joinRoom(room: RoomRecord, input: PlayerInput, ctx: { now: numbe
   const host = room.seats[0]!;
   let name = normalizeName(input.name);
   if (name === host.name) name = `${[...name].slice(0, NAME_MAX_LENGTH - 3).join('')}（2）`;
+  const leader = toLeaderId(input.leader);
+  const rules = normalizeRules(room.hostDeck.rules);
   const created = createGame({
     seed: ctx.seed,
     players: [
-      { name: host.name, deck: room.hostDeck.deck, cards: room.hostDeck.cards },
-      { name, deck: checked.value.deck, cards: checked.value.cards },
+      { name: host.name, deck: room.hostDeck.deck, cards: room.hostDeck.cards, leader: toLeaderId(host.leader) },
+      { name, deck: checked.value.deck, cards: checked.value.cards, leader },
     ],
+    ...(rules ? { rules } : {}),
   });
   if (!created.ok) return fail(created.error, 'invalid');
   return {
@@ -121,7 +135,7 @@ export function joinRoom(room: RoomRecord, input: PlayerInput, ctx: { now: numbe
       status: 'playing',
       version: room.version + 1,
       state: created.state,
-      seats: [host, { name, tokenHash: ctx.tokenHash, lastSeen: ctx.now, timeouts: 0 }],
+      seats: [host, { name, tokenHash: ctx.tokenHash, lastSeen: ctx.now, timeouts: 0, ...(leader !== 'none' ? { leader } : {}) }],
       hostDeck: null,
       deadline: ctx.now + O.mulliganSeconds * 1000,
       updatedAt: ctx.now,
@@ -249,7 +263,15 @@ export function roomView(room: RoomRecord, seat: PlayerId, now: number): RoomVie
     names: [room.seats[0]?.name ?? '', room.seats[1]?.name ?? null],
     opponentConnected: opp ? now - opp.lastSeen <= CONNECTED_WITHIN_MS : false,
     timeouts: [room.seats[0]?.timeouts ?? 0, room.seats[1]?.timeouts ?? 0],
+    ...roomRules(room),
+    leaders: [toLeaderId(room.seats[0]?.leader), room.seats[1] ? toLeaderId(room.seats[1].leader) : null],
   };
+}
+
+/** 部屋のルール（MTG 要素 △ バッチD）：入室前は預かったデッキに、対戦が始まったら対戦の状態にある */
+function roomRules(room: RoomRecord): { rules?: MatchRules } {
+  const rules = normalizeRules(room.hostDeck?.rules ?? room.state?.rules);
+  return rules ? { rules } : {};
 }
 
 export function isExpired(room: RoomRecord, now: number): boolean {

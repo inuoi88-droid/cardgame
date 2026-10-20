@@ -36,6 +36,7 @@ import {
 } from './zones.ts';
 import { NOISE_CARD_ID, SIEGE_CARD_ID, type Chosen, type EffectRuntime, type GameState, type Monster, type PlayerId, type SourceRef, type TargetRef } from './types.ts';
 import { advanceOne } from './powers.ts';
+import { setField as setFieldState } from './matchRules.ts';
 
 /**
  * 出どころのカード（cardId）と同じ種族の、p の場のモンスター（MTG 要素 ○ バッチC2）。カードに種族が無ければ空。
@@ -497,6 +498,9 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
         return;
       }
       enqueue(g, { t: 'freePlay', player: p, card: card!, depth, freeDepth });
+    },
+    setField(id) {
+      setFieldState(g, id, me, depth);
     },
     addQuash(p, kind) {
       const ps = g.players[p];

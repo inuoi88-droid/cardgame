@@ -1,5 +1,6 @@
 /** 進行中の対戦の保存（localStorage）。再読み込みしても続きから再開できる */
-import { ai, battle, type CardDef, type Deck } from '../../engine/index.ts';
+import { ai, battle, isPlanarMode, normalizeRules, toLeaderId, type CardDef, type Deck, type MatchRules, type PlanarMode } from '../../engine/index.ts';
+import { isLeaderChoice, resolveLeader, type LeaderChoice } from './matchOptions.ts';
 
 const KEY = 'cardgame.v1.battle';
 
@@ -10,8 +11,22 @@ export interface BattleSession {
   /** 2：インフレ倍率の導入後（決定事項 #65）。それより前の対戦の途中データは読まない */
   v: 2;
   state: battle.GameState;
-  /** 同じ組み合わせでもう一度遊ぶための情報。cpuLevel は CPU の強さ（無い古い保存データは「ふつう」：決定事項 #82） */
-  setup: { myDeckName: string; cpuDeckName: string; myDeck: Deck; myCards: CardDef[]; cpuDeck: Deck; cpuCards: CardDef[]; cpuLevel?: ai.CpuLevel };
+  /**
+   * 同じ組み合わせでもう一度遊ぶための情報。cpuLevel は CPU の強さ（無い古い保存データは「ふつう」：決定事項 #82）。
+   * MTG 要素 △ バッチD：リーダー（CPU は「おまかせ」なら対戦ごとに決め直す）と対戦のルール。無い古い保存データは「なし」
+   */
+  setup: {
+    myDeckName: string;
+    cpuDeckName: string;
+    myDeck: Deck;
+    myCards: CardDef[];
+    cpuDeck: Deck;
+    cpuCards: CardDef[];
+    cpuLevel?: ai.CpuLevel;
+    myLeader?: LeaderChoice;
+    cpuLeader?: LeaderChoice;
+    rules?: MatchRules;
+  };
 }
 
 /** 対戦の CPU の強さ（保存データに無ければ「ふつう」） */
@@ -48,12 +63,14 @@ export function clearSession(): void {
 
 export function startSession(setup: BattleSession['setup']): { ok: true; session: BattleSession } | { ok: false; error: string } {
   const seed = Math.floor(Math.random() * 2 ** 31);
+  const rules = normalizeRules(setup.rules);
   const r = battle.createGame({
     seed,
     players: [
-      { name: 'あなた', deck: setup.myDeck, cards: setup.myCards },
-      { name: `CPU（${setup.cpuDeckName}）`, deck: setup.cpuDeck, cards: setup.cpuCards },
+      { name: 'あなた', deck: setup.myDeck, cards: setup.myCards, leader: resolveLeader(isLeaderChoice(setup.myLeader) ? setup.myLeader : undefined) },
+      { name: `CPU（${setup.cpuDeckName}）`, deck: setup.cpuDeck, cards: setup.cpuCards, leader: resolveLeader(isLeaderChoice(setup.cpuLeader) ? setup.cpuLeader : undefined) },
     ],
+    ...(rules ? { rules } : {}),
   });
   if (!r.ok) return r;
   const session: BattleSession = { v: 2, state: r.state, setup };
@@ -63,11 +80,15 @@ export function startSession(setup: BattleSession['setup']): { ok: true; session
 
 const PREFS_KEY = 'cardgame.v1.battleSetup';
 
-/** 準備画面で前回選んだもの（自分のデッキの候補キー、CPU のデッキ、CPU の強さ） */
+/** 準備画面で前回選んだもの（自分のデッキの候補キー、CPU のデッキ、CPU の強さ、リーダー・次元・昼と夜） */
 export interface SetupPrefs {
   mine: string;
   cpu: string;
   level: ai.CpuLevel;
+  myLeader: LeaderChoice;
+  cpuLeader: LeaderChoice;
+  field: PlanarMode;
+  dayNight: boolean;
 }
 
 export function loadSetupPrefs(): SetupPrefs | null {
@@ -76,7 +97,15 @@ export function loadSetupPrefs(): SetupPrefs | null {
     if (!raw) return null;
     const p = JSON.parse(raw) as Partial<SetupPrefs>;
     if (typeof p?.mine !== 'string' || typeof p?.cpu !== 'string') return null;
-    return { mine: p.mine, cpu: p.cpu, level: ai.isCpuLevel(p.level) ? p.level : 'normal' };
+    return {
+      mine: p.mine,
+      cpu: p.cpu,
+      level: ai.isCpuLevel(p.level) ? p.level : 'normal',
+      myLeader: isLeaderChoice(p.myLeader) ? p.myLeader : 'none',
+      cpuLeader: isLeaderChoice(p.cpuLeader) ? p.cpuLeader : 'none',
+      field: isPlanarMode(p.field) ? p.field : 'off',
+      dayNight: p.dayNight === true,
+    };
   } catch {
     return null;
   }
@@ -89,3 +118,6 @@ export function saveSetupPrefs(p: SetupPrefs): void {
     // 覚えられなくても困らない
   }
 }
+
+/** 対戦中のリーダーの表示用（無い古い状態は none） */
+export const leaderOf = (ps: battle.PlayerState) => toLeaderId(ps.leader);

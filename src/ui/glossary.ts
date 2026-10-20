@@ -2,7 +2,7 @@
  * 用語集：状態異常・持続効果・モンスターの状態の「名前」「短い説明」「アイコン」。
  * 対戦画面のポップオーバーとルールページが同じ文を使う。数字は balance.ts から読む。
  */
-import { BALANCE, CONDITIONS, TIMINGS, TRIBE_IDS, TRIBE_LABEL, listAbilities, listKeywords, listModifiers } from '../engine/index.ts';
+import { BALANCE, CONDITIONS, FIELD_IDS, FIELDS, LEADER_IDS, LEADERS, TIMINGS, TRIBE_IDS, TRIBE_LABEL, listAbilities, listKeywords, listModifiers } from '../engine/index.ts';
 
 const B = BALANCE.battle;
 const pct = (rate: number) => `${Math.round(rate * 100)}%`;
@@ -592,6 +592,34 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     tone: 'info',
     short: `効果「砦を築く」で相手の場に置かれる${B.siegeName}（攻撃力0。攻撃も反撃もせず、挑発もない）。破壊されると、築いた側の「砦を落としたとき」の効果が出る。バウンス・奪取では報酬なしで消える`,
   },
+  // ---- MTG 要素 △ バッチD
+  leader: {
+    name: 'リーダー',
+    icon: '👑',
+    tone: 'info',
+    short: `対戦の開始時に選ぶ、対戦のあいだずっと効く小さな効果（カードのポイントとは関係ない）。${LEADER_IDS.filter((id) => id !== 'none')
+      .map((id) => `${LEADERS[id].icon}${LEADERS[id].name}：${LEADERS[id].description}`)
+      .join('／')}`,
+  },
+  field: {
+    name: 'フィールド',
+    icon: '🗺',
+    tone: 'info',
+    short: `両者に効く場の効果（場に1つ）。対戦のオプション「次元」で開始時にランダムに決まり（「移り変わる」なら通算${BALANCE.fields.planarEvery}ターンごとに別のものへ）、効果「フィールド」で置き換えられる。${FIELD_IDS.map((id) => `${FIELDS[id].icon}${FIELDS[id].name}：${FIELDS[id].description}`).join('／')}`,
+  },
+  dayNight: {
+    name: '昼と夜',
+    icon: '☀',
+    tone: 'info',
+    short: `両者共通の昼／夜。昼のターンに手番の人がカードを${BALANCE.dayNight.toNight === 0 ? '1枚も使わない' : `${BALANCE.dayNight.toNight}枚以下しか使わない`}と夜に、夜のターンに${BALANCE.dayNight.toDay}枚以上使うと昼になる（ターンの終わりに判定）。対戦のオプションなら昼で始まり、そうでなければ「昼なら／夜なら」のカードが初めて使われた・場に出たときに昼で始まる`,
+  },
+  draft: {
+    name: 'ドラフト戦',
+    icon: '🎴',
+    tone: 'info',
+    short: `カードの山から${BALANCE.draft.offer}枚ずつ見せられて1枚を選ぶのを${BALANCE.draft.rounds}回くり返し（1回で${BALANCE.draft.copies}枚ずつ入る）、${BALANCE.draft.rounds * BALANCE.draft.copies}枚のデッキを作って CPU と戦う（CPU 戦だけ）`,
+  },
+  manaCurve: { name: 'コスト分布', icon: '📊', tone: 'info', short: 'デッキのコストごとの枚数（モンスター／それ以外）と平均コスト。軽いカードが少ないと序盤に動けないターンが出やすい' },
 };
 
 /** 状態異常・キーワード・オプション・しくみ・タイミング（timing:…）・条件（condition:…）のどの ID でも引ける */
@@ -606,3 +634,19 @@ export function glossaryOf(id: string): GlossaryEntry | undefined {
     conditionGlossary[id]
   );
 }
+
+/** MTG の仕組みのうち、今の要素の組み合わせで作れるもの（MTG 要素 △ バッチD。ルールページの対応表）。template はエディターのテンプレートの ID */
+export const MTG_GUIDE: readonly { mtg: string; how: string; template?: string }[] = [
+  { mtg: '同族', how: 'カードの種族（スキル・アタックにも付けられる）と、条件「同じ種族の自分のモンスターがいる」・対象「同じ種族の自分のモンスター全体」' },
+  { mtg: '地図', how: '効果「探検」（山札の一番上を公開し、モンスターなら手札、違えば捨て札に置いて自分のモンスターを強くする）' },
+  { mtg: '装備（付け替え）', how: '効果「装備」（モンスターが場を離れると、装備したカードは手札に戻る）' },
+  { mtg: 'タイプ・サイクリング', how: '能力「魂力」（エナジー1）＋効果「サーチ」（探す種類）', template: 'typecycling' },
+  { mtg: '補強', how: '能力「魂力」＋効果「鍛錬」（選んだ自分のモンスター1体）', template: 'reinforce' },
+  { mtg: '融合・分割カード', how: 'モード選択（モード A・B）＋能力「双呪」', template: 'fuse' },
+  { mtg: '～との共闘', how: '効果「サーチ」「抽出」の「同じ種族」' },
+  { mtg: '降霊', how: '能力「フラッシュバック」＋タイミング「捨て札から使ったとき」' },
+  { mtg: '増分', how: 'タイミング「コスト3以上のカードを使うたび」＋効果「攻撃力アップ」（このモンスター）' },
+  { mtg: '闘魂を行う', how: 'テンプレート「製造」（鍛錬かトークン生成をモードで選ぶ）', template: 'fabricate' },
+  { mtg: '湧血', how: '能力「魂力」＋効果「一時強化」（選んだ自分のモンスター1体）', template: 'bloodrush' },
+  { mtg: '変成', how: '能力「魂力」＋効果「サーチ」（このカードと同じコスト）', template: 'transmute' },
+];

@@ -239,6 +239,9 @@ export const BALANCE = {
     achieved: 0.5,
     level2: 0.6,
     level3: 0.4,
+    /** MTG 要素 △ バッチD：昼なら・夜なら（昼と夜がまだ始まっていなければ偽） */
+    isDay: 0.6,
+    isNight: 0.6,
   },
   /** 「キッカーを払っていれば」の倍率（キッカーの追加エナジー1・2 の順。MTG 要素 ○ バッチC1） */
   conditionByKicker: [0.6, 0.45],
@@ -504,6 +507,8 @@ export const BALANCE = {
     swapHp: { flat: x(30), gainCapRate: 0.5 },
     heist: { flat: x(8), look: 3 },
     siege: { flat: x(1), minValue: x(2), maxValue: x(6) },
+    /** MTG 要素 △ バッチD：フィールド（両者に効く場の効果を置き換える。お互いに効くので安い） */
+    setField: { flat: x(6) },
   },
 
   /** モンスター専用キーワードのポイント（A は攻撃力）。挑発は #83（カードの効果の対象も挑発に限る）のあと #84 で 6→8 */
@@ -851,6 +856,38 @@ export const BALANCE = {
   speed: { start: 1, max: 4 },
   /** 王冠（MTG 要素 ○ バッチC2）：持っていると自分のターン開始時に extraDraw 枚多く引く */
   crown: { extraDraw: 1 },
+
+  /**
+   * MTG 要素 △ バッチD：リーダー（対戦の開始時に選ぶ小さな常時の効果。カードのポイントとは関係ない）。
+   * 騎士：最大HP・HP+hp／魔術師：最初の手札+firstHand 枚／召喚士：自分のモンスターが場に出るたび体力・最大体力+hp／
+   * 錬金術師：自分の everyTurns の倍数ターン目の開始時にエナジー+energy／賢者：自分の everyTurns の倍数ターン目に draw 枚多く引く。
+   * 錬金術師は仕様の案（3ターンごと）ではリーダーなしとのミラー戦で A の勝率 73.7%（他は 57〜68%）だったので 4ターンごと（68.3%）に（決定事項 #100）
+   */
+  leaders: {
+    knight: { hp: x(10) },
+    mage: { firstHand: 1 },
+    summoner: { hp: x(1) },
+    alchemist: { everyTurns: 4, energy: 1 },
+    scholar: { everyTurns: 2, draw: 1 },
+  },
+  /**
+   * MTG 要素 △ バッチD：フィールド（両者に効く場の効果）。火山：すべてのモンスターの攻撃力+attack／大図書館：ターン開始時に draw 枚多く引く／
+   * 聖域：ターン開始時に HP+heal／闘技場：モンスターは出たターンから攻撃できる／市場：各ターン最初に使うカードのコスト−discount／
+   * 霧：モンスターの攻撃で相手プレイヤーに与えるダメージ−rate（切り捨て）。次元（planar）は通算 planarEvery ターンごとに別のフィールドへ
+   */
+  fields: {
+    volcano: { attack: x(1) },
+    library: { draw: 1 },
+    sanctuary: { heal: x(2) },
+    arena: {},
+    market: { discount: 1 },
+    fog: { rate: 0.25 },
+    planarEvery: 6,
+  },
+  /** MTG 要素 △ バッチD：昼と夜。昼のターンに手番の人が使ったカードが toNight 枚以下なら夜に、夜のターンに toDay 枚以上なら昼に */
+  dayNight: { toNight: 0, toDay: 2 },
+  /** MTG 要素 △ バッチD：ドラフト戦（CPU 戦。UI だけ）。rounds 回、offer 枚から1枚を選び、1回で copies 枚ずつ入る */
+  draft: { rounds: 15, offer: 3, copies: 2 },
 } as const;
 
 export type Balance = typeof BALANCE;

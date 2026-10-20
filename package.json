@@ -20,7 +20,8 @@
     "sim": "node scripts/sim/run-all.mts",
     "presim:presets": "npm run gen",
     "sim:presets": "node scripts/sim/presets.mts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sim:options": "node scripts/sim/options.mts"
   },
   "dependencies": {
     "@supabase/realtime-js": "2.117.2",

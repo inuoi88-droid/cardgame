@@ -4,8 +4,8 @@ import { analyzeCard } from '../src/engine/index.ts';
 import { TEMPLATES } from '../src/ui/editor/templates.ts';
 
 describe('テンプレート', () => {
-  it('8種類ある（○ バッチC2 で製造・暴動）', () => {
-    expect(TEMPLATES.length).toBe(8);
+  it('13種類ある（○ バッチC2 で製造・暴動、△ バッチD で補強・湧血・種類サイクリング・変成・融合）', () => {
+    expect(TEMPLATES.length).toBe(13);
   });
   for (const t of TEMPLATES) {
     it(`${t.title}（${t.id}）は作成できる`, () => {

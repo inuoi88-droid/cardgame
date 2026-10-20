@@ -1,6 +1,7 @@
 /** 対戦の小道具：参照・名前・ログ・決着 */
 import { BALANCE } from '../balance.ts';
 import { getKeyword } from '../registry.ts';
+import { fieldAttackBonus } from './rules.ts';
 import type { CardDef, KeywordInstance } from '../types.ts';
 import {
   NOISE_CARD_ID,
@@ -120,9 +121,9 @@ export function auraAttack(g: GameState, m: Monster): number {
   return n;
 }
 
-/** 実効攻撃力（攻撃力＋このターンだけの上乗せ＋激励＋容疑。容疑は MTG 要素 △ バッチA） */
+/** 実効攻撃力（攻撃力＋このターンだけの上乗せ＋激励＋容疑＋フィールド。容疑は MTG 要素 △ バッチA、フィールド「火山」は △ バッチD） */
 export const effectiveAttack = (g: GameState, m: Monster): number =>
-  m.attack + (m.tempAttack ?? 0) + auraAttack(g, m) + (m.suspected ? BALANCE.effects.suspect.attack : 0);
+  m.attack + (m.tempAttack ?? 0) + auraAttack(g, m) + (m.suspected ? BALANCE.effects.suspect.attack : 0) + (m.siege ? 0 : fieldAttackBonus(g));
 
 /**
  * 休眠（MTG 要素 △ バッチA）：起点 from（置いたときの持ち主の turnsTaken）からの、持ち主の turnsTaken の差が奇数なら休眠中

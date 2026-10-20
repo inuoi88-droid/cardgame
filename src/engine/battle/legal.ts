@@ -286,12 +286,23 @@ export function effectWarnings(
   const add = (s: string) => {
     if (!out.includes(s)) out.push(s);
   };
+  // 昼と夜（MTG 要素 △ バッチD）：「昼なら」と「夜なら」の両方を持つカード（日暮／夜明の両面）は、どちらかは必ず発動しないので注意しない。
+  // まだ始まっていなければ、使ったときに昼で始まる
+  const twoFaced = effects.some((e) => e.condition === 'isDay') && effects.some((e) => e.condition === 'isNight');
+  const dayNow = (g.dayNight ?? 'day') === 'day';
   for (const e of effects) {
     const ed = getEffect(e.id);
     if (!ed) continue;
     // 濫用は使ってから選ぶので、生け贄にできるモンスターがいれば満たせる。キッカーは払うかどうかを使うときに選ぶ
     if (e.condition === 'kicked') continue;
-    const unmet = e.condition === 'exploit' ? myMonsters === 0 : e.condition !== null && !checkCondition(g, p, e.condition, cardId ? { cardId } : {});
+    const dayNight = e.condition === 'isDay' || e.condition === 'isNight';
+    if (dayNight && twoFaced) continue;
+    const unmet =
+      e.condition === 'exploit'
+        ? myMonsters === 0
+        : dayNight
+          ? (e.condition === 'isDay') !== dayNow
+          : e.condition !== null && !checkCondition(g, p, e.condition, cardId ? { cardId } : {});
     if (e.condition && unmet) add(`条件を満たしていません：${CONDITIONS[e.condition].label}`);
     const rule = ed.targetRule;
     const monsterOnly = isMonsterOnlyRule(rule);

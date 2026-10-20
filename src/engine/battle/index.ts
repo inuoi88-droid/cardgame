@@ -66,3 +66,5 @@ export { lifespanOf } from './play.ts';
 export { tokenCount } from './zones.ts';
 export { nextFullMulliganSize } from './mulligan.ts';
 export { other, cardName, findMonster, targetLabel, effectiveAttack, dormantNow, monsterDormant } from './core.ts';
+export { ruleHooks, fogDamage, fieldAttackBonus, type RuleHooks } from './rules.ts';
+export { nextPlanarTurn, usesDayNight } from './matchRules.ts';

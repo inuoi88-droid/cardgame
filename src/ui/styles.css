@@ -32,6 +32,9 @@
   --info: #6f8dff;
 
   /* 自分と相手（対戦画面の左罫線・枠・演出に使う） */
+  /* コスト分布のグラフ（2系列。暗い面で色覚の違いでも見分けられる組：validate_palette で確認） */
+  --curve-monster: #3d86d9;
+  --curve-other: #b58a1f;
   --mine: #5aa9ff;
   --mine-bg: rgba(90, 169, 255, 0.14);
   --enemy: #ff6e5e;
@@ -2130,5 +2133,117 @@ body:has(.savebar) .toasts {
   }
   .rules__summary {
     padding: 10px 12px;
+  }
+}
+
+/* ------------------------------------------------------------ コスト分布（MTG 要素 △ バッチD） */
+.curve {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  max-width: 420px;
+}
+.curve__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.curve__head b {
+  color: var(--text);
+}
+.curve__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.curve__swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-left: 6px;
+}
+.curve__swatch--monster,
+.curve__bar--monster {
+  background: var(--curve-monster);
+  fill: var(--curve-monster);
+}
+.curve__swatch--other,
+.curve__bar--other {
+  background: var(--curve-other);
+  fill: var(--curve-other);
+}
+.curve__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.curve--compact .curve__svg {
+  max-height: 90px;
+}
+.curve__axis {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+.curve__num,
+.curve__cost {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.curve__num {
+  fill: var(--text);
+}
+.curve__advice {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--warn);
+}
+
+/* ルールページの対応表（MTG 要素 △ バッチD） */
+.rules__table-wrap {
+  overflow-x: auto;
+}
+.rules__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.rules__table th,
+.rules__table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.rules__table th[scope='row'] {
+  white-space: nowrap;
+  color: var(--text);
+}
+.rules__table thead th {
+  color: var(--muted);
+  font-weight: 600;
+}
+.rules__tpl {
+  display: block;
+  margin-top: 2px;
+  color: var(--warn);
+  font-size: var(--fs-xs);
+}
+@media (max-width: 480px) {
+  .rules__table thead {
+    display: none;
+  }
+  .rules__table tr,
+  .rules__table th,
+  .rules__table td {
+    display: block;
+  }
+  .rules__table th[scope='row'] {
+    padding-bottom: 0;
+    border-bottom: 0;
+    white-space: normal;
   }
 }

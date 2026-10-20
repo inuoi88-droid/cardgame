@@ -11,6 +11,9 @@ import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts
 import { altWinDispelOptions, altWinGoalOf, chargePowers } from './powers.ts';
 import type { CardDef, TimingId } from '../types.ts';
 import { putWaiting } from './waiting.ts';
+import { ruleHooks } from './rules.ts';
+import { startDayNightFor } from './matchRules.ts';
+import { LEADERS } from '../leaders.ts';
 import {
   ARMY_CARD_ID,
   EGG_CARD_ID,
@@ -244,6 +247,15 @@ export function summon(
  * 「自分のモンスターが出るたび」を積む（「出たモンスター」はそのモンスター）
  */
 export function onMonsterEntered(g: GameState, m: Monster, depth: number): void {
+  // リーダー「召喚士」（MTG 要素 △ バッチD）：自分のモンスターが出るたび、体力・最大体力+N（トークンも）
+  const summonHp = ruleHooks(g, m.controller).summonHp;
+  if (summonHp > 0) {
+    m.hp += summonHp;
+    m.maxHp += summonHp;
+    log(g, depth, `${LEADERS.summoner.icon}${LEADERS.summoner.name}：${monsterLabel(g, m)}の体力+${summonHp}`, 'info', undefined, { kind: 'status', target: { kind: 'monster', uid: m.uid }, status: 'summoner', amount: summonHp });
+  }
+  // 昼と夜（MTG 要素 △ バッチD）：「昼なら／夜なら」のモンスターが出たら始まる（蘇生・複写トークンも。裏向きは始めない）
+  if (!m.faceDown) startDayNightFor(g, g.cards[m.card.cardId], depth);
   if (g.phase === 'main' && m.controller === g.active) {
     const turn = g.players[g.active].turn;
     turn.summoned = (turn.summoned ?? 0) + 1;

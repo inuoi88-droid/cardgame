@@ -2,7 +2,7 @@
  * イベント再生の材料：ログの新しい行（構造化イベント ev つき）を、画面の演出1件ずつに変換する純粋関数。
  * 盤面そのものは最新の状態をそのまま表示し、ここで作った演出（バナー・浮かぶ数字・出現・消滅）を順に重ねる。
  */
-import { battle } from '../../engine/index.ts';
+import { battle, FIELDS, isFieldId, LEADERS } from '../../engine/index.ts';
 
 type GameState = battle.GameState;
 type LogEntry = battle.LogEntry;
@@ -100,8 +100,10 @@ const STATUS_NAME: Record<string, string> = {
   devour: '🍖貪食',
   enlist: '📯後援',
   tapped: '💤休み',
+  // MTG 要素 △ バッチD：リーダー「召喚士」で体力が増えた
+  summoner: `${LEADERS.summoner.icon}体力+`,
 };
-const GOOD_STATUS = new Set(['counter', 'nullify', 'regen', 'strength', 'focus', 'divineShield', 'boon', 'exp', 'indestructible', 'protection', 'devour', 'enlist']);
+const GOOD_STATUS = new Set(['counter', 'nullify', 'regen', 'strength', 'focus', 'divineShield', 'boon', 'exp', 'indestructible', 'protection', 'devour', 'enlist', 'summoner']);
 
 function damageTone(kind: battle.DamageKind | undefined): FxTone {
   switch (kind) {
@@ -240,6 +242,17 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
         if (ev.player === undefined || !ev.uid) break;
         if (battle.findMonster(view, ev.uid)) push(e.text, ev.player, { t: 'float', key: ev.uid, text: '🦋進化', tone: 'good', flash: 'status' }, DURATION.float);
         else push(e.text, ev.player, { t: 'notice', text: '🔍 事件を解明した', tone: ev.player === me ? 'mine' : 'enemy', ...(hasPower(view, ev.uid) ? { key: ev.uid } : {}) }, DURATION.notice);
+        break;
+      }
+      // MTG 要素 △ バッチD：フィールドが変わった・昼と夜が変わった（見出しの札を光らせる）
+      case 'field': {
+        const f = isFieldId(ev.status) ? FIELDS[ev.status] : undefined;
+        if (!f) break;
+        push(e.text, ev.player ?? null, { t: 'notice', text: `${f.icon} フィールド：${f.name}`, tone: ev.player === undefined ? 'neutral' : ev.player === me ? 'mine' : 'enemy', key: 'field' }, DURATION.notice);
+        break;
+      }
+      case 'dayNight': {
+        push(e.text, null, { t: 'notice', text: ev.status === 'night' ? '🌙 夜になった' : '☀ 昼になった', tone: 'neutral', key: 'dayNight' }, DURATION.notice);
         break;
       }
       case 'altWin': {

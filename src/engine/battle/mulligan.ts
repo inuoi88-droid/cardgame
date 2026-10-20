@@ -4,14 +4,15 @@ import { isEnded, log } from './core.ts';
 import { shuffle } from './rng.ts';
 import { startTurn } from './turn.ts';
 import { drawCards } from './zones.ts';
+import { ruleHooks } from './rules.ts';
 import type { GameState, MulliganMode, PlayerId } from './types.ts';
 
 const B = BALANCE.battle;
 
-/** 次に全部引き直したときの枚数 */
+/** 次に全部引き直したときの枚数（魔術師のリーダーは最初の手札の上乗せも配り直す：MTG 要素 △ バッチD） */
 export function nextFullMulliganSize(g: GameState, p: PlayerId): number {
   const n = g.players[p].mulligan.fullCount;
-  return B.drawPerTurn - Math.max(0, n);
+  return B.drawPerTurn + ruleHooks(g, p).firstHand - Math.max(0, n);
 }
 
 export function validateMulligan(g: GameState, p: PlayerId, mode: MulliganMode, cardUids: string[] | undefined): string | null {

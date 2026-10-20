@@ -7,6 +7,7 @@ import { DeckBuilderPage } from './pages/DeckBuilderPage.tsx';
 import { DeckListPage } from './pages/DeckListPage.tsx';
 import { BattlePage } from './pages/BattlePage.tsx';
 import { BattleSetupPage } from './pages/BattleSetupPage.tsx';
+import { DraftPage } from './pages/DraftPage.tsx';
 import { OnlineBattlePage } from './pages/OnlineBattlePage.tsx';
 import { OnlineLobbyPage } from './pages/OnlineLobbyPage.tsx';
 import { RulesPage } from './pages/RulesPage.tsx';
@@ -33,7 +34,7 @@ export function App() {
   const section: Section =
     route.page === 'decks' || route.page === 'deckEdit'
       ? 'decks'
-      : route.page === 'battle' || route.page === 'battleSetup'
+      : route.page === 'battle' || route.page === 'battleSetup' || route.page === 'draft'
         ? 'battle'
         : route.page === 'online' || route.page === 'onlineBattle'
           ? 'online'
@@ -86,6 +87,7 @@ export function App() {
             {route.page === 'deckEdit' && <DeckBuilderPage id={route.id} />}
             {route.page === 'battleSetup' && <BattleSetupPage />}
             {route.page === 'battle' && <BattlePage />}
+            {route.page === 'draft' && <DraftPage />}
             {route.page === 'online' && <OnlineLobbyPage code={route.code} />}
             {route.page === 'onlineBattle' && <OnlineBattlePage />}
             {route.page === 'rules' && <RulesPage />}

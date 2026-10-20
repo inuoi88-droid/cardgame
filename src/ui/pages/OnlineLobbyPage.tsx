@@ -1,6 +1,8 @@
 /** オンライン対戦のロビー：名前とデッキを選び、部屋を作る／コードで入る */
 import { useState } from 'react';
-import { BALANCE } from '../../engine/index.ts';
+import { BALANCE, type LeaderId, type PlanarMode } from '../../engine/index.ts';
+import { LeaderField, RulesFields } from '../battle/MatchOptionsForm.tsx';
+import { toRules } from '../battle/matchOptions.ts';
 import { CODE_LENGTH, NAME_MAX_LENGTH, normalizeCode } from '../../online/codes.ts';
 import { DeckPicker } from '../battle/DeckPicker.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
@@ -17,6 +19,10 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
   const [code, setCode] = useState(initialCode ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // MTG 要素 △ バッチD：リーダー（作る・入る）と、部屋を作るときの次元・昼と夜
+  const [leader, setLeader] = useState<LeaderId>('none');
+  const [field, setField] = useState<PlanarMode>('off');
+  const [dayNight, setDayNight] = useState(false);
   const selected = pickChoice(choices, deckKey);
 
   const enter = async (mode: 'create' | 'join') => {
@@ -39,8 +45,9 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
     setBusy(true);
     setError(null);
     saveOnlineName(name);
-    const player = { name, deck: selected.deck, cards: selected.cards };
-    const res = await callServer(mode === 'create' ? { op: 'create', ...player } : { op: 'join', code: joinCode!, ...player });
+    const player = { name, deck: selected.deck, cards: selected.cards, ...(leader !== 'none' ? { leader } : {}) };
+    const rules = toRules(field, dayNight);
+    const res = await callServer(mode === 'create' ? { op: 'create', ...player, ...(rules ? { rules } : {}) } : { op: 'join', code: joinCode!, ...player });
     setBusy(false);
     if (!res.ok || !res.token) {
       setError(res.ok ? 'サーバーから合言葉が届きませんでした' : res.error);
@@ -92,10 +99,15 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
         <h2>使うデッキ</h2>
         <DeckPicker choices={choices} selected={selected} onSelect={setDeckKey} />
       </section>
+      <section className="panel">
+        <h2>リーダー</h2>
+        <LeaderField label="あなたのリーダー" title="あなたのリーダー" value={leader} onChange={(v) => setLeader(v === 'random' ? 'none' : v)} id="online-leader" />
+      </section>
       <section className="panel online-entry">
         <div>
           <h2>部屋を作る</h2>
-          <p className="hint">{CODE_LENGTH}文字の部屋コードが出ます。相手に伝えてください。</p>
+          <p className="hint">{CODE_LENGTH}文字の部屋コードが出ます。相手に伝えてください。対戦のルールは部屋を作る人が決めます。</p>
+          <RulesFields field={field} dayNight={dayNight} onField={setField} onDayNight={setDayNight} name="online" />
           <button type="button" className="btn btn--primary btn--big" disabled={!selected?.valid || busy} onClick={() => void enter('create')}>
             部屋を作る
           </button>

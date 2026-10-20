@@ -18,12 +18,18 @@ import {
   type TargetRef,
 } from '../engine/battle/types.ts';
 import type { CardDef, Deck } from '../engine/types.ts';
+import { normalizeRules, type MatchRules } from '../engine/fields.ts';
+import { toLeaderId, type LeaderId } from '../engine/leaders.ts';
 import { normalizeCode } from './codes.ts';
 import { BALANCE } from '../engine/balance.ts';
 
+/**
+ * create・join の leader（MTG 要素 △ バッチD）はリーダーの ID（知らない値は none）。create の rules は対戦のルールのオプション
+ * （次元・昼と夜。知らない値は無し扱い）
+ */
 export type OnlineRequest =
-  | { op: 'create'; name: string; deck: Deck; cards: CardDef[] }
-  | { op: 'join'; code: string; name: string; deck: Deck; cards: CardDef[] }
+  | { op: 'create'; name: string; deck: Deck; cards: CardDef[]; leader?: LeaderId; rules?: MatchRules }
+  | { op: 'join'; code: string; name: string; deck: Deck; cards: CardDef[]; leader?: LeaderId }
   /** 最新の状態を取る。数秒おきに送り、接続中の目印にもする */
   | { op: 'state'; code: string; token: string }
   | { op: 'action'; code: string; token: string; version: number; action: Action };
@@ -46,6 +52,10 @@ export interface RoomView {
   opponentConnected: boolean;
   /** 続けて時間切れになった回数 */
   timeouts: [number, number];
+  /** 対戦のルールのオプション（MTG 要素 △ バッチD。無ければどれも無し） */
+  rules?: MatchRules;
+  /** 両者のリーダー（MTG 要素 △ バッチD。まだ入っていない席は null） */
+  leaders?: [LeaderId, LeaderId | null];
 }
 
 export type ErrorReason = 'version' | 'notFound' | 'auth' | 'invalid';
@@ -62,8 +72,8 @@ const MAX_ID_CHARS = 100;
 
 /** サーバーが受け取った形（デッキとカードは room.ts の checkDeck で調べる） */
 export type ParsedRequest =
-  | { op: 'create'; name: unknown; deck: unknown; cards: unknown }
-  | { op: 'join'; code: string; name: unknown; deck: unknown; cards: unknown }
+  | { op: 'create'; name: unknown; deck: unknown; cards: unknown; leader: LeaderId; rules?: MatchRules }
+  | { op: 'join'; code: string; name: unknown; deck: unknown; cards: unknown; leader: LeaderId }
   | { op: 'state'; code: string; token: string }
   | { op: 'action'; code: string; token: string; version: number; action: Action };
 
@@ -218,10 +228,15 @@ export function parseAction(x: unknown): Action | null {
 export function parseRequest(x: unknown): Parsed<ParsedRequest> {
   const bad = (error: string): Parsed<ParsedRequest> => ({ ok: false, error });
   if (!isObj(x)) return bad('送信の形式が正しくありません');
-  if (x.op === 'create') return { ok: true, value: { op: 'create', name: x.name, deck: x.deck, cards: x.cards } };
+  // MTG 要素 △ バッチD：リーダー（知らない値は none）とルール（知らない値は無し扱い）は作り直す
+  const leader = toLeaderId(x.leader);
+  if (x.op === 'create') {
+    const rules = normalizeRules(x.rules);
+    return { ok: true, value: { op: 'create', name: x.name, deck: x.deck, cards: x.cards, leader, ...(rules ? { rules } : {}) } };
+  }
   const code = normalizeCode(x.code);
   if (!code) return bad('部屋コードが正しくありません');
-  if (x.op === 'join') return { ok: true, value: { op: 'join', code, name: x.name, deck: x.deck, cards: x.cards } };
+  if (x.op === 'join') return { ok: true, value: { op: 'join', code, name: x.name, deck: x.deck, cards: x.cards, leader } };
   if (!isToken(x.token)) return bad('合言葉が正しくありません');
   if (x.op === 'state') return { ok: true, value: { op: 'state', code, token: x.token } };
   if (x.op === 'action') {

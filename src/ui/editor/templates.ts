@@ -162,4 +162,100 @@ export const TEMPLATES: readonly CardTemplate[] = [
         tribe: 'beast',
       }),
   },
+  // MTG 要素 △ バッチD：既存の要素の組み合わせで作れる MTG の仕組み（補強・湧血・種類サイクリング・変成・融合）
+  {
+    id: 'reinforce',
+    title: '補強（手札から鍛える）',
+    description: '出してもよし、手札から魂力で捨てて自分のモンスターを鍛えてもよし（MTG の補強）',
+    build: (id) =>
+      make(id, {
+        name: '援軍の旗手',
+        icon: '🚩',
+        rarity: 'common',
+        cost: 2,
+        stats: { attack: 2, hp: 2, defense: 0 },
+        keywords: [],
+        effects: [{ id: 'train', value: 1, timing: 'channel', target: 'chosen', condition: null }],
+        drawbacks: [],
+        abilities: [{ id: 'channel', value: 1 }],
+      }),
+  },
+  {
+    id: 'bloodrush',
+    title: '湧血（手札から一時強化）',
+    description: '出してもよし、手札から魂力で捨てて味方1体をこのターンだけ強くしてもよし（MTG の湧血）',
+    build: (id) =>
+      make(id, {
+        name: '血気の狂戦士',
+        icon: '🪓',
+        rarity: 'common',
+        cost: 2,
+        stats: { attack: 3, hp: 1, defense: 0 },
+        keywords: [],
+        effects: [{ id: 'pump', value: 2, timing: 'channel', target: 'chosen', condition: null }],
+        drawbacks: [],
+        abilities: [{ id: 'channel', value: 1 }],
+      }),
+  },
+  {
+    id: 'typecycling',
+    title: '種類サイクリング（手札からサーチ）',
+    description: '重いカードを、手札から魂力で捨てて山札のモンスターに替えられる（MTG のタイプ・サイクリング）',
+    build: (id) =>
+      make(id, {
+        name: '大地の目覚め',
+        icon: '🌋',
+        rarity: 'common',
+        cost: 3,
+        stats: null,
+        keywords: [],
+        effects: [
+          { id: 'damage', value: 6, timing: 'play', target: 'chosen', condition: null },
+          { id: 'search', option: 'monster', timing: 'channel', target: 'self', condition: null },
+        ],
+        drawbacks: [],
+        abilities: [{ id: 'channel', value: 1 }],
+      }),
+  },
+  {
+    id: 'transmute',
+    title: '変成（同じコストを探す）',
+    description: '手札から魂力で捨てて、山札から同じコストのカードを探す（MTG の変成）',
+    build: (id) =>
+      make(id, {
+        name: '錬成の書',
+        icon: '📗',
+        rarity: 'common',
+        cost: 2,
+        stats: null,
+        keywords: [],
+        effects: [
+          { id: 'draw', value: 1, timing: 'play', target: 'self', condition: null },
+          { id: 'shield', value: 4, timing: 'play', target: 'self', condition: null },
+          { id: 'search', option: 'sameCost', timing: 'channel', target: 'self', condition: null },
+        ],
+        drawbacks: [],
+        abilities: [{ id: 'channel', value: 1 }],
+      }),
+  },
+  {
+    id: 'fuse',
+    title: '融合（2つのモード）',
+    description: 'モード A か B を選んで使う。エナジーを足せば両方（双呪。MTG の融合・分割カード）',
+    build: (id) =>
+      make(id, {
+        name: '火と氷',
+        icon: '☯️',
+        rarity: 'common',
+        cost: 2,
+        stats: null,
+        keywords: [],
+        effects: [
+          { id: 'damage', value: 3, timing: 'play', target: 'chosen', condition: null, mode: 1 },
+          { id: 'shield', value: 4, timing: 'play', target: 'self', condition: null, mode: 2 },
+        ],
+        drawbacks: [],
+        abilities: [{ id: 'entwine', value: 1 }],
+      }),
+  },
 ];

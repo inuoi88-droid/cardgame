@@ -1,6 +1,7 @@
 /** オンライン対戦：相手待ち → 対戦（残り時間・相手の接続状態を表示） */
 import { useEffect, useState } from 'react';
-import { BALANCE, battle } from '../../engine/index.ts';
+import { BALANCE, LEADERS, battle } from '../../engine/index.ts';
+import { rulesSummary } from '../battle/matchOptions.ts';
 import type { RoomView } from '../../online/protocol.ts';
 import { BattleBoard } from '../battle/BattleBoard.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
@@ -48,7 +49,7 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
   if (!room) {
     return <div className="panel">{r.online ? '部屋に接続しています…' : 'サーバーにつながりません。通信環境を確かめてください（自動でつなぎ直します）'}</div>;
   }
-  if (room.status === 'waiting' || !room.view) return <WaitingRoom code={room.code} online={r.online} />;
+  if (room.status === 'waiting' || !room.view) return <WaitingRoom code={room.code} online={r.online} room={room} />;
 
   const opp = battle.other(room.seat);
   const oppName = room.names[opp] ?? '相手';
@@ -70,7 +71,8 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
   );
 }
 
-function WaitingRoom({ code, online }: { code: string; online: boolean }) {
+function WaitingRoom({ code, online, room }: { code: string; online: boolean; room: RoomView }) {
+  const leader = room.leaders?.[0] ?? 'none';
   const confirm = useConfirm();
   const [copied, setCopied] = useState(false);
   const copy = () => {
@@ -86,6 +88,10 @@ function WaitingRoom({ code, online }: { code: string; online: boolean }) {
       <div className="online-wait__code" aria-label="部屋コード">
         {code}
       </div>
+      <p className="hint">
+        このルールで対戦：{rulesSummary(room.rules)}
+        {leader !== 'none' && `・あなたのリーダー ${LEADERS[leader].icon}${LEADERS[leader].name}`}
+      </p>
       <div className="btn-row">
         <button type="button" className="btn" onClick={copy}>
           {copied ? 'コピーしました' : 'コードをコピー'}

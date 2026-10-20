@@ -1,6 +1,6 @@
 /** 対戦の準備：自分のデッキと CPU のデッキを選んで開始。選んだデッキの中身（種類・コストの内訳とカード）を見せ、前回の選択を覚える */
 import { useMemo, useState } from 'react';
-import { ai, type CardDef } from '../../engine/index.ts';
+import { ai, LEADERS, type CardDef, type PlanarMode } from '../../engine/index.ts';
 import { PRESET_DECKS } from '../../presets.ts';
 import { CardView } from '../components/CardView.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
@@ -9,6 +9,9 @@ import { DeckPicker } from '../battle/DeckPicker.tsx';
 import { pickChoice, useDeckChoices } from '../battle/deckChoices.ts';
 import { clearSession, loadSession, loadSetupPrefs, saveSetupPrefs, sessionLevel, startSession } from '../battle/session.ts';
 import { breakdownDeck } from '../battle/summary.ts';
+import { LeaderField, RulesFields } from '../battle/MatchOptionsForm.tsx';
+import { rulesSummary, toRules, type LeaderChoice } from '../battle/matchOptions.ts';
+import { CostCurve } from '../components/CostCurve.tsx';
 import '../battle/battle.css';
 import { navigate } from '../router.ts';
 import { cx } from '../util.ts';
@@ -27,6 +30,7 @@ function DeckContents({ deck, cards, onCard }: { deck: Deck; cards: CardDef[]; o
   return (
     <div className="setup__deck">
       <h3>デッキの中身（{b.total}枚）</h3>
+      <CostCurve deck={deck} cards={cards} compact />
       <div className="setup__counts">
         {b.byType.map((t) => (
           <span key={t.label} className="badge">
@@ -60,6 +64,11 @@ export function BattleSetupPage() {
   const [mine, setMine] = useState<string>(prefs?.mine ?? '');
   const [cpu, setCpu] = useState<string>(prefs && (prefs.cpu === 'random' || PRESET_DECKS.some((p) => p.id === prefs.cpu)) ? prefs.cpu : 'random');
   const [level, setLevel] = useState<ai.CpuLevel>(prefs?.level ?? 'normal');
+  // MTG 要素 △ バッチD：リーダー・次元・昼と夜
+  const [myLeader, setMyLeader] = useState<LeaderChoice>(prefs?.myLeader ?? 'none');
+  const [cpuLeader, setCpuLeader] = useState<LeaderChoice>(prefs?.cpuLeader ?? 'none');
+  const [field, setField] = useState<PlanarMode>(prefs?.field ?? 'off');
+  const [dayNight, setDayNight] = useState<boolean>(prefs?.dayNight ?? false);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState<CardDef | null>(null);
 
@@ -79,8 +88,12 @@ export function BattleSetupPage() {
       if (!ok) return;
     }
     const preset = cpu === 'random' ? PRESET_DECKS[Math.floor(Math.random() * PRESET_DECKS.length)]! : PRESET_DECKS.find((p) => p.id === cpu)!;
-    saveSetupPrefs({ mine: selected.key, cpu, level });
+    saveSetupPrefs({ mine: selected.key, cpu, level, myLeader, cpuLeader, field, dayNight });
+    const rules = toRules(field, dayNight);
     const r = startSession({
+      myLeader,
+      cpuLeader,
+      ...(rules ? { rules } : {}),
       myDeck: selected.deck,
       myCards: selected.cards,
       myDeckName: selected.name,
@@ -110,11 +123,14 @@ export function BattleSetupPage() {
     <>
       <div className="page-head">
         <h1>CPU と対戦</h1>
+        <button type="button" className="btn" onClick={() => navigate('/battle/draft')}>
+          🎴 ドラフト戦
+        </button>
       </div>
       {ongoing && (
         <div className="notice setup__row">
           <span>
-            対戦の途中です（{ongoing.setup.myDeckName} 対 {ongoing.setup.cpuDeckName}・強さ {ai.CPU_LEVEL_LABEL[sessionLevel(ongoing)]}・あなたの
+            対戦の途中です（{ongoing.setup.myDeckName} 対 {ongoing.setup.cpuDeckName}・強さ {ai.CPU_LEVEL_LABEL[sessionLevel(ongoing)]}・{rulesSummary(ongoing.state.rules)}・あなたの
             {ongoing.state.players[0].turnsTaken}ターン目）
           </span>
           <button type="button" className="btn btn--primary" onClick={() => navigate('/battle/play')}>
@@ -173,6 +189,15 @@ export function BattleSetupPage() {
             </label>
           ))}
         </div>
+      </section>
+      <section className="panel">
+        <h2>リーダーと対戦のルール</h2>
+        <p className="hint">どれも選ばなくても遊べます。リーダーの{LEADERS.knight.icon}騎士などは対戦のあいだずっと効く小さな効果です。</p>
+        <div className="setup__leaders">
+          <LeaderField label="あなたのリーダー" title="あなたのリーダー" value={myLeader} onChange={setMyLeader} id="setup-my-leader" />
+          <LeaderField label="CPU のリーダー" title="CPU のリーダー" value={cpuLeader} onChange={setCpuLeader} allowRandom id="setup-cpu-leader" />
+        </div>
+        <RulesFields field={field} dayNight={dayNight} onField={setField} onDayNight={setDayNight} name="setup" />
       </section>
       {error && <div className="notice notice--ng">{error}</div>}
       <div className="btn-row">

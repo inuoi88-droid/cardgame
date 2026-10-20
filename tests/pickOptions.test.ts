@@ -107,3 +107,19 @@ describe('種族（MTG 要素 ○ バッチC2）', () => {
     expect(opts.find((o) => o.id === 'charged')!.disabled).toContain('蓄積');
   });
 });
+
+describe('MTG 要素 △ バッチD の選択肢', () => {
+  it('効果「フィールド」の追加指定は6つのフィールドが説明つきで出る。条件「昼なら／夜なら」は見出し「昼と夜」で選べる', () => {
+    const card = spell();
+    const e = createEffect('setField', 'spell');
+    const opts = effectOptionOptions(e, card);
+    expect(opts).toHaveLength(6);
+    for (const o of opts) expect(o.description?.length ?? 0).toBeGreaterThan(0);
+    const conds = conditionOptions(createEffect('damage', 'spell'), card);
+    for (const id of ['isDay', 'isNight']) {
+      const o = conds.find((x) => x.id === id);
+      expect(o?.group).toBe('昼と夜');
+      expect(o?.disabled).toBeUndefined();
+    }
+  });
+});

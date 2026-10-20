@@ -22,6 +22,7 @@ import { chapterOf } from '../options.ts';
 import { getKeyword } from '../registry.ts';
 import type { CardDef } from '../types.ts';
 import { NOISE_CARD_ID, type GameState, type Monster, type PlayerId } from '../battle/types.ts';
+import { fieldAttackBonus, fogDamage, ruleHooks } from '../battle/rules.ts';
 
 /** HP などの量は倍率で大きくなるので、枚数・ターン・回数に付く重みにも同じ倍率を掛ける */
 const S = BALANCE.amountScale;
@@ -154,6 +155,11 @@ export const WEIGHTS = {
   loyalty: 0.8 * S,
   powerLevel: 1 * S,
   emblem: 4 * S,
+  // ---- MTG 要素 △ バッチD（フィールド：両者に効くので、どちらに得かの差だけを見る）
+  /** 闘技場：手札のモンスターカード1枚につき（出したターンに攻撃できる） */
+  fieldArena: 1 * S,
+  /** 霧：相手の次ターンの盤面の打点と自分の打点の差に掛ける割合（守る側が得をする） */
+  fieldFog: 0.3,
 } as const;
 
 const W = WEIGHTS;
@@ -233,7 +239,10 @@ export function nextEnergy(g: GameState, p: PlayerId): number {
   const ps = g.players[p];
   const penalty = p === g.first && ps.turnsTaken + 1 === 1 ? B.firstPlayerFirstTurnPenalty : 0;
   const carried = ps.next.energy > 0 ? Math.min(ps.next.energy, B.maxEnergyGainPerTurn) : ps.next.energy;
-  return Math.max(0, energyForTurn(ps.turnsTaken + 1) - penalty + carried + (ps.energyBonus ?? 0));
+  // リーダー「錬金術師」（MTG 要素 △ バッチD）：次のターンが倍数のターンなら+1
+  const A = BALANCE.leaders.alchemist;
+  const alchemy = ps.leader === 'alchemist' && (ps.turnsTaken + 1) % A.everyTurns === 0 ? A.energy : 0;
+  return Math.max(0, energyForTurn(ps.turnsTaken + 1) - penalty + carried + (ps.energyBonus ?? 0) + alchemy);
 }
 
 /** 消耗（MTG 要素 ○ バッチA）で、次の持ち主のターンに攻撃できないか */
@@ -256,8 +265,10 @@ export function nextTurnThreat(g: GameState, p: PlayerId): Threat {
     if (m.counters.dormantFrom !== undefined && (ps.turnsTaken + 1 - m.counters.dormantFrom) % 2 === 1) continue;
     const n = attacksPerTurn(g, m);
     // 激励・猛襲（相手プレイヤーへの攻撃）も見込む
-    let atk = m.attack + auraAttack(g, m) + playerBonus(g, m);
+    // フィールド「火山」・「霧」（MTG 要素 △ バッチD）も見込む
+    let atk = m.attack + auraAttack(g, m) + playerBonus(g, m) + fieldAttackBonus(g);
     if (m.status.weak > 0) atk = Math.floor(atk * (1 - B.weakRate));
+    atk = fogDamage(g, atk);
     if (m.status.confusePending) atk *= W.confusedFactor;
     board += atk * n;
     attacks += n;
@@ -362,7 +373,7 @@ function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   if (m.status.weak > 0) attackTurns -= Math.min(m.status.weak, attackTurns) * B.weakRate;
   // 防衛：攻撃しないので打点として数えない
   // 激励で上がっている分も打点（激励を持つモンスターの価値は、味方の攻撃力の上がり方に出る）
-  let attackVal = cannotAttack(g, m) ? 0 : (m.attack + auraAttack(g, m)) * n * W.monsterAttack * Math.max(0, attackTurns);
+  let attackVal = cannotAttack(g, m) ? 0 : (m.attack + auraAttack(g, m) + fieldAttackBonus(g)) * n * W.monsterAttack * Math.max(0, attackTurns);
   if (m.status.confusePending || m.status.confuseActive) attackVal *= W.confusedFactor;
   // 消耗：次の自分のターンは攻撃できないので、打点を半分に数える
   if (exertedNextTurn(g, m)) attackVal *= W.exertFactor;
@@ -476,6 +487,8 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
   v -= (ps.ice ?? 0) * W.iced;
   // 王冠は持っている間ずっと1枚多く引く（残りターンの見込みぶん）
   if (g.crown === p) v += W.crown * Math.max(1, ctx.turnsLeft);
+  // フィールド（MTG 要素 △ バッチD）：両者に効くので、どちらに得かが分かるものだけ
+  v += fieldValue(g, p, ctx, isMe);
   v += ps.next.energy * W.nextEnergy + ps.next.draw * W.nextDraw + ps.discount * W.discount;
   // 予約した効果（次のターンに）：効果のポイントを HP に換算して足す（そうしないと、予約するカードを使う意味がないと判断してしまう）。
   // 反復はカードの使用時の効果すべて
@@ -501,6 +514,20 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
   } else {
     v += cards * W.oppHandCard;
   }
+  return v;
+}
+
+/**
+ * フィールド（MTG 要素 △ バッチD）の、プレイヤー p にとっての価値（火山・大図書館・市場はどちらにも同じなので0。火山の攻撃力は monsterValue が見る）。
+ * 聖域は減っている HP まで、闘技場は手札のモンスターカード（見える自分の手札だけ）、霧は相手の盤面の打点が大きいほど得
+ */
+function fieldValue(g: GameState, p: PlayerId, ctx: RaceContext, isMe: boolean): number {
+  const h = ruleHooks(g, p);
+  const ps = g.players[p];
+  let v = 0;
+  if (h.startHeal > 0) v += Math.min(h.startHeal, ps.maxHp - ps.hp) * W.regen * Math.max(1, ctx.turnsLeft);
+  if (h.noSummoningSickness && isMe) v += ps.hand.filter((c) => g.cards[c.cardId]?.stats).length * W.fieldArena;
+  if (h.playerAttackCut > 0) v += (ctx.threat[other(p)].board - ctx.threat[p].board) * W.fieldFog;
   return v;
 }
 

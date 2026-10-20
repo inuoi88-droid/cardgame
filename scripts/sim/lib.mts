@@ -29,6 +29,9 @@ import {
   type Stats,
   type AbilityInstance,
   type TribeId,
+  type FieldId,
+  type LeaderId,
+  type MatchRules,
 } from '../../src/engine/index.ts';
 import { PRESET_DECKS } from '../../src/presets.ts';
 
@@ -393,6 +396,10 @@ export interface GameOpts {
   checkLethal?: boolean;
   /** 試合中だけ BALANCE.battle を書き換える */
   battle?: BattlePatch;
+  /** MTG 要素 △ バッチD：両席のリーダー・対戦のルール・最初から置くフィールド（次元のランダムより優先） */
+  leaders?: [LeaderId, LeaderId];
+  rules?: MatchRules;
+  field?: FieldId;
 }
 
 export interface GameResult {
@@ -421,12 +428,14 @@ export function playGame(a: DeckSpec, b: DeckSpec, seed: number, opts: GameOpts 
       seed,
       first: opts.first,
       players: [
-        { name: a.name, deck: a.deck, cards: a.cards },
-        { name: b.name, deck: b.deck, cards: b.cards },
+        { name: a.name, deck: a.deck, cards: a.cards, ...(opts.leaders ? { leader: opts.leaders[0] } : {}) },
+        { name: b.name, deck: b.deck, cards: b.cards, ...(opts.leaders ? { leader: opts.leaders[1] } : {}) },
       ],
+      ...(opts.rules ? { rules: opts.rules } : {}),
     });
     if (!r.ok) throw new Error(r.error);
     let g = r.state;
+    if (opts.field) g.field = { id: opts.field, by: null, since: 0 };
     const maxActions = opts.maxActions ?? 2000;
     const level = opts.level ?? 'normal';
     const cardsPlayed: [number, number] = [0, 0];

@@ -227,6 +227,11 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
       if (!s) return false;
       return s.level >= (condition === 'level2' ? 2 : BALANCE.battle.maxLevel);
     }
+    // ---- MTG 要素 △ バッチD：昼と夜（まだ始まっていなければどちらも偽）
+    case 'isDay':
+      return g.dayNight === 'day';
+    case 'isNight':
+      return g.dayNight === 'night';
   }
 }
 

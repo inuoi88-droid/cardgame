@@ -15,6 +15,8 @@ import { randInt } from './rng.ts';
 import { afterDiscarded, createToken, discardCard, placeFaceDown, summon } from './zones.ts';
 import { altWinOnCardPlayed, emblemFull, isEmblemCard } from './powers.ts';
 import { putWaiting, waitingEntry } from './waiting.ts';
+import { ruleHooks } from './rules.ts';
+import { startDayNightFor } from './matchRules.ts';
 import { cardModes, effectsForMode, entwineCost, firstMode, isVillain, modeMatches, resolveMode, spreeCost, tieredSurcharge, type ModeSel } from './modes.ts';
 import { chargePowers, startSaga } from './powers.ts';
 import { MODE_LABEL, type ModeId } from '../types.ts';
@@ -260,6 +262,13 @@ export function costBreakdown(g: GameState, p: PlayerId, card: CardInst, ctx: Co
   if (ps.discount > 0 && !planned) {
     const d = Math.min(base, ps.discount * BALANCE.battle.discountAmount);
     if (d > 0) steps.push({ label: '軽減', delta: -d });
+    base -= d;
+  }
+  // フィールド「市場」（MTG 要素 △ バッチD）：各ターン最初に使うカード（自分のターン）のコスト−N（0まで）。計画したカードは無料なので掛からない
+  const market = ruleHooks(g, p).firstCardDiscount;
+  if (market > 0 && !planned && g.active === p && ps.turn.cardsPlayed === 0) {
+    const d = Math.min(Math.max(0, base), market);
+    if (d > 0) steps.push({ label: '市場', delta: -d });
     base -= d;
   }
   base = Math.max(0, base);
@@ -930,6 +939,8 @@ function resolvePlay(
   const original = g.cards[card.cardId]!;
   const depth = opts.depth;
   const timing = playTiming(original, opts.from, opts.alt);
+  // 昼と夜（MTG 要素 △ バッチD）：まだ始まっていなければ「昼なら／夜なら」のカードを使ったときに昼で始まる（裏向きは正体を見せないので始めない）
+  if (opts.alt !== 'faceDown') startDayNightFor(g, original, depth);
   // 超過（MTG 要素 △ バッチB）：「選んだ1体」の効果を全体にした写しで解決する
   const def = opts.alt === 'overload' ? overloadedDef(original, timing) : original;
   const villain = isVillain(def) && cardModes(def, timing).length > 0;

@@ -1,5 +1,7 @@
 /** 対戦の状態・行動・ログの型。状態はすべて JSON にできる形にする（保存・サーバー配信・テストのため）。 */
 import type { CardDef, DrawbackInstance, EffectInstance, TimingId } from '../types.ts';
+import type { FieldId, MatchRules } from '../fields.ts';
+import type { LeaderId } from '../leaders.ts';
 
 export type PlayerId = 0 | 1;
 
@@ -312,6 +314,8 @@ export interface PlayerState {
   extraTurnPending?: boolean;
   /** HP交換を使った（1試合1回） */
   swapUsed?: boolean;
+  /** リーダー（MTG 要素 △ バッチD。対戦の開始時に選ぶ。無ければ none。公開情報） */
+  leader?: LeaderId;
   /** 次に使うカードのコスト軽減（使うまで残る） */
   discount: number;
   /** 自分のターンを迎えた回数 */
@@ -524,7 +528,10 @@ export interface LogEvent {
     | 'level'
     | 'loyalty'
     | 'achieve'
-    | 'altWin';
+    | 'altWin'
+    // MTG 要素 △ バッチD：フィールドが変わった（status はフィールドの ID。無くなったら 'none'）・昼と夜が変わった（status は day / night）
+    | 'field'
+    | 'dayNight';
   player?: PlayerId;
   target?: TargetRef;
   source?: TargetRef;
@@ -616,6 +623,16 @@ export interface GameState {
   qInsert: number;
   /** 王冠（MTG 要素 ○ バッチC2）を持っているプレイヤー。無ければ誰も持っていない。公開情報 */
   crown?: PlayerId | null;
+  // ---- MTG 要素 △ バッチD（どれも公開情報・省略可能）
+  /** 対戦のルールのオプション（次元・昼と夜）。無ければどれも無し */
+  rules?: MatchRules;
+  /**
+   * フィールド（両者に効く場の効果）。by は効果「フィールド」で置いた人（次元で決まったものは null）。
+   * since は置いた通算ターン（次元の切り替えは、最後に次元で決めたターンから数える）
+   */
+  field?: { id: FieldId; by: PlayerId | null; since: number };
+  /** 昼と夜。無ければまだ始まっていない */
+  dayNight?: 'day' | 'night';
   /** 1つの効果を処理している間は決着を保留する（同時にHP0なら引き分けにするため） */
   holdEnd: number;
   pending: PendingChoice | null;
@@ -795,6 +812,8 @@ export interface EffectRuntime {
   freePlayFromDeck(player: PlayerId, uid: string): void;
   /** 封殺を掛ける */
   addQuash(player: PlayerId, kind: string): void;
+  /** フィールドを置き換える（両者に効く。MTG 要素 △ バッチD） */
+  setField(id: FieldId): void;
   /** 恩恵 */
   addBoon(player: PlayerId, amount: number, uses: number): void;
   /** 最大エナジー増加。上限なら false */

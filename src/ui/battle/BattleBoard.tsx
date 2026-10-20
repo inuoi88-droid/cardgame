@@ -38,7 +38,7 @@ import { DragLayer } from './DragLayer.tsx';
 import { resolveDrop, resolveModeDrop, parseSpot, targetKey, type DragSource } from './dragLogic.ts';
 import { keyOf } from './events.ts';
 import { logNamesOf } from './logFormat.ts';
-import { grownDef, HandCard, LogPanel, LogText, MonsterTile, PlayerPanel, type ActivateButton } from './parts.tsx';
+import { grownDef, HandCard, MatchBand, LogPanel, LogText, MonsterTile, PlayerPanel, type ActivateButton } from './parts.tsx';
 import { useBattleDrag, type DropResult } from './useDrag.ts';
 import { useReplay } from './useReplay.ts';
 
@@ -1400,6 +1400,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           <b>{turnLabel}</b>
           {phaseLabel && <span className={cx('badge', view.pending?.player === me ? 'badge--mine' : 'badge--enemy')}>{phaseLabel}</span>}
         </div>
+        <MatchBand view={view} flash={replay.flash} />
         <div className="battle__status">{status}</div>
         <div className="battle__headbtns">
           <button type="button" className="btn btn--small btn--ghost battle__logbtn" onClick={() => setLogOpen(true)}>

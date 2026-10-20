@@ -72,15 +72,15 @@ CPU は `viewFor()` で見える情報だけで決める（`ai.cpuAction(view, �
 
 ### 先攻後攻ルールの候補（`FIRST_PLAYER_VARIANTS`）
 
-`balance.ts` の `firstPlayerFirstTurnPenalty`（先攻1ターン目のエナジー −1）、`secondPlayerFirstTurnBonusEnergy`、`secondPlayerFirstTurnExtraDraw`（後攻1ターン目の補正。既定 0）を実行時に書き換えて比べる。
+`balance.ts` の `firstPlayerFirstTurnPenalty`（先攻1ターン目のエナジー −1）、`secondPlayerFirstTurnBonusEnergy`、`secondPlayerFirstTurnExtraDraw`（後攻1ターン目の補正）を実行時に書き換えて比べる。今のルールは #73 からの「先攻1ターン目 −1 ＋後攻1ターン目 エナジー +1」（coin と同じ）。
 
 | キー | 中身 |
 |---|---|
-| current | 現行：先攻1ターン目 −1 |
-| coin | 現行 ＋ 後攻1ターン目 エナジー +1 |
-| card | 現行 ＋ 後攻1ターン目 ドロー +1 |
+| penaltyOnly | 先攻1ターン目 −1 だけ（#73 より前のルール） |
+| coin | 先攻1ターン目 −1 ＋ 後攻1ターン目 エナジー +1 |
+| card | 先攻1ターン目 −1 ＋ 後攻1ターン目 ドロー +1 |
 
-`presets.mts` がミラー戦（先攻を席0に固定）で先攻の勝率を出す。50% に近いほど公平。
+`presets.mts` がミラー戦（先攻を席0に固定）で先攻の勝率を出す。50% に近いほど公平。表の**先頭の列が今のルール**（`balance.ts` のまま、`firstPlayerColumns()`）で、続く列は今のルールと違う候補だけ（今のルールと同じ候補は回さない）。以前は penaltyOnly が `current`「現行」という名前のままで、#89 でその列を今のルールの数字と取り違えた（#90）。
 
 ## 目安（監査の合格基準）
 

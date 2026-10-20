@@ -262,13 +262,43 @@ export function patchBattle(patch: BattlePatch | undefined): () => void {
   };
 }
 
-/** 先攻後攻のルールの候補（presets.mts のミラー戦で比べる） */
+/**
+ * 先攻後攻のルールの候補（presets.mts のミラー戦で比べる）。どれも BALANCE.battle の3つのつまみを書き換える。
+ * 今のルールは firstPlayerColumns() の先頭の列（書き換えなし）で、ここに書かない。キーや名前に「現行」を入れない：
+ * #73 で後攻1ターン目エナジー+1 を採用したあとも「先攻1T目 −1 だけ」の候補が current「現行」のままで、
+ * #89 でその列を今のルールの先攻勝率と取り違えた（#90）
+ */
 export const FIRST_PLAYER_VARIANTS = {
-  current: { label: '現行（先攻1T目 −1）', battle: { firstPlayerFirstTurnPenalty: 1, secondPlayerFirstTurnBonusEnergy: 0, secondPlayerFirstTurnExtraDraw: 0 } },
-  coin: { label: '＋後攻1T目 エナジー+1', battle: { firstPlayerFirstTurnPenalty: 1, secondPlayerFirstTurnBonusEnergy: 1, secondPlayerFirstTurnExtraDraw: 0 } },
-  card: { label: '＋後攻1T目 ドロー+1', battle: { firstPlayerFirstTurnPenalty: 1, secondPlayerFirstTurnBonusEnergy: 0, secondPlayerFirstTurnExtraDraw: 1 } },
+  penaltyOnly: { label: '先攻1T目 −1 だけ', battle: { firstPlayerFirstTurnPenalty: 1, secondPlayerFirstTurnBonusEnergy: 0, secondPlayerFirstTurnExtraDraw: 0 } },
+  coin: { label: '先攻1T目 −1 ＋後攻1T目 エナジー+1', battle: { firstPlayerFirstTurnPenalty: 1, secondPlayerFirstTurnBonusEnergy: 1, secondPlayerFirstTurnExtraDraw: 0 } },
+  card: { label: '先攻1T目 −1 ＋後攻1T目 ドロー+1', battle: { firstPlayerFirstTurnPenalty: 1, secondPlayerFirstTurnBonusEnergy: 0, secondPlayerFirstTurnExtraDraw: 1 } },
 } satisfies Record<string, { label: string; battle: BattlePatch }>;
-export type FirstPlayerVariant = keyof typeof FIRST_PLAYER_VARIANTS;
+/** rule は今のルール（balance.ts のまま） */
+export type FirstPlayerVariant = keyof typeof FIRST_PLAYER_VARIANTS | 'rule';
+
+/** 今のルール（balance.ts の値）の短い説明 */
+export function currentFirstPlayerRule(): string {
+  const b = BALANCE.battle;
+  const parts: string[] = [];
+  if (b.firstPlayerFirstTurnPenalty) parts.push(`先攻1T目 −${b.firstPlayerFirstTurnPenalty}`);
+  if (b.secondPlayerFirstTurnBonusEnergy) parts.push(`後攻1T目 エナジー+${b.secondPlayerFirstTurnBonusEnergy}`);
+  if (b.secondPlayerFirstTurnExtraDraw) parts.push(`後攻1T目 ドロー+${b.secondPlayerFirstTurnExtraDraw}`);
+  return parts.length ? parts.join(' ＋') : '補正なし';
+}
+
+/** 書き換えが今の BALANCE.battle と同じ（＝今のルールのまま）か */
+export function isCurrentRule(patch: BattlePatch): boolean {
+  const target = BALANCE.battle as unknown as Record<string, number>;
+  return Object.entries(patch).every(([k, v]) => v === undefined || target[k] === v);
+}
+
+/** ミラー戦で比べる列：先頭は今のルール（書き換えなし）、続いて今のルールと違う候補だけ（同じ試合を2回回さない） */
+export function firstPlayerColumns(): { key: FirstPlayerVariant; label: string; battle?: BattlePatch }[] {
+  const others = (Object.keys(FIRST_PLAYER_VARIANTS) as (keyof typeof FIRST_PLAYER_VARIANTS)[])
+    .filter((k) => !isCurrentRule(FIRST_PLAYER_VARIANTS[k].battle))
+    .map((k) => ({ key: k as FirstPlayerVariant, label: `候補：${FIRST_PLAYER_VARIANTS[k].label}`, battle: FIRST_PLAYER_VARIANTS[k].battle }));
+  return [{ key: 'rule', label: `今のルール（${currentFirstPlayerRule()}）` }, ...others];
+}
 
 // ---------------------------------------------------------------- CPU
 

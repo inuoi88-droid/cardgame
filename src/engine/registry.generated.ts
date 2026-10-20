@@ -104,6 +104,7 @@ import keywords_deathtouch from './defs/keywords/deathtouch.ts';
 import keywords_divineShield from './defs/keywords/divineShield.ts';
 import keywords_doubleAttack from './defs/keywords/doubleAttack.ts';
 import keywords_doubleTeam from './defs/keywords/doubleTeam.ts';
+import keywords_enlist from './defs/keywords/enlist.ts';
 import keywords_firstStrike from './defs/keywords/firstStrike.ts';
 import keywords_flying from './defs/keywords/flying.ts';
 import keywords_haste from './defs/keywords/haste.ts';
@@ -144,20 +145,46 @@ import drawbacks_selfPoison from './defs/drawbacks/selfPoison.ts';
 import drawbacks_upkeep from './defs/drawbacks/upkeep.ts';
 import abilities_activate from './defs/abilities/activate.ts';
 import abilities_affinity from './defs/abilities/affinity.ts';
+import abilities_bargain from './defs/abilities/bargain.ts';
 import abilities_buyback from './defs/abilities/buyback.ts';
+import abilities_casualty from './defs/abilities/casualty.ts';
 import abilities_channel from './defs/abilities/channel.ts';
 import abilities_charge from './defs/abilities/charge.ts';
+import abilities_cleave from './defs/abilities/cleave.ts';
+import abilities_convoke from './defs/abilities/convoke.ts';
 import abilities_costCut from './defs/abilities/costCut.ts';
 import abilities_cycling from './defs/abilities/cycling.ts';
+import abilities_delve from './defs/abilities/delve.ts';
+import abilities_devour from './defs/abilities/devour.ts';
+import abilities_dredge from './defs/abilities/dredge.ts';
+import abilities_embalm from './defs/abilities/embalm.ts';
+import abilities_emerge from './defs/abilities/emerge.ts';
 import abilities_entwine from './defs/abilities/entwine.ts';
 import abilities_escape from './defs/abilities/escape.ts';
+import abilities_evoke from './defs/abilities/evoke.ts';
 import abilities_flashback from './defs/abilities/flashback.ts';
+import abilities_forecast from './defs/abilities/forecast.ts';
 import abilities_grow from './defs/abilities/grow.ts';
+import abilities_harmonize from './defs/abilities/harmonize.ts';
 import abilities_jumpStart from './defs/abilities/jumpStart.ts';
 import abilities_kicker from './defs/abilities/kicker.ts';
+import abilities_lifePay from './defs/abilities/lifePay.ts';
+import abilities_mayhem from './defs/abilities/mayhem.ts';
+import abilities_overload from './defs/abilities/overload.ts';
+import abilities_pitch from './defs/abilities/pitch.ts';
+import abilities_prototype from './defs/abilities/prototype.ts';
 import abilities_rebound from './defs/abilities/rebound.ts';
+import abilities_renew from './defs/abilities/renew.ts';
+import abilities_retrace from './defs/abilities/retrace.ts';
 import abilities_shuffleBack from './defs/abilities/shuffleBack.ts';
+import abilities_spree from './defs/abilities/spree.ts';
+import abilities_squad from './defs/abilities/squad.ts';
+import abilities_strive from './defs/abilities/strive.ts';
+import abilities_tiered from './defs/abilities/tiered.ts';
 import abilities_trap from './defs/abilities/trap.ts';
+import abilities_unearth from './defs/abilities/unearth.ts';
+import abilities_unleash from './defs/abilities/unleash.ts';
+import abilities_villain from './defs/abilities/villain.ts';
 
 export const EFFECT_DEFS: readonly EffectDef[] = [
   effects_advanceSaga,
@@ -268,6 +295,7 @@ export const KEYWORD_DEFS: readonly KeywordDef[] = [
   keywords_divineShield,
   keywords_doubleAttack,
   keywords_doubleTeam,
+  keywords_enlist,
   keywords_firstStrike,
   keywords_flying,
   keywords_haste,
@@ -312,18 +340,44 @@ export const DRAWBACK_DEFS: readonly DrawbackDef[] = [
 export const ABILITY_DEFS: readonly AbilityDef[] = [
   abilities_activate,
   abilities_affinity,
+  abilities_bargain,
   abilities_buyback,
+  abilities_casualty,
   abilities_channel,
   abilities_charge,
+  abilities_cleave,
+  abilities_convoke,
   abilities_costCut,
   abilities_cycling,
+  abilities_delve,
+  abilities_devour,
+  abilities_dredge,
+  abilities_embalm,
+  abilities_emerge,
   abilities_entwine,
   abilities_escape,
+  abilities_evoke,
   abilities_flashback,
+  abilities_forecast,
   abilities_grow,
+  abilities_harmonize,
   abilities_jumpStart,
   abilities_kicker,
+  abilities_lifePay,
+  abilities_mayhem,
+  abilities_overload,
+  abilities_pitch,
+  abilities_prototype,
   abilities_rebound,
+  abilities_renew,
+  abilities_retrace,
   abilities_shuffleBack,
+  abilities_spree,
+  abilities_squad,
+  abilities_strive,
+  abilities_tiered,
   abilities_trap,
+  abilities_unearth,
+  abilities_unleash,
+  abilities_villain,
 ];

@@ -8,6 +8,7 @@ export default defineAbility({
   id: 'channel',
   name: '魂力',
   order: 10,
+  group: '手札・捨て札の能力',
   summary: `自分のターンに、手札からエナジーNを払ってこのカードを捨て、「魂力」の効果を使う（カードを使ったことには数えない）。本体と二者択一なので、ポイントは高い方＋低い方×${BALANCE.choice.otherRate}`,
   value: countParam('エナジー', { min: 0, max: B.maxCost, default: 1 }),
   conflicts: ['cycling'],

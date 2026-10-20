@@ -212,5 +212,8 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
       const m = sourceMonster(g, opts.src);
       return m !== undefined && m.counters.attackedTurn !== g.turnIndex;
     }
+    // ---- MTG 要素 △ バッチB
+    case 'bargained':
+      return opts.protectKey !== undefined && g.protect[opts.protectKey]?.bargained === true;
   }
 }

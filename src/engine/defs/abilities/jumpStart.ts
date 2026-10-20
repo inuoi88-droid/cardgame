@@ -9,6 +9,7 @@ export default defineAbility({
   id: 'jumpStart',
   name: '再活',
   order: 6,
+  group: '捨て札から',
   summary: `捨て札から、手札を1枚捨てて使える（コストは今の実コスト）。使ったあとは除外。手札が無いと使えない。ポイントは効果・本体の合計×${B.rate}`,
   conflicts: ['flashback', 'escape', 'exhaust'],
   points: (_a, ctx) => fromDiscardPoints(ctx, B.rate, B.fromDiscardFlat).value,

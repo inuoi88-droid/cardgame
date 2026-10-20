@@ -14,12 +14,19 @@ export {
   activateInfos,
   handAbilityInfo,
   handAbilityInfos,
+  discardAbilityInfo,
+  discardAbilityInfos,
+  payOptions,
+  bestEnlist,
   discardPreference,
   exilePreference,
   type PlayInfo,
   type ActivateInfo,
   type HandAbilityInfo,
   type ModeInfo,
+  type PayOptions,
+  type AltInfo,
+  type DiscardAbilityInfo,
 } from './legal.ts';
 export {
   costBreakdown,
@@ -31,15 +38,19 @@ export {
   playableModes,
   modeName,
   validateMode,
+  validatePlay,
+  costCtxOf,
   WARN_ICED,
   type CostBreakdown,
   type CostStep,
+  type CostCtx,
+  type PlayOpts,
 } from './play.ts';
-export { cardModes, entwineCost } from './modes.ts';
+export { cardModes, entwineCost, spreeCost, isVillain } from './modes.ts';
 export { lastChapter, advanceableSagas } from './powers.ts';
-export { activateSource, handAbilityOf, handAbilityKinds } from './abilities.ts';
+export { activateSource, handAbilityOf, handAbilityKinds, discardAbilityOf, discardAbilityKinds } from './abilities.ts';
 export { viewFor, HIDDEN_CARD_ID } from './view.ts';
-export { attackBlockReason, attackTargets, attacksPerTurn, cannotAttack } from './combat.ts';
+export { attackBlockReason, attackTargets, attacksPerTurn, cannotAttack, enlistOptions } from './combat.ts';
 export { keywordFlags, targetableTaunts, cardTargetableTaunts, combatBonus, guarded } from './damage.ts';
 export { lifespanOf } from './play.ts';
 export { tokenCount } from './zones.ts';

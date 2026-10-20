@@ -9,7 +9,7 @@ import { randInt } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
 import { enqueueDelayed, enqueueMonsters, enqueuePowers, powerSource } from './triggers.ts';
 import { advanceSagas, chargePowers } from './powers.ts';
-import { deckToDiscard, discardCard, drawCards, hatchEggs, returnBorrowed, vanish } from './zones.ts';
+import { deckToDiscard, discardCard, drawCards, exileFromBoard, hatchEggs, returnBorrowed, vanish } from './zones.ts';
 import { NOISE_CARD_ID } from './types.ts';
 import type { GameState, PlayerId, Statuses } from './types.ts';
 
@@ -271,6 +271,11 @@ function boardTurnEnd(g: GameState, p: PlayerId): void {
     if (!ps.board.includes(m)) continue;
     if (m.card.token?.temp) {
       vanish(g, m, 1, `${monsterLabel(g, m)}は去った（応召・ターン終了時に消える）`);
+      continue;
+    }
+    // 一時蘇生（MTG 要素 △ バッチB）：持ち主のターン終了時に除外（破壊ではない）
+    if (m.unearthed) {
+      exileFromBoard(g, m, 1, `${monsterLabel(g, m)}は除外された（一時蘇生）`);
       continue;
     }
     if (m.counters.borrowLeft !== undefined) {

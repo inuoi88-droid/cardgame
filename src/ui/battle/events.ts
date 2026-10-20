@@ -96,8 +96,12 @@ const STATUS_NAME: Record<string, string> = {
   suspected: '🕵容疑',
   indestructible: '🛡不壊',
   protection: '✨加護',
+  // MTG 要素 △ バッチB
+  devour: '🍖貪食',
+  enlist: '📯後援',
+  tapped: '💤休み',
 };
-const GOOD_STATUS = new Set(['counter', 'nullify', 'regen', 'strength', 'focus', 'divineShield', 'boon', 'exp', 'indestructible', 'protection']);
+const GOOD_STATUS = new Set(['counter', 'nullify', 'regen', 'strength', 'focus', 'divineShield', 'boon', 'exp', 'indestructible', 'protection', 'devour', 'enlist']);
 
 function damageTone(kind: battle.DamageKind | undefined): FxTone {
   switch (kind) {
@@ -154,9 +158,18 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
       }
       case 'handAbility': {
         if (ev.player === undefined || !ev.cardId) break;
-        const label = ev.status === 'cycling' ? '♻ サイクリング' : '🌀 魂力';
-        // 相手の魂力はカードを見せる（効果が出る）。サイクリングと自分の分は見出しだけ
-        if (ev.player !== me && ev.status === 'channel') push(e.text, ev.player, { t: 'reveal', player: ev.player, cardId: ev.cardId }, DURATION.reveal);
+        const label = ev.status === 'cycling' ? '♻ サイクリング' : ev.status === 'forecast' ? '🔮 予見' : '🌀 魂力';
+        // 相手の魂力・予見（△ バッチB）はカードを見せる（効果が出る）。サイクリングと自分の分は見出しだけ
+        if (ev.player !== me && (ev.status === 'channel' || ev.status === 'forecast') && view.cards[ev.cardId])
+          push(e.text, ev.player, { t: 'reveal', player: ev.player, cardId: ev.cardId }, DURATION.reveal);
+        else push(e.text, ev.player, { t: 'notice', text: label, tone: ev.player === me ? 'mine' : 'enemy' }, DURATION.notice);
+        break;
+      }
+      // MTG 要素 △ バッチB：捨て札のカードの能力（相続・発掘・不朽）。相手の相続はカードを見せる
+      case 'discardAbility': {
+        if (ev.player === undefined || !ev.cardId) break;
+        const label = ev.status === 'renew' ? '📜 相続' : ev.status === 'dredge' ? '⛏ 発掘' : '⚱ 不朽';
+        if (ev.player !== me && ev.status === 'renew' && view.cards[ev.cardId]) push(e.text, ev.player, { t: 'reveal', player: ev.player, cardId: ev.cardId }, DURATION.reveal);
         else push(e.text, ev.player, { t: 'notice', text: label, tone: ev.player === me ? 'mine' : 'enemy' }, DURATION.notice);
         break;
       }
@@ -249,7 +262,23 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
           push(e.text, ev.player, { t: 'notice', text, tone: ev.player === me ? 'mine' : 'enemy', ...(ev.uid && hasPower(view, ev.uid) ? { key: ev.uid } : {}) }, DURATION.notice);
           break;
         }
-        const PLAYER_NOTICE: Record<string, string> = { discarded: '🗑 捨てられたときの効果', ice: '🧊 手札が凍った', rad: '☢ 放射能', exileMill: '⛔ 山札消滅' };
+        // MTG 要素 △ バッチB：血の支払い（プレイヤーの HP が減る）・最悪の二択（選ばれたモード）
+        if (ev.status === 'lifePay' && ev.player !== undefined) {
+          push(e.text, ev.player, { t: 'float', key: `p${ev.player}`, text: `🩸−${ev.amount ?? 0}`, tone: 'bad', flash: 'hit', hpAfter: parseHpAfter(e.text) }, DURATION.float);
+          break;
+        }
+        if (ev.status === 'villain' && ev.player !== undefined) {
+          const label = (ev.amount ?? 0) > 0 ? ['', 'A', 'B', 'C'][ev.amount ?? 0] : '';
+          push(e.text, ev.player, { t: 'notice', text: `⚖ 最悪の二択：${ev.player === me ? 'あなた' : '相手'}がモード${label}を選んだ`, tone: 'neutral' }, DURATION.notice);
+          break;
+        }
+        const PLAYER_NOTICE: Record<string, string> = {
+          discarded: '🗑 捨てられたときの効果',
+          ice: '🧊 手札が凍った',
+          rad: '☢ 放射能',
+          exileMill: '⛔ 山札消滅',
+          pitch: '♠ 代替コスト',
+        };
         if (!ev.target && ev.status && PLAYER_NOTICE[ev.status]) {
           push(e.text, ev.player ?? null, { t: 'notice', text: `${PLAYER_NOTICE[ev.status]}${ev.amount && ev.amount > 1 ? `（${ev.amount}）` : ''}`, tone: 'neutral' }, DURATION.notice);
           break;

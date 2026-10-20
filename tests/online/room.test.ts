@@ -632,6 +632,80 @@ describe('接続状態と再接続', () => {
   });
 });
 
+describe('MTG 要素 △ バッチB（サーバー越し）', () => {
+  const villain = card({
+    id: 'vil',
+    name: '最悪の二択',
+    rarity: 'rare',
+    cost: 1,
+    abilities: [{ id: 'villain' }],
+    effects: [
+      { id: 'poison', value: 2, timing: 'play', target: 'chosen', condition: null, mode: 1 },
+      { id: 'damage', value: 3, timing: 'play', target: 'chosen', condition: null, mode: 2 },
+    ],
+  });
+
+  it('最悪の二択：相手が選び、相手が送る。使った人には選択肢が見えない', () => {
+    const { s, now } = playing(BEASTS, BEASTS);
+    const g = s.room!.state!;
+    const p = g.active;
+    const opp = battle.other(p);
+    const uid = giveCard(g, p, villain);
+    g.players[p].energy = 10;
+    const hp = g.players[opp].hp;
+    // 使う人はモードを送れない
+    expect(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'playCard', player: p, cardUid: uid, mode: 2, chosen: { enemy: { kind: 'player', player: opp } } }), { tokenHash: tokenOf(p), now }).ok).toBe(false);
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'playCard', player: p, cardUid: uid, chosen: { enemy: { kind: 'player', player: opp } } }), { tokenHash: tokenOf(p), now }));
+    expect(s.room!.state!.pending!.player).toBe(opp);
+    expect(ok(s.send(stateReq(tokenOf(p)), { tokenHash: tokenOf(p), now: now + 1 })).view!.pending!.options).toEqual([]);
+    const theirs = ok(s.send(stateReq(tokenOf(opp)), { tokenHash: tokenOf(opp), now: now + 1 })).view!;
+    expect(theirs.pending!.options.map((o) => o.id)).toEqual(['1', '2']);
+    // 使った人は代わりに選べない
+    expect(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'choose', player: p, picks: ['1'] }), { tokenHash: tokenOf(p), now: now + 2 }).ok).toBe(false);
+    ok(s.send(actionReq(tokenOf(opp), s.room!.version, { type: 'choose', player: opp, picks: ['2'] }), { tokenHash: tokenOf(opp), now: now + 3 }));
+    expect(s.room!.state!.players[opp].hp).toBe(hp - 3 * BALANCE.amountScale);
+    expect(s.room!.state!.active).toBe(p);
+  });
+
+  it('最悪の二択の途中で相手が時間切れなら、最初の選択肢を選び、手番のターンは終えない', () => {
+    const { s, now } = playing(BEASTS, BEASTS);
+    const g = s.room!.state!;
+    const p = g.active;
+    const opp = battle.other(p);
+    const uid = giveCard(g, p, villain);
+    g.players[p].energy = 10;
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'playCard', player: p, cardUid: uid, chosen: { enemy: { kind: 'player', player: opp } } }), { tokenHash: tokenOf(p), now }));
+    const after = applyTimeouts(s.room!, s.room!.deadline! + 1);
+    expect(after.state!.pending).toBeNull();
+    expect(after.state!.players[opp].status.poison).toBe(2 * BALANCE.amountScale);
+    expect(after.state!.active).toBe(p);
+    expect(after.seats[opp]!.timeouts).toBe(1);
+  });
+
+  it('追加の支払い・捨て札の能力・後援をサーバー越しに送れる（形の誤りは受付で断る）', () => {
+    const { s, now } = playing(BEASTS, BEASTS);
+    const g = s.room!.state!;
+    const p = g.active;
+    const convoke = card({ id: 'conv', name: '召集令', cost: 3, abilities: [{ id: 'convoke' }], effects: [{ id: 'draw', value: 1, timing: 'play', target: 'self', condition: null }] });
+    const uid = giveCard(g, p, convoke);
+    const helper = giveCard(g, p, card({ id: 'mm', name: '兵', cost: 1, stats: { attack: 1, hp: 1, defense: 0 } }));
+    g.players[p].energy = 10;
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'playCard', player: p, cardUid: helper }), { tokenHash: tokenOf(p), now }));
+    const energy = s.room!.state!.players[p].energy;
+    const bad = s.send(actionReq(tokenOf(p), s.room!.version, { type: 'playCard', player: p, cardUid: uid, tapUids: [helper], extra: 9 } as battle.Action), { tokenHash: tokenOf(p), now: now + 1 });
+    expect(bad.ok).toBe(false);
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'playCard', player: p, cardUid: uid, tapUids: [helper] }), { tokenHash: tokenOf(p), now: now + 2 }));
+    expect(s.room!.state!.players[p].energy).toBe(energy - 2);
+    // 捨て札の能力（発掘）
+    const g2 = s.room!.state!;
+    const dredge = card({ id: 'dr', name: '掘り', abilities: [{ id: 'dredge', value: 2 }], effects: [{ id: 'draw', value: 1, timing: 'play', target: 'self', condition: null }] });
+    const d = giveCard(g2, p, dredge);
+    g2.players[p].discard.push(...g2.players[p].hand.splice(g2.players[p].hand.findIndex((c) => c.uid === d), 1));
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'discardAbility', player: p, cardUid: d, ability: 'dredge' }), { tokenHash: tokenOf(p), now: now + 3 }));
+    expect(s.room!.state!.players[p].hand.some((c) => c.uid === d)).toBe(true);
+  });
+});
+
 describe('通しの対戦', () => {
   it('CPU 同士がサーバー越しに最後まで対戦でき、カードは消えない', () => {
     const { s } = playing(POISON, CURSES);

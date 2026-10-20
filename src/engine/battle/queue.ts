@@ -3,7 +3,7 @@ import { BALANCE } from '../balance.ts';
 import type { EffectDef } from '../define.ts';
 import { effectModifiers } from '../points.ts';
 import { getDrawback, getEffect, getModifier } from '../registry.ts';
-import { describeDrawback, describeEffect } from '../text.ts';
+import { describeDrawback, describeEffect, modeTexts } from '../text.ts';
 import type { EffectInstance } from '../types.ts';
 import { checkCondition } from './conditions.ts';
 import { destroyMonster, keywordFlags } from './damage.ts';
@@ -15,7 +15,7 @@ import { randInt } from './rng.ts';
 import { retainOptions, runAutoAttacks, turnEndEffects, turnEndFinish } from './turn.ts';
 import { bounce, createTokens, discardCard, discardChosen } from './zones.ts';
 import { classifyCard } from '../classify.ts';
-import { CONDITIONS, REPEAT_CAPPED_TIMINGS } from '../options.ts';
+import { CONDITIONS, MODE_TIMINGS, REPEAT_CAPPED_TIMINGS } from '../options.ts';
 import { NOISE_CARD_ID, type DelayedEffect, type GameState, type SourceRef, type Step } from './types.ts';
 
 /** 1回の行動で処理する上限（効果の無限ループを防ぐ） */
@@ -68,6 +68,13 @@ function executeStep(g: GameState, step: Step): void {
       return executeExploitChoice(g, step);
     case 'turnEndFinish':
       return turnEndFinish(g, step.player, step.kept);
+    // MTG 要素 △ バッチB
+    case 'devourChoice':
+      return executeDevourChoice(g, step);
+    case 'villainChoice':
+      return executeVillainChoice(g, step);
+    case 'evokeEnd':
+      return executeEvokeEnd(g, step);
   }
 }
 
@@ -173,7 +180,10 @@ function executeEffect(g: GameState, original: Extract<Step, { t: 'effect' }>): 
     if (sourceGone(g, step)) return;
     log(g, step.depth, `${step.src.name}：${describeEffect(step.effect, g.cards[step.src.cardId])}`, 'effect');
     const opts = { roll: { depth: step.depth + 1 }, src: step.src, ...(step.protectKey ? { protectKey: step.protectKey } : {}) };
-    if (step.effect.condition && !checkCondition(g, me, step.effect.condition, opts)) {
+    // 切除（MTG 要素 △ バッチB）：このカードの使用時・召喚時・捨て札から使ったときの効果は、条件を無視する
+    const cleaved = step.effect.condition !== null && step.protectKey !== undefined && g.protect[step.protectKey]?.cleaved === true && MODE_TIMINGS.includes(step.timing);
+    if (cleaved) log(g, step.depth + 1, `切除：条件「${CONDITIONS[step.effect.condition!].label}」を無視する`, 'info');
+    if (step.effect.condition && !cleaved && !checkCondition(g, me, step.effect.condition, opts)) {
       log(g, step.depth + 1, `条件「${CONDITIONS[step.effect.condition].label}」を満たさないため発動しない`);
       return;
     }
@@ -232,9 +242,118 @@ function executeEffect(g: GameState, original: Extract<Step, { t: 'effect' }>): 
       const rt2 = makeRuntime(g, swapped, resolveTargets(g, swapped, effect, step.timing, def.targetRule, {}), { depth: step.depth + 1, attackCard: false });
       def.battle.resolve(rt2, effect, undefined);
     }
+    // 奮励（MTG 要素 △ バッチB）：「選んだ1体（相手）」の効果を、ランダムな別の相手モンスターにも（重複なし。いなければ減る）
+    const strive = step.protectKey !== undefined ? (g.protect[step.protectKey]?.strive ?? 0) : 0;
+    if (strive > 0 && effect.target === 'chosen' && STRIVE_RULES.includes(def.targetRule) && MODE_TIMINGS.includes(step.timing) && g.phase !== 'ended') {
+      const chosenUid = step.chosen.enemy?.kind === 'monster' ? step.chosen.enemy.uid : undefined;
+      const pool = g.players[other(me)].board.filter((m) => m.uid !== chosenUid);
+      for (let i = 0; i < strive && pool.length > 0 && (g.phase as string) !== 'ended'; i++) {
+        const [m] = pool.splice(randInt(g, pool.length), 1);
+        log(g, step.depth + 1, `奮励：${monsterLabel(g, m!)}にも同じ効果`);
+        const rt2 = makeRuntime(g, step.src, [{ kind: 'monster', uid: m!.uid }], { depth: step.depth + 1, attackCard: false, ...(step.protectKey ? { protectKey: step.protectKey } : {}) });
+        def.battle.resolve(rt2, effect, picks);
+      }
+    }
   } finally {
     g.holdEnd -= 1;
   }
+  checkGameEnd(g);
+}
+
+/** 奮励で追加の対象を取る作用先（相手側の「選んだ1体」） */
+const STRIVE_RULES: readonly string[] = ['enemyAny', 'enemyMonster', 'enemyMonsterOne'];
+
+/** 貪食（MTG 要素 △ バッチB）：出たモンスターが、自分の他のモンスターを0〜max体生け贄にする。1体につき攻撃力と体力+amount */
+function executeDevourChoice(g: GameState, step: Extract<Step, { t: 'devourChoice' }>): void {
+  const ps = g.players[step.player];
+  const self = findMonster(g, step.uid);
+  if (!self || self.controller !== step.player) return;
+  const others = ps.board.filter((m) => m.uid !== step.uid && (step.among === undefined || step.among.includes(m.uid)));
+  if (step.picks) {
+    const eaten = step.picks.map((uid) => others.find((m) => m.uid === uid)).filter((m): m is NonNullable<typeof m> => m !== undefined);
+    if (eaten.length === 0) {
+      log(g, step.depth, `貪食：${ps.name}は生け贄にしなかった`);
+      return;
+    }
+    for (const m of eaten) {
+      log(g, step.depth, `貪食：${monsterLabel(g, m)}を生け贄にした`);
+      destroyMonster(g, m, step.depth + 1, true);
+    }
+    const me = findMonster(g, step.uid);
+    if (!me) return;
+    const n = step.amount * eaten.length;
+    const before = { attack: me.attack, hp: me.hp };
+    me.attack += n;
+    me.hp += n;
+    me.maxHp += n;
+    log(g, step.depth, `貪食：${monsterLabel(g, me)}の攻撃力 ${before.attack}→${me.attack}、体力 ${before.hp}→${me.hp}`, 'effect', undefined, {
+      kind: 'status',
+      target: { kind: 'monster', uid: me.uid },
+      status: 'devour',
+      amount: n,
+    });
+    checkGameEnd(g);
+    return;
+  }
+  if (others.length === 0) return;
+  g.pending = {
+    player: step.player,
+    prompt: `貪食：「${cardName(g, self.card.cardId)}」に食べさせる自分のモンスターを${Math.min(step.max, others.length)}体まで選んでください（1体につき攻撃力・体力+${step.amount}。選ばなくてもよい）`,
+    options: others.map((m) => ({ id: m.uid, label: cardName(g, m.card.cardId), cardId: m.card.cardId })),
+    min: 0,
+    max: Math.min(step.max, others.length),
+    step,
+  };
+}
+
+/** 最悪の二択（MTG 要素 △ バッチB）：相手がモードを選び、そのモードの効果を積む */
+function executeVillainChoice(g: GameState, step: Extract<Step, { t: 'villainChoice' }>): void {
+  const def = g.cards[step.src.cardId];
+  if (!def) return;
+  const texts = modeTexts(def, step.timing);
+  if (texts.length === 0) return;
+  if (!step.picks) {
+    g.pending = {
+      player: step.player,
+      prompt: `最悪の二択：${g.players[step.user].name}の「${def.name}」のどちらかを選んでください（選んだ方の効果があなたに向けて出ます）`,
+      options: texts.map((m) => ({ id: String(m.mode), label: `${m.label}：${m.text}` })),
+      min: 1,
+      max: 1,
+      step,
+    };
+    return;
+  }
+  const mode = Number(step.picks[0]);
+  const chosenText = texts.find((m) => m.mode === mode) ?? texts[0]!;
+  playRecord(g, step.protectKey).mode = chosenText.mode;
+  log(g, step.depth, `最悪の二択：${g.players[step.player].name}はモード${chosenText.label}を選んだ`, 'effect', undefined, {
+    kind: 'status',
+    player: step.player,
+    cardId: step.src.cardId,
+    status: 'villain',
+    amount: chosenText.mode,
+  });
+  for (const effect of def.effects.filter((e) => e.timing === step.timing && e.mode === chosenText.mode)) {
+    enqueue(g, {
+      t: 'effect',
+      src: step.src,
+      effect,
+      timing: step.timing,
+      chosen: step.chosen,
+      attackCard: step.attackCard,
+      protectKey: step.protectKey,
+      depth: step.depth,
+      ...(step.grow ? { grow: step.grow } : {}),
+    });
+  }
+}
+
+/** 想起（MTG 要素 △ バッチB）：召喚時の効果のあと、そのモンスターが場にいれば破壊する（不壊でも止まらない＝生け贄と同じ） */
+function executeEvokeEnd(g: GameState, step: Extract<Step, { t: 'evokeEnd' }>): void {
+  const m = findMonster(g, step.uid);
+  if (!m) return;
+  log(g, step.depth, `想起：${monsterLabel(g, m)}は破壊される`);
+  destroyMonster(g, m, step.depth + 1, true);
   checkGameEnd(g);
 }
 

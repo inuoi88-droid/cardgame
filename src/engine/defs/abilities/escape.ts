@@ -10,6 +10,7 @@ export default defineAbility({
   id: 'escape',
   name: '脱出',
   order: 7,
+  group: '捨て札から',
   summary: `捨て札から、他の捨て札をN枚除外して使える（コストは今の実コスト）。使ったあとはまた捨て札へ（何度でも）。ポイントは効果・本体の合計×${B.rateByCount.join('／')}（N＝${B.minCount}〜${B.maxCount}）`,
   value: countParam('除外する枚数', { min: B.minCount, max: B.maxCount, default: 3 }),
   minRarity: 'rare',

@@ -8,6 +8,7 @@ export default defineAbility({
   id: 'cycling',
   name: 'サイクリング',
   order: 9,
+  group: '手札・捨て札の能力',
   summary: `自分のターンに、手札からエナジー${B.cost}を払ってこのカードを捨て、カードを1枚引く（カードを使ったことには数えない）`,
   conflicts: ['channel'],
   points: () => B.flat,

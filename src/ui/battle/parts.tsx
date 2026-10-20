@@ -589,6 +589,10 @@ export function monsterChips(
     const p = m.card.perm;
     extra.push({ id: 'perm', label: `${M.perpetual!.icon}永久+${p.attack}/+${p.hp}`, tone: 'good', card: { title: `${M.perpetual!.icon} 永久強化 攻撃力+${p.attack}・体力+${p.hp}`, description: M.perpetual!.short } });
   }
+  // MTG 要素 △ バッチB：試作版・解鎖・一時蘇生（公開の印）
+  if (m.prototype) extra.push({ id: 'prototype', label: `${M.prototype!.icon}試作`, tone: 'info', card: { title: `${M.prototype!.icon} ${M.prototype!.name}`, description: M.prototype!.short } });
+  if (m.unleashed) extra.push({ id: 'unleashed', label: `${M.unleashed!.icon}解鎖`, tone: 'info', card: { title: `${M.unleashed!.icon} ${M.unleashed!.name}`, description: M.unleashed!.short } });
+  if (m.unearthed) extra.push({ id: 'unearthed', label: `${M.unearthed!.icon}一時`, tone: 'bad', card: { title: `${M.unearthed!.icon} ${M.unearthed!.name}`, description: M.unearthed!.short } });
   if (m.card.lostKeywords?.includes('doubleTeam')) {
     extra.push({ id: 'dt-used', label: `${keywordGlossary.doubleTeam?.icon ?? ''}分身 使用済み`, tone: 'info', card: { title: '分身（使用済み）', description: keywordGlossary.doubleTeam?.short ?? '' } });
   }
@@ -773,10 +777,17 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
     ...handAbilityNotes(def),
     // モード選択（MTG 要素 ○ バッチC2）：モードごとのコスト
     info.modes ? `モード選択：${info.modes.map((m) => `${m.mode === 0 ? '全' : m.label} ⚡${m.cost}${m.blocked ? '（不可）' : ''}`).join('・')}（場に落とすと選ぶ）` : '',
+    // MTG 要素 △ バッチB：払い方しだいで下がるコスト
+    info.pay && info.pay.minCost < cost ? `払い方しだいで ⚡${info.pay.minCost} まで下がる（場に落とすと支払いのシート）` : '',
   ].filter(Boolean);
   // サイクリング・魂力の印（捨て札の山へドラッグで使える）
   const kinds = battle.handAbilityKinds(def);
-  const marks = [...kinds.map((k) => ({ icon: k === 'cycling' ? '♻' : '🌀', title: battle.handAbilityOf(def, k)!.name })), ...(info.modes ? [{ icon: mechanicGlossary.modes!.icon, title: 'モード選択' }] : [])];
+  const marks = [
+    ...kinds.map((k) => ({ icon: k === 'cycling' ? '♻' : k === 'forecast' ? '🔮' : '🌀', title: battle.handAbilityOf(def, k)!.name })),
+    ...(info.modes ? [{ icon: mechanicGlossary.modes!.icon, title: 'モード選択' }] : []),
+    // 支払いのシートで選ぶもの（MTG 要素 △ バッチB）
+    ...(info.pay ? [{ icon: mechanicGlossary.payment!.icon, title: '支払いのシートで選べる（場に落とすと出る）' }] : []),
+  ];
   const abil = marks.length > 0 ? { icon: marks.map((m) => m.icon).join(''), title: marks.map((m) => m.title).join('・') } : null;
   const costEl = (
     <span className={cx('hc__cost', discounted && 'is-down', taxed && 'is-up', short && 'is-short')}>

@@ -73,8 +73,8 @@ describe('○ バッチB（実際の倍率）', () => {
     const old = card({ id: 'o', name: '成長の矢', cost: 1, effects: [{ id: 'damage', value: 2, timing: 'play', target: 'chosen', condition: null }], abilities: [{ id: 'grow', value: 1 }] });
     const r = parseCard(old);
     expect(r.ok && r.value.abilities).toEqual([{ id: 'grow', value: 20 }]);
-    // △ バッチAで罠が増えた
-    expect(listAbilities()).toHaveLength(16);
+    // △ バッチAで罠、△ バッチBで26が増えた
+    expect(listAbilities()).toHaveLength(42);
   });
 
   it('対戦：成長・恩恵・動員・応召が実際の倍率で動く', () => {

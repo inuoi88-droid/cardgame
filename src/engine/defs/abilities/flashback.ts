@@ -24,6 +24,7 @@ export default defineAbility({
   id: 'flashback',
   name: 'フラッシュバック',
   order: 5,
+  group: '捨て札から',
   summary: `捨て札から使える（コストは今の実コスト＋N）。使ったあとは除外（モンスターなら場を離れるとき除外）。ポイントは効果・本体の合計×${B.rateByExtra.join('／')}（N＝0／1／2）`,
   value: countParam('追加コスト', { min: 0, max: B.maxExtra, default: 0 }),
   conflicts: ['jumpStart', 'escape', 'exhaust'],

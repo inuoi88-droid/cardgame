@@ -9,6 +9,7 @@ export default defineAbility({
   id: 'entwine',
   name: '双呪',
   order: 14,
+  group: 'モード',
   summary: `モード選択のカードで、エナジーを追加でK払うと、すべてのモードを（A→B→Cの順に）実行する。ポイントは選ばれなかったモードの合計×${B.rate}`,
   value: countParam('追加エナジー', { min: 1, max: B.maxExtra, default: 1 }),
   points: (_a, ctx) => ctx.modeOtherPoints * B.rate,

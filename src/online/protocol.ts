@@ -1,5 +1,18 @@
 /** ブラウザ ⇄ Edge Function の送受信の形と、届いたデータの検証 */
-import type { Action, Chosen, GameState, MulliganMode, PlayerId, TargetRef } from '../engine/battle/types.ts';
+import {
+  ALT_PLAYS,
+  DISCARD_ABILITY_KINDS,
+  HAND_ABILITY_KINDS,
+  type Action,
+  type AltPlay,
+  type Chosen,
+  type DiscardAbilityKind,
+  type GameState,
+  type HandAbilityKind,
+  type MulliganMode,
+  type PlayerId,
+  type TargetRef,
+} from '../engine/battle/types.ts';
 import type { CardDef, Deck } from '../engine/types.ts';
 import { normalizeCode } from './codes.ts';
 import { BALANCE } from '../engine/balance.ts';
@@ -57,6 +70,17 @@ const isId = (x: unknown): x is string => typeof x === 'string' && x.length > 0 
 const isPlayer = (x: unknown): x is PlayerId => x === 0 || x === 1;
 const isIdList = (x: unknown): x is string[] => Array.isArray(x) && x.length <= MAX_IDS && x.every(isId);
 const isToken = (x: unknown): x is string => typeof x === 'string' && /^[0-9a-f]{64}$/.test(x);
+const isIntIn = (x: unknown, lo: number, hi: number): x is number => typeof x === 'number' && Number.isInteger(x) && x >= lo && x <= hi;
+/** 追加の支払いの回数の上限（受付の形の検証。能力ごとの上限はエンジンが見る） */
+const MAX_EXTRA = 3;
+/** 休ませるモンスターの数の上限（受付の形の検証） */
+const MAX_TAPS = 5;
+/** 放題のモード：1〜maxModes の昇順・重複なし・2つ以上 */
+const isModeList = (x: unknown): x is number[] =>
+  Array.isArray(x) &&
+  x.length >= 2 &&
+  x.length <= BALANCE.modal.maxModes &&
+  x.every((m, i) => isIntIn(m, 1, BALANCE.modal.maxModes) && (i === 0 || m > (x[i - 1] as number)));
 
 function parseTarget(x: unknown): TargetRef | null {
   if (!isObj(x)) return null;
@@ -104,6 +128,15 @@ export function parseAction(x: unknown): Action | null {
       if (x.kick !== undefined && typeof x.kick !== 'boolean') return null;
       // MTG 要素 ○ バッチC2：モード（0〜3 の整数。0 は双呪。合っているかはエンジンの validatePlay が見る）
       if (x.mode !== undefined && !(Number.isInteger(x.mode) && (x.mode as number) >= 0 && (x.mode as number) <= BALANCE.modal.maxModes)) return null;
+      // MTG 要素 △ バッチB：追加の支払い（0〜3）・放題のモード（1〜3 の昇順・重複なし・2〜3個）・代わりの使い方・差し出す・休ませる（5体まで）・
+      // 代替コスト・血の支払い（0〜2）。合っているかはエンジンの validatePlay が見る
+      if (x.extra !== undefined && !isIntIn(x.extra, 0, MAX_EXTRA)) return null;
+      if (x.modes !== undefined && !isModeList(x.modes)) return null;
+      if (x.alt !== undefined && !(ALT_PLAYS as readonly unknown[]).includes(x.alt)) return null;
+      if (x.sacrificeUid !== undefined && !isId(x.sacrificeUid)) return null;
+      if (x.tapUids !== undefined && !(isIdList(x.tapUids) && x.tapUids.length <= MAX_TAPS)) return null;
+      if (x.pitchUid !== undefined && !isId(x.pitchUid)) return null;
+      if (x.lifePay !== undefined && !isIntIn(x.lifePay, 0, BALANCE.abilities.lifePay.max)) return null;
       return {
         type: 'playCard',
         player,
@@ -114,6 +147,13 @@ export function parseAction(x: unknown): Action | null {
         ...(x.exileUids !== undefined ? { exileUids: [...x.exileUids] } : {}),
         ...(x.kick === true ? { kick: true } : {}),
         ...(x.mode !== undefined ? { mode: x.mode as number } : {}),
+        ...(x.extra !== undefined ? { extra: x.extra as number } : {}),
+        ...(x.modes !== undefined ? { modes: [...(x.modes as number[])] } : {}),
+        ...(x.alt !== undefined ? { alt: x.alt as AltPlay } : {}),
+        ...(x.sacrificeUid !== undefined ? { sacrificeUid: x.sacrificeUid } : {}),
+        ...(x.tapUids !== undefined ? { tapUids: [...x.tapUids] } : {}),
+        ...(x.pitchUid !== undefined ? { pitchUid: x.pitchUid } : {}),
+        ...(x.lifePay !== undefined ? { lifePay: x.lifePay as number } : {}),
       };
     }
     case 'activate': {
@@ -124,15 +164,25 @@ export function parseAction(x: unknown): Action | null {
     }
     case 'handAbility': {
       if (!isId(x.cardUid)) return null;
-      if (x.ability !== 'cycling' && x.ability !== 'channel') return null;
+      if (!(HAND_ABILITY_KINDS as readonly unknown[]).includes(x.ability)) return null;
       const chosen = parseChosen(x.chosen);
       if (chosen === null) return null;
-      return { type: 'handAbility', player, cardUid: x.cardUid, ability: x.ability, ...(chosen ? { chosen } : {}) };
+      return { type: 'handAbility', player, cardUid: x.cardUid, ability: x.ability as HandAbilityKind, ...(chosen ? { chosen } : {}) };
+    }
+    // MTG 要素 △ バッチB：捨て札のカードの能力（相続・発掘・不朽）
+    case 'discardAbility': {
+      if (!isId(x.cardUid)) return null;
+      if (!(DISCARD_ABILITY_KINDS as readonly unknown[]).includes(x.ability)) return null;
+      const chosen = parseChosen(x.chosen);
+      if (chosen === null) return null;
+      return { type: 'discardAbility', player, cardUid: x.cardUid, ability: x.ability as DiscardAbilityKind, ...(chosen ? { chosen } : {}) };
     }
     case 'attack': {
       const target = parseTarget(x.target);
       if (!isId(x.attackerUid) || !target) return null;
-      return { type: 'attack', player, attackerUid: x.attackerUid, target };
+      // 後援（MTG 要素 △ バッチB）
+      if (x.enlistUid !== undefined && !isId(x.enlistUid)) return null;
+      return { type: 'attack', player, attackerUid: x.attackerUid, target, ...(x.enlistUid !== undefined ? { enlistUid: x.enlistUid } : {}) };
     }
     case 'removeNoise':
       return isId(x.cardUid) ? { type: 'removeNoise', player, cardUid: x.cardUid } : null;

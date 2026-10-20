@@ -23,6 +23,8 @@ import {
   abilityContext,
   abilityPoints,
   createAbility,
+  ABILITY_GROUPS,
+  type AbilityGroup,
   type CardDef,
   type DrawbackDef,
   type EffectGroup,
@@ -48,6 +50,8 @@ interface Item {
   name: string;
   summary: string;
   group?: EffectGroup;
+  /** カードの能力の見出し（MTG 要素 △ バッチB） */
+  abilityGroup?: AbilityGroup;
   /** 既定の値で追加したときのポイント（デメリットは正の数で持つ） */
   points: number;
   /** 選べない理由（あれば灰色） */
@@ -76,6 +80,7 @@ const TITLE: Record<PickerMode, string> = { effect: '効果を追加', drawback:
 export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) {
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<EffectGroup | 'all'>('all');
+  const [abilityGroup, setAbilityGroup] = useState<AbilityGroup | 'all'>('all');
   const searchRef = useRef<HTMLInputElement>(null);
   const base = cardBase(card);
 
@@ -116,6 +121,7 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
         summary: def.summary,
         points: abilityPoints(createAbility(def.id), ctx).value,
         locked: blocked ?? undefined,
+        ...(def.group ? { abilityGroup: def.group } : {}),
       }));
     }
     if (mode === 'drawback') {
@@ -148,7 +154,12 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
   }, [mode, card, base]);
 
   const q = query.trim().toLowerCase();
-  const shown = items.filter((it) => (group === 'all' || it.group === group) && (q === '' || it.name.toLowerCase().includes(q) || it.summary.toLowerCase().includes(q)));
+  const shown = items.filter(
+    (it) =>
+      (group === 'all' || it.group === group) &&
+      (abilityGroup === 'all' || mode !== 'ability' || it.abilityGroup === abilityGroup) &&
+      (q === '' || it.name.toLowerCase().includes(q) || it.summary.toLowerCase().includes(q)),
+  );
 
   const sign = mode === 'drawback' ? '−' : '+';
   const fitLabel = (it: Item) => {
@@ -172,6 +183,19 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
             {EFFECT_GROUPS.map((g) => (
               <button key={g.id} type="button" className={cx('chip', group === g.id && 'is-active')} aria-pressed={group === g.id} onClick={() => setGroup(g.id)}>
                 {GROUP_ICON[g.id]} {g.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {mode === 'ability' && (
+          // カードの能力の見出し（MTG 要素 △ バッチB：能力が42個になったので見出しで絞る）
+          <div className="pk__groups" role="group" aria-label="見出し">
+            <button type="button" className={cx('chip', abilityGroup === 'all' && 'is-active')} aria-pressed={abilityGroup === 'all'} onClick={() => setAbilityGroup('all')}>
+              すべて
+            </button>
+            {ABILITY_GROUPS.map((g) => (
+              <button key={g} type="button" className={cx('chip', abilityGroup === g && 'is-active')} aria-pressed={abilityGroup === g} onClick={() => setAbilityGroup(g)}>
+                {g}
               </button>
             ))}
           </div>

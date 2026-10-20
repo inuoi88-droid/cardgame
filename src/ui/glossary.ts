@@ -137,6 +137,8 @@ const KEYWORD_ICON: Record<string, string> = {
   // MTG 要素 △ バッチA
   reach: '🏹',
   skulk: '🐾',
+  // MTG 要素 △ バッチB
+  enlist: '📣',
 };
 
 /** キーワードの用語（レジストリから作る。名前と説明はエンジンの定義そのもの） */
@@ -181,6 +183,33 @@ const ABILITY_ICON: Record<string, string> = {
   charge: '🔋',
   // MTG 要素 △ バッチA
   trap: '🪤',
+  // MTG 要素 △ バッチB
+  spree: '🎯',
+  tiered: '📶',
+  cleave: '✂',
+  strive: '💪',
+  squad: '👥',
+  prototype: '🔧',
+  evoke: '🌬',
+  overload: '🌩',
+  unleash: '⛓',
+  emerge: '🐛',
+  casualty: '🩸',
+  bargain: '🤝',
+  devour: '🍖',
+  convoke: '📢',
+  delve: '⛏',
+  lifePay: '❤',
+  pitch: '♠',
+  villain: '⚖',
+  retrace: '📜',
+  harmonize: '🎶',
+  mayhem: '🌪',
+  unearth: '🧟',
+  renew: '🏺',
+  dredge: '🪣',
+  embalm: '⚱',
+  forecast: '🔮',
 };
 
 /** カードの能力（MTG 要素 ○ バッチB。レジストリから作る） */
@@ -466,6 +495,30 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     short: `次の自分のターン開始時（引いた後）に、手札（ノイズ以外）からランダムにこの枚数が凍り、そのターンは使えない（サイクリング・魂力も不可。合計${B.iceCap}まで。浄化で消える）`,
   },
   perpetual: { name: '永久強化', icon: '♾', tone: 'good', short: 'この試合のあいだ、このカードの攻撃力と体力が上がっている（山札・捨て札・除外を巡っても残る）' },
+  // ---- MTG 要素 △ バッチB
+  payment: {
+    name: '支払いのシート',
+    icon: '💳',
+    tone: 'info',
+    short:
+      'カードの能力に追加の支払い（放題・切除・奮励・分隊・キッカー）、代わりの使い方（試作・想起・超過・解鎖）、差し出すもの（現出・犠牲・協約）、払い方（召集・探査・代替コスト・血の支払い）があるカードは、場に落とすと支払いのシートが出る。何も選ばずに使うこともできる。合計のコストはシートに出る',
+  },
+  prototype: { name: '試作版', icon: '🔧', tone: 'info', short: '能力「試作」で安く出したモンスター。攻撃力・体力が半分（キーワード・効果はそのまま）。場を離れたら元に戻る' },
+  unleashed: { name: '解鎖', icon: '⛓', tone: 'info', short: '能力「解鎖」で攻撃力を上げて出したモンスター。攻撃されても反撃しない（自分から攻撃したときの相手の反撃は受ける）' },
+  unearthed: { name: '一時蘇生', icon: '🧟', tone: 'bad', short: '能力「一時蘇生」で捨て札から出したモンスター。速攻を持ち、持ち主のターン終了時に除外される（場を離れても除外）' },
+  villain: {
+    name: '最悪の二択',
+    icon: '⚖',
+    tone: 'info',
+    short: '能力「最悪の二択」のカードは、使った人が対象を選んだあと、相手が A か B のどちらのモードにするかを選ぶ（オンラインで相手が時間切れなら最初の選択肢）',
+  },
+  discardAbility: {
+    name: '捨て札のカードの能力',
+    icon: '🏺',
+    tone: 'info',
+    short: `相続（エナジーを払って除外し「相続」の効果）・発掘（山札の上 N 枚を捨て札に置いて手札に戻す。1ターン${B.maxDredgePerTurn}回）・不朽（除外してコピーのトークン）は、自分の捨て札の一覧のボタンか、カードを盤面へドラッグして使う。カードを使ったことには数えない`,
+  },
+  forecast: { name: '予見', icon: '🔮', tone: 'info', short: '能力「予見」は、手札のカードを自分の捨て札の山に落とすか詳細のボタンで、見せて効果を使う。カードは手札に残る（1ターン1回）' },
 };
 
 /** 状態異常・キーワード・オプション・しくみ・タイミング（timing:…）・条件（condition:…）のどの ID でも引ける */

@@ -30,7 +30,17 @@ const ABILITY_TIMING_CODE: Partial<Record<TimingId, string>> = {
   activated: 'ACTIVATE_MISMATCH',
   channel: 'CHANNEL_MISMATCH',
   charged: 'CHARGE_MISMATCH',
+  // MTG 要素 △ バッチB
+  renew: 'RENEW_MISMATCH',
+  forecast: 'FORECAST_MISMATCH',
 };
+
+/** 相手に作用する効果か（最悪の二択のモード。MTG 要素 △ バッチB）：作用先が相手側か場全体、または「お互い」 */
+function actsOnOpponent(e: CardDef['effects'][number]): boolean {
+  const rule = getEffect(e.id)?.targetRule;
+  if (e.target === 'bothPlayers') return true;
+  return rule === 'enemyAny' || rule === 'enemyMonster' || rule === 'enemyMonsterOne' || rule === 'enemyPlayer' || rule === 'fight' || rule === 'board';
+}
 
 /** 種族のあるカードでしか使えない要素（MTG 要素 ○ バッチC2）を、この効果が使っているか。使っていればその名前 */
 function tribeUse(e: CardDef['effects'][number]): string | null {
@@ -184,8 +194,13 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
       if (!cond) {
         out.push({ code: 'EFFECT_CONDITION', path: `${path}.condition`, message: `${what}の条件が正しくありません` });
       } else if (cond.requiresAbility && !hasAnyAbility(card.abilities, cond.requiresAbility)) {
-        // キッカーを払っていれば（MTG 要素 ○ バッチC1）：キッカーのあるカードだけ
-        out.push({ code: 'KICKER_MISMATCH', path: `${path}.condition`, message: `条件「${cond.label}」は、カードの能力「キッカー」があるカードにしか付けられません` });
+        // キッカーを払っていれば（MTG 要素 ○ バッチC1）・協約したなら（△ バッチB）：その能力のあるカードだけ
+        const need = cond.requiresAbility.map((id) => `「${getAbility(id)?.name ?? id}」`).join('・');
+        out.push({
+          code: e.condition === 'bargained' ? 'BARGAIN_MISMATCH' : 'KICKER_MISMATCH',
+          path: `${path}.condition`,
+          message: `条件「${cond.label}」は、カードの能力${need}があるカードにしか付けられません`,
+        });
       } else if (!conditionsFor(e.timing, base, card.abilities).includes(e.condition)) {
         out.push({
           code: 'EFFECT_CONDITION',
@@ -460,6 +475,60 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     if (def.battle.kickerCost && !card.effects.some((e) => e.condition === 'kicked')) {
       out.push({ code: 'KICKER_MISMATCH', path, message: `${what}は、条件「${CONDITIONS.kicked.label}」の効果があるカードにしか付けられません` });
     }
+    // ---- MTG 要素 △ バッチB
+    // 協約は「協約したなら」の効果が要る
+    if (def.battle.sacrifice?.kind === 'bargain' && !card.effects.some((e) => e.condition === 'bargained')) {
+      out.push({ code: 'BARGAIN_MISMATCH', path, message: `${what}は、条件「${CONDITIONS.bargained.label}」の効果があるカードにしか付けられません` });
+    }
+    // 放題・段階・最悪の二択はモード選択のカードだけ
+    if (def.requiresModes && modeSets.size === 0) {
+      out.push({ code: 'MODES_REQUIRED', path, message: `${what}は、モード選択（次のうち1つを選ぶ）のカードにしか付けられません` });
+    }
+    // 最悪の二択：モードはちょうど2つ、どちらのモードも相手に作用する効果
+    if (def.battle.villain && modeSets.size > 0) {
+      for (const [timing, set] of modeSets) {
+        if (set.size !== 2) out.push({ code: 'VILLAIN_MODES', path, message: `${what}のモードはちょうど2つ（A・B）にしてください（「${TIMINGS[timing].label}」は${set.size}つ）` });
+        for (const m of set) {
+          const effs = card.effects.filter((e) => e.timing === timing && e.mode === m);
+          if (!effs.some(actsOnOpponent)) {
+            out.push({ code: 'VILLAIN_SELF', path, message: `${what}のモード${MODE_LABEL[m]}に、相手に作用する効果がありません（どちらも相手に不利な効果にします）` });
+          }
+        }
+      }
+    }
+    // 現出・召集・探査は印刷コストが高いカードだけ
+    if (def.minPrintedCost !== undefined && card.cost < def.minPrintedCost) {
+      out.push({ code: 'MIN_COST', path, message: `${what}は、コスト${def.minPrintedCost}以上のカードにしか付けられません` });
+    }
+    // 切除は条件付きの効果（使用時・召喚時・捨て札から使ったとき）が要る
+    if (def.battle.extraPay?.kind === 'cleave' && !card.effects.some((e) => e.condition !== null && MODE_TIMINGS.includes(e.timing))) {
+      out.push({ code: 'CLEAVE_WITHOUT_CONDITION', path, message: `${what}は、条件付きの使用時（召喚時）の効果があるカードにしか付けられません` });
+    }
+    // 奮励は「選んだ1体（相手）」、超過は「選んだ1体」の使用時（召喚時）の効果が要る
+    if (def.requiresChosen) {
+      const timing = base === 'monster' ? 'summon' : 'play';
+      const ok = card.effects.some((e) => {
+        if (e.timing !== timing || e.target !== 'chosen') return false;
+        const rule = getEffect(e.id)?.targetRule;
+        return def.requiresChosen === 'any' || rule === 'enemyAny' || rule === 'enemyMonster' || rule === 'enemyMonsterOne';
+      });
+      if (!ok) {
+        out.push({
+          code: 'CHOSEN_REQUIRED',
+          path,
+          message: `${what}は、「選んだ1体${def.requiresChosen === 'enemy' ? '（相手）' : ''}」の${base === 'monster' ? '召喚時' : '使用時'}の効果があるカードにしか付けられません`,
+        });
+      }
+    }
+    // 試作の軽減・想起のコストは印刷コスト未満
+    const altKind = def.battle.alt?.kind;
+    if ((altKind === 'prototype' || altKind === 'evoke') && (a.value ?? 0) >= card.cost) {
+      out.push({ code: 'ALT_COST', path: `${path}.value`, message: `${what}の${def.value?.label ?? '値'}は、印刷コスト（${card.cost}）より小さくしてください` });
+    }
+    // 血の支払いで払えるのは印刷コストまで
+    if (def.battle.lifePay && (a.value ?? 0) > card.cost) {
+      out.push({ code: 'LIFEPAY_COST', path: `${path}.value`, message: `${what}の数は、印刷コスト（${card.cost}）以下にしてください` });
+    }
     // 親和は印刷コスト2以上のカードだけ（コスト1では軽減できない）
     if (a.id === 'affinity' && card.cost < BALANCE.abilities.affinity.minCost + 1) {
       out.push({ code: 'AFFINITY_LOW_COST', path, message: `${what}は、コスト${BALANCE.abilities.affinity.minCost + 1}以上のカードにしか付けられません` });
@@ -477,6 +546,25 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
       out.push({ code: 'ABILITY_CONDITION', path: `${path}.condition`, message: `${what}には条件を付けられません` });
     }
   });
+
+  // 支払いの組み合わせ（MTG 要素 △ バッチB）：追加の支払い・代わりの使い方は1つ、差し出す能力は1つ、捨て札から使う能力は1つ、探査と脱出は同時に付けない
+  const groupOf = (id: string) => getAbility(id)?.payGroup;
+  const groupCheck = (group: 'extra' | 'sacrifice', code: string, label: string) => {
+    const list = abilities.filter((a) => groupOf(a.id) === group);
+    if (list.length > 1) {
+      out.push({ code, path: 'abilities', message: `${label}（${list.map((a) => getAbility(a.id)!.name).join('・')}）は1枚に1つまでです` });
+    }
+  };
+  groupCheck('extra', 'EXTRA_CONFLICT', '追加の支払い・代わりの使い方');
+  groupCheck('sacrifice', 'SACRIFICE_CONFLICT', '差し出す能力');
+  const fromDiscardList = abilities.filter((a) => getAbility(a.id)?.battle.fromDiscard);
+  const coveredByConflicts = fromDiscardList.every((a, i) => fromDiscardList.slice(i + 1).every((b) => getAbility(a.id)?.conflicts?.includes(b.id) || getAbility(b.id)?.conflicts?.includes(a.id)));
+  if (fromDiscardList.length > 1 && !coveredByConflicts) {
+    out.push({ code: 'FROM_DISCARD_CONFLICT', path: 'abilities', message: `捨て札から使う能力（${fromDiscardList.map((a) => getAbility(a.id)!.name).join('・')}）は1枚に1つまでです` });
+  }
+  if (abilities.some((a) => a.id === 'delve') && abilities.some((a) => a.id === 'escape')) {
+    out.push({ code: 'DELVE_ESCAPE', path: 'abilities', message: '探査と脱出は同時に付けられません（どちらも捨て札を除外するため）' });
+  }
 
   // ポイント
   if (rarityOk && points.total > points.cap) {

@@ -8,7 +8,9 @@
  * つかめるもの（MTG 要素 ○ バッチC1 で追加）：手札のカード・捨て札のカード（捨て札から使う）・起動の ⚡（場のモンスター・パワー）・
  * 攻撃するモンスター。手札のサイクリング・魂力のカードは、自分の捨て札の山（pile）に落とすと使える。
  * モード選択のカード（MTG 要素 ○ バッチC2）は、場に落とすとモードを選び（resolveDrop は 'modes'）、選んだモードで
- * 落とした場所が合法な対象ならそれを使い、違えば対象選びに入る（resolveModeDrop）
+ * 落とした場所が合法な対象ならそれを使い、違えば対象選びに入る（resolveModeDrop）。
+ * MTG 要素 △ バッチB：支払いのシートで選ぶものがあるカードは、対象が決まると 'pay'（超過のように対象を選ばない使い方があれば、
+ * 場のどこに落としても 'pay'）。捨て札のカードの能力（相続・発掘・不朽）は 'discardAbility' としてつかむ
  */
 import type { battle } from '../../engine/index.ts';
 
@@ -16,6 +18,7 @@ type PlayerId = battle.PlayerId;
 type TargetRef = battle.TargetRef;
 type Chosen = battle.Chosen;
 type HandAbilityKind = battle.HandAbilityKind;
+type DiscardAbilityKind = battle.DiscardAbilityKind;
 
 /** つかんだもの */
 export type DragSource =
@@ -38,10 +41,16 @@ export type DragSource =
        * 落とすとモードを選ぶ
        */
       modal?: boolean;
+      /** 支払いのシートで選ぶものがある（MTG 要素 △ バッチB：追加の支払い・代わりの使い方・差し出す・払い方・キッカーなど）。使う前にシートを出す */
+      pay?: boolean;
+      /** 対象を選ばずに使える代わりの使い方（超過）がある：場のどこに落としても支払いのシートへ */
+      anyDrop?: boolean;
     }
   | { kind: 'attacker'; uid: string; blocked: string | null; targets: TargetRef[] }
   /** 起動の ⚡（MTG 要素 ○ バッチC1）。uid は起動するモンスター・パワー */
-  | { kind: 'activate'; uid: string; blocked: string | null; enemyTargets: TargetRef[]; allyTargets: string[] };
+  | { kind: 'activate'; uid: string; blocked: string | null; enemyTargets: TargetRef[]; allyTargets: string[] }
+  /** 捨て札のカードの能力（MTG 要素 △ バッチB：相続・発掘・不朽）。uid は捨て札のカード */
+  | { kind: 'discardAbility'; uid: string; ability: DiscardAbilityKind; blocked: string | null; enemyTargets: TargetRef[]; allyTargets: string[] };
 
 /** 落とせる場所（pile は自分の捨て札の山） */
 export type Spot = { kind: 'monster'; uid: string } | { kind: 'player'; player: PlayerId } | { kind: 'zone' } | { kind: 'hand' } | { kind: 'pile' } | { kind: 'none' };
@@ -88,7 +97,9 @@ const needsEnemy = (s: Targeted) => s.enemyTargets.length > 0;
 const needsAlly = (s: Targeted) => s.allyTargets.length > 0;
 
 /** 捨て札の山に落とせる能力の案内 */
-const PILE_NAME: Record<HandAbilityKind, string> = { cycling: 'サイクリング', channel: '魂力' };
+const PILE_NAME: Record<HandAbilityKind, string> = { cycling: 'サイクリング', channel: '魂力', forecast: '予見' };
+/** 捨て札のカードの能力の名前 */
+const DISCARD_NAME: Record<DiscardAbilityKind, string> = { renew: '相続', dredge: '発掘', embalm: '不朽' };
 const pileHint = (kinds: readonly HandAbilityKind[]) => `🗑で離すと${kinds.map((k) => PILE_NAME[k]).join('・')}`;
 
 /** 対象を選ぶもの（カード・起動）の見た目と光らせる対象 */
@@ -121,12 +132,18 @@ export function planDrag(src: DragSource): DragPlan {
     // 起動：対象が要らなければ場のどこかで離す
     return { ...planTargeted(src, '場で離すと起動'), pile: false };
   }
+  if (src.kind === 'discardAbility') {
+    // 捨て札のカードの能力（MTG 要素 △ バッチB）：対象が要らなければ場のどこかで離す
+    return { ...planTargeted(src, `場で離すと${DISCARD_NAME[src.ability]}`), pile: false };
+  }
   if (src.noise) {
     if (src.blocked && src.blocked !== 'ノイズ') return { mode: 'ghost', targets: [], zone: null, hint: src.blocked, pile: false };
     return { mode: 'ghost', targets: [], zone: 'noise', hint: '場で離すと除外', pile: false };
   }
   const kinds = src.from === 'discard' ? [] : (src.handAbilities ?? []);
-  const plan = modalPlan(src) ?? planTargeted(cardTargeted(src), '場で離すと使う');
+  let plan = modalPlan(src) ?? planTargeted(cardTargeted(src), '場で離すと使う');
+  // 超過（MTG 要素 △ バッチB）：対象を選ばずにも使えるので、場のどこでも落とせる
+  if (src.anyDrop && !src.blocked && plan.zone === null) plan = { ...plan, zone: 'play', hint: `${plan.hint}（場で離すと使い方を選ぶ）` };
   if (kinds.length === 0) return { ...plan, pile: false };
   // サイクリング・魂力のカード：捨て札の山も光る。使えないカードでも、山に落とせばよい
   if (src.blocked) return { mode: 'ghost', targets: [], zone: null, hint: pileHint(kinds), pile: true };
@@ -154,7 +171,9 @@ export type DropDecision =
   /** 捨て札の山に落とした：手札から使う能力（サイクリング・魂力）。複数あれば画面が選ばせる */
   | { t: 'pile'; abilities: HandAbilityKind[] }
   /** モード選択のカードを場に落とした：モードを選ばせる。chosen は落とした場所（どれかのモードの対象なら） */
-  | { t: 'modes'; chosen: Chosen };
+  | { t: 'modes'; chosen: Chosen }
+  /** 支払いのシートで選ぶものがあるカードを落とした（MTG 要素 △ バッチB）。chosen は決まった対象（超過なら空のことも） */
+  | { t: 'pay'; chosen: Chosen };
 
 /** 残りの選択が1つしかなければ自動で埋める */
 function complete(src: Targeted, chosen: Chosen): DropDecision {
@@ -180,6 +199,7 @@ export function resolveDrop(src: DragSource, spot: Spot): DropDecision {
     return { t: 'invalid', reason: '攻撃する相手の上で離してください' };
   }
   if (src.kind === 'activate') return resolveTargeted(src, spot, '場の上で離すと起動します');
+  if (src.kind === 'discardAbility') return resolveTargeted(src, spot, `場の上で離すと${DISCARD_NAME[src.ability]}を使えます`);
   if (src.noise) {
     if (src.blocked && src.blocked !== 'ノイズ') return { t: 'invalid', reason: src.blocked };
     return spot.kind === 'none' ? { t: 'invalid', reason: '場の上で離すと除外します' } : { t: 'noise' };
@@ -197,7 +217,11 @@ export function resolveDrop(src: DragSource, spot: Spot): DropDecision {
     if (t?.kind === 'monster' && src.allyTargets.includes(t.uid)) return { t: 'modes', chosen: { ally: t.uid } };
     return { t: 'modes', chosen: {} };
   }
-  return resolveTargeted(cardTargeted(src), spot, '場の上で離すと使えます');
+  const d = resolveTargeted(cardTargeted(src), spot, '場の上で離すと使えます');
+  // 支払いのシート（MTG 要素 △ バッチB）：対象が決まったら（または対象を選ばない超過があれば場のどこでも）シートへ
+  if (src.pay && d.t === 'play') return { t: 'pay', chosen: d.chosen };
+  if (src.anyDrop && !src.blocked && d.t === 'invalid' && spot.kind !== 'none' && spot.kind !== 'pile') return { t: 'pay', chosen: {} };
+  return d;
 }
 
 /** 選んだモードの候補と使えない理由（エンジンの PlayInfo.modes の1つ） */

@@ -40,6 +40,9 @@ export const TIMING_IDS = [
   'enemyAttacked',
   'discarded',
   'valiant',
+  // MTG 要素 △ バッチB：能力「相続」で捨て札から除外したとき・能力「予見」で手札から使ったとき（能力があるときだけ）
+  'renew',
+  'forecast',
 ] as const;
 export type TimingId = (typeof TIMING_IDS)[number];
 
@@ -112,6 +115,8 @@ export const CONDITION_IDS = [
   'converge',
   'descend',
   'rested',
+  // MTG 要素 △ バッチB：協約したなら（能力「協約」があるときだけ）
+  'bargained',
 ] as const;
 export type ConditionId = (typeof CONDITION_IDS)[number];
 

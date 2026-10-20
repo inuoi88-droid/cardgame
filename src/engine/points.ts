@@ -11,6 +11,7 @@ import { ceilPoints, floorPoints, round2 } from './math.ts';
 import {
   CHARGE_EVENT_LABEL,
   CONDITIONS,
+  MODE_TIMINGS,
   DEFAULT_ATTACK_PROFILE,
   chargeSpec,
   TIMINGS,
@@ -218,11 +219,17 @@ export function abilityContext(card: Pick<CardDef, 'stats' | 'keywords' | 'effec
   let all = 0;
   let play = 0;
   let channel = 0;
+  let conditionalGain = 0;
+  const chosenEffects: AbilityPointContext['chosenEffects'] = [];
   for (const e of card.effects) {
     const v = effectPoints(e, card).value;
     all += v;
     if (e.timing === timing) play += v;
     if (e.timing === 'channel') channel += v;
+    // MTG 要素 △ バッチB：切除（条件を外したときに増える分）・奮励／超過（「選んだ1体」の効果）
+    if (e.condition !== null && MODE_TIMINGS.includes(e.timing)) conditionalGain += Math.max(0, effectPoints({ ...e, condition: null }, card).value - v);
+    const rule = getEffect(e.id)?.targetRule;
+    if (e.timing === timing && e.target === 'chosen' && rule) chosenEffects.push({ points: v, rule });
   }
   return {
     card,
@@ -232,6 +239,8 @@ export function abilityContext(card: Pick<CardDef, 'stats' | 'keywords' | 'effec
     channelEffectPoints: channel,
     hasFromDiscard: card.effects.some((e) => e.timing === 'fromDiscard'),
     modeOtherPoints: modeSummary(card)?.others ?? 0,
+    conditionalGain,
+    chosenEffects,
   };
 }
 
@@ -268,7 +277,26 @@ export function modeSummary(card: PointCard & Pick<CardDef, 'effects'>): ModeSum
  */
 export function modeDiscount(card: PointCard & Pick<CardDef, 'effects'>): { value: number; formula: string } | null {
   const sum = modeSummary(card);
-  if (!sum || sum.others <= 0) return null;
+  if (!sum) return null;
+  // 放題・段階・最悪の二択（MTG 要素 △ バッチB）：モードのポイントの合計の決め方を能力が決める
+  for (const a of card.abilities ?? []) {
+    const def = getAbility(a.id);
+    if (!def?.modeValue) continue;
+    let total = 0;
+    let value = 0;
+    const formulas: string[] = [];
+    for (const g of sum.groups) {
+      const points = [...g.points.entries()].sort((x, y) => x[0] - y[0]).map(([, v]) => v);
+      total += points.reduce((x, y) => x + y, 0);
+      const r = def.modeValue(a, points);
+      value += r.value;
+      formulas.push(r.formula);
+    }
+    const discount = floorPoints(total - value);
+    if (discount === 0) return null;
+    return { value: discount, formula: `モード${round2(total)} → ${formulas.join('・')}（${def.name}） → 切り捨て` };
+  }
+  if (sum.others <= 0) return null;
   const rate = BALANCE.modal.otherRate;
   return { value: floorPoints(sum.others * (1 - rate)), formula: `選ばれないモード${round2(sum.others)}×${round2(1 - rate)} → 切り捨て` };
 }

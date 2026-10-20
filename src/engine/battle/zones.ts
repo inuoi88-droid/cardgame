@@ -1,8 +1,9 @@
 /** カードの移動：ドロー、召喚、ノイズ、バウンス、奪取、コピー、蘇生、解除 */
 import { BALANCE } from '../balance.ts';
-import { getDrawback, getEffect } from '../registry.ts';
+import { getAbility, getDrawback, getEffect } from '../registry.ts';
+import type { ModeSel } from './modes.ts';
 import { TIMINGS } from '../options.ts';
-import { cardName, emptyStatuses, findMonster, isEnded, log, monsterLabel, newUid, turnLimits } from './core.ts';
+import { cardName, emptyStatuses, enqueue, findMonster, isEnded, log, monsterLabel, newUid, turnLimits } from './core.ts';
 import { keywordFlags, onLeaveBoard } from './damage.ts';
 import { pick, randInt, shuffle } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
@@ -111,14 +112,38 @@ function afterDrawn(g: GameState, p: PlayerId, drawn: CardInst[], depth: number)
   }
 }
 
+/**
+ * 場に出るときの指定（MTG 要素 △ バッチB）：試作版（攻撃力・体力が半分）・解鎖（攻撃力+unleash。反撃しない）・
+ * 一時蘇生（速攻・ターン終了時に除外）・最悪の二択（召喚時のモードは相手が選ぶ）
+ */
+export interface EnterOpts {
+  prototype?: boolean;
+  unleash?: number;
+  unearth?: boolean;
+  villain?: boolean;
+}
+
+/** 試作版の値：半分を量の刻みに切り捨て（最低 min） */
+function halve(v: number, min: number): number {
+  const step = Math.max(1, Math.floor(BALANCE.abilities.prototype.step));
+  return Math.max(min, Math.floor(v / 2 / step) * step);
+}
+
 /** モンスターを場に出す（召喚時の効果は呼び出し側で積む）。トークンは CardInst.token の強さで出る */
-export function placeMonster(g: GameState, p: PlayerId, card: CardInst, depth: number): Monster | undefined {
+export function placeMonster(g: GameState, p: PlayerId, card: CardInst, depth: number, enter: EnterOpts = {}): Monster | undefined {
   const def = g.cards[card.cardId];
   if (!def?.stats) return undefined;
   // 永久強化（MTG 要素 △ バッチA）：この個体の上乗せを印刷のステータスに足す（トークンは強さが決まっているので足さない）
   const perm = card.token ? undefined : card.perm;
-  const attack = (card.token?.attack ?? def.stats.attack) + (perm?.attack ?? 0);
-  const hp = (card.token?.hp ?? def.stats.hp) + (perm?.hp ?? 0);
+  let attack = (card.token?.attack ?? def.stats.attack) + (perm?.attack ?? 0);
+  let hp = (card.token?.hp ?? def.stats.hp) + (perm?.hp ?? 0);
+  // 試作（MTG 要素 △ バッチB）：永久強化を足してから半分
+  if (enter.prototype) {
+    const step = Math.max(1, Math.floor(BALANCE.abilities.prototype.step));
+    attack = halve(attack, 0);
+    hp = halve(hp, step);
+  }
+  if (enter.unleash) attack += enter.unleash;
   const defense = card.token ? (card.token.defense ?? 0) : def.stats.defense;
   const m: Monster = {
     uid: card.uid,
@@ -140,11 +165,25 @@ export function placeMonster(g: GameState, p: PlayerId, card: CardInst, depth: n
   };
   // 応召の一時トークンは速攻を持つ（MTG 要素 ○ バッチB）
   if (card.token?.temp) m.granted = ['haste'];
+  // MTG 要素 △ バッチB：試作版・解鎖・一時蘇生（公開の印）
+  if (enter.prototype) m.prototype = true;
+  if (enter.unleash) m.unleashed = true;
+  if (enter.unearth) m.unearthed = true;
   // 休眠（MTG 要素 △ バッチA）：出たターンを起点に1ターンおきに休む
   if (def.drawbacks.some((d) => getDrawback(d.id)?.battle.dormant)) m.counters.dormantFrom = g.players[p].turnsTaken;
   m.stealth = keywordFlags(g, m).stealthOnSummon === true;
   g.players[p].board.push(m);
-  const kind = card.token?.copy ? '（コピー）' : card.token?.temp ? '（ターン終了時に消える）' : '';
+  const kind = card.token?.copy
+    ? '（コピー）'
+    : card.token?.temp
+      ? '（ターン終了時に消える）'
+      : enter.prototype
+        ? '（試作版）'
+        : enter.unleash
+          ? '（解鎖）'
+          : enter.unearth
+            ? '（一時蘇生：ターン終了時に除外）'
+            : '';
   log(g, depth, `${g.players[p].name}の場に「${def.name}」${kind}が出た（攻撃力${m.attack}・体力${m.hp}・守備力${m.defense}）`, 'effect', undefined, {
     kind: 'summon',
     player: p,
@@ -166,14 +205,26 @@ export function summon(
   depth: number,
   protectKey?: string,
   timing: 'summon' | 'fromDiscard' | TimingId = 'summon',
-  mode?: number,
+  mode?: ModeSel,
+  enter: EnterOpts = {},
 ): Monster | undefined {
-  const m = placeMonster(g, p, card, depth);
+  const m = placeMonster(g, p, card, depth, enter);
   if (!m) return undefined;
   const def = g.cards[card.cardId]!;
   const src: SourceRef = { kind: 'monster', uid: m.uid, cardId: card.cardId, name: def.name, controller: p, ...(card.token ? { token: true } : {}) };
+  // 貪食（MTG 要素 △ バッチB）：召喚時の効果より先に、生け贄にする他のモンスターを選ぶ（トークンのコピーは能力を使わない）
+  const devour = card.token ? 0 : devourAmount(def);
+  if (devour > 0) {
+    // 選べるのは出たときに場にいた他のモンスターだけ（あとから出た分隊のコピーなどは選べない）
+    const among = g.players[p].board.filter((x) => x.uid !== m.uid).map((x) => x.uid);
+    enqueue(g, { t: 'devourChoice', player: p, uid: m.uid, amount: devour, max: BALANCE.abilities.devour.max, depth: depth + 1, among });
+  }
   // モード選択（MTG 要素 ○ バッチC2）：選ぶ場面のない召喚（蘇生・複写トークン）はモード A
-  enqueueCardTiming(g, src, def, timing, chosen, depth + 1, { ...(protectKey ? { protectKey } : {}), ...(mode !== undefined ? { mode } : {}) });
+  enqueueCardTiming(g, src, def, timing, chosen, depth + 1, {
+    ...(protectKey ? { protectKey } : {}),
+    ...(mode !== undefined ? { mode } : {}),
+    ...(enter.villain ? { villain: true } : {}),
+  });
   onMonsterEntered(g, m, depth + 1);
   return m;
 }
@@ -193,6 +244,24 @@ export function onMonsterEntered(g: GameState, m: Monster, depth: number): void 
   // 蓄積（MTG 要素 ○ バッチC2）：自分のモンスターが出るたび
   chargePowers(g, m.controller, 'allySummoned', depth);
   enqueueMonsters(g, m.controller, 'allySummoned', depth, { chosen, excludeUid: m.uid });
+}
+
+/** 貪食（MTG 要素 △ バッチB）：生け贄にした1体につき足す量（貪食が無ければ 0） */
+export function devourAmount(def: CardDef | undefined): number {
+  for (const a of def?.abilities ?? []) {
+    const n = getAbility(a.id)?.battle.devour?.(a);
+    if (n !== undefined) return n;
+  }
+  return 0;
+}
+
+/** 場から除外する（一時蘇生のターン終了時。破壊ではない。MTG 要素 △ バッチB）。カードは持ち主の除外へ */
+export function exileFromBoard(g: GameState, m: Monster, depth: number, text: string): void {
+  if (!findMonster(g, m.uid)) return;
+  removeFromBoard(g, m);
+  if (!m.card.token) g.players[m.card.owner].exile.push(m.card);
+  log(g, depth, text, 'effect', undefined, { kind: 'destroy', player: m.controller, cardId: m.card.cardId, uid: m.uid });
+  onLeaveBoard(g, m, depth + 1, false);
 }
 
 /** ノイズを山札のランダムな位置に混ぜる */

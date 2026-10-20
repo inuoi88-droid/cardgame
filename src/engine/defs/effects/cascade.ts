@@ -14,6 +14,8 @@ export default defineEffect({
   value: countParam('コスト', { min: BALANCE.card.costMin, max: B.maxValue, default: 2 }),
   targetRule: 'self',
   minRarity: 'rare',
+  // 能力「犠牲」でもう一度出すときは出さない（MTG 要素 △ バッチB）
+  noCopy: true,
   basePoints: (e) => B.flat + B.perCost * n(e),
   baseFormula: (e) => `${B.flat}+${n(e)}×${B.perCost}`,
   describe: (e) => `山札の上からコスト${n(e)}以下のカードが出るまでめくり、それを無料で使う`,

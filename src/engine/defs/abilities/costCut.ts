@@ -13,6 +13,7 @@ export default defineAbility({
   id: 'costCut',
   name: '条件付き軽減',
   order: 12,
+  group: 'コスト',
   summary: `条件を満たしているとき、このカードのコスト−K（コストは${B.minCost}まで。怒濤＝「このターン2枚目以降」、罠＝「前の相手のターンに相手が3枚以上使った」でKを印刷コストに）。ポイントは${B.perStep}×K×条件の倍率`,
   value: countParam('軽減', { min: 1, max: B.maxReduction, default: 1 }),
   takesCondition: true,

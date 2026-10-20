@@ -8,6 +8,7 @@ export default defineAbility({
   id: 'kicker',
   name: 'キッカー',
   order: 13,
+  group: '追加の支払い',
   summary: `使うときにエナジーを追加でK払ってもよい。払えば条件「キッカーを払っていれば」の効果も出る（その効果の倍率は ×${BALANCE.conditionByKicker.join('／')}、K＝1／2）`,
   value: countParam('追加エナジー', { min: 1, max: B.maxExtra, default: 1 }),
   points: () => B.flat,

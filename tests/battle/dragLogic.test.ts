@@ -255,3 +255,39 @@ describe('モード選択のカード（MTG 要素 ○ バッチC2）', () => {
     expect(resolveModeDrop({ blocked: null, enemyTargets: [], allyTargets: ['h1', 'm5'] }, {}, 'h1')).toEqual({ t: 'need', chosen: {}, need: 'ally' });
   });
 });
+
+describe('支払いのシート・捨て札のカードの能力（MTG 要素 △ バッチB）', () => {
+  it('支払いの選ぶものがあるカード：対象が決まったら（落とした場所が合法でも）支払いのシートへ', () => {
+    expect(resolveDrop(card({ pay: true }), { kind: 'zone' })).toEqual({ t: 'pay', chosen: {} });
+    expect(resolveDrop(card({ pay: true, enemyTargets: [opp, m('e1')] }), { kind: 'monster', uid: 'e1' })).toEqual({ t: 'pay', chosen: { enemy: m('e1') } });
+    // 対象がまだなら、先に対象選び（シートはそのあと）
+    expect(resolveDrop(card({ pay: true, enemyTargets: [opp, m('e1')], allyTargets: ['a1', 'a2'] }), { kind: 'monster', uid: 'e1' })).toMatchObject({ t: 'need', need: 'ally' });
+    // 選ぶものが無ければ今までどおり
+    expect(resolveDrop(card({ enemyTargets: [opp] }), { kind: 'player', player: 1 })).toEqual({ t: 'play', chosen: { enemy: opp } });
+  });
+  it('超過（対象を選ばない使い方）があるカード：場のどこに落としても支払いのシート。場の外は戻す', () => {
+    const src = card({ pay: true, anyDrop: true, enemyTargets: [m('e1'), m('e2')] });
+    expect(planDrag(src).zone).toBe('play');
+    expect(resolveDrop(src, { kind: 'zone' })).toEqual({ t: 'pay', chosen: {} });
+    expect(resolveDrop(src, { kind: 'monster', uid: 'e2' })).toEqual({ t: 'pay', chosen: { enemy: m('e2') } });
+    expect(resolveDrop(src, { kind: 'none' }).t).toBe('invalid');
+    expect(resolveDrop(src, { kind: 'hand' }).t).toBe('cancel');
+    // 使えないなら戻す
+    expect(resolveDrop({ ...src, blocked: 'エナジーが足りません' } as DragSource, { kind: 'zone' }).t).toBe('invalid');
+  });
+  it('捨て札のカードの能力：対象が要らなければ場で離す、要れば候補が光る', () => {
+    const renew: DragSource = { kind: 'discardAbility', uid: 'd1', ability: 'renew', blocked: null, enemyTargets: [opp, m('e1')], allyTargets: [] };
+    const plan = planDrag(renew);
+    expect(plan.mode).toBe('arrow');
+    expect(plan.targets).toEqual([opp, m('e1')]);
+    expect(resolveDrop(renew, { kind: 'monster', uid: 'e1' })).toEqual({ t: 'play', chosen: { enemy: m('e1') } });
+    const dredge: DragSource = { kind: 'discardAbility', uid: 'd2', ability: 'dredge', blocked: null, enemyTargets: [], allyTargets: [] };
+    expect(planDrag(dredge)).toMatchObject({ mode: 'ghost', zone: 'play' });
+    expect(resolveDrop(dredge, { kind: 'zone' })).toEqual({ t: 'play', chosen: {} });
+    expect(resolveDrop({ ...dredge, blocked: '発掘は1ターン1回までです' }, { kind: 'zone' })).toEqual({ t: 'invalid', reason: '発掘は1ターン1回までです' });
+  });
+  it('予見のあるカードは、捨て札の山に落とすと手札の能力（複数なら画面が選ばせる）', () => {
+    expect(resolveDrop(card({ handAbilities: ['cycling', 'forecast'] }), { kind: 'pile' })).toEqual({ t: 'pile', abilities: ['cycling', 'forecast'] });
+    expect(planDrag(card({ handAbilities: ['forecast'] })).hint).toContain('予見');
+  });
+});

@@ -20,6 +20,7 @@ export default defineAbility({
   id: 'grow',
   name: '成長',
   order: 4,
+  group: '使い終わり',
   summary: `使うたび、このカード（この1枚）の使用時のダメージ・連撃の数値が+N（対戦中ずっと。上乗せは${B.maxGrow}まで）。使用時のダメージ効果が要る`,
   value: valueParam('量', { default: 1, max: B.maxValue }),
   cardTypes: ['attack', 'powerAttack'],

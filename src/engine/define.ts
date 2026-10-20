@@ -5,7 +5,7 @@
  * エディター・ポイント計算・効果テキストのすべてに反映される（索引は scripts/gen-registry.mjs が自動生成）。
  */
 import { BALANCE } from './balance.ts';
-import type { CardInst, ChoiceSpec, EffectRuntime, GameState, Monster, PlayerId, PowerInst, TargetRef } from './battle/types.ts';
+import type { AltPlay, CardInst, ChoiceSpec, DiscardAbilityKind, EffectRuntime, ExtraPayKind, GameState, HandAbilityKind, Monster, PlayerId, PowerInst, SacrificeKind, TargetRef } from './battle/types.ts';
 import type { ChargeEvent, TargetRule } from './options.ts';
 import type {
   AbilityInstance,
@@ -113,6 +113,9 @@ export interface EffectDef {
   notSelfAlly?: boolean;
   /** 追加指定ごとの、使えるレアリティの下限（倍化の「3倍」はレジェンドだけ） */
   optionMinRarity?: Partial<Record<string, Rarity>>;
+  // ---- MTG 要素 △ バッチB
+  /** 能力「犠牲」でもう一度出すときに出さない（続唱：コピーしない） */
+  noCopy?: boolean;
   /** 倍率を掛ける前の基礎ポイント */
   basePoints(e: EffectInstance): number;
   /** 基礎ポイントの式（内訳表示用。例：「2×2」） */
@@ -204,6 +207,9 @@ export interface KeywordDef {
     reach?: boolean;
     /** 潜伏：挑発がすべてこのモンスターより攻撃力が高ければ、挑発を無視して攻撃できる */
     skulk?: boolean;
+    // ---- MTG 要素 △ バッチB
+    /** 後援：攻撃するとき、まだ攻撃できる自分の他のモンスター1体を休ませて、その攻撃力をこの攻撃に足してよい */
+    enlist?: boolean;
     /** 持ち主のターン開始時 */
     onTurnStart?(rt: EffectRuntime, k: KeywordInstance, monster: Monster): void;
   };
@@ -280,6 +286,11 @@ export interface AbilityPointContext {
   hasFromDiscard: boolean;
   /** モード選択（MTG 要素 ○ バッチC2）：いちばん高いモード以外のモードのポイントの合計（双呪が使う。モードが無ければ0） */
   modeOtherPoints: number;
+  // ---- MTG 要素 △ バッチB
+  /** 使用時・召喚時・捨て札から使ったときの条件付きの効果について、条件を外したときに増えるポイントの合計（切除） */
+  conditionalGain: number;
+  /** 使用時（モンスターなら召喚時）の「選んだ1体」の効果のポイントと作用先（奮励・超過） */
+  chosenEffects: { points: number; rule: TargetRule }[];
 }
 
 /** 動的コスト（親和・条件付き軽減。MTG 要素 ○ バッチC1）の計算に渡す道具。条件の判定は battle 側が作る */
@@ -301,7 +312,22 @@ export interface FromDiscardRule {
   needsHandDiscard?: boolean;
   /** 他の捨て札をこの枚数だけ除外する（脱出） */
   exileOthers?(a: AbilityInstance): number;
+  // ---- MTG 要素 △ バッチB
+  /** 同じカードは1ターン1回（回顧） */
+  oncePerTurn?: boolean;
+  /** まだ攻撃できる自分のモンスター1体を休ませてよく、その攻撃力 perEnergy ごとにコスト−1（maxCut まで。調和） */
+  tapOne?: { perEnergy: number; maxCut: number };
+  /** このターンに手札から捨てられたカードだけ（大混乱） */
+  onlyIfDiscardedThisTurn?: boolean;
+  /** コストは印刷コストではなくこの値（一時蘇生。護法などは足す） */
+  fixedCost?(a: AbilityInstance): number;
+  /** 出たモンスターは速攻を持ち、持ち主のターン終了時に除外される（一時蘇生） */
+  unearth?: boolean;
 }
+
+/** カードの能力の見出し（エディターの選択パネル。MTG 要素 △ バッチB） */
+export const ABILITY_GROUPS = ['使い終わり', '捨て札から', '手札・捨て札の能力', 'コスト', '追加の支払い', 'モード', '場・パワー'] as const;
+export type AbilityGroup = (typeof ABILITY_GROUPS)[number];
 
 /**
  * カードの能力（MTG 要素 ○ バッチB）：モンスター以外にも付く、カード単位の性質。
@@ -336,8 +362,8 @@ export interface AbilityDef {
     fromDiscard?: FromDiscardRule;
     /** 起動：場のモンスター・パワーの「起動」の効果を使うときのエナジー */
     activateCost?(a: AbilityInstance): number;
-    /** 手札から使う能力（サイクリング・魂力）と、そのエナジー */
-    handAbility?: { kind: 'cycling' | 'channel'; cost(a: AbilityInstance): number };
+    /** 手札から使う能力（サイクリング・魂力・予見）と、そのエナジー */
+    handAbility?: { kind: HandAbilityKind; cost(a: AbilityInstance): number };
     /** コストの軽減（親和・条件付き軽減）。amount は軽減の量、min は軽減してもこれより下げない値 */
     reduce?(a: AbilityInstance, ctx: CostContext): { amount: number; min: number } | null;
     /** キッカー：払ってもよい追加エナジー */
@@ -350,7 +376,45 @@ export interface AbilityDef {
     // ---- MTG 要素 △ バッチA
     /** 罠：パワーの効果が初めて出たら、そのあとパワーが消える */
     trap?: boolean;
+    // ---- MTG 要素 △ バッチB
+    /** 追加の支払い（切除・奮励・分隊）：1回ぶんのエナジーと、払える回数 */
+    extraPay?: { kind: ExtraPayKind; unit(a: AbilityInstance): number; max: number };
+    /** 代わりの使い方（試作・想起・超過・解鎖）：そのときの基本のコスト（印刷コストの代わり。軽減の前） */
+    alt?: { kind: AltPlay; cost(a: AbilityInstance, printed: number): number };
+    /** 放題：2つ目からのモード1つにつき払うエナジー */
+    spreeCost?(a: AbilityInstance): number;
+    /** 段階：モード B・C に追加のエナジー */
+    tiered?: boolean;
+    /** 最悪の二択：モードは相手が選ぶ */
+    villain?: boolean;
+    /** 差し出す（現出・犠牲・協約）。犠牲は攻撃力 minAttack 以上のモンスターだけ */
+    sacrifice?: { kind: SacrificeKind; minAttack?(a: AbilityInstance): number };
+    /** 貪食：生け贄にした1体につき攻撃力・体力に足す量 */
+    devour?(a: AbilityInstance): number;
+    /** 召集：休ませる1体につきコスト−1（max まで） */
+    convoke?: { max: number };
+    /** 探査：除外する捨て札1枚につきコスト−1（max まで） */
+    delve?: { max: number };
+    /** 血の支払い：HP で払えるエナジーの数 */
+    lifePay?(a: AbilityInstance): number;
+    /** 代替コスト：同じ種類の手札1枚を除外すれば、カードのコストの分を払わない */
+    pitch?: boolean;
+    /** 捨て札のカードの能力（相続・発掘・不朽）と、そのエナジー */
+    discardAbility?: { kind: DiscardAbilityKind; cost(a: AbilityInstance): number };
   };
+  // ---- MTG 要素 △ バッチB
+  /** 支払いの種類（extra：追加の支払い・代わりの使い方は1枚に1つ＝EXTRA_CONFLICT／sacrifice：差し出す能力は1つ＝SACRIFICE_CONFLICT） */
+  payGroup?: 'extra' | 'sacrifice';
+  /** モード選択のカードだけ（放題・段階・最悪の二択） */
+  requiresModes?: boolean;
+  /** 印刷コストがこの値以上のカードだけ（現出・召集・探査＝MIN_COST） */
+  minPrintedCost?: number;
+  /** 使用時・召喚時の「選んだ1体」の効果が要る（奮励は相手側、超過はどちらでも） */
+  requiresChosen?: 'enemy' | 'any';
+  /** モードのポイントの合計の決め方（放題・段階・最悪の二択）。points はモードごと（A・B・C の順）のポイント */
+  modeValue?(a: AbilityInstance, points: number[]): { value: number; formula: string };
+  /** エディターの選択パネルの見出し */
+  group?: AbilityGroup;
   /** 「1回きり」のチェック（AbilityInstance.once。蓄積の「プラン」）。label はエディターの表示 */
   onceOption?: { label: string };
   /** この能力に条件を付ける（条件付き軽減。エディターに条件の選択パネルを出す） */

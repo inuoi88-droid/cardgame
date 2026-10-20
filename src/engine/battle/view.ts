@@ -45,6 +45,10 @@ export function viewFor(g: GameState, p: PlayerId): GameState {
   if (v.pending) for (const o of v.pending.options) if (o.cardId) visible.add(o.cardId);
   // 無料で使う途中のカード（続唱でめくって公開済み）
   if (v.pending?.step.t === 'freePlay') visible.add(v.pending.step.card.cardId);
+  // 最悪の二択で相手が選んでいるカード（使ったので公開済み。MTG 要素 △ バッチB）
+  if (v.pending?.step.t === 'villainChoice') visible.add(v.pending.step.src.cardId);
+  // このターンに予見で見せた相手の手札のカード（MTG 要素 △ バッチB。どの1枚かは隠したまま、定義だけ）
+  for (const c of g.players[opp].hand) if (c.forecastTurn === g.turnIndex) visible.add(c.cardId);
   const cards: Record<string, CardDef> = {};
   for (const [id, def] of Object.entries(v.cards)) if (visible.has(id)) cards[id] = def;
   v.cards = cards;

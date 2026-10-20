@@ -1,24 +1,29 @@
 /** カードの使用とノイズの除外 */
 import { BALANCE } from '../balance.ts';
 import { classifyCard } from '../classify.ts';
-import { TIMINGS, isPowerTiming, type TargetRule } from '../options.ts';
+import { TIMINGS, isPowerTiming, overloadTarget, type TargetRule } from '../options.ts';
 import { describeEffect } from '../text.ts';
 import { getAbility, getDrawback, getEffect } from '../registry.ts';
-import type { CostContext, FromDiscardRule } from '../define.ts';
+import type { AbilityDef, CostContext, FromDiscardRule } from '../define.ts';
 import type { AbilityInstance, CardDef, EffectInstance, TimingId } from '../types.ts';
 import { checkCondition } from './conditions.ts';
-import { cardName, enqueue, findMonster, log, newUid, other, playerRef, playRecord } from './core.ts';
+import { cardName, effectiveAttack, enqueue, findMonster, log, newUid, other, playerRef, playRecord } from './core.ts';
+import { attacksPerTurn } from './combat.ts';
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
-import { cardTargetable, cardTargetableTaunts, wardTax } from './damage.ts';
+import { cardTargetable, cardTargetableTaunts, destroyMonster, wardTax } from './damage.ts';
 import { randInt } from './rng.ts';
-import { afterDiscarded, discardCard, summon } from './zones.ts';
-import { cardModes, effectsForMode, entwineCost, modeMatches, resolveMode } from './modes.ts';
+import { afterDiscarded, createToken, discardCard, summon } from './zones.ts';
+import { cardModes, effectsForMode, entwineCost, firstMode, isVillain, modeMatches, resolveMode, spreeCost, tieredSurcharge, type ModeSel } from './modes.ts';
 import { chargePowers, startSaga } from './powers.ts';
 import { MODE_LABEL, type ModeId } from '../types.ts';
 import {
   NOISE_CARD_ID,
+  type AltPlay,
   type CardInst,
   type Chosen,
+  type ExtraPayKind,
+  type Monster,
+  type SacrificeKind,
   type DelayedEffect,
   type GameState,
   type PlayFrom,
@@ -44,6 +49,20 @@ export interface CostCtx {
   kick?: boolean;
   /** 選んだモード（MTG 要素 ○ バッチC2）。0 は双呪（追加エナジー） */
   mode?: number;
+  // ---- MTG 要素 △ バッチB（追加の支払い・代わりの使い方・差し出す・払い方）
+  /** 放題で選んだモード（2つ以上） */
+  modes?: readonly number[];
+  /** 切除・奮励・分隊の回数 */
+  extra?: number;
+  alt?: AltPlay;
+  /** 現出で差し出すモンスター（犠牲・協約はコストを変えない） */
+  sacrificeUid?: string;
+  /** 召集・調和で休ませるモンスター */
+  tapUids?: readonly string[];
+  /** 探査で除外する捨て札（手札から使うとき。捨て札から使うときは脱出の除外でコストは変わらない） */
+  exileUids?: readonly string[];
+  pitchUid?: string;
+  lifePay?: number;
 }
 
 /** コストの内訳の1段（label は「親和」「凍結」など、delta は増減） */
@@ -52,11 +71,16 @@ export interface CostStep {
   delta: number;
 }
 
-/** コストの内訳：印刷コスト → 軽減（親和・条件付き軽減）→ 凍結・軽減効果 → 追加の支払い（キッカー・フラッシュバック・護法） */
+/**
+ * コストの内訳：印刷コスト（一時蘇生・代わりの使い方）→ 軽減（親和・条件付き軽減）→ 現出・召集・探査・調和 → 凍結・軽減効果 →
+ * 代替コスト → 追加の支払い（キッカー・双呪・放題・段階・切除・奮励・分隊・フラッシュバック・護法）→ 血の支払い。
+ * total は払うエナジー、hp は血の支払いで払う HP（無ければ省略）
+ */
 export interface CostBreakdown {
   printed: number;
   steps: CostStep[];
   total: number;
+  hp?: number;
 }
 
 /** 捨て札から使う能力（フラッシュバック・再活・脱出）。無ければ undefined */
@@ -77,16 +101,102 @@ export function kickerCost(def: CardDef | undefined): number {
   return 0;
 }
 
+// ---------------------------------------------------------------- 追加の支払い（MTG 要素 △ バッチB）
+
+/** カードの能力のうち、test を満たす最初のもの（定義つき） */
+function abilityWhere(def: CardDef | undefined, test: (ad: AbilityDef) => boolean): { a: AbilityInstance; ad: AbilityDef } | undefined {
+  for (const a of def?.abilities ?? []) {
+    const ad = getAbility(a.id);
+    if (ad && test(ad)) return { a, ad };
+  }
+  return undefined;
+}
+
+/** 追加の支払い（切除・奮励・分隊）：1回のエナジーと回数の上限 */
+export function extraPayOf(def: CardDef | undefined): { kind: ExtraPayKind; name: string; unit: number; max: number } | undefined {
+  const x = abilityWhere(def, (ad) => ad.battle.extraPay !== undefined);
+  if (!x) return undefined;
+  const e = x.ad.battle.extraPay!;
+  return { kind: e.kind, name: x.ad.name, unit: e.unit(x.a), max: e.max };
+}
+
+/** 代わりの使い方（試作・想起・超過・解鎖）の一覧 */
+export function altsOf(def: CardDef | undefined): { kind: AltPlay; name: string; a: AbilityInstance; cost: (printed: number) => number }[] {
+  return (def?.abilities ?? []).flatMap((a) => {
+    const ad = getAbility(a.id);
+    const alt = ad?.battle.alt;
+    return ad && alt ? [{ kind: alt.kind, name: ad.name, a, cost: (printed: number) => alt.cost(a, printed) }] : [];
+  });
+}
+
+/** 差し出す能力（現出・犠牲・協約） */
+export function sacrificeOf(def: CardDef | undefined): { kind: SacrificeKind; name: string; minAttack: number } | undefined {
+  const x = abilityWhere(def, (ad) => ad.battle.sacrifice !== undefined);
+  if (!x) return undefined;
+  const s = x.ad.battle.sacrifice!;
+  return { kind: s.kind, name: x.ad.name, minAttack: s.minAttack?.(x.a) ?? 0 };
+}
+
+/** 召集・探査の上限（無ければ 0） */
+export const convokeMax = (def: CardDef | undefined): number => abilityWhere(def, (ad) => ad.battle.convoke !== undefined)?.ad.battle.convoke!.max ?? 0;
+export const delveMax = (def: CardDef | undefined): number => abilityWhere(def, (ad) => ad.battle.delve !== undefined)?.ad.battle.delve!.max ?? 0;
+
+/** 血の支払い：HP で払えるエナジーの数（無ければ 0） */
+export function lifePayMax(def: CardDef | undefined): number {
+  const x = abilityWhere(def, (ad) => ad.battle.lifePay !== undefined);
+  return x ? x.ad.battle.lifePay!(x.a) : 0;
+}
+
+/** 代替コストを持つか */
+export const hasPitch = (def: CardDef | undefined): boolean => abilityWhere(def, (ad) => ad.battle.pitch === true) !== undefined;
+
+/** 現出で下がるコスト：差し出すモンスターのカードの印刷コスト（トークンは0、複写トークンは元のカード） */
+export function emergeCut(g: GameState, m: Monster): number {
+  if (m.card.token && !m.card.token.copy) return 0;
+  return g.cards[m.card.cardId]?.cost ?? 0;
+}
+
+/** 召集・調和・後援で休ませられるか（まだ攻撃回数が残っている。召喚酔い・凍結中でもよい＝動力化と同じ） */
+export function canTap(g: GameState, m: Monster): boolean {
+  return m.attacksUsed < attacksPerTurn(g, m);
+}
+
+/** 代替コストで除外できる手札か（このカード以外で、種類が同じ。パワーアタックはパワー。ノイズは不可） */
+export function pitchMatches(g: GameState, card: CardInst, other: CardInst): boolean {
+  if (other.uid === card.uid || other.cardId === NOISE_CARD_ID) return false;
+  const a = g.cards[card.cardId];
+  const b = g.cards[other.cardId];
+  if (!a || !b) return false;
+  const kind = (d: CardDef) => (classifyCard(d) === 'powerAttack' ? 'power' : classifyCard(d));
+  return kind(a) === kind(b);
+}
+
 /**
- * 実際に払うコストの内訳（MTG 要素 ○ バッチC1 で一般化）。
- * ①印刷コスト ②軽減（親和・条件付き軽減。それぞれの下限まで、両方なら大きい方の下限で止める）③凍結の+1・軽減効果の−（0まで）
- * ④追加の支払い（キッカー・フラッシュバック・護法。護法は「選んだ1体」を渡したときだけ）
+ * 実際に払うコストの内訳（MTG 要素 ○ バッチC1 で一般化、△ バッチB で追加の支払い）。
+ * ①印刷コスト（一時蘇生は K、代わりの使い方はそのコスト）②軽減（親和・条件付き軽減。それぞれの下限まで、両方なら大きい方の下限で止める）
+ * ③現出・召集・探査・調和（0まで）④凍結の+1・軽減効果の−（0まで）⑤代替コスト（ここまでを0に）
+ * ⑥追加の支払い（キッカー・双呪・放題・段階・切除・奮励・分隊・フラッシュバック・護法。護法は「選んだ1体」を渡したときだけ）⑦血の支払い
  */
 export function costBreakdown(g: GameState, p: PlayerId, card: CardInst, ctx: CostCtx = {}): CostBreakdown {
   const def = g.cards[card.cardId];
   if (!def) return { printed: 0, steps: [], total: 0 };
   const ps = g.players[p];
   const steps: CostStep[] = [];
+  const fromDiscard = ctx.from === 'discard';
+  // ① 一時蘇生（捨て札から K）・代わりの使い方（MTG 要素 △ バッチB）
+  let start = def.cost;
+  const fd = fromDiscard ? fromDiscardAbility(def) : undefined;
+  const fixed = fd?.rule.fixedCost?.(fd.a);
+  if (fixed !== undefined && fixed !== start) {
+    steps.push({ label: fd!.name, delta: fixed - start });
+    start = fixed;
+  }
+  const alt = ctx.alt ? altsOf(def).find((x) => x.kind === ctx.alt) : undefined;
+  if (alt) {
+    const c = Math.max(0, alt.cost(start));
+    if (c !== start) steps.push({ label: alt.name, delta: c - start });
+    start = c;
+  }
   // ② 軽減（親和・条件付き軽減）
   const cctx: CostContext = { g, p, card, check: (c) => checkCondition(g, p, c, { forCost: true, selfUid: card.uid }) };
   const cuts: CostStep[] = [];
@@ -95,20 +205,26 @@ export function costBreakdown(g: GameState, p: PlayerId, card: CardInst, ctx: Co
     const ad = getAbility(a.id);
     const r = ad?.battle.reduce?.(a, cctx);
     if (!ad || !r || r.amount <= 0) continue;
-    const amount = Math.min(r.amount, Math.max(0, def.cost - r.min));
+    const amount = Math.min(r.amount, Math.max(0, start - r.min));
     if (amount <= 0) continue;
     floor = Math.max(floor, r.min);
     cuts.push({ label: ad.name, delta: -amount });
   }
-  let excess = cuts.reduce((sum, c) => sum - c.delta, 0) - Math.max(0, def.cost - floor);
+  let excess = cuts.reduce((sum, c) => sum - c.delta, 0) - Math.max(0, start - floor);
   for (let i = cuts.length - 1; i >= 0 && excess > 0; i--) {
     const take = Math.min(excess, -cuts[i]!.delta);
     cuts[i]!.delta += take;
     excess -= take;
   }
   for (const c of cuts) if (c.delta < 0) steps.push(c);
-  // ③ 凍結の+1・軽減効果の−（0まで）
-  let base = def.cost + steps.reduce((sum, c) => sum + c.delta, 0);
+  let base = start + cuts.reduce((sum, c) => sum + Math.min(0, c.delta), 0);
+  // ③ 現出・召集・探査・調和（MTG 要素 △ バッチB。0まで）
+  for (const c of paymentCuts(g, p, card, def, ctx)) {
+    const d = Math.min(base, c.amount);
+    if (d > 0) steps.push({ label: c.label, delta: -d });
+    base -= d;
+  }
+  // ④ 凍結の+1・軽減効果の−（0まで）
   if (ps.turn.freezeTax) {
     steps.push({ label: '凍結', delta: BALANCE.battle.freezeCostIncrease });
     base += BALANCE.battle.freezeCostIncrease;
@@ -119,36 +235,62 @@ export function costBreakdown(g: GameState, p: PlayerId, card: CardInst, ctx: Co
     base -= d;
   }
   base = Math.max(0, base);
-  // ④ 追加の支払い
+  // ⑤ 代替コスト（MTG 要素 △ バッチB）：カードのコストの分を払わない（このあとの追加の支払い・護法は払う）
+  if (ctx.pitchUid !== undefined && hasPitch(def) && !fromDiscard) {
+    if (base > 0) steps.push({ label: '代替コスト', delta: -base });
+    base = 0;
+  }
+  // ⑥ 追加の支払い
   let total = base;
-  if (ctx.kick) {
-    const k = kickerCost(def);
-    if (k > 0) {
-      steps.push({ label: 'キッカー', delta: k });
-      total += k;
-    }
+  const add = (label: string, k: number) => {
+    if (k <= 0) return;
+    steps.push({ label, delta: k });
+    total += k;
+  };
+  if (ctx.kick) add('キッカー', kickerCost(def));
+  if (ctx.mode === 0) add('双呪', entwineCost(def));
+  // 放題：2つ目から1つにつき K。段階：モード B・C の上乗せ
+  if (ctx.modes && ctx.modes.length > 1) add('放題', spreeCost(def) * (ctx.modes.length - 1));
+  add('段階', tieredSurcharge(def, ctx.mode, BALANCE.abilities.tiered.surcharge));
+  const extra = extraPayOf(def);
+  if (extra && ctx.extra) add(extra.name, extra.unit * Math.min(ctx.extra, extra.max));
+  if (fromDiscard) {
+    const fdx = fromDiscardAbility(def);
+    add(fdx?.name ?? '', fdx?.rule.extraCost?.(fdx.a) ?? 0);
   }
-  if (ctx.mode === 0) {
-    const k = entwineCost(def);
-    if (k > 0) {
-      steps.push({ label: '双呪', delta: k });
-      total += k;
-    }
+  add('護法', wardTaxFor(g, p, ctx.chosen));
+  // ⑦ 血の支払い：払うエナジーのうち n を HP で
+  const n = Math.min(Math.max(0, Math.floor(ctx.lifePay ?? 0)), lifePayMax(def), total);
+  const out: CostBreakdown = { printed: def.cost, steps, total };
+  if (n > 0) {
+    steps.push({ label: '血の支払い', delta: -n });
+    out.total = total - n;
+    out.hp = n * BALANCE.abilities.lifePay.hpPerEnergy;
   }
-  if (ctx.from === 'discard') {
-    const fd = fromDiscardAbility(def);
-    const extra = fd?.rule.extraCost?.(fd.a) ?? 0;
-    if (extra > 0) {
-      steps.push({ label: fd!.name, delta: extra });
-      total += extra;
-    }
+  return out;
+}
+
+/** 現出・召集・探査・調和で下がる量（uid の正しさは validatePayment が見る。ここでは見つかるものだけ数える） */
+function paymentCuts(g: GameState, p: PlayerId, card: CardInst, def: CardDef, ctx: CostCtx): { label: string; amount: number }[] {
+  const ps = g.players[p];
+  const out: { label: string; amount: number }[] = [];
+  const fromDiscard = ctx.from === 'discard';
+  const own = (uid: string) => ps.board.find((m) => m.uid === uid);
+  const sac = sacrificeOf(def);
+  if (!fromDiscard && sac?.kind === 'emerge' && ctx.sacrificeUid) {
+    const m = own(ctx.sacrificeUid);
+    if (m) out.push({ label: sac.name, amount: emergeCut(g, m) });
   }
-  const ward = wardTaxFor(g, p, ctx.chosen);
-  if (ward > 0) {
-    steps.push({ label: '護法', delta: ward });
-    total += ward;
+  const taps = [...new Set(ctx.tapUids ?? [])].filter((uid) => own(uid));
+  if (!fromDiscard && convokeMax(def) > 0 && taps.length > 0) out.push({ label: '召集', amount: Math.min(taps.length, convokeMax(def)) });
+  const tapOne = fromDiscard ? fromDiscardAbility(def)?.rule.tapOne : undefined;
+  if (tapOne && taps[0]) {
+    const m = own(taps[0])!;
+    out.push({ label: fromDiscardAbility(def)!.name, amount: Math.min(tapOne.maxCut, Math.floor(effectiveAttack(g, m) / Math.max(1, tapOne.perEnergy))) });
   }
-  return { printed: def.cost, steps, total };
+  const exiles = [...new Set(ctx.exileUids ?? [])].filter((uid) => uid !== card.uid && ps.discard.some((c) => c.uid === uid));
+  if (!fromDiscard && delveMax(def) > 0 && exiles.length > 0) out.push({ label: '探査', amount: Math.min(exiles.length, delveMax(def)) });
+  return out;
 }
 
 /** 実際に払うコスト（costBreakdown の合計） */
@@ -178,7 +320,7 @@ export function playTiming(def: CardDef, from: PlayFrom = 'hand'): TimingId {
  * 「選んだ1体」が必要な効果の作用先（timing を省略すると使用時・召喚時）。
  * mode はモード選択のカードで選ぶモード（MTG 要素 ○ バッチC2。0 は双呪、省略はすべてのモードを合わせたもの）
  */
-export function chosenRules(def: CardDef, timing?: TimingId, mode?: number): { enemy: TargetRule[]; ally: boolean } {
+export function chosenRules(def: CardDef, timing?: TimingId, mode?: ModeSel): { enemy: TargetRule[]; ally: boolean } {
   const t = timing ?? (def.stats ? 'summon' : 'play');
   return chosenRulesOf(
     def.effects.filter((e) => modeMatches(e, mode)),
@@ -188,6 +330,8 @@ export function chosenRules(def: CardDef, timing?: TimingId, mode?: number): { e
 
 /** モード選択のカードで選べるモード（このタイミングのモードと、双呪があれば 0）。モード選択でなければ空 */
 export function playableModes(def: CardDef, timing: TimingId): number[] {
+  // 最悪の二択（MTG 要素 △ バッチB）はモードを相手が選ぶので、使う人は選ばない
+  if (isVillain(def)) return [];
   const modes: number[] = cardModes(def, timing);
   if (modes.length > 0 && entwineCost(def) > 0) modes.push(0);
   return modes;
@@ -205,6 +349,37 @@ export function validateMode(def: CardDef, timing: TimingId, mode: number | unde
   if (mode === undefined) return 'モードを選んでください';
   if (mode === 0) return entwineCost(def) > 0 ? null : 'このカードには双呪がありません';
   return (modes as number[]).includes(mode) ? null : 'そのモードはありません';
+}
+
+/**
+ * モードの選び方が正しいか（MTG 要素 △ バッチB：最悪の二択は選ばない・放題は modes で2つ以上）。正しければ null
+ */
+export function validateModeChoice(def: CardDef, timing: TimingId, mode: number | undefined, modes: readonly number[] | undefined): string | null {
+  const list = cardModes(def, timing);
+  if (isVillain(def) && list.length > 0) return mode !== undefined || modes !== undefined ? 'このカードのモードは相手が選びます' : null;
+  if (modes !== undefined) {
+    if (list.length === 0) return 'このカードはモードを選べません';
+    if (spreeCost(def) === 0) return 'このカードはモードを複数選べません（放題がありません）';
+    if (mode !== undefined) return 'モードの指定が重なっています';
+    if (modes.length < 2) return 'モードを2つ以上選んでください（1つなら mode）';
+    for (let i = 0; i < modes.length; i++) {
+      if (!(list as number[]).includes(modes[i]!)) return 'そのモードはありません';
+      if (i > 0 && modes[i]! <= modes[i - 1]!) return 'モードは重ならないように小さい順に選んでください';
+    }
+    return null;
+  }
+  return validateMode(def, timing, mode);
+}
+
+/** 超過（MTG 要素 △ バッチB）：このタイミングの「選んだ1体」の効果を全体にした写し */
+export function overloadedDef(def: CardDef, timing: TimingId): CardDef {
+  return {
+    ...def,
+    effects: def.effects.map((e) => {
+      const rule = getEffect(e.id)?.targetRule;
+      return e.timing === timing && e.target === 'chosen' && rule ? { ...e, target: overloadTarget(rule) } : e;
+    }),
+  };
 }
 
 /** 効果の一覧から、このタイミングの「選んだ1体」が必要な作用先（起動のパワーは解除されていない効果だけを渡す） */
@@ -283,13 +458,42 @@ export interface PlayOpts {
   kick?: boolean;
   /** モード選択のカードで選ぶモード（MTG 要素 ○ バッチC2。0 は双呪） */
   mode?: number;
+  // ---- MTG 要素 △ バッチB
+  extra?: number;
+  modes?: number[];
+  alt?: AltPlay;
+  sacrificeUid?: string;
+  tapUids?: string[];
+  pitchUid?: string;
+  lifePay?: number;
 }
 
-/** 捨て札から使うときの追加の支払いが正しいか（再活の捨てる手札・脱出の除外する捨て札）。正しければ null */
+/** PlayOpts からコストの計算に渡す情報 */
+export function costCtxOf(opts: PlayOpts, chosen?: Chosen): CostCtx {
+  return {
+    ...(chosen ? { chosen } : {}),
+    from: opts.from === 'discard' ? 'discard' : 'hand',
+    kick: opts.kick === true,
+    ...(opts.mode !== undefined ? { mode: opts.mode } : {}),
+    ...(opts.modes !== undefined ? { modes: opts.modes } : {}),
+    ...(opts.extra !== undefined ? { extra: opts.extra } : {}),
+    ...(opts.alt !== undefined ? { alt: opts.alt } : {}),
+    ...(opts.sacrificeUid !== undefined ? { sacrificeUid: opts.sacrificeUid } : {}),
+    ...(opts.tapUids !== undefined ? { tapUids: opts.tapUids } : {}),
+    ...(opts.from !== 'discard' && opts.exileUids !== undefined ? { exileUids: opts.exileUids } : {}),
+    ...(opts.pitchUid !== undefined ? { pitchUid: opts.pitchUid } : {}),
+    ...(opts.lifePay !== undefined ? { lifePay: opts.lifePay } : {}),
+  };
+}
+
+/** 捨て札から使うときの追加の支払いが正しいか（再活・回顧の捨てる手札・脱出の除外する捨て札）。正しければ null */
 export function validateFromDiscardPayment(g: GameState, p: PlayerId, card: CardInst, def: CardDef, opts: PlayOpts): string | null {
   const ps = g.players[p];
   const fd = fromDiscardAbility(def);
   if (!fd) return 'このカードは捨て札から使えません';
+  // 回顧は同じカード1ターン1回、大混乱はこのターン捨てられたカードだけ（MTG 要素 △ バッチB）
+  if (fd.rule.oncePerTurn && card.retraceTurn === g.turnIndex) return `${fd.name}：このカードはこのターンもう使いました（1ターン1回）`;
+  if (fd.rule.onlyIfDiscardedThisTurn && card.discardedTurn !== g.turnIndex) return `${fd.name}：このターンに手札から捨てられたカードだけ使えます`;
   if (fd.rule.needsHandDiscard) {
     if (ps.hand.length === 0) return `${fd.name}：捨てる手札がありません`;
     if (!opts.discardUid) return `${fd.name}：捨てる手札を選んでください`;
@@ -312,6 +516,80 @@ export function validateFromDiscardPayment(g: GameState, p: PlayerId, card: Card
   return null;
 }
 
+/**
+ * 追加の支払い・代わりの使い方・差し出す・払い方（MTG 要素 △ バッチB）が正しいか。正しければ null。
+ * 探査の exileUids は手札から使うときだけ（捨て札から使うときは脱出の除外）
+ */
+export function validatePayment(g: GameState, p: PlayerId, card: CardInst, def: CardDef, opts: PlayOpts): string | null {
+  const ps = g.players[p];
+  const fromDiscard = opts.from === 'discard';
+  const ownMonster = (uid: string) => ps.board.find((m) => m.uid === uid);
+  const isInt = (x: unknown, lo: number, hi: number) => typeof x === 'number' && Number.isInteger(x) && x >= lo && x <= hi;
+  // 追加の支払い（切除・奮励・分隊）
+  if (opts.extra !== undefined) {
+    const e = extraPayOf(def);
+    if (!e) return opts.extra === 0 ? null : 'このカードには追加の支払いがありません';
+    if (!isInt(opts.extra, 0, e.max)) return `${e.name}は0〜${e.max}回です`;
+    if (e.kind === 'squad' && fromDiscard && opts.extra > 0) return `${e.name}は手札から使うときだけ払えます`;
+  }
+  // 代わりの使い方（試作・想起・超過・解鎖）
+  if (opts.alt !== undefined && !altsOf(def).some((x) => x.kind === opts.alt)) return 'このカードにはその使い方がありません';
+  // 差し出す（現出・犠牲・協約）
+  if (opts.sacrificeUid !== undefined) {
+    const sac = sacrificeOf(def);
+    if (!sac) return 'このカードは何も差し出せません';
+    if (sac.kind === 'emerge' && fromDiscard) return `${sac.name}は手札から使うときだけです`;
+    if (sac.kind === 'bargain') {
+      const m = ownMonster(opts.sacrificeUid);
+      const pw = ps.powers.find((x) => x.uid === opts.sacrificeUid);
+      if (!(m && m.card.token) && !pw) return `${sac.name}：差し出せるのは自分のトークンかパワーです`;
+    } else {
+      const m = ownMonster(opts.sacrificeUid);
+      if (!m) return `${sac.name}：生け贄にするのは自分の場のモンスターです`;
+      if (sac.kind === 'casualty' && effectiveAttack(g, m) < sac.minAttack) return `${sac.name}：攻撃力${sac.minAttack}以上のモンスターだけ生け贄にできます`;
+    }
+  }
+  // 休ませる（召集・調和）
+  if (opts.tapUids !== undefined) {
+    const taps = opts.tapUids;
+    const tapOne = fromDiscard ? fromDiscardAbility(def)?.rule.tapOne : undefined;
+    const max = tapOne ? 1 : fromDiscard ? 0 : convokeMax(def);
+    if (taps.length > 0 && max === 0) return 'このカードはモンスターを休ませて使えません';
+    if (taps.length > max) return `休ませられるのは${max}体までです`;
+    if (new Set(taps).size !== taps.length) return '同じモンスターを2回選べません';
+    for (const uid of taps) {
+      const m = ownMonster(uid);
+      if (!m) return '休ませるのは自分の場のモンスターです';
+      if (!canTap(g, m)) return `${cardName(g, m.card.cardId)}はもう攻撃できないので休ませられません`;
+      if (uid === opts.sacrificeUid) return '生け贄にするモンスターは休ませられません';
+    }
+  }
+  // 探査（手札から使うとき）
+  if (!fromDiscard && opts.exileUids !== undefined && opts.exileUids.length > 0) {
+    const max = delveMax(def);
+    if (max === 0) return '手札から使うときは、捨て札を除外できません';
+    const ids = opts.exileUids;
+    if (ids.length > max) return `探査で除外できるのは${max}枚までです`;
+    if (new Set(ids).size !== ids.length) return '同じカードを2回選べません';
+    if (ids.some((uid) => !ps.discard.some((c) => c.uid === uid))) return '捨て札に無いカードが含まれています';
+  }
+  // 代替コスト
+  if (opts.pitchUid !== undefined) {
+    if (!hasPitch(def)) return 'このカードには代替コストがありません';
+    if (fromDiscard) return '代替コストは手札から使うときだけです';
+    if ((ps.turn.pitched ?? 0) >= BALANCE.battle.maxPitchPerTurn) return `代替コストは1ターン${BALANCE.battle.maxPitchPerTurn}回までです`;
+    const other = ps.hand.find((c) => c.uid === opts.pitchUid);
+    if (!other) return '除外する手札がありません';
+    if (!pitchMatches(g, card, other)) return '代替コストで除外できるのは、同じ種類の別の手札だけです';
+  }
+  // 血の支払い
+  if (opts.lifePay !== undefined) {
+    const max = lifePayMax(def);
+    if (!isInt(opts.lifePay, 0, max)) return max === 0 ? 'このカードには血の支払いがありません' : `HPで払えるのは${max}つまでです`;
+  }
+  return null;
+}
+
 export function validatePlay(g: GameState, p: PlayerId, cardUid: string, chosen: Chosen | undefined, opts: PlayOpts = {}): string | null {
   const ps = g.players[p];
   const fromDiscard = opts.from === 'discard';
@@ -325,21 +603,27 @@ export function validatePlay(g: GameState, p: PlayerId, cardUid: string, chosen:
   if (fromDiscard) {
     const reason = validateFromDiscardPayment(g, p, card, def, opts);
     if (reason) return reason;
-  } else if (opts.discardUid !== undefined || (opts.exileUids !== undefined && opts.exileUids.length > 0)) {
+  } else if (opts.discardUid !== undefined || (opts.exileUids !== undefined && opts.exileUids.length > 0 && delveMax(def) === 0)) {
     return '手札から使うときは、追加の支払いはありません';
   }
   if (opts.kick && kickerCost(def) === 0) return 'このカードにはキッカーがありません';
+  const payError = validatePayment(g, p, card, def, opts);
+  if (payError) return payError;
   const timing = playTiming(def, fromDiscard ? 'discard' : 'hand');
-  const modeError = validateMode(def, timing, opts.mode);
+  const modeError = validateModeChoice(def, timing, opts.mode, opts.modes);
   if (modeError) return modeError;
-  const breakdown = costBreakdown(g, p, card, { chosen, from: fromDiscard ? 'discard' : 'hand', kick: opts.kick === true, mode: opts.mode });
+  const breakdown = costBreakdown(g, p, card, costCtxOf(opts, chosen));
   if (breakdown.total > ps.energy) {
     const notes = costNotes(breakdown);
     return `エナジーが足りません（必要${breakdown.total}${notes ? `：${notes}` : ''}、残り${ps.energy}）`;
   }
+  // 血の支払い：払ったあと HP が1以上残ること
+  if (breakdown.hp && ps.hp - breakdown.hp < 1) return `HPが足りません（血の支払いでHP${breakdown.hp}、残りHP${ps.hp}）`;
   const reason = drawbackBlock(g, p, card);
   if (reason) return reason;
-  const rules = chosenRules(def, timing, opts.mode);
+  // 超過（MTG 要素 △ バッチB）は「選んだ1体」を選ばない
+  const rulesDef = opts.alt === 'overload' ? overloadedDef(def, timing) : def;
+  const rules = chosenRules(rulesDef, timing, opts.modes ?? opts.mode);
   return validateChosen(enemyCandidates(g, p, rules.enemy), rules.ally ? allyCandidates(g, p, card, timing) : [], chosen);
 }
 
@@ -384,7 +668,7 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
   const index = zone.findIndex((c) => c.uid === cardUid);
   const card = zone[index]!;
   const def = g.cards[card.cardId]!;
-  const breakdown = costBreakdown(g, p, card, { chosen, from: fromDiscard ? 'discard' : 'hand', kick: opts.kick === true, mode: opts.mode });
+  const breakdown = costBreakdown(g, p, card, costCtxOf(opts, chosen));
   const cost = breakdown.total;
   const before = ps.energy;
   ps.energy -= cost;
@@ -395,11 +679,19 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
   recordPlayedType(g, p, def);
   zone.splice(index, 1);
   const fd = fromDiscard ? fromDiscardAbility(def) : undefined;
-  const modeNote = opts.mode === undefined ? '' : opts.mode === 0 ? '双呪ですべてのモードで' : `モード${modeName(opts.mode)}で`;
+  const alt = opts.alt ? altsOf(def).find((x) => x.kind === opts.alt) : undefined;
+  const modeNote =
+    opts.modes !== undefined
+      ? `モード${opts.modes.map((m) => modeName(m)).join('・')}で`
+      : opts.mode === undefined
+        ? ''
+        : opts.mode === 0
+          ? '双呪ですべてのモードで'
+          : `モード${modeName(opts.mode)}で`;
   log(
     g,
     0,
-    `${ps.name}は${fd ? `捨て札から${fd.name}で` : ''}「${def.name}」を${modeNote}使った（コスト${cost}${notes ? `：${notes}` : ''}、エナジー ${before}→${ps.energy}）`,
+    `${ps.name}は${fd ? `捨て札から${fd.name}で` : ''}「${def.name}」を${alt ? `${alt.name}で` : ''}${modeNote}使った（コスト${cost}${notes ? `：${notes}` : ''}、エナジー ${before}→${ps.energy}）`,
     'action',
     undefined,
     {
@@ -412,12 +704,75 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
     },
   );
   if (fd) payFromDiscard(g, p, card, fd, opts);
+  const paid = payExtras(g, p, card, def, opts, breakdown);
   resolvePlay(g, p, card, chosen, {
     from: fromDiscard ? 'discard' : 'hand',
     depth: 1,
     kick: opts.kick === true && kickerCost(def) > 0,
-    ...(opts.mode !== undefined ? { mode: opts.mode } : {}),
+    ...(opts.modes !== undefined ? { mode: opts.modes } : opts.mode !== undefined ? { mode: opts.mode } : {}),
+    ...(opts.alt !== undefined ? { alt: opts.alt } : {}),
+    ...(opts.extra ? { extra: opts.extra } : {}),
+    ...paid,
   });
+}
+
+/**
+ * 追加の支払い（MTG 要素 △ バッチB）を払う：血の支払いの HP → 休ませる（召集・調和）→ 探査の除外 → 代替コストの除外 → 差し出す（現出・犠牲・協約）。
+ * 差し出したモンスターの「破壊されたとき」などは、このカードの効果より先に積む。犠牲・協約をしたかを返す
+ */
+function payExtras(g: GameState, p: PlayerId, card: CardInst, def: CardDef, opts: PlayOpts, b: CostBreakdown): { casualty?: boolean; bargained?: boolean } {
+  const ps = g.players[p];
+  const out: { casualty?: boolean; bargained?: boolean } = {};
+  if (b.hp) {
+    const before = ps.hp;
+    ps.hp -= b.hp;
+    log(g, 1, `血の支払い：${ps.name}はHP${b.hp}を払った（HP ${before}→${ps.hp}）`, 'effect', undefined, { kind: 'status', player: p, status: 'lifePay', amount: b.hp });
+  }
+  for (const uid of opts.tapUids ?? []) {
+    const m = ps.board.find((x) => x.uid === uid);
+    if (!m) continue;
+    m.attacksUsed = Math.max(m.attacksUsed, attacksPerTurn(g, m));
+    log(g, 1, `${cardName(g, m.card.cardId)}を休ませた（このターンは攻撃できない）`, 'info', undefined, { kind: 'status', target: { kind: 'monster', uid: m.uid }, status: 'tapped' });
+  }
+  if (opts.from !== 'discard' && opts.exileUids && opts.exileUids.length > 0) {
+    const set = new Set(opts.exileUids);
+    const moved = ps.discard.filter((c) => set.has(c.uid));
+    ps.discard = ps.discard.filter((c) => !set.has(c.uid));
+    ps.exile.push(...moved);
+    log(g, 1, `探査：${ps.name}は捨て札の${moved.length}枚を除外した：${moved.map((c) => cardName(g, c.cardId)).join('、')}`);
+  }
+  if (opts.pitchUid !== undefined) {
+    const i = ps.hand.findIndex((c) => c.uid === opts.pitchUid);
+    if (i >= 0) {
+      const [x] = ps.hand.splice(i, 1);
+      ps.exile.push(x!);
+      ps.turn.pitched = (ps.turn.pitched ?? 0) + 1;
+      log(g, 1, `代替コスト：${ps.name}は手札の「${cardName(g, x!.cardId)}」を除外した`, 'info', undefined, { kind: 'status', player: p, cardId: x!.cardId, status: 'pitch' });
+    }
+  }
+  // 回顧（同じカードは1ターン1回）・大混乱（捨てられた記録は消える）
+  if (opts.from === 'discard') {
+    const fd = fromDiscardAbility(def);
+    if (fd?.rule.oncePerTurn) card.retraceTurn = g.turnIndex;
+    if (fd?.rule.onlyIfDiscardedThisTurn) delete card.discardedTurn;
+  }
+  const sac = opts.sacrificeUid !== undefined ? sacrificeOf(def) : undefined;
+  if (sac && opts.sacrificeUid !== undefined) {
+    const m = ps.board.find((x) => x.uid === opts.sacrificeUid);
+    if (m) {
+      log(g, 1, `${sac.name}：${cardName(g, m.card.cardId)}を生け贄にした`, 'effect');
+      destroyMonster(g, m, 2, true);
+    } else {
+      const pw = ps.powers.find((x) => x.uid === opts.sacrificeUid);
+      if (pw) {
+        ps.powers = ps.powers.filter((x) => x !== pw);
+        log(g, 1, `${sac.name}：パワー『${pw.name}』を差し出した`, 'effect', undefined, { kind: 'destroy', player: p, cardId: pw.cardId, uid: pw.uid });
+      }
+    }
+    if (sac.kind === 'casualty') out.casualty = true;
+    if (sac.kind === 'bargain') out.bargained = true;
+  }
+  return out;
 }
 
 /** 捨て札から使うときの追加の支払い（再活：手札を1枚捨てる／脱出：他の捨て札を除外）と、使ったあと除外する印 */
@@ -461,13 +816,27 @@ function resolvePlay(
   p: PlayerId,
   card: CardInst,
   chosen: Chosen,
-  opts: { from: PlayFrom; depth: number; freeDepth?: number; kick?: boolean; mode?: number },
+  opts: {
+    from: PlayFrom;
+    depth: number;
+    freeDepth?: number;
+    kick?: boolean;
+    mode?: ModeSel;
+    // MTG 要素 △ バッチB
+    alt?: AltPlay;
+    extra?: number;
+    casualty?: boolean;
+    bargained?: boolean;
+  },
 ): void {
   const ps = g.players[p];
-  const def = g.cards[card.cardId]!;
+  const original = g.cards[card.cardId]!;
   const depth = opts.depth;
-  const timing = playTiming(def, opts.from);
-  const mode = resolveMode(def, timing, opts.mode);
+  const timing = playTiming(original, opts.from);
+  // 超過（MTG 要素 △ バッチB）：「選んだ1体」の効果を全体にした写しで解決する
+  const def = opts.alt === 'overload' ? overloadedDef(original, timing) : original;
+  const villain = isVillain(def) && cardModes(def, timing).length > 0;
+  const mode = villain ? undefined : resolveMode(def, timing, opts.mode);
   // 封殺：コストは払い、使った枚数にも数えるが、カードは捨て札へ行き、何も起きない
   if (quashMatches(g, p, def)) {
     delete ps.quash;
@@ -476,19 +845,31 @@ function resolvePlay(
     return;
   }
   const protectKey = newUid(g, 'pk');
-  if (opts.freeDepth !== undefined) playRecord(g, protectKey).freeDepth = opts.freeDepth;
-  // モード選択（MTG 要素 ○ バッチC2）：選んだモードを記録（反復でも同じモード）
-  if (mode !== undefined) playRecord(g, protectKey).mode = mode;
+  const rec = playRecord(g, protectKey);
+  if (opts.freeDepth !== undefined) rec.freeDepth = opts.freeDepth;
+  // モード選択（MTG 要素 ○ バッチC2）：選んだモードを記録（反復でも同じモード。放題は最初の1つ）
+  if (mode !== undefined) rec.mode = firstMode(mode);
+  if (mode !== undefined && typeof mode !== 'number') rec.modes = [...mode];
   // キッカー（MTG 要素 ○ バッチC1）：払ったことを記録（条件「キッカーを払っていれば」）
   if (opts.kick) {
-    playRecord(g, protectKey).kicked = true;
+    rec.kicked = true;
     log(g, depth, `キッカー：「${def.name}」のキッカーを払った`, 'info');
   }
+  // MTG 要素 △ バッチB：切除（条件を無視）・奮励（相手モンスターを追加）・協約
+  const extra = extraPayOf(def);
+  if (extra && opts.extra && opts.extra > 0) {
+    if (extra.kind === 'cleave') {
+      rec.cleaved = true;
+      log(g, depth, `${extra.name}：「${def.name}」の効果の条件を無視する`, 'info');
+    }
+    if (extra.kind === 'strive') rec.strive = Math.min(opts.extra, extra.max);
+  }
+  if (opts.bargained) rec.bargained = true;
   // X（全力）：使用時・召喚時の効果に X があれば、残りのエナジーをすべて使う（このカードの X の効果はすべて同じ X）。無料で使ったときは0
   if (usesX(def, timing, mode)) {
     const x = opts.from === 'free' ? 0 : ps.energy;
     if (opts.from !== 'free') ps.energy = 0;
-    playRecord(g, protectKey).x = x;
+    rec.x = x;
     log(g, depth, `X＝${x}${opts.from === 'free' ? '（無料で使ったので0）' : '（エナジーをすべて使った）'}`, 'info', undefined, { kind: 'energy', player: p, amount: ps.energy });
   }
   // 自分のカードの対象になるたび（英雄的。MTG 要素 ○ バッチA）：選んだ自分のモンスターの効果を、カードの効果より先に積む
@@ -502,19 +883,44 @@ function resolvePlay(
     }
   }
   if (def.stats) {
-    summon(g, p, card, chosen, depth, protectKey, timing, mode);
+    // 試作・解鎖・一時蘇生・最悪の二択（MTG 要素 △ バッチB）
+    const fd = opts.from === 'discard' ? fromDiscardAbility(def) : undefined;
+    const unleash = opts.alt === 'unleash' ? (altsOf(def).find((x) => x.kind === 'unleash')?.a.value ?? 0) : 0;
+    const m = summon(g, p, card, chosen, depth, protectKey, timing, mode, {
+      ...(opts.alt === 'prototype' ? { prototype: true } : {}),
+      ...(unleash > 0 ? { unleash } : {}),
+      ...(fd?.rule.unearth ? { unearth: true } : {}),
+      ...(villain ? { villain: true } : {}),
+    });
+    // 分隊：払った回数だけコピーのトークン（召喚時の効果も出る。場のトークンの上限まで）
+    if (m && extra?.kind === 'squad' && opts.extra && opts.extra > 0 && opts.from !== 'free') {
+      log(g, depth, `${extra.name}：「${def.name}」のコピーを${opts.extra}体出す`, 'info');
+      for (let i = 0; i < Math.min(opts.extra, extra.max); i++) {
+        if (!createToken(g, p, card.cardId, { attack: def.stats.attack, hp: def.stats.hp, defense: def.stats.defense, copy: true }, depth + 1)) break;
+      }
+    }
+    // 想起：召喚時の効果のあと破壊される
+    if (m && opts.alt === 'evoke') enqueue(g, { t: 'evokeEnd', uid: m.uid, depth: depth + 1 });
   } else {
     const type = classifyCard(def);
     const attackCard = type === 'attack' || type === 'powerAttack';
     // 筋力・気合（＋恩恵）は使った時点の値を記録し、このカードの最初の1発にだけ乗せる（このカード自身が付けた分は乗らない：決定事項 #70 R3）
-    if (attackCard) playRecord(g, protectKey).bonus = ps.status.strength + ps.status.focus + useBoon(g, p, depth);
+    if (attackCard) rec.bonus = ps.status.strength + ps.status.focus + useBoon(g, p, depth);
     const src = { kind: 'card' as const, uid: card.uid, cardId: card.cardId, name: def.name, controller: p };
-    enqueueCardTiming(g, src, def, timing, chosen, depth, {
+    const fire = {
       attackCard,
       protectKey,
       ...(card.grow ? { grow: card.grow } : {}),
       ...(mode !== undefined ? { mode } : {}),
-    });
+      ...(villain ? { villain: true } : {}),
+    };
+    enqueueCardTiming(g, src, def, timing, chosen, depth, fire);
+    // 犠牲（MTG 要素 △ バッチB）：使用時の効果をもう一度（同じ対象・X・モード。続唱などコピーしない効果と、デメリットは除く）
+    if (opts.casualty) {
+      log(g, depth, `犠牲：「${def.name}」の効果がもう一度出る`, 'info');
+      const copy: CardDef = { ...def, effects: def.effects.filter((e) => !getEffect(e.id)?.noCopy), drawbacks: [] };
+      enqueueCardTiming(g, src, copy, timing, chosen, depth, fire);
+    }
   }
   enqueue(g, { t: 'cardDone', player: p, card, protectKey, depth, ...(opts.from !== 'hand' ? { from: opts.from } : {}) });
 }
@@ -552,8 +958,8 @@ export function executeFreePlay(g: GameState, step: Extract<Step, { t: 'freePlay
   const ask = (stage: 'mode' | 'enemy' | 'ally', prompt: string, options: { id: string; label: string; cardId?: string }[]) => {
     g.pending = { player: p, prompt, options, min: 1, max: 1, step: { ...step, chosen, stage, picks: undefined, ...(mode !== undefined ? { mode } : {}) } as Step };
   };
-  // モード選択のカード（MTG 要素 ○ バッチC2）：対象より先にモードを選ぶ（無料なので双呪は選べない）
-  const modes = cardModes(def, timing);
+  // モード選択のカード（MTG 要素 ○ バッチC2）：対象より先にモードを選ぶ（無料なので双呪は選べない。最悪の二択は相手が選ぶ）
+  const modes = isVillain(def) ? [] : cardModes(def, timing);
   if (step.stage === undefined && modes.length > 0 && mode === undefined) {
     const texts = modeTextsOf(def, timing);
     return ask(
@@ -605,7 +1011,7 @@ export function executeFreePlay(g: GameState, step: Extract<Step, { t: 'freePlay
 }
 
 /** 使用時・召喚時（timing）の効果に X（全力）があるか（mode：モード選択のカードで選ぶモード。省略はすべて） */
-export function usesX(def: CardDef, timing: TimingId = def.stats ? 'summon' : 'play', mode?: number): boolean {
+export function usesX(def: CardDef, timing: TimingId = def.stats ? 'summon' : 'play', mode?: ModeSel): boolean {
   return def.effects.some((e) => e.timing === timing && modeMatches(e, mode) && (e.mods ?? []).includes('xEnergy') && getEffect(e.id)?.scalable === true);
 }
 

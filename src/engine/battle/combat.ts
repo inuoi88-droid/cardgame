@@ -54,7 +54,8 @@ export function attackBlockReason(g: GameState, m: Monster): string | null {
   // MTG 要素 △ バッチA：卵（培養）・休眠
   if (m.card.token?.egg) return '卵はまだ攻撃できない（孵化を待つ）';
   if (monsterDormant(g, m)) return '休眠中：このターンは攻撃できない';
-  if (m.enteredTurn === g.turnIndex && !keywordFlags(g, m).haste) return '場に出たターンは攻撃できません';
+  // 一時蘇生（MTG 要素 △ バッチB）のモンスターは速攻を持つ
+  if (m.enteredTurn === g.turnIndex && !keywordFlags(g, m).haste && !m.unearthed) return '場に出たターンは攻撃できません';
   if (m.attacksUsed >= attacksPerTurn(g, m)) return 'このターンはもう攻撃しました';
   return null;
 }
@@ -80,8 +81,24 @@ export function attackTargets(g: GameState, m: Monster): TargetRef[] {
   return [playerRef(opp), ...refs(monsters)];
 }
 
-/** 攻撃を1回行う（手動・自動共通） */
-export function performAttack(g: GameState, m: Monster, target: TargetRef, depth: number, note = ''): void {
+/**
+ * 後援（MTG 要素 △ バッチB）：このモンスターの攻撃で休ませられる自分の他のモンスター（今攻撃できるもの）。後援が無ければ空
+ */
+export function enlistOptions(g: GameState, m: Monster): Monster[] {
+  if (m.sealed || !keywordFlags(g, m).enlist) return [];
+  return g.players[m.controller].board.filter((x) => x.uid !== m.uid && attackBlockReason(g, x) === null);
+}
+
+/** 攻撃を1回行う（手動・自動共通）。enlistUid は後援で休ませるモンスター（手動の攻撃だけ） */
+export function performAttack(g: GameState, m: Monster, target: TargetRef, depth: number, note = '', enlistUid?: string): void {
+  // 後援（MTG 要素 △ バッチB）：攻撃の前に休ませ、その攻撃力をこの1回の攻撃に足す（反撃には足さない）
+  const helper = enlistUid !== undefined ? enlistOptions(g, m).find((x) => x.uid === enlistUid) : undefined;
+  let enlistBonus = 0;
+  if (helper) {
+    enlistBonus = effectiveAttack(g, helper);
+    helper.attacksUsed = Math.max(helper.attacksUsed, attacksPerTurn(g, helper));
+    log(g, depth, `後援：${monsterLabel(g, helper)}が休み、攻撃力+${enlistBonus}`, 'info', undefined, { kind: 'status', target: { kind: 'monster', uid: helper.uid }, status: 'enlist', amount: enlistBonus });
+  }
   m.attacksUsed += 1;
   // 腐乱などが見る「攻撃したターン」
   m.counters.attackedTurn = g.turnIndex;
@@ -106,9 +123,9 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   const playKey = newUid(g, 'pk');
   // モンスターの反撃（決定事項 #69）：攻撃される前の守備側の攻撃力（一時強化・武士道を含む）・弱体・接死・絆魂で決まる（同時に解決する扱い）
   const retaliationAmount = defender ? effectiveAttack(g, defender) + combatBonus(g, defender) : 0;
-  // 容疑（MTG 要素 △ バッチA）のモンスターは反撃しない
+  // 容疑（MTG 要素 △ バッチA）・解鎖（△ バッチB）のモンスターは反撃しない
   const retaliation =
-    defender && BALANCE.battle.retaliation.enabled && retaliationAmount > 0 && !defender.suspected
+    defender && BALANCE.battle.retaliation.enabled && retaliationAmount > 0 && !defender.suspected && !defender.unleashed
       ? { amount: retaliationAmount, weak: defender.status.weak > 0, label: monsterLabel(g, defender), source: combatSourceOf(g, defender) }
       : null;
   /** 先制攻撃：攻撃で相手モンスターを倒したら反撃を受けない */
@@ -116,7 +133,7 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   // 武士道：モンスターと戦うときだけ攻撃力に足す。猛襲：相手プレイヤーを攻撃するときだけ足す
   const enemy = other(m.controller);
   const toEnemyPlayer = target.kind === 'player' && target.player === enemy;
-  const amount = effectiveAttack(g, m) + (defender ? combatBonus(g, m) : toEnemyPlayer ? playerBonus(g, m) : 0);
+  const amount = effectiveAttack(g, m) + (defender ? combatBonus(g, m) : toEnemyPlayer ? playerBonus(g, m) : 0) + enlistBonus;
   const r = dealDamage(g, target, amount, { kind: 'attack', source: attackerRef, playKey, depth: depth + 1 });
   if (isEnded(g)) return;
   /** 相手プレイヤーのHPを減らしたか（「相手プレイヤーにダメージを与えたとき」。裏切り・混乱で自分を殴ったときは数えない） */

@@ -10,6 +10,7 @@ export default defineAbility({
   id: 'trap',
   name: '罠',
   order: 16,
+  group: '場・パワー',
   summary: `パワーのカードに付ける：このパワーの効果が初めて出たら、そのあとパワーは消える（相手のターンに働く罠。インスタントの代わり）。パワーの効果は${when}だけ。ポイントはタイミングの倍率の代わりに×${B.timingRate}（能力自体は0pt）`,
   cardTypes: ['power', 'powerAttack'],
   points: () => B.flat,

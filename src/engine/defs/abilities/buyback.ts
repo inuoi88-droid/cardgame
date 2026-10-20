@@ -9,6 +9,7 @@ export default defineAbility({
   id: 'buyback',
   name: '再利用',
   order: 2,
+  group: '使い終わり',
   summary: '使ったあと、捨て札ではなく手札に戻る（同じカードは1ターン1回まで。2回目は捨て札へ）。ポイントは使用時の効果の合計×' + B.rate,
   cardTypes: ['attack', 'skill'],
   conflicts: ['shuffleBack', 'rebound', 'exhaust'],

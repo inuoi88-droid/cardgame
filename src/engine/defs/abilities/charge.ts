@@ -11,6 +11,7 @@ export default defineAbility({
   id: 'charge',
   name: '蓄積',
   order: 15,
+  group: '場・パワー',
   summary: `パワーとして場にある間、選んだ出来事のたびに蓄積が1つたまり（1ターン${BALANCE.battle.maxRepeatTriggersPerTurn}つまで）、N個になると「蓄積がたまったとき」の効果が出て0に戻る。ポイントは「蓄積がたまったとき」の倍率（×${BALANCE.timing.chargedPower}×min(1, 頻度÷N)）`,
   value: countParam('必要数', { min: B.min, max: B.max, default: CHARGE_DEFAULT_NEED }),
   option: { label: 'たまるとき', choices, default: 'turnStart' },

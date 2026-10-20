@@ -9,6 +9,7 @@ export default defineAbility({
   id: 'activate',
   name: '起動',
   order: 8,
+  group: '場・パワー',
   summary: `場にいる間（モンスター・パワー）、自分のターンにエナジーNを払って「起動」の効果を使える（1つにつき1ターン1回。召喚したターンも使える）。ポイントは「起動」の効果のタイミングの倍率（モンスター ×${T.activatedMonster.join('／')}、パワー ×${T.activatedPower.join('／')}。N＝${B.minCost}〜${B.maxCost}）`,
   value: countParam('エナジー', { min: B.minCost, max: B.maxCost, default: B.minCost }),
   requiresTiming: 'activated',

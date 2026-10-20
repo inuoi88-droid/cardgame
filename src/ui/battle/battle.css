@@ -2524,3 +2524,135 @@ button.lt-card:focus-visible {
 .hc__stats.is-perm {
   color: var(--ok, #7ee08a);
 }
+
+/* ---------------------------------------------------------------- 支払いのシート・放題・後援（MTG 要素 △ バッチB） */
+.pay-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.pay-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pay-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.pay-sec h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.pay-opts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+.pay-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 48px;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.pay-opt small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.pay-opt.is-on {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.pay-opt.is-blocked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.pay-opt__cost {
+  font-weight: 700;
+  color: var(--warn);
+}
+.pay-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pay-cards {
+  max-height: 220px;
+  overflow-y: auto;
+}
+.pay-foot {
+  position: sticky;
+  bottom: 0;
+  margin-top: 12px;
+  padding-top: 8px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+.pay-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  font-size: 1rem;
+}
+.pay-total b {
+  color: var(--warn);
+}
+.pay-total .pay-hp {
+  color: var(--ng);
+}
+.pay-left,
+.pay-notes {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.pay-notes {
+  flex-basis: 100%;
+}
+.pay-why {
+  margin: 4px 0;
+  color: var(--ng);
+  font-size: 0.82rem;
+}
+.mode-opt.is-on {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.mode-opt.is-on .mode-opt__label {
+  background: var(--ok);
+}
+.mode-opt__extra {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: #ffd85c;
+  color: #2b1d00;
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+.pile-row__btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+}

@@ -19,7 +19,20 @@ import { navigate } from '../router.ts';
 import { cx } from '../util.ts';
 import './battle.css';
 import { CardDetailBody, CardDetailSheet, NoiseDetailBody } from './CardDetail.tsx';
-import { CardRow, ChoiceDialog, KickerDialog, ModeDialog, MulliganDialog, PayDialog, ResultDialog, ZoomModal } from './dialogs.tsx';
+import {
+  AbilityChoiceSheet,
+  CardRow,
+  ChoiceDialog,
+  EnlistSheet,
+  ModeDialog,
+  MulliganDialog,
+  needsPaySheet,
+  payFields,
+  PaySheet,
+  ResultDialog,
+  ZoomModal,
+  type PayChoice,
+} from './dialogs.tsx';
 import { DragLayer } from './DragLayer.tsx';
 import { resolveDrop, resolveModeDrop, parseSpot, targetKey, type DragSource } from './dragLogic.ts';
 import { keyOf } from './events.ts';
@@ -32,18 +45,19 @@ type GameState = battle.GameState;
 type TargetRef = battle.TargetRef;
 
 /**
- * 対象選びの途中のもの。card は手札・捨て札（from）のカード、activate は起動（MTG 要素 ○ バッチC1）、channel は魂力。
- * pay はカードの追加の支払い（キッカー・再活の捨てる手札・脱出の除外する捨て札）。決めたものだけ入る
+ * 対象選びの途中のもの。card は手札・捨て札（from）のカード、activate は起動（MTG 要素 ○ バッチC1）、channel は魂力・予見（ability）。
+ * pay はカードの支払い（キッカー・再活の捨てる手札・脱出の除外する捨て札・△ バッチB の追加の支払い）。決めたものだけ入る。
+ * discardAbility は捨て札のカードの能力（MTG 要素 △ バッチB：相続・発掘・不朽）
  */
-type PayChoice = { kick?: boolean; discardUid?: string; exileUids?: string[] };
-/** mode はモード選択のカード（MTG 要素 ○ バッチC2）で選んだモード（0 は双呪） */
-type CardSel = { kind: 'card'; uid: string; from?: 'discard'; enemy?: TargetRef; ally?: string; pay?: PayChoice; mode?: number };
+/** mode はモード選択のカード（MTG 要素 ○ バッチC2）で選んだモード（0 は双呪）、modes は放題（△ バッチB）で選んだモード */
+type CardSel = { kind: 'card'; uid: string; from?: 'discard'; enemy?: TargetRef; ally?: string; pay?: PayChoice; mode?: number; modes?: number[] };
 type Selection =
   | null
   | CardSel
   | { kind: 'attacker'; uid: string }
   | { kind: 'activate'; uid: string; enemy?: TargetRef; ally?: string }
-  | { kind: 'channel'; uid: string; enemy?: TargetRef; ally?: string };
+  | { kind: 'channel'; uid: string; ability?: 'channel' | 'forecast'; enemy?: TargetRef; ally?: string }
+  | { kind: 'discardAbility'; uid: string; ability: battle.DiscardAbilityKind; enemy?: TargetRef; ally?: string };
 type TargetSel = Exclude<Selection, null | { kind: 'attacker' }>;
 
 /** 詳細を開いているもの（discard は自分の捨て札のカード：捨て札から使う） */
@@ -204,8 +218,14 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       ),
     [view, me, mine.hand],
   );
+  // 捨て札のカードの能力（MTG 要素 △ バッチB：相続・発掘・不朽）。キーは「uid:能力」
+  const discardAbilities = useMemo(
+    () => new Map(battle.discardAbilityInfos(view, me).map((i) => [`${i.card.uid}:${i.ability}`, { ...i, enemyTargets: battle.payableEnemyTargets(i, view.players[me].energy) }])),
+    [view, me],
+  );
+  const discardAbilitiesOf = (uid: string) => [...discardAbilities.values()].filter((i) => i.card.uid === uid);
   const usableHandAbilities = (uid: string): battle.HandAbilityKind[] => (myTurn ? (handAbilities.get(uid) ?? []).filter((h) => !h.blocked).map((h) => h.ability) : []);
-  const discardUsable = myTurn ? [...discardInfos.values()].filter((i) => !i.blocked).length : 0;
+  const discardUsable = myTurn ? new Set([...[...discardInfos.values()].filter((i) => !i.blocked), ...[...discardAbilities.values()].filter((i) => !i.blocked)].map((i) => i.card.uid)).size : 0;
   const isPlayable = (c: battle.CardInst) => {
     const i = infos.get(c.uid)!;
     return myTurn && (c.cardId === battle.NOISE_CARD_ID ? mine.energy >= i.cost : !i.blocked || usableHandAbilities(c.uid).length > 0);
@@ -218,19 +238,31 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   // ---------------------------------------------------------------- 対象選択（詳細の「使う」・ドラッグで足りない選択）
   /** 選んでいるもののカード（手札・捨て札のカード、魂力のカード）と、その対象の情報 */
   const cardOf = (x: TargetSel): battle.CardInst | undefined =>
-    x.kind === 'card' ? (x.from === 'discard' ? mine.discard : mine.hand).find((c) => c.uid === x.uid) : x.kind === 'channel' ? mine.hand.find((c) => c.uid === x.uid) : undefined;
+    x.kind === 'card'
+      ? (x.from === 'discard' ? mine.discard : mine.hand).find((c) => c.uid === x.uid)
+      : x.kind === 'channel'
+        ? mine.hand.find((c) => c.uid === x.uid)
+        : x.kind === 'discardAbility'
+          ? mine.discard.find((c) => c.uid === x.uid)
+          : undefined;
   const infoOf = (x: TargetSel): TargetInfo | undefined => {
     if (x.kind === 'card') {
       const pi = x.from === 'discard' ? discardInfos.get(x.uid) : infos.get(x.uid);
-      // モード選択のカード（MTG 要素 ○ バッチC2）：モードを選んだら、そのモードの候補・コスト・注意
-      const m = x.mode !== undefined ? pi?.modes?.find((y) => y.mode === x.mode) : undefined;
+      // 代わりの使い方（MTG 要素 △ バッチB）：その使い方の候補・コスト（超過は対象なし）
+      const alt = x.pay?.alt ? pi?.pay?.alts?.find((a) => a.alt === x.pay!.alt) : undefined;
+      if (pi && alt) {
+        return { ...pi, blocked: alt.blocked, enemyTargets: battle.payableEnemyTargets(alt, mine.energy), allyTargets: alt.allyTargets, warnings: alt.warnings, cost: alt.cost, targetCosts: alt.targetCosts };
+      }
+      // モード選択のカード（MTG 要素 ○ バッチC2）：モードを選んだら、そのモードの候補・コスト・注意（放題は組み合わせ）
+      const m = x.modes ? pi?.modeCombos?.find((y) => y.modes?.join() === x.modes!.join()) : x.mode !== undefined ? pi?.modes?.find((y) => y.mode === x.mode) : undefined;
       if (pi && m) {
         return { ...pi, blocked: m.blocked, enemyTargets: battle.payableEnemyTargets(m, mine.energy), allyTargets: m.allyTargets, warnings: m.warnings, cost: m.cost, targetCosts: m.targetCosts };
       }
       return pi;
     }
     if (x.kind === 'activate') return activateInfos.get(x.uid);
-    return handAbilities.get(x.uid)?.find((h) => h.ability === 'channel');
+    if (x.kind === 'discardAbility') return discardAbilities.get(`${x.uid}:${x.ability}`);
+    return handAbilities.get(x.uid)?.find((h) => h.ability === (x.ability ?? 'channel'));
   };
   const targetSel = sel && sel.kind !== 'attacker' ? sel : null;
   const selCard = targetSel ? cardOf(targetSel) : undefined;
@@ -292,15 +324,19 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     });
   };
 
-  /** 追加の支払いを聞くダイアログ（キッカー・再活・脱出。MTG 要素 ○ バッチC1） */
-  const [ask, setAsk] = useState<null | { kind: 'kicker' | 'jumpStart' | 'escape' | 'mode'; sel: CardSel }>(null);
+  /** モードの選択・支払いのシート（MTG 要素 ○ バッチC1・C2・△ バッチB） */
+  const [ask, setAsk] = useState<null | { kind: 'pay' | 'mode'; sel: CardSel }>(null);
+  /** 後援で休ませる味方を選ぶ攻撃（MTG 要素 △ バッチB） */
+  const [enlistAsk, setEnlistAsk] = useState<null | { uid: string; target: TargetRef }>(null);
+  /** 捨て札の山に落としたカードの能力が複数あるとき（サイクリング・魂力・予見） */
+  const [pileAsk, setPileAsk] = useState<null | { uid: string; abilities: battle.HandAbilityKind[] }>(null);
 
   const chosenOf = (x: { enemy?: TargetRef; ally?: string }): battle.Chosen => ({ ...(x.enemy ? { enemy: x.enemy } : {}), ...(x.ally ? { ally: x.ally } : {}) });
 
-  /** 対象を選ぶもの（カード・起動・魂力）を、足りない選択・追加の支払い・注意の確認を経て行動にする */
+  /** 対象を選ぶもの（カード・起動・魂力・予見・捨て札の能力）を、足りない選択・支払いのシート・注意の確認を経て行動にする */
   const tryPlay = async (next: TargetSel) => {
     // モード選択のカード（MTG 要素 ○ バッチC2）：まだモードを選んでいなければ、モードの選択シートへ（対象はそのあと）
-    if (next.kind === 'card' && next.mode === undefined && (next.from === 'discard' ? discardInfos : infos).get(next.uid)?.modes) {
+    if (next.kind === 'card' && next.mode === undefined && next.modes === undefined && (next.from === 'discard' ? discardInfos : infos).get(next.uid)?.modes) {
       setSel(null);
       setAsk({ kind: 'mode', sel: next });
       return;
@@ -308,6 +344,15 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     const i = infoOf(next);
     if (!i) return;
     const ready = (i.enemyTargets.length === 0 || next.enemy) && (i.allyTargets.length === 0 || next.ally);
+    // 支払いのシート（MTG 要素 △ バッチB。キッカー・再活・脱出も）：対象が決まってから（超過は対象なしで決まる）
+    if (next.kind === 'card' && !next.pay?.done) {
+      const pi = (next.from === 'discard' ? discardInfos : infos).get(next.uid);
+      if (pi && needsPaySheet(pi, mine.energy) && (ready || pi.pay?.alts?.some((a) => a.alt === 'overload'))) {
+        setSel(null);
+        setAsk({ kind: 'pay', sel: next });
+        return;
+      }
+    }
     if (!ready) {
       setSel(next);
       return;
@@ -322,6 +367,15 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       act({ type: 'activate', player: me, sourceUid: next.uid, chosen });
       return;
     }
+    if (next.kind === 'discardAbility') {
+      const d = discardAbilities.get(`${next.uid}:${next.ability}`);
+      if (d && !(await confirmWarnings(d, { name: d.name }))) {
+        setSel(null);
+        return;
+      }
+      act({ type: 'discardAbility', player: me, cardUid: next.uid, ability: next.ability, chosen });
+      return;
+    }
     if (next.kind === 'channel') {
       const card = cardOf(next);
       const def = card ? view.cards[card.cardId] : undefined;
@@ -329,34 +383,14 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
         setSel(null);
         return;
       }
-      act({ type: 'handAbility', player: me, cardUid: next.uid, ability: 'channel', chosen });
+      act({ type: 'handAbility', player: me, cardUid: next.uid, ability: next.ability ?? 'channel', chosen });
       return;
     }
     const card = cardOf(next);
     if (!card) return;
-    const pi = { ...(next.from === 'discard' ? discardInfos : infos).get(card.uid)!, ...i };
     const pay = next.pay ?? {};
-    // 追加の支払い：再活の捨てる手札 → 脱出の除外する捨て札 → キッカー（払えるときだけ）
-    if (pi.fromDiscard?.discardChoices && pay.discardUid === undefined) {
-      setSel(null);
-      setAsk({ kind: 'jumpStart', sel: next });
-      return;
-    }
-    if (pi.fromDiscard?.exileCount && pay.exileUids === undefined) {
-      setSel(null);
-      setAsk({ kind: 'escape', sel: next });
-      return;
-    }
-    if (pi.kicker && pay.kick === undefined) {
-      const base = next.enemy ? (pi.targetCosts?.[next.enemy.kind === 'player' ? `player:${next.enemy.player}` : next.enemy.uid] ?? pi.cost) : pi.cost;
-      if (base + pi.kicker.extra <= mine.energy) {
-        setSel(null);
-        setAsk({ kind: 'kicker', sel: next });
-        return;
-      }
-    }
     const def = view.cards[card.cardId];
-    if (def && !(await confirmWarnings(pi, def))) {
+    if (def && !(await confirmWarnings(i, def))) {
       setSel(null);
       return;
     }
@@ -364,13 +398,22 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       type: 'playCard',
       player: me,
       cardUid: next.uid,
-      chosen,
+      chosen: pay.alt === 'overload' ? {} : chosen,
       ...(next.from === 'discard' ? { from: 'discard' as const } : {}),
-      ...(pay.discardUid !== undefined ? { discardUid: pay.discardUid } : {}),
-      ...(pay.exileUids !== undefined ? { exileUids: pay.exileUids } : {}),
-      ...(pay.kick ? { kick: true } : {}),
-      ...(next.mode !== undefined ? { mode: next.mode } : {}),
+      ...payFields(pay),
+      ...(next.modes !== undefined ? { modes: next.modes } : next.mode !== undefined ? { mode: next.mode } : {}),
     });
+  };
+
+  /** 攻撃（MTG 要素 △ バッチB：後援できるなら、休ませる味方を先に選ぶ） */
+  const tryAttack = (uid: string, target: TargetRef) => {
+    const m = battle.findMonster(view, uid);
+    if (m && battle.enlistOptions(view, m).length > 0) {
+      setSel(null);
+      setEnlistAsk({ uid, target });
+      return;
+    }
+    act({ type: 'attack', player: me, attackerUid: uid, target });
   };
 
   /** 手札から使う能力（サイクリング・魂力）：確認してから使う。魂力で対象が要れば対象選びへ */
@@ -383,7 +426,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       toast({ text: h.blocked, kind: 'ng' });
       return;
     }
-    const channelText = def.effects.filter((e) => e.timing === 'channel').map((e) => describeEffect(e, def));
+    const channelText = def.effects.filter((e) => e.timing === ability).map((e) => describeEffect(e, def));
     const ok = await confirm({
       title: `${h.name}：「${def.name}」`,
       message:
@@ -393,7 +436,11 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           </p>
         ) : (
           <>
-            <p>エナジー{h.cost}でこのカードを捨て、次の効果を使います（カードを使ったことには数えません）。</p>
+            <p>
+              {ability === 'forecast'
+                ? `エナジー${h.cost}でこのカードを相手に見せ、次の効果を使います（カードは手札に残ります。1ターン1回）。`
+                : `エナジー${h.cost}でこのカードを捨て、次の効果を使います（カードを使ったことには数えません）。`}
+            </p>
             <ul className="warn-list kick-list">
               {channelText.map((t) => (
                 <li key={t}>{t}</li>
@@ -409,7 +456,38 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       act({ type: 'handAbility', player: me, cardUid: uid, ability: 'cycling' });
       return;
     }
-    void tryPlay({ kind: 'channel', uid });
+    void tryPlay({ kind: 'channel', uid, ability });
+  };
+
+  /** 捨て札のカードの能力（MTG 要素 △ バッチB）：対象が要らなければ確認して使う、要るなら対象選びへ */
+  const tapDiscardAbility = async (uid: string, ability: battle.DiscardAbilityKind) => {
+    const d = discardAbilities.get(`${uid}:${ability}`);
+    const def = d ? view.cards[d.card.cardId] : undefined;
+    if (!d || !def) return;
+    if (d.blocked) {
+      toast({ text: d.blocked, kind: 'ng' });
+      return;
+    }
+    setPile(null);
+    if (d.enemyTargets.length > 0 || d.allyTargets.length > 0) {
+      void tryPlay({ kind: 'discardAbility', uid, ability });
+      return;
+    }
+    const n = d.card && def.abilities?.find((a) => a.id === ability)?.value;
+    const ok = await confirm({
+      title: `${d.name}：「${def.name}」`,
+      message:
+        ability === 'dredge' ? (
+          <p>山札の上{n}枚を捨て札に置き、このカードを手札に戻します（1ターン1回）。</p>
+        ) : ability === 'embalm' ? (
+          <p>エナジー{d.cost}でこのカードを除外し、コピーのトークンを出します。</p>
+        ) : (
+          <p>エナジー{d.cost}でこのカードを除外し、「相続」の効果を使います。</p>
+        ),
+      okLabel: `${d.name}${d.cost > 0 ? `（⚡${d.cost}）` : ''}`,
+      cancelLabel: 'やめる',
+    });
+    if (ok) void tryPlay({ kind: 'discardAbility', uid, ability });
   };
 
   /** 起動の ⚡ を押した：対象が要らなければ起動、要るなら対象選びへ */
@@ -431,7 +509,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       return true;
     }
     if (sel?.kind === 'attacker') {
-      act({ type: 'attack', player: me, attackerUid: sel.uid, target: t });
+      tryAttack(sel.uid, t);
       return true;
     }
     return false;
@@ -455,16 +533,33 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       allyTargets: i.allyTargets,
       handAbilities: usableHandAbilities(c.uid),
       ...(i.modes ? { modal: true } : {}),
+      // 支払いのシート（MTG 要素 △ バッチB）
+      ...(!noise && needsPaySheet(i, mine.energy) ? { pay: true } : {}),
+      ...(i.pay?.alts?.some((a) => a.alt === 'overload' && !a.blocked) ? { anyDrop: true } : {}),
     };
   };
-  /** 捨て札のカード（捨て札から使う。MTG 要素 ○ バッチC1） */
+  /** 捨て札のカード（捨て札から使う。MTG 要素 ○ バッチC1。捨て札から使えず、捨て札のカードの能力があればそれ：△ バッチB） */
   const discardSource = (c: battle.CardInst): DragSource | null => {
     const i = discardInfos.get(c.uid);
-    if (!i) return null;
+    if (!i) {
+      const d = discardAbilitiesOf(c.uid).sort((a, b) => Number(!!a.blocked) - Number(!!b.blocked))[0];
+      if (!d) return null;
+      return { kind: 'discardAbility', uid: c.uid, ability: d.ability, blocked: myTurn ? d.blocked : notMyTurn(), enemyTargets: d.enemyTargets, allyTargets: d.allyTargets };
+    }
     let blocked = i.blocked;
     if (!myTurn) blocked = notMyTurn();
     else if (blocked === 'エナジーが足りません') blocked = `エナジーが足りません（必要${i.cost}・残り${mine.energy}）`;
-    return { kind: 'card', uid: c.uid, noise: false, blocked, enemyTargets: i.enemyTargets, allyTargets: i.allyTargets, from: 'discard', ...(i.modes ? { modal: true } : {}) };
+    return {
+      kind: 'card',
+      uid: c.uid,
+      noise: false,
+      blocked,
+      enemyTargets: i.enemyTargets,
+      allyTargets: i.allyTargets,
+      from: 'discard',
+      ...(i.modes ? { modal: true } : {}),
+      ...(needsPaySheet(i, mine.energy) ? { pay: true } : {}),
+    };
   };
   /** 起動の ⚡（MTG 要素 ○ バッチC1） */
   const activateDragSource = (uid: string): DragSource | null => {
@@ -536,18 +631,23 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
         act({ type: 'removeNoise', player: me, cardUid: src.uid });
         return 'ok';
       case 'attack':
-        act({ type: 'attack', player: me, attackerUid: src.uid, target: d.target });
+        tryAttack(src.uid, d.target);
         return 'ok';
       case 'play':
         void tryPlay(selOfSource(src, d.chosen));
+        return 'ok';
+      case 'pay':
+        // 支払いのシート（MTG 要素 △ バッチB）：落とした場所を覚えてシートへ
+        setAsk({ kind: 'pay', sel: selOfSource(src, d.chosen) as CardSel });
         return 'ok';
       case 'need':
         setSel(selOfSource(src, d.chosen));
         return 'ok';
       case 'pile': {
         if (src.kind !== 'card') return 'back';
-        const ability = d.abilities[0]!;
-        void tryHandAbility(src.uid, ability);
+        // 能力が複数（サイクリング・魂力・予見）なら選ぶ
+        if (d.abilities.length > 1) setPileAsk({ uid: src.uid, abilities: d.abilities });
+        else void tryHandAbility(src.uid, d.abilities[0]!);
         return 'ok';
       }
       case 'modes':
@@ -560,6 +660,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   /** ドラッグしたものと決まった対象から、選択の途中の形を作る */
   const selOfSource = (src: DragSource, chosen: battle.Chosen): TargetSel => {
     if (src.kind === 'activate') return { kind: 'activate', uid: src.uid, ...chosen };
+    if (src.kind === 'discardAbility') return { kind: 'discardAbility', uid: src.uid, ability: src.ability, ...chosen };
     return { kind: 'card', uid: src.uid, ...(src.kind === 'card' && src.from === 'discard' ? { from: 'discard' as const } : {}), ...chosen };
   };
 
@@ -570,7 +671,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     reduceMotion,
     // 捨て札の一覧からつかんだら、一覧を閉じて盤面を見せる
     onStart: (src) => {
-      if (src.kind === 'card' && src.from === 'discard') setPile(null);
+      if ((src.kind === 'card' && src.from === 'discard') || src.kind === 'discardAbility') setPile(null);
     },
   });
   const dragging = drag.drag?.phase === 'drag' ? drag.drag : null;
@@ -653,13 +754,20 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     if (targetSel && selDef) {
       if (info?.blocked) return info.blocked;
       const fight = selDef.effects.some((e) => getEffect(e.id)?.targetRule === 'fight') ?? false;
-      const modeNote = targetSel.kind === 'card' && targetSel.mode !== undefined ? `（モード${battle.modeName(targetSel.mode)}）` : '';
+      const modeNote =
+        targetSel.kind === 'card' && targetSel.modes
+          ? `（モード${targetSel.modes.map((m) => battle.modeName(m)).join('+')}）`
+          : targetSel.kind === 'card' && targetSel.mode !== undefined
+            ? `（モード${battle.modeName(targetSel.mode)}）`
+            : '';
       const what =
         targetSel.kind === 'activate'
           ? `「${selDef.name}」の起動`
           : targetSel.kind === 'channel'
-            ? `「${selDef.name}」の魂力`
-            : `「${selDef.name}」${targetSel.kind === 'card' && targetSel.from === 'discard' ? '（捨て札から）' : ''}${modeNote}`;
+            ? `「${selDef.name}」の${targetSel.ability === 'forecast' ? '予見' : '魂力'}`
+            : targetSel.kind === 'discardAbility'
+              ? `「${selDef.name}」の${discardAbilities.get(`${targetSel.uid}:${targetSel.ability}`)?.name ?? '能力'}`
+              : `「${selDef.name}」${targetSel.kind === 'card' && targetSel.from === 'discard' ? '（捨て札から）' : ''}${modeNote}`;
       if (needEnemy) return `${what}の${fight ? '戦わせる相手モンスター' : '対象'}を選んでください${info?.tauntLimited ? `（${battle.NOTE_TAUNT_LIMITED}）` : ''}`;
       if (needAlly) return `${what}${fight ? 'で戦わせる' : 'をかける'}自分のモンスターを選んでください`;
       return `${what}を使いますか？`;
@@ -827,7 +935,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
                     void tryHandAbility(card.uid, h.ability);
                   }}
                 >
-                  {h.ability === 'cycling' ? '♻' : '🌀'} {h.name}（⚡{h.cost}）
+                  {HAND_ICON[h.ability]} {h.name}（⚡{h.cost}）
                 </button>
               ))}
               {!usable && blockedWhy && <span className="cdetail__why">{blockedWhy}</span>}
@@ -851,7 +959,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       );
     }
     if (detail.kind === 'discard') {
-      // 自分の捨て札のカード（捨て札から使う。MTG 要素 ○ バッチC1）
+      // 自分の捨て札のカード（捨て札から使う。MTG 要素 ○ バッチC1。捨て札のカードの能力：△ バッチB）
       const card = mine.discard.find((c) => c.uid === detail.uid);
       const def = card ? view.cards[card.cardId] : undefined;
       if (!card || !def) return null;
@@ -859,27 +967,47 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       const src = i ? discardSource(card) : null;
       const blocked = src?.kind === 'card' ? src.blocked : null;
       const targeted = !!i && (i.enemyTargets.length > 0 || i.allyTargets.length > 0);
+      const abil = discardAbilitiesOf(card.uid);
       return (
         <CardDetailSheet
           title={def.name}
           onClose={close}
           actions={
-            i ? (
+            i || abil.length > 0 ? (
               <>
-                <button
-                  type="button"
-                  className="btn btn--primary"
-                  disabled={!!blocked}
-                  onClick={() => {
-                    close();
-                    setPile(null);
-                    if (targeted && !i.modes) setSel({ kind: 'card', uid: card.uid, from: 'discard' });
-                    else void tryPlay({ kind: 'card', uid: card.uid, from: 'discard' });
-                  }}
-                >
-                  捨て札から使う（{i.fromDiscard?.name}・⚡{i.cost}）
-                </button>
+                {i && (
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    disabled={!!blocked}
+                    onClick={() => {
+                      close();
+                      setPile(null);
+                      if (targeted && !i.modes && !needsPaySheet(i, mine.energy)) setSel({ kind: 'card', uid: card.uid, from: 'discard' });
+                      else void tryPlay({ kind: 'card', uid: card.uid, from: 'discard' });
+                    }}
+                  >
+                    捨て札から使う（{i.fromDiscard?.name}・⚡{i.cost}）
+                  </button>
+                )}
+                {abil.map((d) => (
+                  <button
+                    key={d.ability}
+                    type="button"
+                    className="btn"
+                    disabled={!myTurn || !!d.blocked}
+                    title={d.blocked ?? undefined}
+                    onClick={() => {
+                      close();
+                      void tapDiscardAbility(card.uid, d.ability);
+                    }}
+                  >
+                    {DISCARD_ICON[d.ability]} {d.name}
+                    {d.cost > 0 ? `（⚡${d.cost}）` : ''}
+                  </button>
+                ))}
                 {blocked && <span className="cdetail__why">{blocked}</span>}
+                {!i && abil[0]?.blocked && myTurn && <span className="cdetail__why">{abil[0].blocked}</span>}
               </>
             ) : undefined
           }
@@ -962,7 +1090,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     );
   };
 
-  /** 追加の支払いのダイアログ（キッカー・再活・脱出） */
+  /** モードの選択・支払いのシート（MTG 要素 ○ バッチC1・C2・△ バッチB） */
   const renderAsk = (): ReactNode => {
     if (!ask) return null;
     const x = ask.sel;
@@ -971,74 +1099,58 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     const def = card ? view.cards[card.cardId] : undefined;
     if (!pi || !card || !def) return null;
     const cancel = () => setAsk(null);
-    const next = (pay: PayChoice) => {
-      setAsk(null);
-      void tryPlay({ ...x, pay: { ...x.pay, ...pay } });
-    };
     if (ask.kind === 'mode' && pi.modes) {
       return (
         <ModeDialog
           name={def.name}
           modes={pi.modes}
+          {...(pi.modeCombos ? { combos: pi.modeCombos } : {})}
           energy={mine.energy}
-          onPick={(mode) => {
+          onPick={(mode, modes) => {
             setAsk(null);
-            const m = pi.modes!.find((y) => y.mode === mode)!;
+            const m = modes ? pi.modeCombos?.find((y) => y.modes?.join() === modes.join()) : pi.modes!.find((y) => y.mode === mode);
+            if (!m) return;
             // 落とした場所がこのモードの合法な対象ならそのまま、違えば対象選び（候補が1つなら自動）
             const d = resolveModeDrop({ ...m, enemyTargets: battle.payableEnemyTargets(m, mine.energy) }, chosenOf(x), def.stats ? x.uid : undefined);
             if (d.t === 'invalid') {
               toast({ text: d.reason, kind: 'ng' });
               return;
             }
-            if (d.t === 'play' || d.t === 'need') void tryPlay({ kind: 'card', uid: x.uid, ...(x.from ? { from: x.from } : {}), mode, ...chosenOf(d.chosen) });
+            if (d.t === 'play' || d.t === 'need') {
+              void tryPlay({ kind: 'card', uid: x.uid, ...(x.from ? { from: x.from } : {}), ...(modes ? { modes } : { mode }), ...(x.pay ? { pay: x.pay } : {}), ...chosenOf(d.chosen) });
+            }
           }}
           onCancel={cancel}
         />
       );
     }
-    if (ask.kind === 'jumpStart') {
-      const cards = mine.hand;
-      return (
-        <PayDialog
-          view={view}
-          title={`${pi.fromDiscard?.name}：捨てる手札を選ぶ`}
-          prompt={`「${def.name}」を捨て札から使うために、手札を1枚捨てます。`}
-          cards={cards}
-          count={1}
-          defaults={pi.fromDiscard?.discardDefault ? [pi.fromDiscard.discardDefault] : []}
-          mark="捨てる"
-          onDone={(uids) => next({ discardUid: uids[0]! })}
-          onCancel={cancel}
-        />
-      );
-    }
-    if (ask.kind === 'escape') {
-      const n = pi.fromDiscard?.exileCount ?? 0;
-      const cards = mine.discard.filter((c) => c.uid !== card.uid);
-      return (
-        <PayDialog
-          view={view}
-          title={`${pi.fromDiscard?.name}：除外する捨て札を${n}枚選ぶ`}
-          prompt={`「${def.name}」を捨て札から使うために、他の捨て札を${n}枚除外します（ノイズ・呪い・古い順に選んであります）。`}
-          cards={cards}
-          count={n}
-          defaults={pi.fromDiscard?.exileDefaults ?? []}
-          mark="除外"
-          onDone={(uids) => next({ exileUids: uids })}
-          onCancel={cancel}
-        />
-      );
-    }
-    const mi = infoOf(x) ?? pi;
-    const base = x.enemy ? (mi.targetCosts?.[x.enemy.kind === 'player' ? `player:${x.enemy.player}` : x.enemy.uid] ?? mi.cost) : mi.cost;
     return (
-      <KickerDialog
-        name={def.name}
-        cost={base}
-        extra={pi.kicker?.extra ?? 0}
-        energy={mine.energy}
-        kickedText={def.effects.filter((e) => e.condition === 'kicked').map((e) => describeEffect(e, def))}
-        onPick={(kick) => next({ kick })}
+      <PaySheet
+        view={view}
+        me={me}
+        card={card}
+        def={def}
+        info={pi}
+        chosen={chosenOf(x)}
+        {...(x.mode !== undefined ? { mode: x.mode } : {})}
+        {...(x.modes ? { modes: x.modes } : {})}
+        initial={x.pay ?? {}}
+        onDone={(pay) => {
+          setAsk(null);
+          // 超過は対象を選ばない（落とした場所は使わない）
+          const next: CardSel = { ...x, pay };
+          if (pay.alt === 'overload') {
+            delete next.enemy;
+            delete next.ally;
+          } else {
+            // 選んだ使い方で合法でない対象は外す（対象選びからやり直す）
+            const alt = pay.alt ? pi.pay?.alts?.find((a) => a.alt === pay.alt) : undefined;
+            const t = alt ?? pi;
+            if (next.enemy && !t.enemyTargets.some((y) => sameRef(y, next.enemy!))) delete next.enemy;
+            if (next.ally && !t.allyTargets.includes(next.ally)) delete next.ally;
+          }
+          void tryPlay(next);
+        }}
         onCancel={cancel}
       />
     );
@@ -1269,16 +1381,21 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           {discardUsable > 0 && <p className="hint pile-hint">{phone ? '光っているカードは横へドラッグして盤面で離すと使えます（押すと詳細）' : '光っているカードは盤面へドラッグすると使えます（押すと詳細）'}</p>}
           <div className="crow-list">
             {/* 捨て札から使えるカードを上に、ほかは新しい順 */}
-            {[...mine.discard].reverse().sort((a, b) => Number(discardInfos.has(b.uid)) - Number(discardInfos.has(a.uid))).map((c) => {
+            {[...mine.discard]
+              .reverse()
+              .sort((a, b) => Number(discardInfos.has(b.uid) || discardAbilitiesOf(b.uid).length > 0) - Number(discardInfos.has(a.uid) || discardAbilitiesOf(a.uid).length > 0))
+              .map((c) => {
               const def = view.cards[c.cardId];
               const i = discardInfos.get(c.uid);
-              const usable = !!i && myTurn && !i.blocked;
+              const abil = discardAbilitiesOf(c.uid);
+              const usable = myTurn && ((!!i && !i.blocked) || abil.some((d) => !d.blocked));
+              const grab = !!i || abil.length > 0;
               return (
                 <div
                   key={c.uid}
-                  className={cx('pile-row', i && 'pile-row--fd', usable && 'is-usable')}
+                  className={cx('pile-row', grab && 'pile-row--fd', usable && 'is-usable')}
                   data-pile-card={c.uid}
-                  onPointerDown={i && view.phase === 'main' ? (e) => drag.begin(e, 'list', () => discardSource(c)) : undefined}
+                  onPointerDown={grab && view.phase === 'main' ? (e) => drag.begin(e, 'list', () => discardSource(c)) : undefined}
                 >
                   <CardRow
                     def={def}
@@ -1287,15 +1404,34 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
                     mark=""
                     onToggle={() => {
                       if (drag.consumeClick()) return;
-                      if (i) setDetail({ kind: 'discard', uid: c.uid });
+                      if (grab) setDetail({ kind: 'discard', uid: c.uid });
                       else if (def) setZoom(def);
                     }}
                     onZoom={setZoom}
                   />
                   {i && (
-                    <span className={cx('pile-row__tag', usable && 'is-ok')}>
+                    <span className={cx('pile-row__tag', myTurn && !i.blocked && 'is-ok')}>
                       {i.fromDiscard?.name}・⚡{i.cost}
-                      {!usable && i.blocked ? `（${i.blocked}）` : ''}
+                      {myTurn && i.blocked ? `（${i.blocked}）` : ''}
+                    </span>
+                  )}
+                  {/* 捨て札のカードの能力（MTG 要素 △ バッチB）：押すと使う（対象が要れば対象選び） */}
+                  {abil.length > 0 && (
+                    <span className="pile-row__btns">
+                      {abil.map((d) => (
+                        <button
+                          key={d.ability}
+                          type="button"
+                          className={cx('btn btn--small', myTurn && !d.blocked && 'btn--primary')}
+                          disabled={!myTurn || !!d.blocked}
+                          title={d.blocked ?? undefined}
+                          onClick={() => void tapDiscardAbility(c.uid, d.ability)}
+                        >
+                          {DISCARD_ICON[d.ability]} {d.name}
+                          {d.cost > 0 ? ` ⚡${d.cost}` : ''}
+                        </button>
+                      ))}
+                      {myTurn && abil.every((d) => d.blocked) && <small className="pile-row__tag">（{abil[0]!.blocked}）</small>}
                     </span>
                   )}
                 </div>
@@ -1318,6 +1454,38 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
         )
       )}
       {ask && renderAsk()}
+      {enlistAsk &&
+        (() => {
+          const m = battle.findMonster(view, enlistAsk.uid);
+          if (!m) return null;
+          return (
+            <EnlistSheet
+              view={view}
+              attacker={m}
+              options={battle.enlistOptions(view, m)}
+              onPick={(helper) => {
+                setEnlistAsk(null);
+                act({ type: 'attack', player: me, attackerUid: enlistAsk.uid, target: enlistAsk.target, ...(helper ? { enlistUid: helper } : {}) });
+              }}
+              onCancel={() => setEnlistAsk(null)}
+            />
+          );
+        })()}
+      {pileAsk && (
+        <AbilityChoiceSheet
+          title="手札から使う能力を選ぶ"
+          items={pileAsk.abilities.map((k) => {
+            const h = handAbilities.get(pileAsk.uid)?.find((x) => x.ability === k);
+            return { id: k, label: `${HAND_ICON[k]} ${h?.name ?? k}（⚡${h?.cost ?? 0}）`, blocked: h?.blocked ?? null };
+          })}
+          onPick={(id) => {
+            const uid = pileAsk.uid;
+            setPileAsk(null);
+            void tryHandAbility(uid, id as battle.HandAbilityKind);
+          }}
+          onCancel={() => setPileAsk(null)}
+        />
+      )}
       <ZoomModal def={zoom} onClose={() => setZoom(null)} />
       {phone && (
         <Sheet open={logOpen} title="ログ" onClose={() => setLogOpen(false)}>
@@ -1346,6 +1514,11 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   );
 }
 
+/** 手札から使う能力のアイコン（サイクリング・魂力・予見） */
+const HAND_ICON: Record<battle.HandAbilityKind, string> = { cycling: '♻', channel: '🌀', forecast: '🔮' };
+/** 捨て札のカードの能力のアイコン（相続・発掘・不朽） */
+const DISCARD_ICON: Record<battle.DiscardAbilityKind, string> = { renew: '🏺', dredge: '🪣', embalm: '⚱' };
+
 /** コストの内訳の行（詳細に出す。MTG 要素 ○ バッチC1） */
 function costLines(i: battle.PlayInfo): string[] {
   const steps = i.breakdown?.steps ?? [];
@@ -1354,6 +1527,19 @@ function costLines(i: battle.PlayInfo): string[] {
   if (i.kicker) out.push(`キッカー：追加でエナジー${i.kicker.extra}（${i.kicker.payable ? '払える' : '今は払えない'}）`);
   if (i.fromDiscard?.exileCount) out.push(`${i.fromDiscard.name}：他の捨て札を${i.fromDiscard.exileCount}枚除外して使う`);
   if (i.fromDiscard?.discardChoices) out.push(`${i.fromDiscard.name}：手札を1枚捨てて使う`);
+  // MTG 要素 △ バッチB：支払いのシートで選べるもの
+  const p = i.pay;
+  if (p) {
+    for (const a of p.alts ?? []) out.push(`${a.name}：${a.note}（⚡${a.cost}${a.blocked ? `・${a.blocked}` : ''}）`);
+    if (p.extra) out.push(`${p.extra.name}：1回+${p.extra.unit}⚡（${p.extra.max}回まで）`);
+    if (p.sacrifice) out.push(`${p.sacrifice.name}：差し出せるもの${p.sacrifice.options.length}つ`);
+    if (p.tap) out.push(`${p.tap.name}：休ませられるモンスター${p.tap.options.length}体`);
+    if (p.delve) out.push(`探査：捨て札を${p.delve.max}枚まで除外して安く`);
+    if (p.pitch) out.push(`代替コスト：同じ種類の手札${p.pitch.options.length}枚から除外できる`);
+    if (p.lifePay) out.push(`血の支払い：HP${p.lifePay.hpPer}ずつで${p.lifePay.max}つまで`);
+    if (p.minCost < i.cost) out.push(`払い方しだいで⚡${p.minCost}まで下がる`);
+  }
+  if (i.villain) out.push('最悪の二択：モードは相手が選ぶ');
   return out;
 }
 

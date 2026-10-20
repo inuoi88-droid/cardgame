@@ -1,4 +1,5 @@
 /** 効果テキストの自動生成（例：「攻撃するたび、相手に毒1を与える。」） */
+import { BALANCE } from './balance.ts';
 import { cardBase } from './classify.ts';
 import { CONDITIONS, TIMINGS, targetNoun } from './options.ts';
 import { effectModifiers } from './points.ts';
@@ -84,8 +85,15 @@ export function describeEffects(card: CardDef): string[] {
     }
     if (done.has(e.timing)) continue;
     done.add(e.timing);
-    out.push(`${timingPrefix(e.timing, card.abilities)}次のうち1つを選ぶ：`);
-    for (const m of modeTexts(card, e.timing)) out.push(`${m.label}：${m.text}`);
+    // 放題・最悪の二択・段階（MTG 要素 △ バッチB）は見出しとモードの名前が変わる
+    const has = (id: string) => (card.abilities ?? []).some((a) => a.id === id);
+    const head = has('spree') ? '次のうち好きな数を選ぶ：' : has('villain') ? '相手が次のうち1つを選ぶ：' : '次のうち1つを選ぶ：';
+    out.push(`${timingPrefix(e.timing, card.abilities)}${head}`);
+    const surcharge = has('tiered') ? BALANCE.abilities.tiered.surcharge : [];
+    for (const m of modeTexts(card, e.timing)) {
+      const k = surcharge[m.mode - 1] ?? 0;
+      out.push(`${m.label}${k > 0 ? `（+${k}）` : ''}：${m.text}`);
+    }
   }
   return out;
 }

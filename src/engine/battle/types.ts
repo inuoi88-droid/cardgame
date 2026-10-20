@@ -95,6 +95,11 @@ export interface CardInst {
   perm?: { attack: number; hp: number };
   /** 手札から捨てられた通算ターン（捨てられたとき） */
   discardedTurn?: number;
+  // ---- MTG 要素 △ バッチB
+  /** 回顧で捨て札から使った通算ターン（同じカードは1ターン1回） */
+  retraceTurn?: number;
+  /** 予見を使った通算ターン（1ターン1回） */
+  forecastTurn?: number;
 }
 
 export const NOISE_CARD_ID = '__noise__';
@@ -152,6 +157,13 @@ export interface Monster {
   guard?: { kind: 'indestructible' | 'protection'; until: number };
   /** 賛助でこのターンだけ与えられたキーワード（ターン終了時に消える。封印中は働かない） */
   tempGranted?: string[];
+  // ---- MTG 要素 △ バッチB（公開情報）
+  /** 試作版で出た（攻撃力・体力が半分。場を離れたら元に戻る） */
+  prototype?: boolean;
+  /** 解鎖して出た（攻撃力+N。攻撃されても反撃しない） */
+  unleashed?: boolean;
+  /** 一時蘇生で出た（速攻。持ち主のターン終了時に除外される） */
+  unearthed?: boolean;
 }
 
 /** 場に残っているパワー */
@@ -231,6 +243,9 @@ export interface PlayerState {
     speedUp?: boolean;
     /** このターンに使ったカードの種類（MTG 要素 △ バッチA：条件「このターン3種類以上のカードを使った」。monster・attack・skill・power） */
     typesPlayed?: string[];
+    /** 代替コスト・発掘を使った回数（MTG 要素 △ バッチB。1ターン battle.maxPitchPerTurn / maxDredgePerTurn 回まで） */
+    pitched?: number;
+    dredged?: number;
   };
   /** 最後に終えた自分のターンの記録（ターン終了時に写す。条件「前の相手のターンに相手がカードを3枚以上使った」）。無ければ記録なし */
   lastTurn?: { cardsPlayed: number };
@@ -339,6 +354,27 @@ export type Step =
   | { t: 'sagaEnd'; player: PlayerId; powerUid: string; depth: number }
   /** パワーを誘発なしで取り除く（MTG 要素 △ バッチA：罠・プラン） */
   | { t: 'powerGone'; player: PlayerId; powerUid: string; depth: number; why: 'trap' | 'plan' }
+  // ---- MTG 要素 △ バッチB
+  /** 貪食：出たモンスター（uid）が、自分の他のモンスターを0〜max体生け贄にする（1体につき攻撃力・体力+amount）。among は出たときに場にいたもの */
+  | { t: 'devourChoice'; player: PlayerId; uid: string; amount: number; max: number; depth: number; picks?: string[]; among?: string[] }
+  /**
+   * 最悪の二択：相手（player）がモードを選び、そのモードの効果を積む。user はカードを使った人。src・chosen・protectKey はカードの使用のもの
+   */
+  | {
+      t: 'villainChoice';
+      player: PlayerId;
+      user: PlayerId;
+      src: SourceRef;
+      timing: TimingId;
+      chosen: Chosen;
+      attackCard: boolean;
+      protectKey: string;
+      depth: number;
+      grow?: number;
+      picks?: string[];
+    }
+  /** 想起：召喚時の効果のあと、そのモンスター（uid）が場にいれば破壊する */
+  | { t: 'evokeEnd'; uid: string; depth: number }
   | { t: 'autoAttacks'; player: PlayerId }
   | { t: 'turnEndEffects'; player: PlayerId }
   | { t: 'retain'; player: PlayerId; picks?: string[] }
@@ -397,7 +433,9 @@ export interface LogEvent {
     | 'speed'
     | 'crown'
     | 'saga'
-    | 'charge';
+    | 'charge'
+    // MTG 要素 △ バッチB：捨て札のカードの能力（status は renew / dredge / embalm）
+    | 'discardAbility';
   player?: PlayerId;
   target?: TargetRef;
   source?: TargetRef;
@@ -450,6 +488,15 @@ export interface PlayRecord {
   kicked?: boolean;
   /** 選んだモード（MTG 要素 ○ バッチC2。0 は双呪ですべて）。反復でも同じモード */
   mode?: number;
+  // ---- MTG 要素 △ バッチB
+  /** 放題で選んだモード（2つ以上。反復では最初の1つだけ） */
+  modes?: number[];
+  /** 切除を払った（このカードの使用時・召喚時・捨て札から使ったときの効果の条件を無視する） */
+  cleaved?: boolean;
+  /** 奮励で払った回数（「選んだ1体（相手）」の効果を、ランダムな別の相手モンスターにも） */
+  strive?: number;
+  /** 協約で差し出した（条件「協約したなら」） */
+  bargained?: boolean;
 }
 
 export interface GameResult {
@@ -487,8 +534,20 @@ export interface GameState {
 
 export type MulliganMode = 'keep' | 'all' | 'partial';
 
-/** 手札から使う能力の種類（MTG 要素 ○ バッチC1） */
-export type HandAbilityKind = 'cycling' | 'channel';
+/** 手札から使う能力の種類（MTG 要素 ○ バッチC1。予見は △ バッチB） */
+export type HandAbilityKind = 'cycling' | 'channel' | 'forecast';
+export const HAND_ABILITY_KINDS = ['cycling', 'channel', 'forecast'] as const satisfies readonly HandAbilityKind[];
+
+/** 代わりの使い方（MTG 要素 △ バッチB）：試作・想起・超過・解鎖 */
+export type AltPlay = 'prototype' | 'evoke' | 'overload' | 'unleash';
+export const ALT_PLAYS = ['prototype', 'evoke', 'overload', 'unleash'] as const satisfies readonly AltPlay[];
+/** 追加の支払い（MTG 要素 △ バッチB）：切除・奮励・分隊 */
+export type ExtraPayKind = 'cleave' | 'strive' | 'squad';
+/** 差し出す能力（MTG 要素 △ バッチB）：現出・犠牲・協約 */
+export type SacrificeKind = 'emerge' | 'casualty' | 'bargain';
+/** 捨て札のカードの能力（MTG 要素 △ バッチB）：相続・発掘・不朽 */
+export type DiscardAbilityKind = 'renew' | 'dredge' | 'embalm';
+export const DISCARD_ABILITY_KINDS = ['renew', 'dredge', 'embalm'] as const satisfies readonly DiscardAbilityKind[];
 
 export type Action =
   | { type: 'mulligan'; player: PlayerId; mode: MulliganMode; cardUids?: string[] }
@@ -507,12 +566,30 @@ export type Action =
       kick?: boolean;
       /** モード選択のカード（MTG 要素 ○ バッチC2）で選ぶモード（1〜3）。0 は双呪（すべてのモード。追加エナジー） */
       mode?: number;
+      // ---- MTG 要素 △ バッチB（どれも省略可能）
+      /** 切除・奮励・分隊の追加払いの回数 */
+      extra?: number;
+      /** 放題で選ぶモード（昇順・重複なし・2つ以上。mode の代わり） */
+      modes?: number[];
+      /** 代わりの使い方（試作・想起・超過・解鎖） */
+      alt?: AltPlay;
+      /** 現出・犠牲・協約で差し出す自分のモンスター（協約はトークン）・パワー */
+      sacrificeUid?: string;
+      /** 召集・調和で休ませる自分のモンスター */
+      tapUids?: string[];
+      /** 代替コストで除外する手札 */
+      pitchUid?: string;
+      /** 血の支払い：HP で払うエナジーの数 */
+      lifePay?: number;
     }
   /** 起動（MTG 要素 ○ バッチC1）：場のモンスター・パワー（sourceUid）の「起動」の効果を使う */
   | { type: 'activate'; player: PlayerId; sourceUid: string; chosen?: Chosen }
   /** 手札から使う能力（MTG 要素 ○ バッチC1）：サイクリング・魂力 */
   | { type: 'handAbility'; player: PlayerId; cardUid: string; ability: HandAbilityKind; chosen?: Chosen }
-  | { type: 'attack'; player: PlayerId; attackerUid: string; target: TargetRef }
+  /** 攻撃。enlistUid は後援（MTG 要素 △ バッチB）で休ませる自分の他のモンスター */
+  | { type: 'attack'; player: PlayerId; attackerUid: string; target: TargetRef; enlistUid?: string }
+  /** 捨て札のカードの能力（MTG 要素 △ バッチB）：相続・発掘・不朽 */
+  | { type: 'discardAbility'; player: PlayerId; cardUid: string; ability: DiscardAbilityKind; chosen?: Chosen }
   | { type: 'removeNoise'; player: PlayerId; cardUid: string }
   | { type: 'choose'; player: PlayerId; picks: string[] }
   | { type: 'endTurn'; player: PlayerId }

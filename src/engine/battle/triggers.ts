@@ -2,10 +2,10 @@
 import { BALANCE } from '../balance.ts';
 import { REPEAT_CAPPED_TIMINGS, TIMINGS } from '../options.ts';
 import type { CardDef, EffectInstance, TimingId } from '../types.ts';
-import { dormantNow, enqueue, log, monsterDormant, newUid } from './core.ts';
+import { dormantNow, enqueue, log, monsterDormant, newUid, other } from './core.ts';
 import { getAbility } from '../registry.ts';
 import { allyCandidates, chosenRulesOf, enemyCandidates } from './play.ts';
-import { effectsForMode, resolveMode } from './modes.ts';
+import { cardModes, effectsForMode, resolveMode, type ModeSel } from './modes.ts';
 import { pick } from './rng.ts';
 import type { CardInst, Chosen, GameState, PlayerId, PowerInst, SourceRef } from './types.ts';
 
@@ -17,8 +17,10 @@ interface FireOpts {
   protectKey?: string;
   /** 成長（MTG 要素 ○ バッチB）：ダメージ・連撃の数値に足す量 */
   grow?: number;
-  /** モード選択のカードで選んだモード（MTG 要素 ○ バッチC2。0 は双呪。省略はモード A） */
-  mode?: number;
+  /** モード選択のカードで選んだモード（MTG 要素 ○ バッチC2。0 は双呪。省略はモード A。放題は並び：△ バッチB） */
+  mode?: ModeSel;
+  /** 最悪の二択（MTG 要素 △ バッチB）：モードの効果は相手が選んでから積む（Step villainChoice） */
+  villain?: boolean;
 }
 
 /**
@@ -34,10 +36,12 @@ export function enqueueCardTiming(
   depth: number,
   opts: FireOpts,
 ): void {
+  // 最悪の二択（MTG 要素 △ バッチB）：モードのある使い方なら、「いつも」の効果だけ先に積み、モードは相手が選ぶ
+  const villain = opts.villain === true && !opts.sealed && cardModes(def, timing).length > 0;
   // モード選択（MTG 要素 ○ バッチC2）：「いつも」の効果と、選んだモードの効果だけ
-  const effects = opts.sealed ? [] : effectsForMode(def.effects, timing, resolveMode(def, timing, opts.mode));
+  const effects = opts.sealed ? [] : villain ? def.effects.filter((e) => e.timing === timing && e.mode === undefined) : effectsForMode(def.effects, timing, resolveMode(def, timing, opts.mode));
   const drawbacks = def.drawbacks.filter((d) => d.timing === timing);
-  if (effects.length === 0 && drawbacks.length === 0) return;
+  if (effects.length === 0 && drawbacks.length === 0 && !villain) return;
   const protectKey = opts.protectKey ?? newUid(g, 'pk');
   for (const drawback of drawbacks) enqueue(g, { t: 'drawback', src, drawback, protectKey, depth });
   // 濫用（MTG 要素 ○ バッチA）：使用時・召喚時の効果に条件「生け贄にしたなら」があれば、デメリットのあと・効果の前に選ぶ
@@ -46,6 +50,20 @@ export function enqueueCardTiming(
   }
   for (const effect of effects) {
     enqueue(g, { t: 'effect', src, effect, timing, chosen, attackCard: opts.attackCard ?? false, protectKey, depth, ...(opts.grow ? { grow: opts.grow } : {}) });
+  }
+  if (villain) {
+    enqueue(g, {
+      t: 'villainChoice',
+      player: other(src.controller),
+      user: src.controller,
+      src,
+      timing,
+      chosen,
+      attackCard: opts.attackCard ?? false,
+      protectKey,
+      depth,
+      ...(opts.grow ? { grow: opts.grow } : {}),
+    });
   }
 }
 

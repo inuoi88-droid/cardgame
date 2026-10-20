@@ -53,8 +53,8 @@ export interface TimingDef {
   noDrawbacks?: boolean;
 }
 
-/** 捨て札から使える能力（MTG 要素 ○ バッチC1。defs/abilities の fromDiscard を持つもの） */
-export const FROM_DISCARD_ABILITIES = ['flashback', 'jumpStart', 'escape'] as const;
+/** 捨て札から使える能力（MTG 要素 ○ バッチC1・△ バッチB。defs/abilities の fromDiscard を持つもの） */
+export const FROM_DISCARD_ABILITIES = ['flashback', 'jumpStart', 'escape', 'retrace', 'harmonize', 'mayhem', 'unearth'] as const;
 
 const maxRepeat = BALANCE.battle.maxRepeatTriggersPerTurn;
 
@@ -339,6 +339,31 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     group: 'このモンスター',
     description: 'このモンスターが、各ターン最初に自分のカードの「選んだ自分のモンスター1体」になったときだけ発動（雄姿。英雄的の1ターン1回版。カードの効果より先に発動）',
   },
+  // ---- MTG 要素 △ バッチB
+  renew: {
+    id: 'renew',
+    label: '相続',
+    textPrefix: '相続：',
+    bases: ['monster', 'spell'],
+    powerTiming: false,
+    chosen: 'manual',
+    group: '手札・捨て札',
+    description: '能力「相続」で、自分のターンに捨て札のこのカードをエナジーを払って除外したときに出る効果（カードを使ったことには数えない）。相続がある時だけ選べる',
+    requiresAbility: ['renew'],
+    noDrawbacks: true,
+  },
+  forecast: {
+    id: 'forecast',
+    label: '予見',
+    textPrefix: '予見：',
+    bases: ['monster', 'spell'],
+    powerTiming: false,
+    chosen: 'manual',
+    group: '手札・捨て札',
+    description: '能力「予見」で、自分のターンに1回、手札のこのカードを見せてエナジーを払って使う効果（カードは手札に残る。カードを使ったことには数えない）。予見がある時だけ選べる',
+    requiresAbility: ['forecast'],
+    noDrawbacks: true,
+  },
 };
 
 /** 1つのカード（パワー・モンスター）につき1ターン maxRepeatTriggersPerTurn 回までのタイミング（安全装置） */
@@ -427,6 +452,10 @@ export function timingMultiplier(
       return t.discarded;
     case 'valiant':
       return t.valiant;
+    case 'renew':
+      return t.renew;
+    case 'forecast':
+      return t.forecast;
   }
 }
 
@@ -543,7 +572,7 @@ export function allowedTargets(rule: TargetRule, timing: TimingId, base?: CardBa
       // 自分のモンスターを選べるのは、使うときに選ぶ場面があるタイミングと「出たモンスター」だけ
       const monsterCard = base === 'monster' || (base === undefined && TIMINGS[timing].bases.every((b) => b === 'monster'));
       // 引いたとき・魂力・捨てられたときは、カード自身が手札（捨て札）にある
-      const onBoard = monsterCard && timing !== 'drawn' && timing !== 'channel' && timing !== 'discarded';
+      const onBoard = monsterCard && !OFF_BOARD_TIMINGS.includes(timing) || (monsterCard && timing === 'destroyed');
       return [
         ...(chosen === 'manual' || chosen === 'triggerAlly' ? (['chosen'] as const) : []),
         'random',
@@ -583,8 +612,8 @@ export function targetsForEffect(
   return def.excludeTargets ? all.filter((t) => !def.excludeTargets!.includes(t)) : all;
 }
 
-/** カード自身が場にいないタイミング（引いたとき・魂力・破壊されたとき・捨てられたとき） */
-const OFF_BOARD_TIMINGS: readonly TimingId[] = ['drawn', 'channel', 'destroyed', 'discarded'];
+/** カード自身が場にいないタイミング（引いたとき・魂力・破壊されたとき・捨てられたとき・相続・予見） */
+const OFF_BOARD_TIMINGS: readonly TimingId[] = ['drawn', 'channel', 'destroyed', 'discarded', 'renew', 'forecast'];
 
 /** エディターの選択肢に出す名前 */
 export function targetLabel(target: TargetId, rule: TargetRule, timing: TimingId): string {
@@ -670,6 +699,13 @@ export function targetNoun(target: TargetId, rule: TargetRule, timing: TimingId)
     case 'attacker':
       return '攻撃してきたモンスター';
   }
+}
+
+/** 超過（MTG 要素 △ バッチB）で「選んだ1体」を全体にしたときの対象（相手側は相手モンスター全体、自分のモンスター1体は自分のモンスター全体、格闘はランダム） */
+export function overloadTarget(rule: TargetRule): TargetId {
+  if (rule === 'allyMonsterOne') return 'allyMonsters';
+  if (rule === 'fight') return 'random';
+  return 'enemyMonsters';
 }
 
 /** 種族のあるカードでしか使えない対象（MTG 要素 ○ バッチC2） */
@@ -941,7 +977,7 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     textPrefix: `このモンスターが${cp.veteranAttacks}回以上攻撃していれば、`,
     timings: null,
     // 出たばかり（召喚時）・もう場にいない（破壊されたとき）・手札（引いたとき）では満たせない
-    excludeTimings: ['summon', 'destroyed', 'drawn'],
+    excludeTimings: ['summon', 'destroyed', 'drawn', 'renew', 'forecast'],
     bases: ['monster'],
     notForCost: true,
     group: 'このモンスター',
@@ -953,7 +989,7 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     label: 'このモンスターより攻撃力の高い自分のモンスターがいる',
     textPrefix: 'このモンスターより攻撃力の高い自分のモンスターがいれば、',
     timings: null,
-    excludeTimings: ['destroyed', 'drawn'],
+    excludeTimings: ['destroyed', 'drawn', 'renew', 'forecast'],
     bases: ['monster'],
     notForCost: true,
     group: 'このモンスター',
@@ -1140,11 +1176,23 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     textPrefix: 'このモンスターがこのターン攻撃していなければ、',
     timings: null,
     // 出たばかり・もう場にいない・手札・攻撃した直後では意味がない
-    excludeTimings: ['summon', 'destroyed', 'drawn', 'discarded', 'attack', 'hitEnemyPlayer', 'channel', 'fromDiscard'],
+    excludeTimings: ['summon', 'destroyed', 'drawn', 'discarded', 'attack', 'hitEnemyPlayer', 'channel', 'fromDiscard', 'renew', 'forecast'],
     bases: ['monster'],
     notForCost: true,
     group: 'このモンスター',
     description: 'このモンスターがこのターンにまだ攻撃していなければ発動（長久。「ターン終了時」＋鍛錬（このモンスター）で「攻撃しなかったら育つ」）',
+  },
+  // ---- MTG 要素 △ バッチB
+  bargained: {
+    id: 'bargained',
+    tier: 'normal',
+    label: '協約したなら',
+    textPrefix: '協約したなら、',
+    timings: ['play', 'summon', 'fromDiscard'],
+    requiresAbility: ['bargain'],
+    notForCost: true,
+    group: 'コスト・追加の支払い',
+    description: 'このカードを使うときにトークンかパワーを差し出していれば発動（協約）。カードの能力「協約」があるカードだけ',
   },
 };
 

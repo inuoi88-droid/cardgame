@@ -3,18 +3,22 @@ import { BALANCE } from '../balance.ts';
 import { CONDITIONS, isMonsterOnlyRule } from '../options.ts';
 import { getEffect } from '../registry.ts';
 import type { CardDef } from '../types.ts';
-import { attackBlockReason, attackTargets } from './combat.ts';
+import { attackBlockReason, attackTargets, enlistOptions } from './combat.ts';
 import { checkCondition } from './conditions.ts';
-import { other } from './core.ts';
+import { effectiveAttack, other } from './core.ts';
 import { cardTargetableTaunts } from './damage.ts';
 import { nextFullMulliganSize } from './mulligan.ts';
-import { validateActivate, validateHandAbility } from './abilities.ts';
+import { validateActivate, validateDiscardAbility, validateHandAbility } from './abilities.ts';
 import {
   activateBlock,
   activatedEffects,
   activateSource,
   activateSources,
   activateTargets,
+  discardAbilityBlock,
+  discardAbilityKinds,
+  discardAbilityOf,
+  discardAbilityTargets,
   handAbilityBlock,
   handAbilityKinds,
   handAbilityOf,
@@ -22,8 +26,19 @@ import {
 } from './abilities.ts';
 import {
   allyCandidates,
+  altsOf,
+  canTap,
   chosenRules,
+  convokeMax,
   costBreakdown,
+  delveMax,
+  emergeCut,
+  extraPayOf,
+  hasPitch,
+  lifePayMax,
+  overloadedDef,
+  pitchMatches,
+  sacrificeOf,
   drawbackBlock,
   effectiveCost,
   enemyCandidates,
@@ -43,11 +58,26 @@ import {
 } from './play.ts';
 import { isCurseCard } from '../classify.ts';
 import { modeTexts } from '../text.ts';
-import { effectsForMode } from './modes.ts';
+import { cardModes, effectsForMode, isVillain, spreeCost, tieredSurcharge } from './modes.ts';
 import { tribeAllies } from './runtime.ts';
 import { advanceableSagas } from './powers.ts';
 import type { EffectInstance, TimingId } from '../types.ts';
-import { ARMY_CARD_ID, NOISE_CARD_ID, type Action, type CardInst, type Chosen, type GameState, type HandAbilityKind, type PlayerId, type TargetRef } from './types.ts';
+import {
+  ARMY_CARD_ID,
+  NOISE_CARD_ID,
+  type Action,
+  type AltPlay,
+  type CardInst,
+  type Chosen,
+  type DiscardAbilityKind,
+  type ExtraPayKind,
+  type GameState,
+  type HandAbilityKind,
+  type Monster,
+  type PlayerId,
+  type SacrificeKind,
+  type TargetRef,
+} from './types.ts';
 
 export interface PlayInfo {
   card: CardInst;
@@ -84,12 +114,74 @@ export interface PlayInfo {
    * 使えるモードの候補を合わせたもの、cost はいちばん安いモードのコスト。使うときは modes のどれかを選ぶ
    */
   modes?: ModeInfo[];
+  // ---- MTG 要素 △ バッチB
+  /** 追加の支払い・代わりの使い方・差し出す・払い方（選べるものがあるときだけ） */
+  pay?: PayOptions;
+  /** 放題：2つ以上のモードの組み合わせごとの情報（modes に組み合わせ） */
+  modeCombos?: ModeInfo[];
+  /** 最悪の二択：モードは相手が選ぶ（使う人は選ばない） */
+  villain?: boolean;
+}
+
+/**
+ * 追加の支払いと払い方（MTG 要素 △ バッチB）。UI の支払いのシートと CPU はこれだけを使う。
+ * minCost は、選べる払い方（現出・召集・探査・調和・代替コスト・血の支払い）をすべて使ったときの最小のコスト
+ */
+export interface PayOptions {
+  /** 追加の支払い（切除・奮励・分隊）：1回のエナジーと回数の上限 */
+  extra?: { kind: ExtraPayKind; name: string; unit: number; max: number };
+  /** 代わりの使い方（試作・想起・超過・解鎖） */
+  alts?: AltInfo[];
+  /** 差し出す（現出・犠牲・協約）：候補（現出は下がるコスト、協約はパワーも）と、CPU が選ぶもの */
+  sacrifice?: { kind: SacrificeKind; name: string; options: { uid: string; cut: number; power?: boolean }[]; best?: string };
+  /** 休ませる（召集・調和）：候補（下がるコスト）と上限 */
+  tap?: { kind: 'convoke' | 'harmonize'; name: string; options: { uid: string; cut: number }[]; max: number };
+  /** 探査：除外できる捨て札と上限、CPU が先に選ぶ順 */
+  delve?: { max: number; options: string[]; order: string[] };
+  /** 代替コスト：除外できる手札と、CPU が選ぶもの */
+  pitch?: { options: string[]; best?: string };
+  /** 血の支払い：HP で払える数（今の HP で払える分まで）と1つあたりの HP */
+  lifePay?: { max: number; hpPer: number };
+  minCost: number;
+}
+
+/** 代わりの使い方の情報（PlayInfo と同じ形の対象・コスト） */
+export interface AltInfo {
+  alt: AltPlay;
+  /** 能力の名前（「試作」など） */
+  name: string;
+  /** 短い説明（「コスト−1・攻撃力と体力が半分」など） */
+  note: string;
+  cost: number;
+  blocked: string | null;
+  enemyTargets: TargetRef[];
+  allyTargets: string[];
+  warnings: string[];
+  targetCosts?: Record<string, number>;
+}
+
+/** 捨て札のカードの能力（相続・発掘・不朽。MTG 要素 △ バッチB）の情報。PlayInfo と同じ形 */
+export interface DiscardAbilityInfo {
+  card: CardInst;
+  ability: DiscardAbilityKind;
+  name: string;
+  cost: number;
+  blocked: string | null;
+  enemyTargets: TargetRef[];
+  allyTargets: string[];
+  warnings: string[];
+  tauntLimited: boolean;
+  targetCosts?: Record<string, number>;
 }
 
 /** モード選択のカードの1つのモードの情報（MTG 要素 ○ バッチC2） */
 export interface ModeInfo {
   /** 1〜3（0 は双呪：すべてのモード） */
   mode: number;
+  /** 放題（MTG 要素 △ バッチB）で選ぶモードの組み合わせ（2つ以上）。このとき mode は最初のモード */
+  modes?: number[];
+  /** 段階（MTG 要素 △ バッチB）の追加のエナジー */
+  surcharge?: number;
   /** 「A」「B」「すべて（双呪）」 */
   label: string;
   /** そのモードの効果の文 */
@@ -311,15 +403,20 @@ export function playInfo(g: GameState, p: PlayerId, card: CardInst, opts: { from
   const cost = breakdown.total;
   const energy = g.players[p].energy;
   const ps = g.players[p];
+  // 追加の支払いと払い方（MTG 要素 △ バッチB）：払い方を使えば下がるコスト
+  const pay = payOptions(g, p, card, def, from, timing);
+  const reach = pay ? Math.max(0, cost - pay.minCost) : 0;
   let blocked: string | null = null;
   const fd = fromDiscard ? fromDiscardAbility(def) : undefined;
   if (g.phase !== 'main' || g.active !== p || g.pending) blocked = '今は使えません';
   else if (fromDiscard && !fd) blocked = '捨て札から使えません';
   else if (fromDiscard && !ps.discard.some((c) => c.uid === card.uid)) blocked = '捨て札にありません';
   else if (!fromDiscard && icedBlock(g, card)) blocked = icedBlock(g, card);
-  else if (cost > energy) blocked = 'エナジーが足りません';
+  else if (fd?.rule.oncePerTurn && card.retraceTurn === g.turnIndex) blocked = `${fd.name}：このカードはこのターンもう使いました`;
+  else if (fd?.rule.onlyIfDiscardedThisTurn && card.discardedTurn !== g.turnIndex) blocked = `${fd.name}：このターンに捨てられていません`;
+  else if (cost - reach > energy && !(pay?.alts ?? []).some((x) => !x.blocked)) blocked = 'エナジーが足りません';
   else blocked = drawbackBlock(g, p, card);
-  // 捨て札から使うときの追加の支払い（再活：手札を1枚／脱出：他の捨て札を N 枚）
+  // 捨て札から使うときの追加の支払い（再活・回顧：手札を1枚／脱出：他の捨て札を N 枚）
   let fromInfo: PlayInfo['fromDiscard'];
   if (fd) {
     fromInfo = { name: fd.name };
@@ -341,27 +438,164 @@ export function playInfo(g: GameState, p: PlayerId, card: CardInst, opts: { from
   const tauntLimited = enemyTargets.length > 0 && cardTargetableTaunts(g, other(p)).length > 0;
   // 護法：対象ごとのコスト。どの対象もエナジーが足りなければ使えない
   const targetCosts = wardCosts(enemyTargets, cost, (chosen) => effectiveCost(g, p, card, { chosen, from }));
-  if (!blocked && noPayableTarget(enemyTargets, targetCosts, cost, energy)) blocked = 'エナジーが足りません（護法）';
+  if (!blocked && reach === 0 && noPayableTarget(enemyTargets, targetCosts, cost, energy) && !(pay?.alts ?? []).some((x) => !x.blocked)) blocked = 'エナジーが足りません（護法）';
   const info: PlayInfo = { card, cost, blocked, enemyTargets, allyTargets, warnings: playWarnings(g, p, def, allyTargets, timing, undefined, card.cardId), tauntLimited };
   if (targetCosts) info.targetCosts = targetCosts;
   // モード選択（MTG 要素 ○ バッチC2）：モードごとの情報。どのモードも使えなければ使えない
   const modes = playableModes(def, timing);
-  if (modes.length > 0) applyModes(g, p, card, def, timing, from, modes, blocked, info);
+  if (modes.length > 0) applyModes(g, p, card, def, timing, from, modes, blocked, info, reach);
+  // 最悪の二択（MTG 要素 △ バッチB）：モードは相手が選ぶ
+  if (isVillain(def) && cardModes(def, timing).length > 0) info.villain = true;
   info.printedCost = def.cost;
   info.breakdown = breakdown;
   if (fromDiscard) info.from = 'discard';
   if (fromInfo) info.fromDiscard = fromInfo;
+  if (pay) info.pay = pay;
   const k = kickerCost(def);
   if (k > 0) {
     const costs = enemyTargets.length > 0 ? enemyTargets.map((t) => targetCosts?.[targetKey(t)] ?? cost) : [cost];
-    info.kicker = { extra: k, payable: costs.some((c) => c + k <= energy) };
+    info.kicker = { extra: k, payable: costs.some((c) => c + k - reach <= energy) };
   }
   return info;
 }
 
+/** 現出・犠牲・協約で差し出す候補の手放してよい順（トークン → 寿命の残り少ない → 攻撃力×3＋体力×1.5 の低い順） */
+function sacrificeRank(g: GameState, m: Monster): number {
+  const value = effectiveAttack(g, m) * 3 + m.hp * 1.5;
+  return (m.card.token ? 0 : m.counters.life !== undefined ? 1e6 : 2e6) + value;
+}
+
+/**
+ * 追加の支払いと払い方（MTG 要素 △ バッチB）。選べるものが無ければ undefined。
+ * 無料で使う（続唱）・待機では使わない（PlayInfo は手札・捨て札から使うときだけ）
+ */
+export function payOptions(g: GameState, p: PlayerId, card: CardInst, def: CardDef, from: 'hand' | 'discard', timing: TimingId): PayOptions | undefined {
+  const ps = g.players[p];
+  const energy = ps.energy;
+  const hand = from === 'hand';
+  const out: Omit<PayOptions, 'minCost'> = {};
+  const extra = extraPayOf(def);
+  if (extra && (extra.kind !== 'squad' || hand)) out.extra = extra;
+  // 代わりの使い方：それぞれのコスト・対象（超過は選ばない）
+  const alts = altsOf(def);
+  if (alts.length > 0) {
+    out.alts = alts.map((x): AltInfo => {
+      const altDef = x.kind === 'overload' ? overloadedDef(def, timing) : def;
+      const rules = chosenRules(altDef, timing);
+      const enemyTargets = enemyCandidates(g, p, rules.enemy);
+      const allyTargets = rules.ally ? allyCandidates(g, p, card, timing) : [];
+      const cost = effectiveCost(g, p, card, { from, alt: x.kind });
+      const targetCosts = wardCosts(enemyTargets, cost, (chosen) => effectiveCost(g, p, card, { chosen, from, alt: x.kind }));
+      let blocked: string | null = cost > energy ? 'エナジーが足りません' : null;
+      if (!blocked && noPayableTarget(enemyTargets, targetCosts, cost, energy)) blocked = 'エナジーが足りません（護法）';
+      const v = x.a.value ?? 0;
+      const note =
+        x.kind === 'prototype'
+          ? `コスト−${v}・攻撃力と体力が半分`
+          : x.kind === 'evoke'
+            ? `エナジー${v}・召喚時の効果のあと破壊`
+            : x.kind === 'overload'
+              ? `+${v}・「選んだ1体」が全体になる`
+              : `攻撃力+${v}・反撃しない`;
+      const info: AltInfo = {
+        alt: x.kind,
+        name: x.name,
+        note,
+        cost,
+        blocked,
+        enemyTargets,
+        allyTargets,
+        warnings: playWarnings(g, p, altDef, allyTargets, timing, undefined, card.cardId),
+      };
+      if (targetCosts) info.targetCosts = targetCosts;
+      return info;
+    });
+  }
+  // 差し出す
+  const sac = sacrificeOf(def);
+  if (sac && (sac.kind !== 'emerge' || hand)) {
+    let options: { uid: string; cut: number; power?: boolean }[] = [];
+    if (sac.kind === 'emerge') options = ps.board.map((m) => ({ uid: m.uid, cut: emergeCut(g, m) }));
+    if (sac.kind === 'casualty') options = ps.board.filter((m) => effectiveAttack(g, m) >= sac.minAttack).map((m) => ({ uid: m.uid, cut: 0 }));
+    if (sac.kind === 'bargain') {
+      options = [
+        ...ps.board.filter((m) => m.card.token).map((m) => ({ uid: m.uid, cut: 0 })),
+        ...ps.powers.map((pw) => ({ uid: pw.uid, cut: 0, power: true })),
+      ];
+    }
+    if (options.length > 0) {
+      const monster = (uid: string) => ps.board.find((m) => m.uid === uid);
+      const ranked = [...options].sort((a, b) => {
+        if (sac.kind === 'emerge' && a.cut !== b.cut) return b.cut - a.cut;
+        if (sac.kind === 'bargain') {
+          // 応召・落とし子のトークン → 寿命の残り少ないパワー → 古いパワー
+          const rank = (o: { uid: string; power?: boolean }) => {
+            if (!o.power) {
+              const tk = monster(o.uid)?.card.token;
+              return tk?.temp || tk?.spawn ? 0 : 1;
+            }
+            const pw = ps.powers.find((x) => x.uid === o.uid);
+            return pw?.life !== undefined ? 2 + pw.life : 10;
+          };
+          return rank(a) - rank(b);
+        }
+        return sacrificeRank(g, monster(a.uid)!) - sacrificeRank(g, monster(b.uid)!);
+      });
+      out.sacrifice = { kind: sac.kind, name: sac.name, options, ...(ranked[0] ? { best: ranked[0].uid } : {}) };
+    }
+  }
+  // 休ませる（召集・調和）
+  const tapOne = from === 'discard' ? fromDiscardAbility(def)?.rule.tapOne : undefined;
+  if (hand && convokeMax(def) > 0) {
+    const options = ps.board.filter((m) => canTap(g, m)).map((m) => ({ uid: m.uid, cut: 1 }));
+    if (options.length > 0) out.tap = { kind: 'convoke', name: '召集', options, max: convokeMax(def) };
+  } else if (tapOne) {
+    const options = ps.board
+      .filter((m) => canTap(g, m))
+      .map((m) => ({ uid: m.uid, cut: Math.min(tapOne.maxCut, Math.floor(effectiveAttack(g, m) / Math.max(1, tapOne.perEnergy))) }));
+    if (options.length > 0) out.tap = { kind: 'harmonize', name: fromDiscardAbility(def)!.name, options, max: 1 };
+  }
+  // 探査
+  if (hand && delveMax(def) > 0 && ps.discard.length > 0) {
+    out.delve = { max: delveMax(def), options: ps.discard.map((c) => c.uid), order: exilePreference(g, p, card, ps.discard.length) };
+  }
+  // 代替コスト
+  if (hand && hasPitch(def) && (ps.turn.pitched ?? 0) < BALANCE.battle.maxPitchPerTurn) {
+    const options = ps.hand.filter((c) => pitchMatches(g, card, c));
+    if (options.length > 0) {
+      const best = discardPreference(g, p, options)[0];
+      out.pitch = { options: options.map((c) => c.uid), ...(best ? { best: best.uid } : {}) };
+    }
+  }
+  // 血の支払い（払ったあと HP が1以上残る分まで）
+  const lp = lifePayMax(def);
+  if (lp > 0) {
+    const hpPer = BALANCE.abilities.lifePay.hpPerEnergy;
+    const max = Math.min(lp, Math.floor((ps.hp - 1) / hpPer));
+    if (max > 0) out.lifePay = { max, hpPer };
+  }
+  if (Object.keys(out).length === 0) return undefined;
+  // 払い方をすべて使ったときの最小のコスト
+  const sacUid = out.sacrifice?.kind === 'emerge' ? out.sacrifice.best : undefined;
+  const taps = (out.tap?.options ?? [])
+    .filter((o) => o.uid !== sacUid)
+    .sort((a, b) => b.cut - a.cut)
+    .slice(0, out.tap?.max ?? 0)
+    .map((o) => o.uid);
+  const minCost = effectiveCost(g, p, card, {
+    from,
+    ...(sacUid ? { sacrificeUid: sacUid } : {}),
+    ...(taps.length > 0 ? { tapUids: taps } : {}),
+    ...(out.delve ? { exileUids: out.delve.order.slice(0, out.delve.max) } : {}),
+    ...(out.pitch?.best ? { pitchUid: out.pitch.best } : {}),
+    ...(out.lifePay ? { lifePay: out.lifePay.max } : {}),
+  });
+  return { ...out, minCost };
+}
+
 /**
  * モード選択のカードの PlayInfo を、モードごとの情報で作り直す（MTG 要素 ○ バッチC2）。
- * common はモードに関係しない使えない理由（今は使えない・デメリット・捨て札の支払いなど）
+ * common はモードに関係しない使えない理由（今は使えない・デメリット・捨て札の支払いなど）。reach は払い方で下げられるコスト
  */
 function applyModes(
   g: GameState,
@@ -373,32 +607,49 @@ function applyModes(
   modes: number[],
   common: string | null,
   info: PlayInfo,
+  reach = 0,
 ): void {
   const energy = g.players[p].energy;
   const texts = new Map(modeTexts(def, timing).map((m) => [m.mode as number, m.text]));
-  const list: ModeInfo[] = modes.map((mode) => {
-    const rules = chosenRules(def, timing, mode);
+  const make = (sel: number | number[]): ModeInfo => {
+    const mode = typeof sel === 'number' ? sel : sel[0]!;
+    const ctxMode = typeof sel === 'number' ? { mode: sel } : { modes: sel };
+    const rules = chosenRules(def, timing, sel);
     const enemyTargets = enemyCandidates(g, p, rules.enemy);
     const allyTargets = rules.ally ? allyCandidates(g, p, card, timing) : [];
-    const cost = effectiveCost(g, p, card, { from, mode });
-    const targetCosts = wardCosts(enemyTargets, cost, (chosen) => effectiveCost(g, p, card, { chosen, from, mode }));
+    const cost = effectiveCost(g, p, card, { from, ...ctxMode });
+    const targetCosts = wardCosts(enemyTargets, cost, (chosen) => effectiveCost(g, p, card, { chosen, from, ...ctxMode }));
     // 「エナジーが足りません」以外の共通の理由はそのまま。エナジーはモードごとに見直す
     let blocked = common && !common.startsWith('エナジーが足りません') ? common : null;
-    if (!blocked && cost > energy) blocked = 'エナジーが足りません';
-    if (!blocked && noPayableTarget(enemyTargets, targetCosts, cost, energy)) blocked = 'エナジーが足りません（護法）';
+    if (!blocked && cost - reach > energy) blocked = 'エナジーが足りません';
+    if (!blocked && reach === 0 && noPayableTarget(enemyTargets, targetCosts, cost, energy)) blocked = 'エナジーが足りません（護法）';
+    const surcharge = tieredSurcharge(def, sel, BALANCE.abilities.tiered.surcharge);
     const m: ModeInfo = {
       mode,
-      label: modeName(mode),
-      text: mode === 0 ? [...texts.values()].join(' ／ ') : (texts.get(mode) ?? ''),
+      label: typeof sel === 'number' ? modeName(sel) : sel.map((x) => modeName(x)).join('+'),
+      text: typeof sel === 'number' ? (sel === 0 ? [...texts.values()].join(' ／ ') : (texts.get(sel) ?? '')) : sel.map((x) => texts.get(x) ?? '').join(' ／ '),
       cost,
       blocked,
       enemyTargets,
       allyTargets,
-      warnings: playWarnings(g, p, def, allyTargets, timing, mode, card.cardId),
+      warnings: playWarnings(g, p, def, allyTargets, timing, typeof sel === 'number' ? sel : undefined, card.cardId),
     };
+    if (typeof sel !== 'number') m.modes = [...sel];
+    if (surcharge > 0) m.surcharge = surcharge;
     if (targetCosts) m.targetCosts = targetCosts;
     return m;
-  });
+  };
+  const list: ModeInfo[] = modes.map((mode) => make(mode));
+  // 放題（MTG 要素 △ バッチB）：2つ以上の組み合わせ
+  if (spreeCost(def) > 0) {
+    const single = modes.filter((m) => m > 0);
+    const combos: number[][] = [];
+    for (let mask = 1; mask < 1 << single.length; mask++) {
+      const set = single.filter((_, i) => mask & (1 << i));
+      if (set.length >= 2) combos.push(set);
+    }
+    info.modeCombos = combos.map((c) => make(c));
+  }
   const open = list.filter((m) => !m.blocked);
   const usable = open.length > 0 ? open : list;
   const sameRefKey = new Map<string, TargetRef>();
@@ -510,7 +761,7 @@ export function handAbilityInfo(g: GameState, p: PlayerId, card: CardInst, abili
     blocked,
     enemyTargets: t.enemy,
     allyTargets: t.ally,
-    warnings: ability === 'channel' ? effectWarnings(g, p, def.effects.filter((e) => e.timing === 'channel'), t.ally, false) : [],
+    warnings: ability === 'cycling' ? [] : effectWarnings(g, p, def.effects.filter((e) => e.timing === ability), t.ally, false),
     tauntLimited: t.enemy.length > 0 && cardTargetableTaunts(g, other(p)).length > 0,
   };
   if (targetCosts) info.targetCosts = targetCosts;
@@ -534,23 +785,129 @@ function chosenCombos(enemyTargets: TargetRef[], allyTargets: string[]): Chosen[
   return out;
 }
 
+/**
+ * 追加の支払い・払い方の組（MTG 要素 △ バッチB。CPU 用に絞る）：払わない／追加払い 1〜上限／差し出す・代替コストは手放してよい先頭／
+ * 足りないときは召集・調和・探査・血の支払いを払えるまで（少ない順）
+ */
+function payVariants(g: GameState, p: PlayerId, info: PlayInfo, base: number): PlayOpts[] {
+  const pay = info.pay;
+  const out: PlayOpts[] = [{}];
+  if (!pay) return out;
+  const ps = g.players[p];
+  if (pay.extra) for (let n = 1; n <= pay.extra.max; n++) out.push({ extra: n });
+  if (pay.sacrifice?.best) out.push({ sacrificeUid: pay.sacrifice.best });
+  if (pay.pitch?.best) out.push({ pitchUid: pay.pitch.best });
+  // 足りない分を払い方で埋める
+  let need = base - ps.energy;
+  if (need > 0) {
+    const cheap: PlayOpts = {};
+    if (pay.tap) {
+      const order = [...pay.tap.options].sort((a, b) => b.cut - a.cut || tapRank(g, a.uid) - tapRank(g, b.uid));
+      const taps: string[] = [];
+      for (const o of order) {
+        if (need <= 0 || taps.length >= pay.tap.max) break;
+        taps.push(o.uid);
+        need -= o.cut;
+      }
+      if (taps.length > 0) cheap.tapUids = taps;
+    }
+    if (need > 0 && pay.delve) {
+      const ids = pay.delve.order.slice(0, Math.min(pay.delve.max, need));
+      if (ids.length > 0) cheap.exileUids = ids;
+      need -= ids.length;
+    }
+    // 血の支払いは HP が半分より多いときだけ
+    if (need > 0 && pay.lifePay && ps.hp > ps.maxHp / 2) {
+      cheap.lifePay = Math.min(pay.lifePay.max, need);
+      need -= cheap.lifePay;
+    }
+    if (Object.keys(cheap).length > 0) out.push(cheap);
+  }
+  return out;
+}
+
+/** 召集で休ませてよい順（小さいほど先）：召喚酔い → 攻撃できない（防衛・消耗）→ 攻撃力の低い順 */
+function tapRank(g: GameState, uid: string): number {
+  const m = g.players[g.active].board.find((x) => x.uid === uid);
+  if (!m) return 1e9;
+  const reason = attackBlockReason(g, m);
+  return (reason ? 0 : 1e6) + effectiveAttack(g, m);
+}
+
 /** カードを使う行動をすべて（キッカーを払える組は払う／払わないの両方。モード選択のカードはモードごと：MTG 要素 ○ バッチC2） */
 function playActions(g: GameState, p: PlayerId, info: PlayInfo, extra: PlayOpts): Action[] {
   const out: Action[] = [];
   const kicks = info.kicker?.payable ? [false, true] : [false];
-  const variants: { mode?: number; enemy: TargetRef[]; ally: string[] }[] = info.modes
-    ? info.modes.filter((m) => !m.blocked).map((m) => ({ mode: m.mode, enemy: m.enemyTargets, ally: m.allyTargets }))
-    : [{ enemy: info.enemyTargets, ally: info.allyTargets }];
+  const variants: { mode?: number; modes?: number[]; enemy: TargetRef[]; ally: string[]; cost: number; alt?: AltPlay }[] = info.modes
+    ? [...info.modes, ...(info.modeCombos ?? [])]
+        .filter((m) => !m.blocked)
+        .map((m) => ({ ...(m.modes ? { modes: m.modes } : { mode: m.mode }), enemy: m.enemyTargets, ally: m.allyTargets, cost: m.cost }))
+    : [{ enemy: info.enemyTargets, ally: info.allyTargets, cost: info.cost }];
+  // 代わりの使い方（MTG 要素 △ バッチB）は、それぞれの対象で
+  for (const alt of info.pay?.alts ?? []) {
+    if (!alt.blocked) variants.push({ alt: alt.alt, enemy: alt.enemyTargets, ally: alt.allyTargets, cost: alt.cost });
+  }
   for (const v of variants) {
+    const pays = v.alt ? [{}] : payVariants(g, p, info, v.cost);
     for (const chosen of chosenCombos(v.enemy, v.ally)) {
       for (const kick of kicks) {
-        const opts: PlayOpts = { ...extra, ...(kick ? { kick: true } : {}), ...(v.mode !== undefined ? { mode: v.mode } : {}) };
-        if (validatePlay(g, p, info.card.uid, chosen, opts) !== null) continue;
-        out.push({ type: 'playCard', player: p, cardUid: info.card.uid, chosen, ...opts });
+        for (const pay of pays) {
+          const opts: PlayOpts = {
+            ...extra,
+            ...pay,
+            ...(kick ? { kick: true } : {}),
+            ...(v.mode !== undefined ? { mode: v.mode } : {}),
+            ...(v.modes !== undefined ? { modes: v.modes } : {}),
+            ...(v.alt !== undefined ? { alt: v.alt } : {}),
+          };
+          if (validatePlay(g, p, info.card.uid, chosen, opts) !== null) continue;
+          out.push({ type: 'playCard', player: p, cardUid: info.card.uid, chosen, ...opts });
+        }
       }
     }
   }
   return out;
+}
+
+/** 捨て札のカードの能力（相続・発掘・不朽。MTG 要素 △ バッチB）の情報。その能力が無ければ null */
+export function discardAbilityInfo(g: GameState, p: PlayerId, card: CardInst, ability: DiscardAbilityKind): DiscardAbilityInfo | null {
+  const def = g.cards[card.cardId];
+  const d = discardAbilityOf(def, ability);
+  if (!def || !d || card.cardId === NOISE_CARD_ID) return null;
+  const t = discardAbilityTargets(g, p, card, ability);
+  const energy = g.players[p].energy;
+  let blocked = discardAbilityBlock(g, p, card, ability);
+  const targetCosts = wardCosts(t.enemy, d.cost, (chosen) => d.cost + wardTaxFor(g, p, chosen));
+  if (!blocked && noPayableTarget(t.enemy, targetCosts, d.cost, energy)) blocked = 'エナジーが足りません（護法）';
+  const info: DiscardAbilityInfo = {
+    card,
+    ability,
+    name: d.name,
+    cost: d.cost,
+    blocked,
+    enemyTargets: t.enemy,
+    allyTargets: t.ally,
+    warnings: ability === 'renew' ? effectWarnings(g, p, def.effects.filter((e) => e.timing === 'renew'), t.ally, false) : [],
+    tauntLimited: t.enemy.length > 0 && cardTargetableTaunts(g, other(p)).length > 0,
+  };
+  if (targetCosts) info.targetCosts = targetCosts;
+  return info;
+}
+
+/** 自分の捨て札のカードの能力（相続・発掘・不朽）の情報。使えないものも理由つき */
+export function discardAbilityInfos(g: GameState, p: PlayerId): DiscardAbilityInfo[] {
+  return g.players[p].discard.flatMap((c) =>
+    discardAbilityKinds(g.cards[c.cardId]).flatMap((k) => {
+      const info = discardAbilityInfo(g, p, c, k);
+      return info ? [info] : [];
+    }),
+  );
+}
+
+/** 後援（MTG 要素 △ バッチB）で CPU が休ませるもの：いちばん攻撃力の高い、休ませてよいモンスター（無ければ undefined） */
+export function bestEnlist(g: GameState, m: Monster): string | undefined {
+  const opts = enlistOptions(g, m);
+  return [...opts].sort((a, b) => effectiveAttack(g, b) - effectiveAttack(g, a))[0]?.uid;
 }
 
 export function legalActions(g: GameState, p: PlayerId): Action[] {
@@ -595,6 +952,15 @@ export function legalActions(g: GameState, p: PlayerId): Action[] {
     if (info.fromDiscard?.exileDefaults) extra.exileUids = info.fromDiscard.exileDefaults;
     out.push(...playActions(g, p, info, extra));
   }
+  // 捨て札のカードの能力（MTG 要素 △ バッチB：相続・発掘・不朽）
+  for (const info of discardAbilityInfos(g, p)) {
+    if (info.blocked) continue;
+    for (const chosen of chosenCombos(info.enemyTargets, info.allyTargets)) {
+      if (validateDiscardAbility(g, p, info.card.uid, info.ability, chosen) === null) {
+        out.push({ type: 'discardAbility', player: p, cardUid: info.card.uid, ability: info.ability, chosen });
+      }
+    }
+  }
   // 起動（MTG 要素 ○ バッチC1）
   for (const info of activateInfos(g, p)) {
     if (info.blocked) continue;
@@ -604,7 +970,12 @@ export function legalActions(g: GameState, p: PlayerId): Action[] {
   }
   for (const m of ps.board) {
     if (attackBlockReason(g, m)) continue;
-    for (const target of attackTargets(g, m)) out.push({ type: 'attack', player: p, attackerUid: m.uid, target });
+    // 後援（MTG 要素 △ バッチB）：いちばん攻撃力の高い味方を休ませる攻撃も
+    const enlist = bestEnlist(g, m);
+    for (const target of attackTargets(g, m)) {
+      out.push({ type: 'attack', player: p, attackerUid: m.uid, target });
+      if (enlist) out.push({ type: 'attack', player: p, attackerUid: m.uid, target, enlistUid: enlist });
+    }
   }
   out.push({ type: 'endTurn', player: p });
   return out;

@@ -128,6 +128,9 @@ export const BALANCE = {
     enemyAttackedPower: 4.0,
     discarded: 0.6,
     valiant: 1.0,
+    /** MTG 要素 △ バッチB（決定事項ログ）。能力「相続」（捨て札から除外して使う）・能力「予見」（手札に残したまま使う） */
+    renew: 0.9,
+    forecast: 1.0,
   },
   /** タイミングに出てくる数（MTG 要素 ○ バッチA） */
   timingParams: {
@@ -218,6 +221,8 @@ export const BALANCE = {
     converge: 0.5,
     descend: 0.7,
     rested: 0.7,
+    /** MTG 要素 △ バッチB：協約したなら（トークンかパワーを差し出したとき） */
+    bargained: 0.6,
   },
   /** 「キッカーを払っていれば」の倍率（キッカーの追加エナジー1・2 の順。MTG 要素 ○ バッチC1） */
   conditionByKicker: [0.6, 0.45],
@@ -514,6 +519,8 @@ export const BALANCE = {
     /** MTG 要素 △ バッチA（決定事項ログ）。対空（飛行に効く挑発）・潜伏（自分より攻撃力の高い挑発を無視） */
     reach: { flat: x(2) },
     skulk: { flat: x(2) },
+    /** MTG 要素 △ バッチB：後援（攻撃するとき、他の自分のモンスター1体を休ませてその攻撃力を足す） */
+    enlist: { flat: x(3) },
   },
 
   /**
@@ -558,6 +565,64 @@ export const BALANCE = {
      */
     chargePlan: { planRate: 0.35, planMin: 1.0 },
     trap: { timingRate: 1.2, flat: x(0) },
+    /**
+     * MTG 要素 △ バッチB（決定事項ログ）。追加の支払い（放題・段階・切除・奮励・分隊）・代わりの使い方（試作・想起・超過・解鎖）・
+     * 差し出す（現出・犠牲・協約・貪食）・払い方（召集・探査・血の支払い・代替コスト）・相手が選ぶ（最悪の二択）・
+     * 捨て札から使う（回顧・調和・大混乱・一時蘇生）・捨て札の能力（相続・発掘・不朽）・手札の能力（予見）。
+     * rate の配列は追加のエナジー（または数値）の小さい順
+     */
+    /** 放題：他のモードの合計×otherRate（追加エナジー K＝1・2 の順） */
+    spree: { otherRate: [0.5, 0.4], maxCost: 2, flat: x(0) },
+    /** 段階：モード A・B・C の追加エナジー。各モードのポイントから 追加エナジー×perEnergy を引いてからモード選択の式 */
+    tiered: { surcharge: [0, 1, 2], perEnergy: x(10), flat: x(0) },
+    /** 切除：条件付きの効果ごとに（条件なし−条件付き）×rate（K＝1・2） */
+    cleave: { rate: [0.6, 0.45], maxCost: 2 },
+    /** 奮励：「選んだ1体（相手）」の効果×rate（K＝1・2）。払えるのは maxTimes 回まで */
+    strive: { rate: [0.5, 0.35], maxCost: 2, maxTimes: 2 },
+    /** 分隊：本体（ステータス・キーワード・効果）×rate（K＝minCost〜maxCost）。払えるのは maxTimes 回まで */
+    squad: { rate: [0.45, 0.35, 0.25], minCost: 2, maxCost: 4, maxTimes: 2 },
+    /** 試作：perCost×K（K は1〜maxCut、印刷コスト未満）。攻撃力・体力は半分（step の刻みに切り捨て、体力は最低 step） */
+    prototype: { perCost: x(2), maxCut: 3, step: x(0.5) },
+    /** 想起：召喚時の効果×rate（想起コスト E は 0〜maxCost、印刷コスト未満） */
+    evoke: { rate: 0.5, maxCost: 2 },
+    /** 超過：「選んだ1体」の効果について（全体の倍率−1）×その効果×rate（K＝1・2・3） */
+    overload: { rate: [0.6, 0.45, 0.35] },
+    /** 解鎖：N×perValue（N は minValue〜maxValue。量） */
+    unleash: { perValue: 2, minValue: x(1), maxValue: x(2) },
+    /** 協約：能力は0pt（条件「協約したなら」の倍率 condition.bargained） */
+    bargain: { flat: x(0) },
+    /** 現出：固定。印刷コスト minCost 以上のカードだけ */
+    emerge: { flat: x(3), minCost: 2 },
+    /** 犠牲：使用時の効果×rate（N＝x(1)・x(2)・x(3) の順） */
+    casualty: { rate: [0.5, 0.4, 0.3], minValue: x(1), maxValue: x(3) },
+    /** 貪食：base＋N×perValue（N は minValue〜maxValue）。生け贄にできるのは max 体まで */
+    devour: { perValue: 4.5, base: x(1), max: 3, minValue: x(1), maxValue: x(2) },
+    /** 召集：固定。休ませる1体につきコスト−1（max まで）。印刷コスト minCost 以上 */
+    convoke: { flat: x(3), max: 3, minCost: 2 },
+    /** 探査：固定。除外する捨て札1枚につきコスト−1（max まで）。印刷コスト minCost 以上 */
+    delve: { flat: x(3), max: 3, minCost: 2 },
+    /** 血の支払い：K×perEnergy。エナジー1を HP hpPerEnergy で払う（K は max まで） */
+    lifePay: { perEnergy: x(2), hpPerEnergy: x(2), max: 2 },
+    /** 代替コスト：固定（1ターン battle.maxPitchPerTurn 回） */
+    pitch: { flat: x(6) },
+    /** 最悪の二択：低いモード＋高いモード×highRate */
+    villain: { highRate: 0.2, flat: x(0) },
+    /** 回顧：効果・本体×rate（捨て札から使ったときの効果があるカードは本体×rate＋fromDiscardFlat） */
+    retrace: { rate: 0.5, fromDiscardFlat: x(1) },
+    /** 調和：効果・本体×rate（N＝0・1・2）。休ませたモンスターの攻撃力 attackPerEnergy ごとにコスト−1（maxCut まで） */
+    harmonize: { rate: [0.5, 0.4, 0.3], attackPerEnergy: x(2), maxCut: 3, fromDiscardFlat: x(1) },
+    /** 大混乱：効果・本体×rate */
+    mayhem: { rate: 0.4, fromDiscardFlat: x(1) },
+    /** 一時蘇生：本体（ステータス・キーワード・召喚時の効果）×rate（K＝1・2・3） */
+    unearth: { rate: [0.45, 0.35, 0.25] },
+    /** 相続：エナジー0〜maxCost（ポイントは「相続」のタイミングの倍率 timing.renew） */
+    renew: { maxCost: 2, flat: x(0) },
+    /** 発掘：固定。山札の上 N 枚（minCount〜maxCount）を捨て札に置いて手札に戻す（1ターン battle.maxDredgePerTurn 回） */
+    dredge: { flat: x(2), minCount: 2, maxCount: 4 },
+    /** 不朽：本体×rate（K＝1・2・3）。永遠はコピーが攻撃力・体力 eternalStats で、eternalFlat を足す */
+    embalm: { rate: [0.4, 0.3, 0.2], eternalStats: x(4), eternalFlat: x(2), flat: x(0) },
+    /** 予見：エナジー0〜maxCost（ポイントは「予見」のタイミングの倍率 timing.forecast） */
+    forecast: { maxCost: 2, flat: x(0) },
   },
 
   /**
@@ -707,6 +772,9 @@ export const BALANCE = {
     eggHatchTurns: 2,
     eggName: '卵',
     eggIcon: '🥚',
+    /** MTG 要素 △ バッチB：代替コスト・発掘は1人1ターンこの回数まで */
+    maxPitchPerTurn: 1,
+    maxDredgePerTurn: 1,
   },
 
   /** 速度ゲージ（MTG 要素 ○ バッチC2）：エンジン始動で start、自分のターンに相手のHPを減らすと1ターン1回+1、max まで */

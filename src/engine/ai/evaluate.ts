@@ -237,8 +237,8 @@ export function nextTurnThreat(g: GameState, p: PlayerId): Threat {
     if (m.betraying || m.status.freezePending || cannotAttack(g, m)) continue;
     // 消耗：次の自分のターンは攻撃できない
     if (exertedNextTurn(g, m)) continue;
-    // 応召の一時トークンは次のターンにはいない
-    if (m.card.token?.temp) continue;
+    // 応召の一時トークン・一時蘇生（MTG 要素 △ バッチB）は次のターンにはいない
+    if (m.card.token?.temp || m.unearthed) continue;
     // 卵・次のターンに休眠するモンスターは攻撃しない（MTG 要素 △ バッチA）
     if (m.card.token?.egg && ps.turnsTaken + 1 < m.card.token.egg.hatchAt) continue;
     if (m.counters.dormantFrom !== undefined && (ps.turnsTaken + 1 - m.counters.dormantFrom) % 2 === 1) continue;
@@ -338,8 +338,8 @@ function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   const T = ctx.turnsLeft;
   // 卵（MTG 要素 △ バッチA）：体力と、孵化したときの攻撃力の半分
   if (m.card.token?.egg) return m.hp * W.monsterHp + m.card.token.egg.attack * W.monsterAttack * ctx.turnsLeft * W.eggFactor;
-  // 応召の一時トークン：このターンに残っている攻撃のぶんだけ価値がある（ターン終了時に消える）
-  if (m.card.token?.temp) {
+  // 応召の一時トークン・一時蘇生（MTG 要素 △ バッチB）：このターンに残っている攻撃のぶんだけ価値がある（ターン終了時に消える）
+  if (m.card.token?.temp || m.unearthed) {
     const canAttack = g.phase === 'main' && g.active === m.controller && !attackBlockReason(g, m);
     return canAttack ? effectiveAttack(g, m) * (n - m.attacksUsed) * W.readyAttack : 0;
   }

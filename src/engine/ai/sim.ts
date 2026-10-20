@@ -7,7 +7,7 @@ import { BALANCE } from '../balance.ts';
 import { applyAction } from '../battle/apply.ts';
 import { findMonster, other } from '../battle/core.ts';
 import { activateSource } from '../battle/abilities.ts';
-import { effectiveCost, playTiming } from '../battle/play.ts';
+import { costCtxOf, effectiveCost, playTiming } from '../battle/play.ts';
 import { NOISE_CARD_ID, type Action, type CardInst, type GameState, type PendingChoice, type PlayerId } from '../battle/types.ts';
 import type { CardDef, EffectInstance, TimingId } from '../types.ts';
 import { getEffect } from '../registry.ts';
@@ -122,6 +122,14 @@ function chooseSpecial(g: GameState, p: PendingChoice, me: PlayerId): string[] |
     return scored[0] ? [scored[0].o.id] : [];
   }
   if (step.t === 'effect' && step.effect.id === 'advanceSaga') return options[0] ? [options[0].id] : [];
+  // MTG 要素 △ バッチB：貪食（トークン → 寿命の残り少ない → 攻撃力が上がる量より低いもの。それ以外は食べない）
+  if (step.t === 'devourChoice') {
+    const scored = options
+      .map((o) => findMonster(g, o.id))
+      .filter((m): m is NonNullable<typeof m> => m !== undefined && (m.card.token !== undefined || m.counters.life === 1 || m.attack < step.amount))
+      .sort((a, b) => (a.card.token ? 0 : 1) - (b.card.token ? 0 : 1) || a.attack * 3 + a.hp * 1.5 - (b.attack * 3 + b.hp * 1.5));
+    return scored.slice(0, p.max).map((m) => m.uid);
+  }
   // MTG 要素 ○ バッチA：濫用・枯朽・捨て札の除外
   if (step.t === 'exploitChoice') {
     // 見える情報には解決待ちの効果が無い（view.ts がキューを隠す）ので、仮に実行して比べられない。
@@ -205,8 +213,24 @@ export function simulate(view: GameState, action: Action, seed: number, me: Play
   const r = applyAction({ ...view, rng: seed }, action);
   if (!r.ok) return null;
   let s = r.state;
-  for (let i = 0; i < MAX_AUTO_CHOICES && s.pending && s.pending.player === me; i++) {
-    const next = applyAction(s, { type: 'choose', player: me, picks: chooseFor(s, s.pending, me) });
+  for (let i = 0; i < MAX_AUTO_CHOICES && s.pending; i++) {
+    const pending: PendingChoice = s.pending;
+    if (pending.player !== me) {
+      // 最悪の二択（MTG 要素 △ バッチB）：相手は自分にとって悪い方（自分の評価が低い方）を選ぶと見積もる
+      if (pending.step.t !== 'villainChoice') break;
+      const frame = raceFrame(view, me);
+      let worst: { state: GameState; score: number } | null = null;
+      for (const o of pending.options) {
+        const n = applyAction(s, { type: 'choose', player: pending.player, picks: [o.id] });
+        if (!n.ok) continue;
+        const score = evaluate(n.state, me, frame);
+        if (!worst || score < worst.score) worst = { state: n.state, score };
+      }
+      if (!worst) break;
+      s = worst.state;
+      continue;
+    }
+    const next = applyAction(s, { type: 'choose', player: me, picks: chooseFor(s, pending, me) });
     if (!next.ok) break;
     s = next.state;
   }
@@ -224,14 +248,21 @@ export function actionCard(view: GameState, action: Action): { card?: CardInst; 
     const def = card ? view.cards[card.cardId] : undefined;
     if (!card || !def) return null;
     const timing = playTiming(def, action.from === 'discard' ? 'discard' : 'hand');
-    // モード選択（MTG 要素 ○ バッチC2）：選んだモードの効果だけ
-    return { card, def, timing, effects: effectsForMode(def.effects, timing, resolveMode(def, timing, action.mode)) };
+    // モード選択（MTG 要素 ○ バッチC2）：選んだモードの効果だけ（放題は選んだモードすべて：△ バッチB）
+    return { card, def, timing, effects: effectsForMode(def.effects, timing, resolveMode(def, timing, action.modes ?? action.mode)) };
   }
   if (action.type === 'handAbility') {
     const card = ps.hand.find((c) => c.uid === action.cardUid);
     const def = card ? view.cards[card.cardId] : undefined;
     if (!card || !def) return null;
-    return { card, def, timing: 'channel', effects: action.ability === 'channel' ? def.effects.filter((e) => e.timing === 'channel') : [] };
+    const timing = action.ability === 'forecast' ? 'forecast' : 'channel';
+    return { card, def, timing, effects: action.ability === 'cycling' ? [] : def.effects.filter((e) => e.timing === timing) };
+  }
+  if (action.type === 'discardAbility') {
+    const card = ps.discard.find((c) => c.uid === action.cardUid);
+    const def = card ? view.cards[card.cardId] : undefined;
+    if (!card || !def) return null;
+    return { card, def, timing: 'renew', effects: action.ability === 'renew' ? def.effects.filter((e) => e.timing === 'renew') : [] };
   }
   if (action.type === 'activate') {
     const src = activateSource(view, action.player, action.sourceUid);
@@ -316,7 +347,7 @@ export function outcome(before: GameState, after: GameState, action: Action, me:
   let cost = 0;
   if (action.type === 'playCard') {
     const card = actionCard(before, action)?.card;
-    if (card) cost = effectiveCost(before, me, card, { chosen: action.chosen ?? {}, from: action.from === 'discard' ? 'discard' : 'hand', kick: action.kick === true });
+    if (card) cost = effectiveCost(before, me, card, costCtxOf(action, action.chosen ?? {}));
   }
   const face = Math.max(0, before.players[opp].hp - after.players[opp].hp);
   return { kills, cost, face };
@@ -362,7 +393,7 @@ export function actionKey(g: GameState, a: Action): string {
     const card = actionCard(g, a)?.card;
     const t = a.chosen?.enemy;
     // 捨て札から使う・キッカー（MTG 要素 ○ バッチC1）も区別する（捨て札のカードは手札に無いので、見つからなければ uid）
-    const extra = `${a.from ?? ''}:${a.kick ? 'k' : ''}:${a.discardUid ?? ''}:${(a.exileUids ?? []).join('+')}:${a.mode ?? ''}`;
+    const extra = `${a.from ?? ''}:${a.kick ? 'k' : ''}:${a.discardUid ?? ''}:${(a.exileUids ?? []).join('+')}:${a.mode ?? ''}:${(a.modes ?? []).join('+')}:${a.extra ?? ''}:${a.alt ?? ''}:${a.sacrificeUid ?? ''}:${(a.tapUids ?? []).join('+')}:${a.pitchUid ?? ''}:${a.lifePay ?? ''}`;
     // 永久強化（MTG 要素 △ バッチA）された個体は別のカード
     const perm = card?.perm ? `${card.perm.attack}/${card.perm.hp}` : '';
     return `c:${card?.cardId ?? a.cardUid}:${card?.copy ?? ''}:${card?.grow ?? 0}:${card?.buybackTurn ?? ''}:${perm}:${extra}|${t ? (t.kind === 'player' ? 'p' : t.uid) : ''}|${a.chosen?.ally ?? ''}`;
@@ -378,7 +409,7 @@ export function actionKey(g: GameState, a: Action): string {
     const t = a.target.kind === 'player' ? 'p' : a.target.uid;
     // MTG 要素 △ バッチA：容疑・守護・消滅の印・このターンだけのキーワード・最大体力も区別する
     const extra = `${m.maxHp}:${m.suspected ? 's' : ''}:${m.guard?.kind ?? ''}:${m.finality ? 'f' : ''}:${(m.tempGranted ?? []).join('+')}`;
-    return `a:${m.card.cardId}:${JSON.stringify(m.card.token ?? null)}:${m.attack}:${m.tempAttack ?? 0}:${m.hp}:${m.defense}:${m.attacksUsed}:${m.sealed}:${m.stealth}:${JSON.stringify(m.granted ?? [])}:${m.shieldUsed ?? false}:${m.counters.life ?? ''}:${m.counters.readyTurn === g.turnIndex ? 'r' : ''}:${extra}:${JSON.stringify(m.status)}|${t}`;
+    return `a:${a.enlistUid ?? ''}:${m.card.cardId}:${JSON.stringify(m.card.token ?? null)}:${m.attack}:${m.tempAttack ?? 0}:${m.hp}:${m.defense}:${m.attacksUsed}:${m.sealed}:${m.stealth}:${JSON.stringify(m.granted ?? [])}:${m.shieldUsed ?? false}:${m.counters.life ?? ''}:${m.counters.readyTurn === g.turnIndex ? 'r' : ''}:${extra}:${JSON.stringify(m.status)}|${t}`;
   }
   return JSON.stringify(a);
 }
@@ -400,7 +431,7 @@ export function dedupeActions(g: GameState, actions: Action[]): Action[] {
 export function orderForSearch(g: GameState, actions: Action[]): Action[] {
   const rank = (a: Action): number => {
     if (a.type === 'attack') return a.target.kind === 'player' ? 3 : 1;
-    if (a.type === 'playCard' || a.type === 'activate' || a.type === 'handAbility') return a.chosen?.enemy?.kind === 'player' ? 2.5 : 2;
+    if (a.type === 'playCard' || a.type === 'activate' || a.type === 'handAbility' || a.type === 'discardAbility') return a.chosen?.enemy?.kind === 'player' ? 2.5 : 2;
     return 0;
   };
   return dedupeActions(g, actions.filter((a) => a.type !== 'endTurn' && a.type !== 'concede')).sort((a, b) => rank(b) - rank(a));

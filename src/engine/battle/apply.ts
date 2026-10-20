@@ -1,8 +1,8 @@
 /** 対戦の入口：applyAction(状態, 行動) → 新しい状態。元の状態は書き換えない */
 import { findMonster } from './core.ts';
-import { attackBlockReason, attackTargets, performAttack } from './combat.ts';
+import { attackBlockReason, attackTargets, enlistOptions, performAttack } from './combat.ts';
 import { mulligan, validateMulligan } from './mulligan.ts';
-import { activate, useHandAbility, validateActivate, validateHandAbility } from './abilities.ts';
+import { activate, useDiscardAbility, useHandAbility, validateActivate, validateDiscardAbility, validateHandAbility } from './abilities.ts';
 import { playCard, removeNoise, validatePlay, validateRemoveNoise, type PlayOpts } from './play.ts';
 import { runQueue } from './queue.ts';
 import { beginEndTurn, concede } from './turn.ts';
@@ -17,6 +17,14 @@ function playOpts(a: Extract<Action, { type: 'playCard' }>): PlayOpts {
   if (a.kick === true) o.kick = true;
   // MTG 要素 ○ バッチC2：モード選択
   if (a.mode !== undefined) o.mode = a.mode;
+  // MTG 要素 △ バッチB：追加の支払い・代わりの使い方・差し出す・払い方
+  if (a.extra !== undefined) o.extra = a.extra;
+  if (a.modes !== undefined) o.modes = a.modes;
+  if (a.alt !== undefined) o.alt = a.alt;
+  if (a.sacrificeUid !== undefined) o.sacrificeUid = a.sacrificeUid;
+  if (a.tapUids !== undefined) o.tapUids = a.tapUids;
+  if (a.pitchUid !== undefined) o.pitchUid = a.pitchUid;
+  if (a.lifePay !== undefined) o.lifePay = a.lifePay;
   return o;
 }
 
@@ -51,6 +59,8 @@ export function validateAction(g: GameState, a: Action): string | null {
       return validateActivate(g, a.player, a.sourceUid, a.chosen);
     case 'handAbility':
       return validateHandAbility(g, a.player, a.cardUid, a.ability, a.chosen);
+    case 'discardAbility':
+      return validateDiscardAbility(g, a.player, a.cardUid, a.ability, a.chosen);
     case 'removeNoise':
       return validateRemoveNoise(g, a.player, a.cardUid);
     case 'attack': {
@@ -59,6 +69,8 @@ export function validateAction(g: GameState, a: Action): string | null {
       const reason = attackBlockReason(g, m);
       if (reason) return reason;
       if (!attackTargets(g, m).some((t) => sameRef(t, a.target))) return 'その相手は攻撃できません';
+      // 後援（MTG 要素 △ バッチB）
+      if (a.enlistUid !== undefined && !enlistOptions(g, m).some((x) => x.uid === a.enlistUid)) return 'そのモンスターは後援で休ませられません';
       return null;
     }
     case 'endTurn':
@@ -93,11 +105,14 @@ export function applyAction(state: GameState, a: Action): ApplyResult {
     case 'handAbility':
       useHandAbility(g, a.player, a.cardUid, a.ability, a.chosen ?? {});
       break;
+    case 'discardAbility':
+      useDiscardAbility(g, a.player, a.cardUid, a.ability, a.chosen ?? {});
+      break;
     case 'removeNoise':
       removeNoise(g, a.player, a.cardUid);
       break;
     case 'attack':
-      performAttack(g, findMonster(g, a.attackerUid)!, a.target, 0);
+      performAttack(g, findMonster(g, a.attackerUid)!, a.target, 0, '', a.enlistUid);
       break;
     case 'endTurn':
       beginEndTurn(g, a.player);

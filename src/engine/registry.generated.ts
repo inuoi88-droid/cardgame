@@ -1,7 +1,9 @@
 // 自動生成ファイル。手で編集しないこと（scripts/gen-registry.mjs が生成する）
 import type { AbilityDef, DrawbackDef, EffectDef, KeywordDef, ModifierDef } from './define.ts';
+import effects_advanceSaga from './defs/effects/advanceSaga.ts';
 import effects_amass from './defs/effects/amass.ts';
 import effects_attackUp from './defs/effects/attackUp.ts';
+import effects_backup from './defs/effects/backup.ts';
 import effects_bank from './defs/effects/bank.ts';
 import effects_bleed from './defs/effects/bleed.ts';
 import effects_boon from './defs/effects/boon.ts';
@@ -30,13 +32,20 @@ import effects_energy from './defs/effects/energy.ts';
 import effects_energyJam from './defs/effects/energyJam.ts';
 import effects_equip from './defs/effects/equip.ts';
 import effects_execute from './defs/effects/execute.ts';
+import effects_exileMill from './defs/effects/exileMill.ts';
 import effects_explore from './defs/effects/explore.ts';
+import effects_fateseal from './defs/effects/fateseal.ts';
 import effects_fight from './defs/effects/fight.ts';
+import effects_finality from './defs/effects/finality.ts';
 import effects_focus from './defs/effects/focus.ts';
 import effects_freeze from './defs/effects/freeze.ts';
+import effects_gainExp from './defs/effects/gainExp.ts';
 import effects_grantKeyword from './defs/effects/grantKeyword.ts';
+import effects_guard from './defs/effects/guard.ts';
 import effects_harness from './defs/effects/harness.ts';
 import effects_heal from './defs/effects/heal.ts';
+import effects_iceLock from './defs/effects/iceLock.ts';
+import effects_incubate from './defs/effects/incubate.ts';
 import effects_infight from './defs/effects/infight.ts';
 import effects_loot from './defs/effects/loot.ts';
 import effects_mill from './defs/effects/mill.ts';
@@ -44,6 +53,7 @@ import effects_multiHit from './defs/effects/multiHit.ts';
 import effects_noise from './defs/effects/noise.ts';
 import effects_nullify from './defs/effects/nullify.ts';
 import effects_offspring from './defs/effects/offspring.ts';
+import effects_perpetual from './defs/effects/perpetual.ts';
 import effects_poison from './defs/effects/poison.ts';
 import effects_populate from './defs/effects/populate.ts';
 import effects_prepare from './defs/effects/prepare.ts';
@@ -51,6 +61,7 @@ import effects_proliferate from './defs/effects/proliferate.ts';
 import effects_pump from './defs/effects/pump.ts';
 import effects_purge from './defs/effects/purge.ts';
 import effects_quash from './defs/effects/quash.ts';
+import effects_rad from './defs/effects/rad.ts';
 import effects_ramp from './defs/effects/ramp.ts';
 import effects_ready from './defs/effects/ready.ts';
 import effects_recall from './defs/effects/recall.ts';
@@ -69,6 +80,7 @@ import effects_slay from './defs/effects/slay.ts';
 import effects_startEngine from './defs/effects/startEngine.ts';
 import effects_steal from './defs/effects/steal.ts';
 import effects_strength from './defs/effects/strength.ts';
+import effects_suspect from './defs/effects/suspect.ts';
 import effects_token from './defs/effects/token.ts';
 import effects_train from './defs/effects/train.ts';
 import effects_vulnerable from './defs/effects/vulnerable.ts';
@@ -77,12 +89,15 @@ import effects_weaken from './defs/effects/weaken.ts';
 import effects_wipe from './defs/effects/wipe.ts';
 import effects_wither from './defs/effects/wither.ts';
 import modifiers_drain from './defs/modifiers/drain.ts';
+import modifiers_gamble from './defs/modifiers/gamble.ts';
 import modifiers_nextTurn from './defs/modifiers/nextTurn.ts';
 import modifiers_perCardPlayed from './defs/modifiers/perCardPlayed.ts';
 import modifiers_perDiscardMonster from './defs/modifiers/perDiscardMonster.ts';
 import modifiers_perEnemyMonster from './defs/modifiers/perEnemyMonster.ts';
+import modifiers_perExp from './defs/modifiers/perExp.ts';
 import modifiers_perTribeAlly from './defs/modifiers/perTribeAlly.ts';
 import modifiers_pierce from './defs/modifiers/pierce.ts';
+import modifiers_witherDmg from './defs/modifiers/witherDmg.ts';
 import modifiers_xEnergy from './defs/modifiers/xEnergy.ts';
 import keywords_bushido from './defs/keywords/bushido.ts';
 import keywords_deathtouch from './defs/keywords/deathtouch.ts';
@@ -98,7 +113,9 @@ import keywords_inspire from './defs/keywords/inspire.ts';
 import keywords_lifelink from './defs/keywords/lifelink.ts';
 import keywords_menace from './defs/keywords/menace.ts';
 import keywords_onslaught from './defs/keywords/onslaught.ts';
+import keywords_reach from './defs/keywords/reach.ts';
 import keywords_selfRepair from './defs/keywords/selfRepair.ts';
+import keywords_skulk from './defs/keywords/skulk.ts';
 import keywords_stealth from './defs/keywords/stealth.ts';
 import keywords_taunt from './defs/keywords/taunt.ts';
 import keywords_trample from './defs/keywords/trample.ts';
@@ -106,9 +123,11 @@ import keywords_undying from './defs/keywords/undying.ts';
 import keywords_ward from './defs/keywords/ward.ts';
 import drawbacks_betrayal from './defs/drawbacks/betrayal.ts';
 import drawbacks_blight from './defs/drawbacks/blight.ts';
+import drawbacks_cumulativeUpkeep from './defs/drawbacks/cumulativeUpkeep.ts';
 import drawbacks_decay from './defs/drawbacks/decay.ts';
 import drawbacks_defender from './defs/drawbacks/defender.ts';
 import drawbacks_discardRandom from './defs/drawbacks/discardRandom.ts';
+import drawbacks_dormant from './defs/drawbacks/dormant.ts';
 import drawbacks_exert from './defs/drawbacks/exert.ts';
 import drawbacks_exhaust from './defs/drawbacks/exhaust.ts';
 import drawbacks_exileDiscard from './defs/drawbacks/exileDiscard.ts';
@@ -138,10 +157,13 @@ import abilities_jumpStart from './defs/abilities/jumpStart.ts';
 import abilities_kicker from './defs/abilities/kicker.ts';
 import abilities_rebound from './defs/abilities/rebound.ts';
 import abilities_shuffleBack from './defs/abilities/shuffleBack.ts';
+import abilities_trap from './defs/abilities/trap.ts';
 
 export const EFFECT_DEFS: readonly EffectDef[] = [
+  effects_advanceSaga,
   effects_amass,
   effects_attackUp,
+  effects_backup,
   effects_bank,
   effects_bleed,
   effects_boon,
@@ -170,13 +192,20 @@ export const EFFECT_DEFS: readonly EffectDef[] = [
   effects_energyJam,
   effects_equip,
   effects_execute,
+  effects_exileMill,
   effects_explore,
+  effects_fateseal,
   effects_fight,
+  effects_finality,
   effects_focus,
   effects_freeze,
+  effects_gainExp,
   effects_grantKeyword,
+  effects_guard,
   effects_harness,
   effects_heal,
+  effects_iceLock,
+  effects_incubate,
   effects_infight,
   effects_loot,
   effects_mill,
@@ -184,6 +213,7 @@ export const EFFECT_DEFS: readonly EffectDef[] = [
   effects_noise,
   effects_nullify,
   effects_offspring,
+  effects_perpetual,
   effects_poison,
   effects_populate,
   effects_prepare,
@@ -191,6 +221,7 @@ export const EFFECT_DEFS: readonly EffectDef[] = [
   effects_pump,
   effects_purge,
   effects_quash,
+  effects_rad,
   effects_ramp,
   effects_ready,
   effects_recall,
@@ -209,6 +240,7 @@ export const EFFECT_DEFS: readonly EffectDef[] = [
   effects_startEngine,
   effects_steal,
   effects_strength,
+  effects_suspect,
   effects_token,
   effects_train,
   effects_vulnerable,
@@ -219,12 +251,15 @@ export const EFFECT_DEFS: readonly EffectDef[] = [
 ];
 export const MODIFIER_DEFS: readonly ModifierDef[] = [
   modifiers_drain,
+  modifiers_gamble,
   modifiers_nextTurn,
   modifiers_perCardPlayed,
   modifiers_perDiscardMonster,
   modifiers_perEnemyMonster,
+  modifiers_perExp,
   modifiers_perTribeAlly,
   modifiers_pierce,
+  modifiers_witherDmg,
   modifiers_xEnergy,
 ];
 export const KEYWORD_DEFS: readonly KeywordDef[] = [
@@ -242,7 +277,9 @@ export const KEYWORD_DEFS: readonly KeywordDef[] = [
   keywords_lifelink,
   keywords_menace,
   keywords_onslaught,
+  keywords_reach,
   keywords_selfRepair,
+  keywords_skulk,
   keywords_stealth,
   keywords_taunt,
   keywords_trample,
@@ -252,9 +289,11 @@ export const KEYWORD_DEFS: readonly KeywordDef[] = [
 export const DRAWBACK_DEFS: readonly DrawbackDef[] = [
   drawbacks_betrayal,
   drawbacks_blight,
+  drawbacks_cumulativeUpkeep,
   drawbacks_decay,
   drawbacks_defender,
   drawbacks_discardRandom,
+  drawbacks_dormant,
   drawbacks_exert,
   drawbacks_exhaust,
   drawbacks_exileDiscard,
@@ -286,4 +325,5 @@ export const ABILITY_DEFS: readonly AbilityDef[] = [
   abilities_kicker,
   abilities_rebound,
   abilities_shuffleBack,
+  abilities_trap,
 ];

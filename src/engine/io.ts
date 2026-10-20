@@ -124,6 +124,11 @@ function parseAbility(x: unknown): AbilityInstance | null {
     if (!oneOf<ConditionId>(CONDITION_IDS, x.condition)) return null;
     a.condition = x.condition;
   }
+  // 1回きり（プラン。MTG 要素 △ バッチA）：true だけを残す
+  if (x.once !== undefined) {
+    if (typeof x.once !== 'boolean') return null;
+    if (x.once) a.once = true;
+  }
   return a;
 }
 

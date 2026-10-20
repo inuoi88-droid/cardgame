@@ -10,6 +10,7 @@ import {
   CONDITIONS,
   MODE_TIMINGS,
   TIMINGS,
+  TRAP_TIMINGS,
   TRIBE_TARGETS,
   chapterOf,
   conditionsFor,
@@ -142,6 +143,16 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     if (def.option && e.option !== undefined && !def.option.choices.some((c) => c.id === e.option)) {
       out.push({ code: 'EFFECT_OPTION', path: `${path}.option`, message: `${what}の${def.option.label}が正しくありません` });
     }
+    // 追加指定ごとのレアリティ（倍化の「3倍」はレジェンドだけ。MTG 要素 △ バッチA）
+    const optRarity = e.option !== undefined ? def.optionMinRarity?.[e.option] : undefined;
+    if (optRarity && rarityOk && rarityRank(card.rarity) < rarityRank(optRarity)) {
+      const label = def.option?.choices.find((c) => c.id === e.option)?.label ?? e.option;
+      out.push({
+        code: 'OPTION_RARITY',
+        path: `${path}.option`,
+        message: `${what}の「${label}」は${optRarity === 'legend' ? 'レジェンドのみ' : `${RARITY_LABEL[optRarity]}以上のカード`}で使えます`,
+      });
+    }
 
     const timing = TIMINGS[e.timing];
     if (!timing) {
@@ -218,6 +229,12 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
         const scale = known.filter((m) => m.scope === 'scale');
         if (scale.length > 0 && !def.scalable) {
           out.push({ code: 'EFFECT_MODS_SCALE', path: `${path}.mods`, message: `${what}には「${scale[0]!.name}」を付けられません（数値に掛けられない効果です）` });
+        } else {
+          // ばらつき（MTG 要素 △ バッチA）は量の効果だけ（枚数・ターン数には付けない）
+          const amountOnly = scale.find((m) => m.requiresScaledValue);
+          if (amountOnly && !def.value?.scaled) {
+            out.push({ code: 'EFFECT_MODS_SCALE', path: `${path}.mods`, message: `「${amountOnly.name}」は量（ダメージ・回復など）の効果にしか付けられません` });
+          }
         }
         if (scale.length > 1) {
           out.push({ code: 'EFFECT_MODS_SCALE_MULTI', path: `${path}.mods`, message: `数値の倍数（${scale.map((m) => m.name).join('・')}）は1つの効果に1つまでです` });
@@ -295,6 +312,19 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
         code: 'DRAWN_OVER_CAP',
         path: 'effects',
         message: `「${TIMINGS.drawn.label}」の効果のポイントの合計は、コスト0のときの上限${drawnCap}ptまでです（いま${drawnTotal}pt）`,
+      });
+    }
+  }
+
+  // 捨てられたときの効果も、コスト0のときのレアリティ上限まで（捨てるだけで得をするカードを作らせない。MTG 要素 △ バッチA）
+  if (rarityOk) {
+    const total = card.effects.filter((e) => e.timing === 'discarded').reduce((sum, e) => sum + effectPoints(e, card).value, 0);
+    const cap = rarityCap(card.rarity, 0);
+    if (total > cap) {
+      out.push({
+        code: 'DISCARDED_OVER_CAP',
+        path: 'effects',
+        message: `「${TIMINGS.discarded.label}」の効果のポイントの合計は、コスト0のときの上限${cap}ptまでです（いま${total}pt）`,
       });
     }
   }
@@ -404,6 +434,23 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
         path,
         message: `${what}は、「${TIMINGS[def.requiresTiming].label}」の効果があるカードにしか付けられません`,
       });
+    }
+    // 1回きり（プラン。MTG 要素 △ バッチA）は、そのチェックがある能力だけ
+    if (a.once !== undefined && !def.onceOption) {
+      out.push({ code: 'ABILITY_ONCE', path, message: `${what}には「1回きり」を付けられません` });
+    }
+    // 罠（MTG 要素 △ バッチA）：パワーの効果は罠のタイミングだけ（1つ以上）
+    if (def.battle.trap) {
+      const power = card.effects.filter((e) => isPowerTiming(e.timing, base));
+      const bad = power.filter((e) => !TRAP_TIMINGS.includes(e.timing));
+      if (power.length === 0 || bad.length > 0) {
+        const ok = TRAP_TIMINGS.map((t) => `「${TIMINGS[t].label}」`).join('・');
+        out.push({
+          code: 'TRAP_TIMING',
+          path,
+          message: bad.length > 0 ? `${what}のパワーの効果は${ok}だけです（「${TIMINGS[bad[0]!.timing].label}」は使えません）` : `${what}は、${ok}の効果があるパワーのカードにしか付けられません`,
+        });
+      }
     }
     // 双呪（MTG 要素 ○ バッチC2）はモード選択のカードだけ
     if (def.battle.entwineCost && modeSets.size === 0) {

@@ -2,7 +2,8 @@
 import { BALANCE } from '../balance.ts';
 import { REPEAT_CAPPED_TIMINGS, TIMINGS } from '../options.ts';
 import type { CardDef, EffectInstance, TimingId } from '../types.ts';
-import { enqueue, log, newUid } from './core.ts';
+import { dormantNow, enqueue, log, monsterDormant, newUid } from './core.ts';
+import { getAbility } from '../registry.ts';
 import { allyCandidates, chosenRulesOf, enemyCandidates } from './play.ts';
 import { effectsForMode, resolveMode } from './modes.ts';
 import { pick } from './rng.ts';
@@ -85,11 +86,22 @@ function allowRepeat(
   return false;
 }
 
-/** パワーの、あるタイミングの効果を積む（使った順） */
+/** パワーが休眠中か（MTG 要素 △ バッチA） */
+export function powerDormant(g: GameState, p: PlayerId, power: PowerInst): boolean {
+  return dormantNow(g, p, power.dormantFrom);
+}
+
+/** パワーのカードが能力「罠」を持つか（MTG 要素 △ バッチA） */
+export function isTrapPower(g: GameState, power: PowerInst): boolean {
+  return (g.cards[power.cardId]?.abilities ?? []).some((a) => getAbility(a.id)?.battle.trap === true);
+}
+
+/** パワーの、あるタイミングの効果を積む（使った順）。休眠中のパワーは効果が出ない（デメリットは働く）。罠は効果を積んだら消える */
 export function enqueuePowers(g: GameState, p: PlayerId, timing: TimingId, depth: number, opts: EnqueueOpts = {}): void {
-  for (const power of g.players[p].powers) {
+  for (const power of [...g.players[p].powers]) {
     if (power.uid === opts.excludeUid) continue;
-    const effects = power.effects.filter((x) => !x.removed && x.effect.timing === timing).map((x) => x.effect);
+    const dormant = powerDormant(g, p, power);
+    const effects = dormant ? [] : power.effects.filter((x) => !x.removed && x.effect.timing === timing).map((x) => x.effect);
     const drawbacks = power.drawbacks.filter((d) => d.timing === timing);
     if (effects.length === 0 && drawbacks.length === 0) continue;
     // 「カードを使うたび」などはパワー1つにつき1ターンに規定回数まで（安全装置：決定事項 #64）
@@ -107,10 +119,17 @@ export function enqueuePowers(g: GameState, p: PlayerId, timing: TimingId, depth
     if (!ok) continue;
     const src = powerSource(power, p);
     const protectKey = newUid(g, 'pk');
+    // 相手のモンスターが攻撃するたび（MTG 要素 △ バッチA）：パワーが反応したことを見せる（罠ならこのあと消える）
+    if (timing === 'enemyAttacked' && effects.length > 0) {
+      const trap = isTrapPower(g, power);
+      log(g, depth, `${trap ? '罠' : 'パワー'}『${power.name}』が相手の攻撃に反応した`, 'effect', undefined, { kind: 'status', player: p, uid: power.uid, cardId: power.cardId, status: trap ? 'trap' : 'enemyAttacked' });
+    }
     for (const drawback of drawbacks) enqueue(g, { t: 'drawback', src, drawback, protectKey, depth });
     for (const effect of effects) {
       enqueue(g, { t: 'effect', src, effect, timing, chosen: opts.chosen ?? {}, attackCard: false, protectKey, depth });
     }
+    // 罠（MTG 要素 △ バッチA）：効果を積んだら、そのあとパワーは消える
+    if (effects.length > 0 && isTrapPower(g, power)) enqueue(g, { t: 'powerGone', player: p, powerUid: power.uid, depth, why: 'trap' });
   }
 }
 
@@ -121,7 +140,9 @@ export function enqueueMonsters(g: GameState, p: PlayerId, timing: TimingId, dep
     if (opts.onlyUid !== undefined && m.uid !== opts.onlyUid) continue;
     const def = g.cards[m.card.cardId];
     if (!def) continue;
-    const hasAny = (!m.sealed && def.effects.some((e) => e.timing === timing)) || def.drawbacks.some((d) => d.timing === timing);
+    // 休眠中（MTG 要素 △ バッチA）は封印と同じく効果が出ない（デメリットは働く）
+    const quiet = m.sealed || monsterDormant(g, m);
+    const hasAny = (!quiet && def.effects.some((e) => e.timing === timing)) || def.drawbacks.some((d) => d.timing === timing);
     if (!hasAny) continue;
     const key = `rt:${timing}`;
     const ok = allowRepeat(
@@ -137,8 +158,15 @@ export function enqueueMonsters(g: GameState, p: PlayerId, timing: TimingId, dep
     );
     if (!ok) continue;
     const src: SourceRef = { kind: 'monster', uid: m.uid, cardId: m.card.cardId, name: def.name, controller: m.controller };
-    enqueueCardTiming(g, src, def, timing, opts.chosen ?? {}, depth, { sealed: m.sealed });
+    enqueueCardTiming(g, src, def, timing, opts.chosen ?? {}, depth, { sealed: quiet });
   }
+}
+
+/** 相手のモンスターが攻撃するたび（MTG 要素 △ バッチA）：攻撃された側 p のパワー → 場のモンスター（左から）。「攻撃してきたモンスター」は attackerUid */
+export function enqueueEnemyAttacked(g: GameState, p: PlayerId, attackerUid: string, depth: number): void {
+  const chosen: Chosen = { trigger: attackerUid };
+  enqueuePowers(g, p, 'enemyAttacked', depth, { chosen });
+  enqueueMonsters(g, p, 'enemyAttacked', depth, { chosen });
 }
 
 /** 予約した効果を発動させる（自分のターン開始時、引いた後・ターン開始時のパワーより前）。古い順 */

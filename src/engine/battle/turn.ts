@@ -1,15 +1,16 @@
 /** ターンの開始と終了（処理順は決定事項 #28） */
 import { BALANCE } from '../balance.ts';
 import { getDrawback, getKeyword } from '../registry.ts';
-import { checkGameEnd, endGame, enqueue, log, monsterLabel, other, playerRef, sourceOfMonster, isEnded, turnLimits } from './core.ts';
+import { cardName, checkGameEnd, endGame, enqueue, log, monsterDormant, monsterLabel, other, playerRef, sourceOfMonster, isEnded, turnLimits } from './core.ts';
 import { autoAttackTarget, attacksPerTurn, cannotAttack, exerted, performAttack } from './combat.ts';
 import { dealDamage, destroyMonster, heal } from './damage.ts';
 import { lifespanOf } from './play.ts';
 import { randInt } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
-import { enqueueDelayed, enqueueMonsters, enqueuePowers } from './triggers.ts';
+import { enqueueDelayed, enqueueMonsters, enqueuePowers, powerSource } from './triggers.ts';
 import { advanceSagas, chargePowers } from './powers.ts';
-import { discardCard, drawCards, returnBorrowed, vanish } from './zones.ts';
+import { deckToDiscard, discardCard, drawCards, hatchEggs, returnBorrowed, vanish } from './zones.ts';
+import { NOISE_CARD_ID } from './types.ts';
 import type { GameState, PlayerId, Statuses } from './types.ts';
 
 const B = BALANCE.battle;
@@ -46,6 +47,11 @@ export function startTurn(g: GameState, p: PlayerId): void {
   for (const m of ps.board) {
     activate(m.status);
     m.attacksUsed = 0;
+    // 守護（MTG 要素 △ バッチA）は持ち主の次のターン開始時に消える
+    if (m.guard && ps.turnsTaken >= m.guard.until) {
+      delete m.guard;
+      log(g, 1, `${monsterLabel(g, m)}の守護が消えた`, 'info');
+    }
   }
   ps.turn = { cardsPlayed: 0, retain: 0, freezeTax: ps.status.freezeActive };
   if (ps.status.freezeActive) log(g, 1, `${ps.name}は凍結している：最初に使うカードのコスト+${B.freezeCostIncrease}`);
@@ -88,6 +94,14 @@ export function startTurn(g: GameState, p: PlayerId): void {
       for (const k of def.keywords) getKeyword(k.id)?.battle.onTurnStart?.(rt, k, m);
     }
   }
+  // パワーのデメリット（累加維持費。MTG 要素 △ バッチA）
+  for (const pw of [...ps.powers]) {
+    const def = g.cards[pw.cardId];
+    if (!def) continue;
+    const rt = makeRuntime(g, powerSource(pw, p), [], { depth: 1, attackCard: false });
+    for (const d of def.drawbacks) getDrawback(d.id)?.battle.onPowerTurnStart?.(rt, d, pw);
+    if (checkGameEnd(g)) return;
+  }
 
   // エナジー（持ち越さない：決定事項 #25）。ターン数で成長し、先攻の1ターン目は1少ない（決定事項 #69）。
   // 貯金で増える分も1ターンの増加の上限に数える（決定事項 #64）
@@ -127,6 +141,12 @@ export function startTurn(g: GameState, p: PlayerId): void {
   drawCards(g, p, drawCount, 1);
   if (isEnded(g)) return;
 
+  // MTG 要素 △ バッチA：放射能 → 氷結 → 卵の孵化（引いた後・予約より前）
+  radiation(g, p);
+  if (isEnded(g)) return;
+  iceHand(g, p);
+  hatchEggs(g, p, 1);
+
   // 予約した効果（修飾「次のターンに」。MTG 要素 ○ バッチA）：引いた後・ターン開始時のパワーより前に、古い順
   const delayed = ps.delayed?.length ?? 0;
   if (delayed > 0) log(g, 1, `${ps.name}の予約していた効果が発動する（${delayed}件）`, 'info');
@@ -141,11 +161,51 @@ export function startTurn(g: GameState, p: PlayerId): void {
   enqueue(g, { t: 'autoAttacks', player: p });
 }
 
+/**
+ * 放射能（MTG 要素 △ バッチA）：山札の上を放射能の枚数だけ捨て札に置き（切り直さない）、モンスター以外1枚ごとにダメージ
+ * （シールド・無効化を無視）。放射能はその枚数だけ減る
+ */
+function radiation(g: GameState, p: PlayerId): void {
+  const ps = g.players[p];
+  const rad = ps.status.rad ?? 0;
+  if (rad <= 0) return;
+  const top = ps.deck.slice(0, rad);
+  if (top.length === 0) {
+    log(g, 1, `${ps.name}の放射能${rad}：山札がないので何も起きない`, 'info');
+    return;
+  }
+  const hits = top.filter((c) => c.cardId === NOISE_CARD_ID || !g.cards[c.cardId]?.stats).length;
+  log(g, 1, `${ps.name}の放射能${rad}：山札の上${top.length}枚を捨て札へ（モンスター以外${hits}枚）`, 'effect', undefined, { kind: 'status', player: p, status: 'rad', amount: rad });
+  deckToDiscard(g, p, top.map((c) => c.uid), '放射能', 2);
+  ps.status.rad = rad - hits;
+  if (hits > 0) dealDamage(g, playerRef(p), B.radDamage * hits, { kind: 'rad', source: null, depth: 2 });
+}
+
+/** 氷結（MTG 要素 △ バッチA）：手札（ノイズを除く）からランダムに氷結の枚数だけ凍らせる（このターンは使えない） */
+function iceHand(g: GameState, p: PlayerId): void {
+  const ps = g.players[p];
+  const n = ps.ice ?? 0;
+  if (n <= 0) return;
+  ps.ice = 0;
+  const pool = ps.hand.filter((c) => c.cardId !== NOISE_CARD_ID && c.iced !== g.turnIndex);
+  const frozen = [];
+  for (let i = 0; i < n && pool.length > 0; i++) {
+    const [c] = pool.splice(randInt(g, pool.length), 1);
+    c!.iced = g.turnIndex;
+    frozen.push(c!);
+  }
+  if (frozen.length === 0) return;
+  log(g, 1, `${ps.name}の手札${frozen.length}枚が凍った（このターンは使えない）`, 'effect', undefined, { kind: 'status', player: p, status: 'ice', amount: frozen.length });
+  log(g, 1, `凍ったカード：${frozen.map((c) => cardName(g, c.cardId)).join('、')}`, 'info', p);
+}
+
 /** 混乱・裏切りの自動攻撃 */
 export function runAutoAttacks(g: GameState, p: PlayerId): void {
   for (const m of [...g.players[p].board]) {
     if (!(m.status.confuseActive || m.betraying)) continue;
     if (m.status.freezeActive) continue;
+    // 休眠中・卵は自動でも攻撃しない（MTG 要素 △ バッチA）
+    if (monsterDormant(g, m) || m.card.token?.egg) continue;
     // 防衛・消耗のモンスターは自動でも攻撃しない
     if (cannotAttack(g, m) || exerted(g, m)) continue;
     const times = attacksPerTurn(g, m) - m.attacksUsed;
@@ -234,7 +294,8 @@ function boardTurnEnd(g: GameState, p: PlayerId): void {
     m.counters.life = (m.counters.life ?? life) - 1;
     if (m.counters.life <= 0) {
       log(g, 1, `${monsterLabel(g, m)}の寿命が尽きた`);
-      destroyMonster(g, m, 2);
+      // 寿命は不壊でも止まらない（MTG 要素 △ バッチA）
+      destroyMonster(g, m, 2, true);
     } else {
       log(g, 1, `${monsterLabel(g, m)}の寿命：あと${m.counters.life}ターン`, 'info');
     }
@@ -280,8 +341,13 @@ export function turnEndFinish(g: GameState, p: PlayerId, kept: string[]): void {
   }
   // このターンの記録を残す（条件「前の相手のターンに相手がカードを3枚以上使った」。MTG 要素 ○ バッチA）
   ps.lastTurn = { cardsPlayed: ps.turn.cardsPlayed };
-  // 一時強化はターンの終わりに消える（両者のモンスター）
-  for (const pl of g.players) for (const m of pl.board) if (m.tempAttack) delete m.tempAttack;
+  // 一時強化と、賛助でこのターンだけ与えたキーワード（MTG 要素 △ バッチA）はターンの終わりに消える（両者のモンスター）
+  for (const pl of g.players) {
+    for (const m of pl.board) {
+      if (m.tempAttack) delete m.tempAttack;
+      if (m.tempGranted) delete m.tempGranted;
+    }
+  }
 
   // 隠密：召喚してから相手の次のターン終了まで
   for (const m of g.players[other(p)].board) {

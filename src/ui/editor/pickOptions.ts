@@ -47,6 +47,8 @@ import {
   type TargetId,
   type TimingDef,
   type TimingId,
+  RARITY_LABEL,
+  rarityRank,
 } from '../../engine/index.ts';
 import type { PickOption } from './OptionPicker.tsx';
 
@@ -234,13 +236,16 @@ export function effectOptionOptions(effect: EffectInstance, card: CardDef): Pick
     const x = extra(c);
     // サーチ・抽出の「同じ種族」は種族のあるカードだけ（MTG 要素 ○ バッチC2）
     const needTribe = c.id === 'tribe' && !card.tribe;
+    // 倍化の「3倍」はレジェンドだけ（MTG 要素 △ バッチA）
+    const minRarity = def.optionMinRarity?.[c.id];
+    const lowRarity = minRarity !== undefined && rarityRank(card.rarity) < rarityRank(minRarity);
     return {
       id: c.id,
       label: c.label,
       group: x.group,
       description: x.description,
       points: `${effectPoints({ ...effect, option: c.id }, card).value}pt`,
-      disabled: needTribe ? TRIBE_REASON : undefined,
+      disabled: needTribe ? TRIBE_REASON : lowRarity ? `${RARITY_LABEL[minRarity!]}のカードだけ` : undefined,
     };
   });
 }

@@ -17,6 +17,7 @@ import {
   createTokens,
   deckToBottom,
   deckToDiscard,
+  deckToExile,
   discardRandom,
   dispel,
   dispelOptions,
@@ -31,6 +32,7 @@ import {
   takeFromDiscard,
 } from './zones.ts';
 import type { Chosen, EffectRuntime, GameState, Monster, PlayerId, SourceRef, TargetRef } from './types.ts';
+import { advanceOne } from './powers.ts';
 
 /**
  * 出どころのカード（cardId）と同じ種族の、p の場のモンスター（MTG 要素 ○ バッチC2）。カードに種族が無ければ空。
@@ -126,6 +128,11 @@ export function resolveTargets(
     case 'tribeAllies':
       // 同じ種族の自分のモンスター（自分自身を含む。MTG 要素 ○ バッチC2）
       return tribeAllies(g, me, src.cardId).map((m) => ({ kind: 'monster', uid: m.uid }));
+    case 'attacker': {
+      // 攻撃してきた相手のモンスター（MTG 要素 △ バッチA）。場を離れていれば不発
+      const m = chosen.trigger ? findMonster(g, chosen.trigger) : undefined;
+      return m && m.controller !== me ? [{ kind: 'monster', uid: m.uid }] : [];
+    }
   }
 }
 
@@ -167,6 +174,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
         source: origin(),
         bonus,
         pierce: o.pierce,
+        ...(o.wither ? { wither: true } : {}),
         ...(opts.protectKey ? { playKey: opts.protectKey } : {}),
         depth,
       });
@@ -285,9 +293,9 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       m.defense = Math.min(BALANCE.stats.defenseMax, Math.max(0, m.defense + delta));
       log(g, depth, `${monsterLabel(g, m)}の守備力 ${before}→${m.defense}`);
     },
-    destroy(target) {
+    destroy(target, force) {
       const m = monsterOf(target);
-      if (m) destroyMonster(g, m, depth);
+      if (m) destroyMonster(g, m, depth, force === true);
     },
     bounce(target) {
       if (target.kind === 'monster') bounce(g, target.uid, depth);
@@ -330,7 +338,8 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       // 体力が0以下になったら破壊（ダメージではないので守備力・聖盾・不屈は効かない）
       if (m.hp <= 0) {
         m.hp = 0;
-        destroyMonster(g, m, depth + 1);
+        // 衰弱・枯朽で体力0は、不壊でも止まらない（MTG 要素 △ バッチA）
+        destroyMonster(g, m, depth + 1, true);
       }
     },
     addTempAttack(target, amount) {
@@ -542,6 +551,68 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
         return;
       }
       setCrown(g, p, depth, 'take');
+    },
+    // ---- MTG 要素 △ バッチA
+    addExp(p, n) {
+      const ps = g.players[p];
+      const now = ps.exp ?? 0;
+      const gain = Math.max(0, Math.min(n, B.expCap - now));
+      ps.exp = now + gain;
+      log(g, depth, `${ps.name}は経験+${gain}${gain < n ? `（上限${B.expCap}）` : ''}：経験${ps.exp}`, 'effect', undefined, { kind: 'status', target: playerRef(p), status: 'exp', amount: gain });
+    },
+    addIce(p, n) {
+      const ps = g.players[p];
+      const now = ps.ice ?? 0;
+      const gain = Math.max(0, Math.min(n, B.iceCap - now));
+      ps.ice = now + gain;
+      log(g, depth, `${ps.name}に氷結${gain}${gain < n ? `（上限${B.iceCap}）` : ''}：次のターン、手札${ps.ice}枚が凍る`, 'effect', undefined, { kind: 'status', target: playerRef(p), status: 'ice', amount: gain });
+    },
+    advanceSaga(p, uid) {
+      advanceOne(g, p, uid, depth);
+    },
+    deckToExile(p, uids, why) {
+      deckToExile(g, p, uids, why, depth);
+    },
+    markMonster(target, mark) {
+      const m = monsterOf(target);
+      if (!m) return;
+      const label = monsterLabel(g, m);
+      switch (mark) {
+        case 'finality':
+          m.finality = true;
+          log(g, depth, `${label}に消滅の印を付けた（破壊されたら除外される）`, 'effect', undefined, { kind: 'status', target, status: 'finality', amount: 1 });
+          return;
+        case 'suspected':
+          m.suspected = true;
+          log(g, depth, `${label}に容疑をかけた（攻撃力+${BALANCE.effects.suspect.attack}・挑発を失う・反撃しない）`, 'effect', undefined, { kind: 'status', target, status: 'suspected', amount: 1 });
+          return;
+        default: {
+          m.guard = { kind: mark, until: g.players[m.controller].turnsTaken + 1 };
+          const what = mark === 'indestructible' ? '不壊' : '加護';
+          log(g, depth, `${label}に守護（${what}）：次の持ち主のターン開始まで`, 'effect', undefined, { kind: 'status', target, status: mark, amount: 1 });
+        }
+      }
+    },
+    tempGrant(target, ids) {
+      const m = monsterOf(target);
+      if (!m || ids.length === 0) return;
+      m.tempGranted = [...new Set([...(m.tempGranted ?? []), ...ids])];
+      const names = ids.map((id) => getKeyword(id)?.name ?? id).join('・');
+      log(g, depth, `${monsterLabel(g, m)}はこのターンだけ「${names}」を得た${m.sealed ? '（封印中は働かない）' : ''}`);
+    },
+    perpetual(p, uid, n) {
+      const ps = g.players[p];
+      const card = ps.hand.find((c) => c.uid === uid);
+      if (!card) return;
+      const cap = BALANCE.effects.perpetual.cardCap;
+      const now = card.perm ?? { attack: 0, hp: 0 };
+      const next = { attack: Math.min(cap, now.attack + n), hp: Math.min(cap, now.hp + n) };
+      card.perm = next;
+      log(g, depth, `${ps.name}は手札のモンスターカード1枚を永久強化した（攻撃力+${next.attack}・体力+${next.hp}${next.attack < now.attack + n ? `、1枚につき+${cap}まで` : ''}）`);
+      log(g, depth, `永久強化したカード：${cardName(g, card.cardId)}`, 'info', p);
+    },
+    deckToBottomQuiet(p, uids) {
+      deckToBottom(g, p, uids, depth, (n) => `${g.players[p].name}の山札の上から${n}枚を山札の下に置いた`);
     },
   };
 }

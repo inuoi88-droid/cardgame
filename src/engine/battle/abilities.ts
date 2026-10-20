@@ -6,10 +6,10 @@
  */
 import { getAbility } from '../registry.ts';
 import type { AbilityInstance, CardDef, EffectInstance } from '../types.ts';
-import { enqueue, log, newUid } from './core.ts';
-import { allyCandidates, chosenRulesOf, enemyCandidates, validateChosen, wardTaxFor } from './play.ts';
-import { enqueueCardTiming } from './triggers.ts';
-import { discardCard, drawCards } from './zones.ts';
+import { enqueue, log, monsterDormant, newUid } from './core.ts';
+import { allyCandidates, chosenRulesOf, enemyCandidates, icedBlock, validateChosen, wardTaxFor } from './play.ts';
+import { enqueueCardTiming, powerDormant } from './triggers.ts';
+import { afterDiscarded, discardCard, drawCards } from './zones.ts';
 import { NOISE_CARD_ID, type CardInst, type Chosen, type GameState, type HandAbilityKind, type Monster, type PlayerId, type PowerInst, type SourceRef } from './types.ts';
 
 /** 起動できるもの（自分の場のモンスターか、自分のパワー） */
@@ -86,6 +86,8 @@ export function activateTargets(g: GameState, p: PlayerId, src: ActivateSource) 
 export function activateBlock(g: GameState, p: PlayerId, src: ActivateSource): string | null {
   if (g.phase !== 'main' || g.active !== p || g.pending) return '今は起動できません';
   if (src.monster?.sealed) return '封印されているので起動できません';
+  // 休眠（MTG 要素 △ バッチA）
+  if ((src.monster && monsterDormant(g, src.monster)) || (src.power && powerDormant(g, p, src.power))) return '休眠中なので起動できません';
   if (activatedEffects(src).length === 0) return '起動の効果がありません（解除された）';
   if (activatedThisTurn(g, src)) return 'このターンはもう起動しました（1ターン1回）';
   if (g.players[p].energy < src.cost) return `エナジーが足りません（起動にエナジー${src.cost}）`;
@@ -164,6 +166,8 @@ export function handAbilityBlock(g: GameState, p: PlayerId, card: CardInst, kind
   if (g.phase !== 'main' || g.active !== p || g.pending) return '今は使えません';
   const h = handAbilityOf(g.cards[card.cardId], kind);
   if (!h) return `このカードには${kind === 'cycling' ? 'サイクリング' : '魂力'}がありません`;
+  const ice = icedBlock(g, card);
+  if (ice) return ice;
   if (g.players[p].energy < h.cost) return `エナジーが足りません（${h.name}にエナジー${h.cost}）`;
   return null;
 }
@@ -205,8 +209,11 @@ export function useHandAbility(g: GameState, p: PlayerId, cardUid: string, kind:
   );
   if (kind === 'cycling') {
     drawCards(g, p, 1, 1);
+    // 捨てられたとき（MTG 要素 △ バッチA）
+    afterDiscarded(g, p, card, 1);
     return;
   }
   const src: SourceRef = { kind: 'card', uid: card.uid, cardId: card.cardId, name: def.name, controller: p };
   enqueueCardTiming(g, src, def, 'channel', chosen, 1, {});
+  afterDiscarded(g, p, card, 1);
 }

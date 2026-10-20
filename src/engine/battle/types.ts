@@ -39,6 +39,11 @@ export interface Statuses {
   /** 恩恵（プレイヤー。MTG 要素 ○ バッチB）：次に使うアタック boonUses 回、最初の1発のダメージ+boon。無ければ0 */
   boon?: number;
   boonUses?: number;
+  /**
+   * 放射能（プレイヤー。MTG 要素 △ バッチA）：自分のターン開始時（引いた後）に山札の上をこの枚数だけ捨て札に置き、
+   * モンスター以外1枚ごとにダメージ。その枚数だけ減る。無ければ0
+   */
+  rad?: number;
 }
 
 /**
@@ -52,6 +57,10 @@ export interface TokenSpec {
   defense?: number;
   copy?: boolean;
   temp?: boolean;
+  /** 卵（MTG 要素 △ バッチA：培養）：持ち主の turnsTaken が hatchAt 以上になったターン開始時に孵化し、攻撃力+attack の小鬼になる。攻撃できない */
+  egg?: { hatchAt: number; attack: number };
+  /** 落とし子（MTG 要素 △ バッチA）：破壊されると持ち主（今の持ち主）のエナジー+1 */
+  spawn?: boolean;
 }
 
 /** 対戦中のカード1枚 */
@@ -79,6 +88,13 @@ export interface CardInst {
    * （捨て札・手札へ行く代わりに除外へ。装備していたら外れるとき除外）
    */
   exileOnLeave?: boolean;
+  // ---- MTG 要素 △ バッチA
+  /** 氷結：この通算ターンの間は使えない（手札。サイクリング・魂力も不可） */
+  iced?: number;
+  /** 永久強化：この個体の攻撃力・体力の上乗せ（どこに移っても残る。場に出たとき印刷のステータスに足す） */
+  perm?: { attack: number; hp: number };
+  /** 手札から捨てられた通算ターン（捨てられたとき） */
+  discardedTurn?: number;
 }
 
 export const NOISE_CARD_ID = '__noise__';
@@ -88,6 +104,8 @@ export const TOKEN_CARD_ID = '__token__';
 export const ARMY_CARD_ID = '__army__';
 /** 創出で作るカード定義のキーの前置き（`__conjure__:<種類>:<N>`） */
 export const CONJURE_PREFIX = '__conjure__:';
+/** 培養の「卵」トークンのカード定義のキー（MTG 要素 △ バッチA。孵化すると TOKEN_CARD_ID に変わる） */
+export const EGG_CARD_ID = '__egg__';
 
 export interface Monster {
   uid: string;
@@ -125,6 +143,15 @@ export interface Monster {
   equipment?: CardInst[];
   /** 懸賞：破壊されたら player がカードを draw 枚引く */
   bounty?: { player: PlayerId; draw: number }[];
+  // ---- MTG 要素 △ バッチA（公開情報）
+  /** 消滅の印：破壊されたら捨て札ではなく除外へ */
+  finality?: boolean;
+  /** 容疑：攻撃力+、挑発を失い、反撃しない。攻撃したときは反撃を受けない */
+  suspected?: boolean;
+  /** 守護：until（持ち主の turnsTaken）のターン開始時まで、不壊（体力が1未満にならず破壊されない）か加護（ダメージを受けず、相手のカードに選ばれない） */
+  guard?: { kind: 'indestructible' | 'protection'; until: number };
+  /** 賛助でこのターンだけ与えられたキーワード（ターン終了時に消える。封印中は働かない） */
+  tempGranted?: string[];
 }
 
 /** 場に残っているパワー */
@@ -151,6 +178,11 @@ export interface PowerInst {
   charge?: number;
   /** 蓄積がたまった回数（通算ターンごと。1ターン battle.maxRepeatTriggersPerTurn 回まで） */
   chargeTicks?: { turnIndex: number; count: number };
+  // ---- MTG 要素 △ バッチA（公開情報）
+  /** 累加維持費：場にあるターン数（持ち主のターン開始時に+1） */
+  age?: number;
+  /** 休眠：置いたときの持ち主の turnsTaken（差が奇数のターンは休眠中） */
+  dormantFrom?: number;
 }
 
 /** 1ターンの上限を数える（安全装置：決定事項 #64）。turnIndex が変わったら数え直す */
@@ -197,6 +229,8 @@ export interface PlayerState {
     healed?: boolean;
     /** 速度がこのターンもう上がった（MTG 要素 ○ バッチC2。1ターン1回） */
     speedUp?: boolean;
+    /** このターンに使ったカードの種類（MTG 要素 △ バッチA：条件「このターン3種類以上のカードを使った」。monster・attack・skill・power） */
+    typesPlayed?: string[];
   };
   /** 最後に終えた自分のターンの記録（ターン終了時に写す。条件「前の相手のターンに相手がカードを3枚以上使った」）。無ければ記録なし */
   lastTurn?: { cardsPlayed: number };
@@ -208,6 +242,10 @@ export interface PlayerState {
   energyBonus?: number;
   /** 速度ゲージ（MTG 要素 ○ バッチC2）。無ければ0＝ゲージ無し。公開情報 */
   speed?: number;
+  /** 経験（MTG 要素 △ バッチA）：試合中ずっと残る数。修飾「経験1につき」が見る。無ければ0。公開情報 */
+  exp?: number;
+  /** 氷結（MTG 要素 △ バッチA）：次の自分のターン開始時（引いた後）に、手札からこの枚数が凍る。無ければ0。公開情報 */
+  ice?: number;
   /** 次に使うカードのコスト軽減（使うまで残る） */
   discount: number;
   /** 自分のターンを迎えた回数 */
@@ -247,6 +285,8 @@ export interface SourceRef {
 export interface Chosen {
   enemy?: TargetRef;
   ally?: string;
+  /** 攻撃してきた相手のモンスター（「相手のモンスターが攻撃するたび」の対象「攻撃してきたモンスター」。MTG 要素 △ バッチA）。行動では送れない */
+  trigger?: string;
 }
 
 /** 解決待ちの処理。キューの先頭から順に処理し、途中で選択が要れば止まる */
@@ -265,6 +305,8 @@ export type Step =
       picks?: string[];
       /** 成長（MTG 要素 ○ バッチB）：ダメージ・連撃の数値に足す量（使ったカードの個体の値） */
       grow?: number;
+      /** ばらつき（MTG 要素 △ バッチA）：決めた倍率（選択で止まって再開したときに振り直さない） */
+      gambleRate?: number;
     }
   | { t: 'drawback'; src: SourceRef; drawback: DrawbackInstance; protectKey?: string; depth: number; picks?: string[] }
   /** 手札を count 枚選んで捨てる（手札整理）。then が recruit なら、捨てたのがスキルのときトークンを出す（徴募） */
@@ -295,6 +337,8 @@ export type Step =
   | { t: 'reboundDone'; card: CardInst; depth: number }
   /** 英雄譚（MTG 要素 ○ バッチC2）：最後の章を解決し終えたら、パワーを消す（誘発なし） */
   | { t: 'sagaEnd'; player: PlayerId; powerUid: string; depth: number }
+  /** パワーを誘発なしで取り除く（MTG 要素 △ バッチA：罠・プラン） */
+  | { t: 'powerGone'; player: PlayerId; powerUid: string; depth: number; why: 'trap' | 'plan' }
   | { t: 'autoAttacks'; player: PlayerId }
   | { t: 'turnEndEffects'; player: PlayerId }
   | { t: 'retain'; player: PlayerId; picks?: string[] }
@@ -323,9 +367,10 @@ export interface PendingChoice {
 
 /**
  * ダメージの種類。attack：モンスターの攻撃 / hit：ダメージ・連撃効果の1回分（格闘も） / counter：反撃（状態） /
- * retaliate：攻撃されたモンスターの反撃 / trample：貫通の余り / poison・burn・doom：毒・やけど・呪縛 / self：自傷・維持費・寄生
+ * retaliate：攻撃されたモンスターの反撃 / trample：貫通の余り / poison・burn・doom：毒・やけど・呪縛 / self：自傷・維持費・寄生 /
+ * rad：放射能（MTG 要素 △ バッチA。毒と同じくシールド・無効化を無視）
  */
-export type DamageKind = 'attack' | 'hit' | 'counter' | 'retaliate' | 'trample' | 'poison' | 'burn' | 'doom' | 'self';
+export type DamageKind = 'attack' | 'hit' | 'counter' | 'retaliate' | 'trample' | 'poison' | 'burn' | 'doom' | 'self' | 'rad';
 
 /** ログに付ける構造化された出来事（UI の演出・再生用。決定事項 #71）。公開情報だけを入れる */
 export interface LogEvent {
@@ -484,7 +529,7 @@ export interface EffectRuntime {
   readonly targets: TargetRef[];
   readonly src: SourceRef;
   /** ダメージ効果の1回分（出血・反撃が働く。筋力・気合はアタックの使用時、そのカードの最初の1発にだけ乗る） */
-  hit(target: TargetRef, amount: number, opts?: { pierce?: boolean; drain?: boolean }): void;
+  hit(target: TargetRef, amount: number, opts?: { pierce?: boolean; drain?: boolean; wither?: boolean }): void;
   /** 自分へのダメージ（自傷など） */
   selfDamage(amount: number): void;
   heal(target: TargetRef, amount: number): void;
@@ -501,7 +546,8 @@ export interface EffectRuntime {
   cleanse(player: PlayerId): void;
   changeAttack(target: TargetRef, delta: number): void;
   changeDefense(target: TargetRef, delta: number): void;
-  destroy(target: TargetRef): void;
+  /** force：守護の不壊でも破壊する（生け贄。MTG 要素 △ バッチA） */
+  destroy(target: TargetRef, force?: boolean): void;
   bounce(target: TargetRef): void;
   steal(target: TargetRef): void;
   /** 選択肢を作るための情報 */
@@ -578,6 +624,23 @@ export interface EffectRuntime {
   startEngine(player: PlayerId): void;
   /** 王冠を得る */
   takeCrown(player: PlayerId): void;
+  // ---- MTG 要素 △ バッチA
+  /** 経験を得る（上限あり） */
+  addExp(player: PlayerId, n: number): void;
+  /** 氷結を掛ける（次のターン開始時に手札が凍る。上限あり） */
+  addIce(player: PlayerId, n: number): void;
+  /** 英雄譚1つを次の章に進める */
+  advanceSaga(player: PlayerId, powerUid: string): void;
+  /** 山札の uids を除外へ（名前は公開） */
+  deckToExile(player: PlayerId, uids: string[], why: string): void;
+  /** モンスターの状態（消滅の印・容疑・守護） */
+  markMonster(target: TargetRef, mark: 'finality' | 'suspected' | 'indestructible' | 'protection'): void;
+  /** このターンだけキーワードを与える（賛助） */
+  tempGrant(target: TargetRef, keywordIds: string[]): void;
+  /** 手札のカードを永久強化（どこに移っても残る） */
+  perpetual(player: PlayerId, cardUid: string, n: number): void;
+  /** 山札の uids を元の並びのまま山札の下へ（消術。ログは「山札の上から N 枚を山札の下に置いた」） */
+  deckToBottomQuiet(player: PlayerId, uids: string[]): void;
 }
 
 export type StatusKey =
@@ -593,7 +656,8 @@ export type StatusKey =
   | 'regen'
   | 'strength'
   | 'focus'
-  | 'doom';
+  | 'doom'
+  | 'rad';
 
 /** 選択を求めるときの指定（効果ファイルが返す） */
 export interface ChoiceSpec {

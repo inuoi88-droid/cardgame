@@ -14,6 +14,7 @@ import {
   DEFAULT_ATTACK_PROFILE,
   chargeSpec,
   TIMINGS,
+  TRAP_TIMINGS,
   conditionMultiplier,
   defaultTiming,
   targetLabel,
@@ -88,13 +89,17 @@ function timingFactor(timing: keyof typeof TIMINGS, base: CardBase, card: PointC
   if (timing === 'charged') {
     // 蓄積（MTG 要素 ○ バッチC2）：必要数とイベントで倍率が変わる
     const c = chargeSpec(card.abilities);
-    return { label: `${t.label}（蓄積${c.need}・${CHARGE_EVENT_LABEL[c.event]}）`, value: timingMultiplier(timing, base, undefined, card) };
+    return { label: `${t.label}（${c.once ? 'プラン・' : ''}蓄積${c.need}・${CHARGE_EVENT_LABEL[c.event]}）`, value: timingMultiplier(timing, base, undefined, card) };
   }
   if (timing === 'activated' || timing === 'channel') {
     // 起動・魂力（MTG 要素 ○ バッチC1）：起動のエナジーで倍率が変わる。表示はエナジーつき
     return { label: timingLabelFor(timing, card.abilities), value: timingMultiplier(timing, base, undefined, card) };
   }
-  if (timing !== 'attack' || base !== 'monster') return { label: t.label, value: timingMultiplier(timing, base) };
+  if (timing !== 'attack' || base !== 'monster') {
+    // 罠（MTG 要素 △ バッチA）のパワーは、罠のタイミングの倍率が能力の倍率になる
+    const trap = base === 'spell' && TRAP_TIMINGS.includes(timing) && (card.abilities ?? []).some((a) => a.id === 'trap');
+    return { label: trap ? `${t.label}（罠）` : t.label, value: timingMultiplier(timing, base, DEFAULT_ATTACK_PROFILE, card) };
+  }
   const profile = attackProfile(card.keywords);
   const value = timingMultiplier(timing, base, profile);
   const T = BALANCE.timing;
@@ -112,12 +117,16 @@ function timingFactor(timing: keyof typeof TIMINGS, base: CardBase, card: PointC
 }
 
 /** このオプション（の種類）をこの効果に付けられるか（タイミングは見ない） */
-export function modifierFits(m: Pick<ModifierDef, 'scope'>, def: Pick<EffectDef, 'allowsMods' | 'scalable' | 'noDelay'>): boolean {
+export function modifierFits(
+  m: Pick<ModifierDef, 'scope' | 'requiresScaledValue'>,
+  def: Pick<EffectDef, 'allowsMods' | 'scalable' | 'noDelay'> & { value?: EffectDef['value'] },
+): boolean {
   switch (m.scope) {
     case 'damage':
       return def.allowsMods === true;
     case 'scale':
-      return def.scalable === true;
+      // ばらつき（MTG 要素 △ バッチA）は量の効果だけ
+      return def.scalable === true && (!m.requiresScaledValue || def.value?.scaled === true);
     case 'delay':
       return def.noDelay !== true;
   }

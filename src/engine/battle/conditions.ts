@@ -183,5 +183,34 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
       return (mine.speed ?? 0) >= BALANCE.speed.max;
     case 'hasCrown':
       return g.crown === me;
+    // ---- MTG 要素 △ バッチA
+    case 'converge': {
+      // このターンに使ったカードの種類（コストの計算なら、これから使う1枚の種類も）
+      if (!myTurn) return false;
+      const kinds = new Set(mine.turn.typesPlayed ?? []);
+      if (opts.forCost && opts.selfUid) {
+        const card = [...mine.hand, ...mine.discard].find((c) => c.uid === opts.selfUid);
+        const def = card ? g.cards[card.cardId] : undefined;
+        if (def) {
+          const t = classifyCard(def);
+          kinds.add(t === 'powerAttack' ? 'power' : t);
+        }
+      }
+      return kinds.size >= C.convergeMin;
+    }
+    case 'descend':
+      return (
+        mine.discard.filter((c) => {
+          const def = c.cardId === NOISE_CARD_ID ? undefined : g.cards[c.cardId];
+          if (!def) return false;
+          const t = classifyCard(def);
+          return t === 'monster' || t === 'power' || t === 'powerAttack';
+        }).length >= C.descendMin
+      );
+    case 'rested': {
+      if (!opts.src) return true;
+      const m = sourceMonster(g, opts.src);
+      return m !== undefined && m.counters.attackedTurn !== g.turnIndex;
+    }
   }
 }

@@ -734,7 +734,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
                 </h2>
               </div>
               <p className="hint">
-                カード1枚に付く性質です。循環・再利用・反復・成長（アタック・スキル向け）、捨て札から使う（フラッシュバック・再活・脱出）、起動、サイクリング・魂力、コストを変える（親和・条件付き軽減・キッカー）、モード選択のカードの双呪、パワーの蓄積。
+                カード1枚に付く性質です。循環・再利用・反復・成長（アタック・スキル向け）、捨て札から使う（フラッシュバック・再活・脱出）、起動、サイクリング・魂力、コストを変える（親和・条件付き軽減・キッカー）、モード選択のカードの双呪、パワーの蓄積（プラン）・罠。
               </p>
               {abilities.map((a, i) => {
                 const def = getAbility(a.id);
@@ -749,7 +749,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
                       </button>
                     </div>
                     {def && <p className="ed-row__summary">{def.summary}</p>}
-                    {(def?.value || def?.option || def?.takesCondition) && (
+                    {(def?.value || def?.option || def?.takesCondition || def?.onceOption) && (
                       <div className="ed-row__params">
                         {def.value && (
                           <Stepper
@@ -786,6 +786,27 @@ function Editor({ saved }: { saved: CardDef | null }) {
                             invalid={violationsAt(analysis.violations, `abilities.${i}.condition`).length > 0}
                             note="怒濤＝「このターン2枚目以降」、罠＝「前の相手のターンに相手が3枚以上使った」"
                           />
+                        )}
+                        {def.onceOption && (
+                          // 1回きり（MTG 要素 △ バッチA：蓄積の「プラン」）
+                          <label className="check" title={def.onceOption.label}>
+                            <input
+                              type="checkbox"
+                              checked={a.once === true}
+                              onChange={(e) =>
+                                setAbilities(
+                                  abilities.map((x, j) => {
+                                    if (j !== i) return x;
+                                    const next = { ...x };
+                                    if (e.target.checked) next.once = true;
+                                    else delete next.once;
+                                    return next;
+                                  }),
+                                )
+                              }
+                            />
+                            {def.onceOption.label}
+                          </label>
                         )}
                       </div>
                     )}

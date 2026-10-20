@@ -120,6 +120,14 @@ export const BALANCE = {
     chapter2: 0.9,
     chapter3: 0.8,
     chargedPower: 6.0,
+    /**
+     * MTG 要素 △ バッチA（決定事項ログ）。相手のモンスターが攻撃するたび（モンスターとパワーで違う。能力「罠」のパワーは
+     * abilities.trap.timingRate）・捨てられたとき（マッドネス）・各ターン初めて自分のカードの対象になったとき（雄姿）
+     */
+    enemyAttackedMonster: 1.5,
+    enemyAttackedPower: 4.0,
+    discarded: 0.6,
+    valiant: 1.0,
   },
   /** タイミングに出てくる数（MTG 要素 ○ バッチA） */
   timingParams: {
@@ -147,6 +155,8 @@ export const BALANCE = {
     bothPlayers: 0.4,
     /** MTG 要素 ○ バッチC2：同じ種族の自分のモンスター全体（ロード）。#95 で 1.6→2.0（同じ種族だけのデッキでは自分のモンスター全体と同じになるため） */
     tribeAllies: 2.0,
+    /** MTG 要素 △ バッチA：攻撃してきたモンスター（「相手のモンスターが攻撃するたび」だけ） */
+    attacker: 1.0,
   },
   /** モンスターにしか作用しない効果（処刑・封印など）の「敵味方すべて」はプレイヤーに当たらないぶん高い（決定事項 #68） */
   targetMonsterOnly: {
@@ -204,6 +214,10 @@ export const BALANCE = {
     maxSpeed: 0.5,
     /** #95 で 0.6→0.75（モンスターのいないデッキは王冠を奪われにくく、ほぼいつも満たせた） */
     hasCrown: 0.75,
+    /** MTG 要素 △ バッチA：このターン3種類以上のカードを使った（収斂）・捨て札にモンスターとパワーが4枚以上（落魄）・このモンスターがこのターン攻撃していない（長久） */
+    converge: 0.5,
+    descend: 0.7,
+    rested: 0.7,
   },
   /** 「キッカーを払っていれば」の倍率（キッカーの追加エナジー1・2 の順。MTG 要素 ○ バッチC1） */
   conditionByKicker: [0.6, 0.45],
@@ -253,6 +267,10 @@ export const BALANCE = {
     enemyPoisonMin: x(3),
     /** 「このターン2枚目以降に使う」 */
     notFirstCardFrom: 2,
+    /** MTG 要素 △ バッチA。「このターン3種類以上のカードを使った」（種類はモンスター・アタック・スキル・パワー） */
+    convergeMin: 3,
+    /** 「捨て札にモンスターとパワーが合わせて4枚以上」 */
+    descendMin: 4,
   },
 
   /**
@@ -271,12 +289,22 @@ export const BALANCE = {
     perDiscardMonster: 1.2,
     /** MTG 要素 ○ バッチC2：同じ種族の自分のモンスター1体につき（自分自身を含む。数の上限は scaleCountCap） */
     perTribeAlly: 1.0,
+    /** MTG 要素 △ バッチA：萎縮（ダメージで減った体力のぶん最大体力も減る）・経験1につき（数値の倍数）・ばらつき（期待値は同じで少し安い） */
+    witherDmg: 0.1,
+    perExp: 1.0,
+    gamble: -0.1,
   },
   modifierParams: {
     /** 「相手モンスター1体につき」「このターン使ったカード1枚につき」の数の上限 */
     scaleCountCap: 3,
     /** 「捨て札のモンスター1枚につき」の数の上限 */
     discardCountCap: 5,
+    /** MTG 要素 △ バッチA。「経験1につき」の数の上限 */
+    expCountCap: 5,
+    /** 「ばらつき」の倍率（どれか1つがシード乱数で決まる） */
+    gambleRates: [0.5, 1, 1.5],
+    /** 「ばらつき」の量の刻み（切り捨て。最低もこの値。倍率1では1になる） */
+    gambleStep: x(0.5),
   },
 
   /** 効果の数値 N の入力範囲（効果ごとの上書きは effects 側の maxValue）。value は量、count は枚数・ターン数・エナジー */
@@ -424,6 +452,27 @@ export const BALANCE = {
     /** MTG 要素 ○ バッチC2（決定事項ログ）：エンジン始動（速度ゲージを始める）・王冠を得る */
     startEngine: { flat: x(2) },
     crown: { flat: x(10) },
+    /**
+     * MTG 要素 △ バッチA（決定事項ログ）。価格は目安。消滅の印・放射能 N（枚数）・経験 N・氷結 N・章を進める・
+     * 培養 N（N×perValue＋base）・容疑（攻撃力+attack）・守護（不壊／加護）・賛助 N（N×perValue＋base）・消術 N・
+     * 永久強化 N（1枚につき攻撃力・体力それぞれ cardCap まで）・山札消滅 N
+     */
+    finality: { flat: x(2) },
+    rad: { perCount: x(1.2), maxCount: 3 },
+    gainExp: { perCount: x(2), maxCount: 2 },
+    iceLock: { perCount: x(4), maxCount: 2 },
+    advanceSaga: { flat: x(3) },
+    incubate: { perValue: 3, base: x(0.5), maxValue: x(5) },
+    suspect: { flat: x(5), attack: x(1) },
+    guard: { indestructible: x(8), protection: x(7) },
+    backup: { perValue: 4.5, base: x(2), maxValue: x(3) },
+    fateseal: { perCount: x(1.5), maxCount: 3 },
+    perpetual: { perValue: 4, maxValue: x(2), cardCap: x(5) },
+    exileMill: { perCount: x(1.2), maxCount: 3 },
+    /** トークン生成の「落とし子」（破壊されると持ち主のエナジー+1）：1体につき足す */
+    tokenSpawn: { perToken: x(1.5) },
+    /** 倍化の「3倍」（レジェンドだけ）：固定ポイントに足す */
+    doubleTriple: { flat: x(20) },
   },
 
   /** モンスター専用キーワードのポイント（A は攻撃力）。挑発は #83（カードの効果の対象も挑発に限る）のあと #84 で 6→8 */
@@ -462,6 +511,9 @@ export const BALANCE = {
     onslaught: { perValue: 2, maxValue: x(5) },
     menace: { min: x(3), perAttack: 1 },
     doubleTeam: { rate: 0.4 },
+    /** MTG 要素 △ バッチA（決定事項ログ）。対空（飛行に効く挑発）・潜伏（自分より攻撃力の高い挑発を無視） */
+    reach: { flat: x(2) },
+    skulk: { flat: x(2) },
   },
 
   /**
@@ -500,6 +552,12 @@ export const BALANCE = {
      * たまるのは1つにつき1ターン battle.maxRepeatTriggersPerTurn 回まで
      */
     charge: { min: 2, max: 5, flat: x(0), rates: { turnStart: 1, cardPlayed: 2, allySummoned: 1, enemyDamaged: 1, allyDestroyed: 0.7 } },
+    /**
+     * MTG 要素 △ バッチA（決定事項ログ）。蓄積の「プラン（1回きり）」：「蓄積がたまったとき」の倍率×planRate（ただし planMin 未満にしない）。
+     * 罠：罠のパワーの効果は、タイミングの倍率の代わりに timingRate（能力自体は0pt）
+     */
+    chargePlan: { planRate: 0.35, planMin: 1.0 },
+    trap: { timingRate: 1.2, flat: x(0) },
   },
 
   /**
@@ -536,6 +594,12 @@ export const BALANCE = {
     blight: { perValue: 3, maxValue: x(5) },
     /** 捨て札の除外：枚数 N（N×perCard）か、コストの合計 N（N×perCost）。× タイミング */
     exileDiscard: { perCard: x(0.8), perCost: x(0.4), maxCount: 5, maxCost: 10 },
+    /**
+     * MTG 要素 △ バッチA（決定事項ログ）。累加維持費 N：N×perValue（固定値。N は minValue〜maxValue。場にいるターン数は maxAge で止まる）。
+     * 休眠：モンスターは max(min, 攻撃力×perAttack)、パワーはパワーの効果のポイント×powerRate（固定値）
+     */
+    cumulativeUpkeep: { perValue: 4, minValue: x(0.5), maxValue: x(2), maxAge: 6 },
+    dormant: { min: x(2), perAttack: 1.5, powerRate: 0.4 },
   },
 
   /** オンライン対戦（決定事項 #57） */
@@ -597,6 +661,8 @@ export const BALANCE = {
     retaliation: { enabled: true },
     /** 不屈で踏みとどまるときの体力 */
     undyingHp: x(1),
+    /** 守護の不壊（MTG 要素 △ バッチA）で踏みとどまるときの体力 */
+    indestructibleHp: x(1),
     /** 安全装置（決定事項 #64。#44 の「上限なし」を取り消し、元の仕様に戻す） */
     /** 1ターンに引けるのは合計この枚数まで（ターン開始時の5枚を含む） */
     maxDrawPerTurn: 10,
@@ -633,6 +699,14 @@ export const BALANCE = {
     maxArmy: 1,
     /** 最大エナジー増加は1人この回数まで */
     rampCap: 1,
+    /** MTG 要素 △ バッチA：放射能の合計の上限と、モンスター以外1枚ごとのダメージ。経験・氷結の上限。卵の孵化までの自分のターン数 */
+    radCap: 10,
+    radDamage: x(1),
+    expCap: 10,
+    iceCap: 3,
+    eggHatchTurns: 2,
+    eggName: '卵',
+    eggIcon: '🥚',
   },
 
   /** 速度ゲージ（MTG 要素 ○ バッチC2）：エンジン始動で start、自分のターンに相手のHPを減らすと1ターン1回+1、max まで */

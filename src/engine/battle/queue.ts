@@ -10,7 +10,8 @@ import { destroyMonster, keywordFlags } from './damage.ts';
 import { cardName, checkGameEnd, enqueue, findMonster, log, monsterLabel, newUid, other, playRecord } from './core.ts';
 import { executeFreePlay, finishCard } from './play.ts';
 import { makeRuntime, resolveTargets, tribeAllies } from './runtime.ts';
-import { endSaga } from './powers.ts';
+import { endSaga, executePowerGone } from './powers.ts';
+import { randInt } from './rng.ts';
 import { retainOptions, runAutoAttacks, turnEndEffects, turnEndFinish } from './turn.ts';
 import { bounce, createTokens, discardCard, discardChosen } from './zones.ts';
 import { classifyCard } from '../classify.ts';
@@ -53,6 +54,8 @@ function executeStep(g: GameState, step: Step): void {
       return;
     case 'sagaEnd':
       return endSaga(g, step.player, step.powerUid, step.depth);
+    case 'powerGone':
+      return executePowerGone(g, step);
     case 'autoAttacks':
       return runAutoAttacks(g, step.player);
     case 'turnEndEffects':
@@ -110,6 +113,23 @@ function scaledEffect(g: GameState, step: Extract<Step, { t: 'effect' }>, def: E
       why = `同じ種族の自分のモンスター${count}体${count > cap ? `（最大${cap}）` : ''}`;
       break;
     }
+    case 'perExp': {
+      // 経験1につき（MTG 要素 △ バッチA）
+      const ecap = BALANCE.modifierParams.expCountCap;
+      const count = g.players[me].exp ?? 0;
+      factor = Math.min(count, ecap);
+      why = `経験${count}${count > ecap ? `（最大${ecap}）` : ''}`;
+      break;
+    }
+    case 'gamble': {
+      // ばらつき（MTG 要素 △ バッチA）：決めた倍率を掛けて、量の刻みに切り捨てる（最低も刻み）
+      const rate = step.gambleRate ?? 1;
+      const unit = Math.max(1, Math.floor(BALANCE.modifierParams.gambleStep));
+      const raw = (step.effect.value ?? 0) * rate;
+      const max = def.value?.max ?? Infinity;
+      const value = Math.min(max, Math.max(unit, Math.floor(raw / unit) * unit));
+      return { effect: { ...step.effect, value }, factor: rate, why: 'ばらつき' };
+    }
     default:
       return null;
   }
@@ -142,6 +162,11 @@ function executeReturnToHand(g: GameState, step: Extract<Step, { t: 'returnToHan
 function executeEffect(g: GameState, original: Extract<Step, { t: 'effect' }>): void {
   const def = getEffect(original.effect.id);
   if (!def) return;
+  // ばらつき（MTG 要素 △ バッチA）：倍率は最初に1回だけ決める（選択で止まって再開しても振り直さない）
+  if (original.gambleRate === undefined && !original.picks && effectModifiers(original.effect).some((m) => m.id === 'gamble')) {
+    const rates = BALANCE.modifierParams.gambleRates;
+    original.gambleRate = rates[randInt(g, rates.length)]!;
+  }
   const step = grownStep(original, def);
   const me = step.src.controller;
   if (!step.picks) {
@@ -260,7 +285,8 @@ function executeExploitChoice(g: GameState, step: Extract<Step, { t: 'exploitCho
     }
     log(g, step.depth, `濫用：${monsterLabel(g, m)}を生け贄にした`);
     playRecord(g, step.protectKey).exploited = true;
-    destroyMonster(g, m, step.depth + 1);
+    // 生け贄は不壊でも止まらない（MTG 要素 △ バッチA）
+    destroyMonster(g, m, step.depth + 1, true);
     checkGameEnd(g);
     return;
   }

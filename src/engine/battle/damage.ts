@@ -11,6 +11,7 @@ import {
   checkGameEnd,
   findMonster,
   log,
+  monsterDormant,
   monsterLabel,
   playRecord,
   sourceOfMonster,
@@ -18,6 +19,7 @@ import {
   targetExists,
   targetLabel,
   isEnded,
+  turnLimits,
 } from './core.ts';
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
 import { chargePowers } from './powers.ts';
@@ -44,6 +46,8 @@ export interface DamageOpts {
   prefix?: string;
   /** 格闘のダメージ（接死・絆魂が働く。MTG 要素バッチ2） */
   combat?: boolean;
+  /** 萎縮（MTG 要素 △ バッチA）：モンスターが減らした体力のぶん、最大体力も減る */
+  wither?: boolean;
   /**
    * 出どころのモンスターの接死・絆魂と持ち主。出どころが先に場を離れることがある反撃・格闘では、呼び出し側が先に調べて渡す。
    * 省略すると、出どころのモンスターが場にいればそこから読む
@@ -70,7 +74,7 @@ export interface DamageResult {
 /** 攻撃・ダメージ効果・モンスターの反撃：弱体・脆弱・守備力・最低1・出血が働く */
 const isHitKind = (k: DamageKind) => k === 'attack' || k === 'hit' || k === 'retaliate';
 const detailOf = (base: number, steps: string[]) => (steps.length ? `（基本${base} → ${steps.join(' → ')}）` : '');
-const isDot = (k: DamageKind) => k === 'poison' || k === 'burn' || k === 'doom';
+const isDot = (k: DamageKind) => k === 'poison' || k === 'burn' || k === 'doom' || k === 'rad';
 const targetKey = (t: TargetRef) => (t.kind === 'player' ? `p${t.player}` : t.uid);
 
 /** 同じカードの使用で、この対象にもう働いたか（記録して true/false を返す。記録のキーがなければ毎回働く） */
@@ -92,10 +96,12 @@ export function keywordFlags(g: GameState, m: Monster): KeywordDef['battle'] {
     const kd = getKeyword(k.id);
     if (kd) Object.assign(flags, kd.battle);
   }
-  for (const id of m.granted ?? []) {
+  for (const id of [...(m.granted ?? []), ...(m.tempGranted ?? [])]) {
     const kd = getKeyword(id);
     if (kd) Object.assign(flags, kd.battle);
   }
+  // 容疑（MTG 要素 △ バッチA）：挑発を失う
+  if (m.suspected) flags.taunt = false;
   return flags;
 }
 
@@ -143,11 +149,28 @@ export function onLeaveBoard(g: GameState, m: Monster, depth: number, destroyed:
   const bounty = m.bounty ?? [];
   delete m.bounty;
   if (!destroyed) return;
+  // 落とし子（MTG 要素 △ バッチA）：破壊されたら今の持ち主のエナジー+1（手番ならこのターン、そうでなければ次のターン）
+  if (m.card.token?.spawn) spawnEnergy(g, m.controller, depth);
   for (const b of bounty) {
     if (isEnded(g)) return;
     log(g, depth, `懸賞：${g.players[b.player].name}がカードを${b.draw}枚引く`);
     drawCards(g, b.player, b.draw, depth + 1);
   }
+}
+
+/** 落とし子のエナジー：手番ならこのターン（1ターンに増やせるエナジーの上限に数える）、そうでなければ次のターンに+1 */
+function spawnEnergy(g: GameState, p: PlayerId, depth: number): void {
+  const ps = g.players[p];
+  if (g.phase === 'main' && g.active === p) {
+    const limits = turnLimits(g, ps);
+    const gain = Math.max(0, Math.min(1, B.maxEnergyGainPerTurn - limits.energyGained));
+    limits.energyGained += gain;
+    ps.energy += gain;
+    log(g, depth, gain > 0 ? `落とし子：${ps.name}はエナジーを1得た（エナジー${ps.energy}）` : `落とし子：${ps.name}はこのターンもうエナジーを増やせない`, 'info');
+    return;
+  }
+  ps.next.energy += 1;
+  log(g, depth, `落とし子：${ps.name}の次のターンのエナジー+1`, 'info');
 }
 
 /** 戦闘のダメージで働く接死・絆魂（出どころのモンスターから読む） */
@@ -164,9 +187,14 @@ export function targetableTaunts(g: GameState, owner: PlayerId): Monster[] {
   return g.players[owner].board.filter((m) => !m.stealth && keywordFlags(g, m).taunt);
 }
 
-/** カードの「選んだ1体」で選べる相手のモンスターか（隠密・呪禁は選べない。MTG 要素バッチ2） */
+/** カードの「選んだ1体」で選べる相手のモンスターか（隠密・呪禁・守護の加護は選べない。MTG 要素バッチ2・△ バッチA） */
 export function cardTargetable(g: GameState, m: Monster): boolean {
-  return !m.stealth && !keywordFlags(g, m).hexproof;
+  return !m.stealth && !keywordFlags(g, m).hexproof && !guarded(m, 'protection');
+}
+
+/** 守護（MTG 要素 △ バッチA）が今かかっているか（kind を渡すとその種類だけ） */
+export function guarded(m: Monster, kind?: 'indestructible' | 'protection'): boolean {
+  return m.guard !== undefined && (kind === undefined || m.guard.kind === kind);
 }
 
 /** カードの「選んだ1体」を縛る挑発モンスター（呪禁の挑発は数えない。呪禁の挑発しかいなければ自由に選べる） */
@@ -299,6 +327,11 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
   const before = m.hp;
   const label = monsterLabel(g, m);
   const detail = detailOf(base, steps);
+  // 守護の加護（MTG 要素 △ バッチA）：すべてのダメージを0にする（聖盾より先）
+  if (amount > 0 && guarded(m, 'protection')) {
+    log(g, opts.depth, `${prefix}${label}への${amount}ダメージ${detail}を加護が防いだ`, 'damage', undefined, { kind: 'status', target, status: 'protection', amount: 0 });
+    return none;
+  }
   // 聖盾：最初に受けるダメージ1回を0にする（毒・やけど・呪縛・自傷は防がない）
   if (amount > 0 && (hit || opts.kind === 'counter') && !m.shieldUsed && keywordFlags(g, m).divineShield) {
     m.shieldUsed = true;
@@ -313,7 +346,14 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
   let result: DamageResult;
   /** 生き残って、ダメージを受けたときが発動しうる（不屈で踏みとどまったときは発動しない） */
   let damagedTrigger = false;
-  if (before - amount <= 0 && keywordFlags(g, m).undying && !m.undyingUsed) {
+  /** 守護の不壊（MTG 要素 △ バッチA）：体力が1未満にならない（不屈より先） */
+  const floor = guarded(m, 'indestructible') ? Math.min(before, B.indestructibleHp) : 0;
+  if (before - amount <= 0 && floor > 0) {
+    m.hp = floor;
+    log(g, opts.depth, `${prefix}${label}に${kindLabel}${amount}ダメージ${detail}：不壊で体力${m.hp}で踏みとどまった`, 'damage', undefined, ev(amount));
+    result = { hpLost: before - m.hp, overflow: 0, destroyed: false };
+    damagedTrigger = result.hpLost > 0;
+  } else if (before - amount <= 0 && keywordFlags(g, m).undying && !m.undyingUsed) {
     m.undyingUsed = true;
     m.hp = Math.min(before, BALANCE.battle.undyingHp);
     log(g, opts.depth, `${prefix}${label}に${kindLabel}${amount}ダメージ${detail}：不屈で体力${m.hp}で踏みとどまった`, 'damage', undefined, ev(amount));
@@ -329,16 +369,26 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
     result = { hpLost: amount, overflow: 0, destroyed: false };
     damagedTrigger = true;
   }
+  // 萎縮（MTG 要素 △ バッチA）：生き残ったら、減った体力のぶん最大体力も減る（不屈・不壊で踏みとどまったら、その体力まで）
+  if (opts.wither && !result.destroyed && result.hpLost > 0 && findMonster(g, m.uid)) {
+    const maxBefore = m.maxHp;
+    m.maxHp = Math.max(m.hp, m.maxHp - result.hpLost);
+    if (m.maxHp < maxBefore) {
+      // 表示用：萎縮で減った最大体力の合計
+      m.counters.withered = (m.counters.withered ?? 0) + (maxBefore - m.maxHp);
+      log(g, opts.depth + 1, `萎縮：${label}の最大体力 ${maxBefore}→${m.maxHp}`, 'info');
+    }
+  }
   // 接死：攻撃・反撃・格闘で体力を減らしたら、生き残っても破壊する（不屈は効かない。貫通の余りはプレイヤーなので関係ない）
   if (!result.destroyed && combatSrc?.deathtouch && opts.kind !== 'trample' && amount > 0 && findMonster(g, m.uid)) {
     log(g, opts.depth + 1, `接死：${label}は破壊される`);
     destroyMonster(g, m, opts.depth + 1);
-    result = { ...result, destroyed: true };
+    result = { ...result, destroyed: !findMonster(g, m.uid) };
     damagedTrigger = false;
   }
   lifelink(g, combatSrc, result.hpLost, opts.depth + 1);
-  // ダメージを受けたとき（生き残ったときだけ。毒・やけどでは発動しない：決定事項 #70 R5）
-  if (damagedTrigger && amount > 0 && !m.sealed && !isDot(opts.kind) && findMonster(g, m.uid)) {
+  // ダメージを受けたとき（生き残ったときだけ。毒・やけどでは発動しない：決定事項 #70 R5。休眠中は出ない：MTG 要素 △ バッチA）
+  if (damagedTrigger && amount > 0 && !m.sealed && !monsterDormant(g, m) && !isDot(opts.kind) && findMonster(g, m.uid)) {
     const def = g.cards[m.card.cardId];
     const enemy = opts.source && targetExists(g, opts.source) ? opts.source : undefined;
     if (def) enqueueCardTiming(g, sourceOfMonster(g, m), def, 'damaged', enemy ? { enemy } : {}, opts.depth + 1, {});
@@ -365,18 +415,28 @@ export function setCrown(g: GameState, p: PlayerId, depth: number, how: 'take' |
   log(g, depth, how === 'take' ? `👑${name}は王冠を得た` : `👑王冠が${name}に移った`, 'effect', undefined, { kind: 'crown', player: p });
 }
 
-export function destroyMonster(g: GameState, m: Monster, depth: number): void {
+/**
+ * モンスターを破壊する。守護の不壊（MTG 要素 △ バッチA）のモンスターは破壊されない（force：生け贄・濫用・衰弱で体力0・寿命は止めない）。
+ * 消滅の印のモンスターは捨て札ではなく除外へ
+ */
+export function destroyMonster(g: GameState, m: Monster, depth: number, force = false): void {
   const board = g.players[m.controller].board;
   const i = board.findIndex((x) => x.uid === m.uid);
   if (i < 0) return;
+  if (!force && guarded(m, 'indestructible')) {
+    log(g, depth, `${monsterLabel(g, m)}は不壊なので破壊されない`, 'effect', undefined, { kind: 'status', target: { kind: 'monster', uid: m.uid }, status: 'indestructible', amount: 0 });
+    return;
+  }
   board.splice(i, 1);
   const owner = g.players[m.card.owner];
+  const finality = m.finality === true && !m.card.token;
   // トークンはどこにも行かずに消える
   if (m.card.token) {
     // 何もしない
-  } else if (m.card.copy === 'temp' || m.card.exileOnLeave) owner.exile.push(m.card);
+  } else if (m.card.copy === 'temp' || m.card.exileOnLeave || finality) owner.exile.push(m.card);
   else owner.discard.push(m.card);
-  log(g, depth, `${g.players[m.controller].name}の「${cardName(g, m.card.cardId)}」が破壊された${m.card.token ? '（トークンは消える）' : ''}`, 'effect', undefined, {
+  const note = m.card.token ? '（トークンは消える）' : finality ? '（消滅の印で除外された）' : '';
+  log(g, depth, `${g.players[m.controller].name}の「${cardName(g, m.card.cardId)}」が破壊された${note}`, 'effect', undefined, {
     kind: 'destroy',
     player: m.controller,
     cardId: m.card.cardId,
@@ -437,10 +497,11 @@ const STATUS_LABEL: Record<StatusKey, string> = {
   strength: '筋力',
   focus: '気合',
   doom: '呪縛',
+  rad: '放射能',
 };
 
 /** プレイヤーにしか付かない状態 */
-const PLAYER_ONLY: ReadonlySet<StatusKey> = new Set(['counter', 'nullify', 'regen', 'strength', 'focus', 'doom']);
+const PLAYER_ONLY: ReadonlySet<StatusKey> = new Set(['counter', 'nullify', 'regen', 'strength', 'focus', 'doom', 'rad']);
 
 export function addStatus(g: GameState, target: TargetRef, key: StatusKey, amount: number, depth: number): void {
   if (isEnded(g) || !targetExists(g, target)) return;
@@ -472,6 +533,15 @@ export function addStatus(g: GameState, target: TargetRef, key: StatusKey, amoun
       log(g, depth, `${name}に筋力${gained}${capNote}：合計${s.strength}`, 'effect', undefined, ev(gained));
       return;
     }
+    case 'rad': {
+      // 放射能の合計には上限がある（MTG 要素 △ バッチA。枚数なので倍率は掛けない）
+      const now = s.rad ?? 0;
+      const gained = Math.max(0, Math.min(amount, B.radCap - now));
+      s.rad = now + gained;
+      const capNote = gained < amount ? `（上限${B.radCap}）` : '';
+      log(g, depth, `${name}に放射能${gained}${capNote}：合計${s.rad}`, 'effect', undefined, ev(gained));
+      return;
+    }
     case 'doom': {
       // 呪縛の合計には上限がある（MTG 要素バッチ2）
       const now = s.doom ?? 0;
@@ -498,6 +568,9 @@ export function cleanse(g: GameState, p: PlayerId, protect: { poison: number; bu
   s.freezePending = false;
   s.freezeActive = false;
   if (s.doom) s.doom = 0;
+  // 放射能・まだ凍っていない氷結（MTG 要素 △ バッチA）
+  if (s.rad) s.rad = 0;
+  if (g.players[p].ice) g.players[p].ice = 0;
   g.players[p].turn.freezeTax = false;
   // 封殺（MTG 要素 ○ バッチB）も解除する
   if (g.players[p].quash) {

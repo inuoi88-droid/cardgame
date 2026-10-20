@@ -425,8 +425,21 @@ describe('修飾（数値の倍数。バッチ1）', () => {
     expect(v(fx({ id: 'heal', value: 1, target: 'self', timing: 'turnStart', mods: ['perEnemyMonster'] }))).toEqual([]);
     // エディター用：付けられるものだけ
     // ○ バッチAで「捨て札のモンスター1枚につき」と遅延「次のターンに」（使用時・召喚時、ほとんどの効果）が増えた
-    expect(modifiersFor(getEffect('damage')!, 'play').map((m) => m.id)).toEqual(['pierce', 'drain', 'xEnergy', 'perEnemyMonster', 'perCardPlayed', 'perDiscardMonster', 'perTribeAlly', 'nextTurn']);
-    expect(modifiersFor(getEffect('heal')!, 'turnStart').map((m) => m.id)).toEqual(['perEnemyMonster', 'perDiscardMonster', 'perTribeAlly']);
+    // △ バッチAで萎縮（ダメージ系）・経験1につき・ばらつき（量の効果だけ）が増えた
+    expect(modifiersFor(getEffect('damage')!, 'play').map((m) => m.id)).toEqual([
+      'pierce',
+      'drain',
+      'witherDmg',
+      'xEnergy',
+      'perEnemyMonster',
+      'perCardPlayed',
+      'perDiscardMonster',
+      'perTribeAlly',
+      'perExp',
+      'gamble',
+      'nextTurn',
+    ]);
+    expect(modifiersFor(getEffect('heal')!, 'turnStart').map((m) => m.id)).toEqual(['perEnemyMonster', 'perDiscardMonster', 'perTribeAlly', 'perExp', 'gamble']);
     expect(modifiersFor(getEffect('execute')!, 'play').map((m) => m.id)).toEqual(['nextTurn']);
     // fitEffect は付けられないものを外し、数値の倍数を1つにする
     expect(fitEffect(fx({ id: 'damage', value: 1, mods: ['xEnergy', 'perEnemyMonster'] }), 'spell').mods).toEqual(['perEnemyMonster']);

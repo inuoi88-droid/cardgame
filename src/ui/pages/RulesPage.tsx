@@ -83,7 +83,7 @@ export function RulesPage() {
     })
     .join('、');
   const firstEnergy = (energy[0]?.energy ?? 0) - B.firstPlayerFirstTurnPenalty;
-  const statusOrder: StatusId[] = ['poison', 'doom', 'burn', 'weak', 'vulnerable', 'bleed', 'freeze', 'confuse', 'seal', 'shield', 'counter', 'nullify', 'regen', 'strength', 'focus', 'stealth', 'betrayal'];
+  const statusOrder: StatusId[] = ['poison', 'doom', 'rad', 'burn', 'weak', 'vulnerable', 'bleed', 'freeze', 'confuse', 'seal', 'shield', 'counter', 'nullify', 'regen', 'strength', 'focus', 'stealth', 'betrayal'];
 
   return (
     <div className="rules">
@@ -125,14 +125,17 @@ export function RulesPage() {
         </ul>
         <h3>ターン開始時（この順）</h3>
         <ol>
-          <li>シールドと反撃（状態）が消え、凍結・混乱が発効します。</li>
+          <li>シールドと反撃（状態）が消え、凍結・混乱が発効します。自分のモンスターの守護（不壊・加護）が消えます。</li>
           <li>毒のダメージを受け、毒が半分（切り捨て）になります。呪縛のダメージを受けます（呪縛は減りません）。再生で回復し、再生も半分になります。</li>
-          <li>維持費・裏切りなどのデメリット、自己修復が働きます。</li>
+          <li>維持費・累加維持費・裏切りなどのデメリット、自己修復が働きます。</li>
           <li>
             エナジーを得ます。エナジーは自分のターン数で増えます：<b>{energyText}</b>。先攻の1ターン目だけ−{B.firstPlayerFirstTurnPenalty}（{firstEnergy}）です。エナジーは次のターンに持ち越せません（効果「蓄え」を除く）。「最大エナジー増加」の分はここに足します。
           </li>
           <li>
             カードを <b>{B.drawPerTurn}枚</b> 引きます（1ターン目を除く）。山札が尽きたら捨て札を混ぜて山札にします。「引いたとき」の効果は、引き終えてから引いた順に発動します。
+          </li>
+          <li>
+            放射能（山札の上を捨て札に置き、モンスター以外1枚ごとに{B.radDamage}ダメージ）→ 氷結（手札がランダムに凍る）→ 卵の孵化。
           </li>
           <li>予約していた効果（修飾「次のターンに」・カードの能力「反復」）が古い順に発動します（1人{B.maxDelayedPerPlayer}件まで）。</li>
           <li>「自分のターン開始時」の効果（パワー → 場のモンスターの左から）。混乱・裏切りのモンスターが自動で攻撃します。</li>
@@ -155,7 +158,7 @@ export function RulesPage() {
           </li>
           <li>応召のトークンが消え、借用の残りが1減ります（0なら元の持ち主の場へ）。腐乱のモンスター（このターンに攻撃したもの）が破壊され、寿命が1減ります（0になると場から消えます）。</li>
           <li>
-            <b>手札をすべて捨て札にします</b>（「保持」で残したカードを除く）。気合と、両者のモンスターの一時強化が消えます。期限の来た封殺が消えます。
+            <b>手札をすべて捨て札にします</b>（「保持」で残したカードを除く。「捨てられたとき」は出ません）。気合と、両者のモンスターの一時強化・賛助のキーワードが消えます。期限の来た封殺が消えます。
           </li>
         </ol>
       </Section>
@@ -182,7 +185,30 @@ export function RulesPage() {
         <ul>
           <li>効果は書いてある順に解決します。</li>
           <li>条件付きの効果は、条件を満たしていないと発動しません（カード自体は使えます）。</li>
-          {(['quash', 'freePlay', 'conjure', 'boon', 'ramp', 'bounty', 'modes', 'entwine', 'saga', 'charge', 'tribe', 'speed', 'crown'] as const).map((id) => (
+          {(
+            [
+              'quash',
+              'freePlay',
+              'conjure',
+              'boon',
+              'ramp',
+              'bounty',
+              'modes',
+              'entwine',
+              'saga',
+              'charge',
+              'tribe',
+              'speed',
+              'crown',
+              // MTG 要素 △ バッチA
+              'trap',
+              'plan',
+              'discarded',
+              'exp',
+              'ice',
+              'perpetual',
+            ] as const
+          ).map((id) => (
             <li key={id}>
               <b>{mechanicGlossary[id]!.name}</b>：{mechanicGlossary[id]!.short}。
             </li>
@@ -225,7 +251,35 @@ export function RulesPage() {
           <li>
             <b>接死</b>のモンスターが攻撃・反撃・格闘でダメージを与えたモンスターは破壊されます（不屈でも踏みとどまれません）。<b>先制攻撃</b>のモンスターは、攻撃で相手を倒せば反撃を受けません。<b>聖盾</b>は最初のダメージ1回を0にします。<b>呪禁</b>のモンスターはカードの「選んだ1体」に選べません（呪禁の挑発は、カードの対象選びを縛りません）。<b>防衛</b>のモンスターは攻撃できませんが、反撃はします。
           </li>
-          {(['token', 'tempAttack', 'granted', 'fight', 'lifespan', 'exert', 'equip', 'borrow', 'copyToken', 'tempToken', 'army'] as const).map((id) => (
+          <li>
+            <b>対空</b>のモンスターがいると、相手の飛行のモンスターは対空のモンスターしか攻撃できません。<b>潜伏</b>のモンスターは、相手の挑発がすべて自分より攻撃力が高ければ、挑発を無視して攻撃できます。
+          </li>
+          {(
+            [
+              'token',
+              'tempAttack',
+              'granted',
+              'fight',
+              'lifespan',
+              'exert',
+              'equip',
+              'borrow',
+              'copyToken',
+              'tempToken',
+              'army',
+              // MTG 要素 △ バッチA
+              'egg',
+              'spawn',
+              'finality',
+              'suspected',
+              'indestructible',
+              'protection',
+              'tempGranted',
+              'dormant',
+              'cumulativeUpkeep',
+              'withered',
+            ] as const
+          ).map((id) => (
             <li key={id}>
               <b>{mechanicGlossary[id]!.name}</b>：{mechanicGlossary[id]!.short}。
             </li>
@@ -304,7 +358,7 @@ export function RulesPage() {
         ))}
         <h3>対象（自分のモンスター・お互い）</h3>
         <dl className="terms">
-          {(['thisMonster', 'allyMonsters', 'otherAllies', 'weakestAlly', 'triggerAlly', 'bothPlayers'] as const).map((id) => (
+          {(['thisMonster', 'allyMonsters', 'otherAllies', 'weakestAlly', 'triggerAlly', 'bothPlayers', 'attacker'] as const).map((id) => (
             <Term key={id} name={mechanicGlossary[id]!.name} icon={mechanicGlossary[id]!.icon}>
               {mechanicGlossary[id]!.short}
             </Term>
@@ -341,8 +395,9 @@ export function RulesPage() {
             </li>
           ))}
           <li>
-            「引いたとき」の効果のポイントの合計は、コスト0のときのレアリティ上限までです（コストを上げて得た予算で「引くだけで得をする」カードは作れません）。
+            「引いたとき」「捨てられたとき」の効果のポイントの合計は、それぞれコスト0のときのレアリティ上限までです（コストを上げて得た予算で「引くだけ・捨てるだけで得をする」カードは作れません）。
           </li>
+          <li>倍化の「3倍」はレジェンドだけ。ばらつきは量（ダメージ・回復など）の効果だけに付けられ、効果が出るたびに倍率が決まります。</li>
         </ul>
       </Section>
 

@@ -6,8 +6,8 @@ import { BALANCE } from '../balance.ts';
 import { CHAPTER_TIMINGS, chapterOf, chargeSpec, type ChargeEvent } from '../options.ts';
 import type { CardDef } from '../types.ts';
 import { enqueue, log, newUid } from './core.ts';
-import { powerSource } from './triggers.ts';
-import type { GameState, PlayerId, PowerInst } from './types.ts';
+import { powerDormant, powerSource } from './triggers.ts';
+import type { GameState, PlayerId, PowerInst, Step } from './types.ts';
 
 /** 英雄譚の最後の章（カードの章の効果の最大の番号。英雄譚でなければ0） */
 export function lastChapter(def: CardDef | undefined): number {
@@ -44,15 +44,40 @@ export function startSaga(g: GameState, p: PlayerId, power: PowerInst, depth: nu
   enqueueChapter(g, p, power, 1, depth);
 }
 
-/** 持ち主のターン開始時：英雄譚を1章進める（使った順） */
+/** 持ち主のターン開始時：英雄譚を1章進める（使った順）。休眠中（MTG 要素 △ バッチA）は進まない */
 export function advanceSagas(g: GameState, p: PlayerId): void {
   for (const power of g.players[p].powers) {
-    if (power.chapter === undefined) continue;
+    if (power.chapter === undefined || powerDormant(g, p, power)) continue;
     const last = lastChapter(g.cards[power.cardId]);
     if (power.chapter >= last) continue;
     power.chapter += 1;
     enqueueChapter(g, p, power, power.chapter, 1);
   }
+}
+
+/** まだ最後の章まで進んでいない英雄譚（効果「章を進める」の候補。MTG 要素 △ バッチA） */
+export function advanceableSagas(g: GameState, p: PlayerId): PowerInst[] {
+  return g.players[p].powers.filter((pw) => pw.chapter !== undefined && pw.chapter < lastChapter(g.cards[pw.cardId]));
+}
+
+/** 英雄譚1つを次の章に進めて、その章の効果を積む（効果「章を進める」。最後の章なら英雄譚を終える処理も） */
+export function advanceOne(g: GameState, p: PlayerId, powerUid: string, depth: number): void {
+  const power = g.players[p].powers.find((x) => x.uid === powerUid);
+  if (!power || power.chapter === undefined) return;
+  const last = lastChapter(g.cards[power.cardId]);
+  if (power.chapter >= last) return;
+  power.chapter += 1;
+  enqueueChapter(g, p, power, power.chapter, depth);
+}
+
+/** パワーを誘発なしで取り除く（罠・プラン。MTG 要素 △ バッチA）。もう無ければ何もしない */
+export function executePowerGone(g: GameState, step: Extract<Step, { t: 'powerGone' }>): void {
+  const ps = g.players[step.player];
+  const power = ps.powers.find((x) => x.uid === step.powerUid);
+  if (!power) return;
+  ps.powers = ps.powers.filter((x) => x !== power);
+  const why = step.why === 'trap' ? `罠『${power.name}』が発動して消えた` : `プラン『${power.name}』が果たされて消えた`;
+  log(g, step.depth, why, 'effect', undefined, { kind: 'destroy', player: step.player, cardId: power.cardId, uid: power.uid });
 }
 
 /** 英雄譚を終える：最後の章を解決し終えたらパワーを消す（誘発なし）。もう無ければ何もしない */
@@ -72,7 +97,7 @@ export function chargePowers(g: GameState, p: PlayerId, event: ChargeEvent, dept
   if (g.phase !== 'main') return;
   const max = BALANCE.battle.maxRepeatTriggersPerTurn;
   for (const power of g.players[p].powers) {
-    if (power.uid === excludeUid) continue;
+    if (power.uid === excludeUid || powerDormant(g, p, power)) continue;
     const def = g.cards[power.cardId];
     const a = (def?.abilities ?? []).find((x) => x.id === 'charge');
     if (!a) continue;
@@ -96,5 +121,7 @@ export function chargePowers(g: GameState, p: PlayerId, event: ChargeEvent, dept
       if (x.removed || x.effect.timing !== 'charged') continue;
       enqueue(g, { t: 'effect', src, effect: x.effect, timing: 'charged', chosen: {}, attackCard: false, protectKey, depth: depth + 1 });
     }
+    // プラン（1回きり。MTG 要素 △ バッチA）：効果を出したらパワーは消える
+    if (spec.once) enqueue(g, { t: 'powerGone', player: p, powerUid: power.uid, depth, why: 'plan' });
   }
 }

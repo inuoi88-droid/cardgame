@@ -8,6 +8,7 @@ import {
   enqueue,
   findMonster,
   log,
+  monsterDormant,
   monsterLabel,
   newUid,
   other,
@@ -18,7 +19,7 @@ import {
   isEnded,
 } from './core.ts';
 import { combatBonus, combatSourceOf, dealDamage, keywordFlags, playerBonus, setCrown, targetableTaunts } from './damage.ts';
-import { enqueueCardTiming } from './triggers.ts';
+import { enqueueCardTiming, enqueueEnemyAttacked } from './triggers.ts';
 import type { GameState, Monster, PlayerId, TargetRef } from './types.ts';
 
 export function attacksPerTurn(g: GameState, m: Monster): number {
@@ -50,20 +51,33 @@ export function attackBlockReason(g: GameState, m: Monster): string | null {
   if (m.status.freezeActive) return '凍結していて攻撃できません';
   if (m.status.confuseActive) return '混乱していて、ターン開始時に自動で攻撃しました';
   if (m.betraying) return '裏切ったモンスターは自分では攻撃できません';
+  // MTG 要素 △ バッチA：卵（培養）・休眠
+  if (m.card.token?.egg) return '卵はまだ攻撃できない（孵化を待つ）';
+  if (monsterDormant(g, m)) return '休眠中：このターンは攻撃できない';
   if (m.enteredTurn === g.turnIndex && !keywordFlags(g, m).haste) return '場に出たターンは攻撃できません';
   if (m.attacksUsed >= attacksPerTurn(g, m)) return 'このターンはもう攻撃しました';
   return null;
 }
 
-/** 手動攻撃で選べる対象（挑発・飛行・隠密を考える） */
+/**
+ * 手動攻撃で選べる対象（挑発・飛行・隠密を考える）。MTG 要素 △ バッチA：飛行のモンスターは、相手に対空（隠密でない）がいれば
+ * 対空しか攻撃できない。潜伏のモンスターは、挑発がすべて自分より攻撃力が高ければ挑発を無視できる
+ */
 export function attackTargets(g: GameState, m: Monster): TargetRef[] {
   const opp = other(m.controller);
   const monsters = g.players[opp].board.filter((x) => !x.stealth);
-  if (!keywordFlags(g, m).flying) {
+  const flags = keywordFlags(g, m);
+  const refs = (list: Monster[]) => list.map((x): TargetRef => ({ kind: 'monster', uid: x.uid }));
+  if (flags.flying) {
+    const reach = monsters.filter((x) => keywordFlags(g, x).reach);
+    if (reach.length > 0) return refs(reach);
+  } else {
     const taunts = targetableTaunts(g, opp);
-    if (taunts.length > 0) return taunts.map((x) => ({ kind: 'monster', uid: x.uid }));
+    const atk = effectiveAttack(g, m);
+    const skulk = flags.skulk === true && taunts.every((x) => effectiveAttack(g, x) > atk);
+    if (taunts.length > 0 && !skulk) return refs(taunts);
   }
-  return [playerRef(opp), ...monsters.map((x): TargetRef => ({ kind: 'monster', uid: x.uid }))];
+  return [playerRef(opp), ...refs(monsters)];
 }
 
 /** 攻撃を1回行う（手動・自動共通） */
@@ -82,6 +96,8 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   }
   const attackerRef: TargetRef = { kind: 'monster', uid: m.uid };
   log(g, depth, `${monsterLabel(g, m)}が${targetLabel(g, target)}を攻撃${note}`, 'action', undefined, { kind: 'attack', source: attackerRef, target });
+  // 攻撃された側のプレイヤー（「相手のモンスターが攻撃するたび」。MTG 要素 △ バッチA）。守備側のモンスターが倒れる前に決める
+  const defendingPlayer: PlayerId | undefined = target.kind === 'player' ? target.player : findMonster(g, target.uid)?.controller;
   // MTG 要素 ○ バッチB：攻撃する前のキーワード（威圧・一撃離脱・分身）
   const flags = keywordFlags(g, m);
   const doubleTeam = flags.doubleTeam === true && !m.card.token;
@@ -90,8 +106,9 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   const playKey = newUid(g, 'pk');
   // モンスターの反撃（決定事項 #69）：攻撃される前の守備側の攻撃力（一時強化・武士道を含む）・弱体・接死・絆魂で決まる（同時に解決する扱い）
   const retaliationAmount = defender ? effectiveAttack(g, defender) + combatBonus(g, defender) : 0;
+  // 容疑（MTG 要素 △ バッチA）のモンスターは反撃しない
   const retaliation =
-    defender && BALANCE.battle.retaliation.enabled && retaliationAmount > 0
+    defender && BALANCE.battle.retaliation.enabled && retaliationAmount > 0 && !defender.suspected
       ? { amount: retaliationAmount, weak: defender.status.weak > 0, label: monsterLabel(g, defender), source: combatSourceOf(g, defender) }
       : null;
   /** 先制攻撃：攻撃で相手モンスターを倒したら反撃を受けない */
@@ -118,6 +135,8 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   // 先制攻撃のモンスターが相手を倒したときは反撃を受けない
   if (retaliation && defender && flags.noRetaliation) {
     log(g, depth + 1, `威圧：${retaliation.label}の反撃を受けない`);
+  } else if (retaliation && defender && m.suspected) {
+    log(g, depth + 1, `容疑：${retaliation.label}の反撃を受けない`);
   } else if (retaliation && defender && firstStrike && r.destroyed) {
     log(g, depth + 1, `先制攻撃：${retaliation.label}の反撃を受けない`);
   } else if (retaliation && defender) {
@@ -144,10 +163,20 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   if (doubleTeam) {
     const lost = [...(m.card.lostKeywords ?? []), 'doubleTeam'];
     m.card.lostKeywords = lost;
-    const copy = { uid: newUid(g, 'c'), cardId: m.card.cardId, owner: m.card.owner, copy: 'keep' as const, lostKeywords: ['doubleTeam'] };
+    // 永久強化（MTG 要素 △ バッチA）もコピーに写す
+    const copy = {
+      uid: newUid(g, 'c'),
+      cardId: m.card.cardId,
+      owner: m.card.owner,
+      copy: 'keep' as const,
+      lostKeywords: ['doubleTeam'],
+      ...(m.card.perm ? { perm: { ...m.card.perm } } : {}),
+    };
     g.players[m.controller].hand.push(copy);
     log(g, depth + 1, `分身：「${cardName(g, m.card.cardId)}」のコピー（分身なし）を${g.players[m.controller].name}の手札に加えた`);
   }
+  // 相手のモンスターが攻撃するたび（MTG 要素 △ バッチA）：攻撃された側（攻撃したモンスターの持ち主でない側）のパワー → モンスター
+  if (defendingPlayer !== undefined && defendingPlayer !== m.controller) enqueueEnemyAttacked(g, defendingPlayer, m.uid, depth + 1);
   // 一撃離脱：攻撃に関わる処理がすべて終わったあと、場に残っていれば手札に戻る
   if (flags.returnAfterAttack && !m.card.token) enqueue(g, { t: 'returnToHand', uid: m.uid, depth: depth + 1 });
 }

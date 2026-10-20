@@ -2514,3 +2514,13 @@ button.lt-card:focus-visible {
     outline: 2px solid var(--warn);
   }
 }
+
+/* 氷結（MTG 要素 △ バッチA）で凍った手札：氷の枠。このターンは使えない */
+.hc.is-iced {
+  box-shadow: inset 0 0 0 2px #8fd3ff, 0 0 10px rgba(143, 211, 255, 0.55);
+  filter: saturate(0.6);
+}
+/* 永久強化（MTG 要素 △ バッチA）された手札のステータス */
+.hc__stats.is-perm {
+  color: var(--ok, #7ee08a);
+}

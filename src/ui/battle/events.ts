@@ -88,13 +88,22 @@ const STATUS_NAME: Record<string, string> = {
   bounty: '💰懸賞',
   quash: '🚫封殺',
   boon: '🎁恩恵',
+  // MTG 要素 △ バッチA
+  rad: '☢放射能',
+  exp: '🎖経験',
+  ice: '🧊氷結',
+  finality: '⚰消滅の印',
+  suspected: '🕵容疑',
+  indestructible: '🛡不壊',
+  protection: '✨加護',
 };
-const GOOD_STATUS = new Set(['counter', 'nullify', 'regen', 'strength', 'focus', 'divineShield', 'boon']);
+const GOOD_STATUS = new Set(['counter', 'nullify', 'regen', 'strength', 'focus', 'divineShield', 'boon', 'exp', 'indestructible', 'protection']);
 
 function damageTone(kind: battle.DamageKind | undefined): FxTone {
   switch (kind) {
     case 'poison':
     case 'doom':
+    case 'rad':
       return 'poison';
     case 'burn':
       return 'burn';
@@ -232,6 +241,17 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
         }
         if (ev.status === 'quash' && !ev.target) {
           push(e.text, ev.player ?? null, { t: 'notice', text: '🚫 封殺：無効になった', tone: 'neutral' }, DURATION.notice);
+          break;
+        }
+        // MTG 要素 △ バッチA：捨てられたとき・手札が凍った・放射能・山札消滅（プレイヤーの出来事）
+        if ((ev.status === 'trap' || ev.status === 'enemyAttacked') && ev.player !== undefined) {
+          const text = ev.status === 'trap' ? '🪤 罠が発動した' : '⚡ パワーが相手の攻撃に反応した';
+          push(e.text, ev.player, { t: 'notice', text, tone: ev.player === me ? 'mine' : 'enemy', ...(ev.uid && hasPower(view, ev.uid) ? { key: ev.uid } : {}) }, DURATION.notice);
+          break;
+        }
+        const PLAYER_NOTICE: Record<string, string> = { discarded: '🗑 捨てられたときの効果', ice: '🧊 手札が凍った', rad: '☢ 放射能', exileMill: '⛔ 山札消滅' };
+        if (!ev.target && ev.status && PLAYER_NOTICE[ev.status]) {
+          push(e.text, ev.player ?? null, { t: 'notice', text: `${PLAYER_NOTICE[ev.status]}${ev.amount && ev.amount > 1 ? `（${ev.amount}）` : ''}`, tone: 'neutral' }, DURATION.notice);
           break;
         }
         if (!ev.target) break;

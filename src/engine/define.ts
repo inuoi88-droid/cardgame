@@ -5,7 +5,7 @@
  * エディター・ポイント計算・効果テキストのすべてに反映される（索引は scripts/gen-registry.mjs が自動生成）。
  */
 import { BALANCE } from './balance.ts';
-import type { CardInst, ChoiceSpec, EffectRuntime, GameState, Monster, PlayerId, TargetRef } from './battle/types.ts';
+import type { CardInst, ChoiceSpec, EffectRuntime, GameState, Monster, PlayerId, PowerInst, TargetRef } from './battle/types.ts';
 import type { ChargeEvent, TargetRule } from './options.ts';
 import type {
   AbilityInstance,
@@ -27,7 +27,7 @@ import type {
  * ポイント計算に要るカードの情報（土台はステータスの有無で決まる。キーワードは「攻撃するたび」の倍率に使う。
  * カードの能力は起動のエナジー・キッカーの追加エナジーの倍率に使う：MTG 要素 ○ バッチC1）
  */
-export type PointCard = Pick<CardDef, 'stats' | 'keywords'> & { abilities?: CardDef['abilities'] };
+export type PointCard = Pick<CardDef, 'stats' | 'keywords'> & { abilities?: CardDef['abilities']; effects?: CardDef['effects'] };
 
 export interface ParamSpec {
   /** 入力欄の名前 */
@@ -106,6 +106,13 @@ export interface EffectDef {
   bases?: readonly CardBase[];
   /** 対象がいなくても処理する（探検：カードの移動だけは行う。MTG 要素 ○ バッチB） */
   resolveWithoutTargets?: boolean;
+  // ---- MTG 要素 △ バッチA
+  /** 相手に作用する効果だが、モンスターのカードなら対象「このモンスター」も選べる（容疑） */
+  thisMonsterToo?: boolean;
+  /** 「選んだ自分のモンスター1体」に、使ったモンスター自身は選べない（賛助） */
+  notSelfAlly?: boolean;
+  /** 追加指定ごとの、使えるレアリティの下限（倍化の「3倍」はレジェンドだけ） */
+  optionMinRarity?: Partial<Record<string, Rarity>>;
   /** 倍率を掛ける前の基礎ポイント */
   basePoints(e: EffectInstance): number;
   /** 基礎ポイントの式（内訳表示用。例：「2×2」） */
@@ -137,6 +144,8 @@ export interface ModifierDef {
   scope: 'damage' | 'scale' | 'delay';
   /** 使えるタイミングの制限（省略ならすべて） */
   timings?: readonly TimingId[];
+  /** 量（valueParam）の効果にだけ付けられる（ばらつき。枚数・ターン数には付けない。MTG 要素 △ バッチA） */
+  requiresScaledValue?: boolean;
   /** 基礎ポイントへの上乗せ率 */
   rate: number;
   textPrefix: string;
@@ -190,6 +199,11 @@ export interface KeywordDef {
     noRetaliation?: boolean;
     /** 分身：初めて攻撃したとき、このカードのコピー（分身を持たない）を手札に加える */
     doubleTeam?: boolean;
+    // ---- MTG 要素 △ バッチA
+    /** 対空：相手の飛行のモンスターは、対空のモンスターしか攻撃できない（飛行に効く挑発） */
+    reach?: boolean;
+    /** 潜伏：挑発がすべてこのモンスターより攻撃力が高ければ、挑発を無視して攻撃できる */
+    skulk?: boolean;
     /** 持ち主のターン開始時 */
     onTurnStart?(rt: EffectRuntime, k: KeywordInstance, monster: Monster): void;
   };
@@ -243,6 +257,11 @@ export interface DrawbackDef {
     onBoardTurnStart?(rt: EffectRuntime, d: DrawbackInstance, monster: Monster): void;
     /** このカードを引いたとき（寄生）。対戦開始時の手札・マリガンの引き直しでも働く（決定事項 #70 R7） */
     onDrawn?(rt: EffectRuntime, d: DrawbackInstance): void;
+    // ---- MTG 要素 △ バッチA
+    /** パワーとして場にある間、持ち主のターン開始時（累加維持費） */
+    onPowerTurnStart?(rt: EffectRuntime, d: DrawbackInstance, power: PowerInst): void;
+    /** 休眠：1ターンおきに休む（休眠中は攻撃できず、場にいる間のタイミングの効果が出ない） */
+    dormant?: boolean;
   };
 }
 
@@ -328,7 +347,12 @@ export interface AbilityDef {
     entwineCost?(a: AbilityInstance): number;
     /** 蓄積：必要数と、たまるイベント */
     charge?(a: AbilityInstance): { need: number; event: ChargeEvent };
+    // ---- MTG 要素 △ バッチA
+    /** 罠：パワーの効果が初めて出たら、そのあとパワーが消える */
+    trap?: boolean;
   };
+  /** 「1回きり」のチェック（AbilityInstance.once。蓄積の「プラン」）。label はエディターの表示 */
+  onceOption?: { label: string };
   /** この能力に条件を付ける（条件付き軽減。エディターに条件の選択パネルを出す） */
   takesCondition?: boolean;
   /** このタイミングの効果が要る（起動・魂力。無ければ違反） */
@@ -387,4 +411,6 @@ export const me = (rt: EffectRuntime): TargetRef => ({ kind: 'player', player: r
 export const modsOf = (e: EffectInstance) => ({
   pierce: e.mods?.includes('pierce') ?? false,
   drain: e.mods?.includes('drain') ?? false,
+  /** 萎縮（MTG 要素 △ バッチA）：モンスターが減らした体力のぶん、最大体力も減る */
+  wither: e.mods?.includes('witherDmg') ?? false,
 });

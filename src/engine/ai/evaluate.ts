@@ -129,6 +129,19 @@ export const WEIGHTS = {
   speed: 0.5 * S,
   /** 王冠：残りターンの見込み1につき（ターン開始時に1枚多く引く。相手が持っていれば相手が引く） */
   crown: 2 * S,
+  // ---- MTG 要素 △ バッチA
+  /** 卵：孵化したときの攻撃力の価値に掛ける割合 */
+  eggFactor: 0.5,
+  /** 休眠：打点に掛ける割合（1ターンおきに休む） */
+  dormantFactor: 0.5,
+  /** 守護（不壊・加護）がかかっている */
+  guard: 1.5 * S,
+  /** 経験1につき（経験1につきのカードの数値が上がる。小さく） */
+  exp: 0.5 * S,
+  /** 放射能：1につき見込むダメージの割合（モンスター以外がめくれる見込み） */
+  radHitRate: 0.6,
+  /** 氷結を掛けられている（次のターンに凍る手札1枚） */
+  iced: 0.8 * S,
 } as const;
 
 const W = WEIGHTS;
@@ -226,6 +239,9 @@ export function nextTurnThreat(g: GameState, p: PlayerId): Threat {
     if (exertedNextTurn(g, m)) continue;
     // 応召の一時トークンは次のターンにはいない
     if (m.card.token?.temp) continue;
+    // 卵・次のターンに休眠するモンスターは攻撃しない（MTG 要素 △ バッチA）
+    if (m.card.token?.egg && ps.turnsTaken + 1 < m.card.token.egg.hatchAt) continue;
+    if (m.counters.dormantFrom !== undefined && (ps.turnsTaken + 1 - m.counters.dormantFrom) % 2 === 1) continue;
     const n = attacksPerTurn(g, m);
     // 激励・猛襲（相手プレイヤーへの攻撃）も見込む
     let atk = m.attack + auraAttack(g, m) + playerBonus(g, m);
@@ -320,6 +336,8 @@ function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   const k = keywordFlags(g, m);
   const n = attacksPerTurn(g, m);
   const T = ctx.turnsLeft;
+  // 卵（MTG 要素 △ バッチA）：体力と、孵化したときの攻撃力の半分
+  if (m.card.token?.egg) return m.hp * W.monsterHp + m.card.token.egg.attack * W.monsterAttack * ctx.turnsLeft * W.eggFactor;
   // 応召の一時トークン：このターンに残っている攻撃のぶんだけ価値がある（ターン終了時に消える）
   if (m.card.token?.temp) {
     const canAttack = g.phase === 'main' && g.active === m.controller && !attackBlockReason(g, m);
@@ -334,6 +352,8 @@ function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   if (m.status.confusePending || m.status.confuseActive) attackVal *= W.confusedFactor;
   // 消耗：次の自分のターンは攻撃できないので、打点を半分に数える
   if (exertedNextTurn(g, m)) attackVal *= W.exertFactor;
+  // 休眠（MTG 要素 △ バッチA）：1ターンおきにしか攻撃できない
+  if (m.counters.dormantFrom !== undefined) attackVal *= W.dormantFactor;
   let v = attackVal + m.hp * W.monsterHp + m.defense * W.monsterDefense;
   // 一時強化・再行動：このターンに残っている攻撃のぶん（自分のターン中だけ）
   if (g.phase === 'main' && g.active === m.controller && !attackBlockReason(g, m)) {
@@ -353,6 +373,8 @@ function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   if (k.undying && !m.undyingUsed) v += W.undying;
   if (m.stealth) v += W.stealth;
   if (m.sealed) v -= W.sealed;
+  // 守護（MTG 要素 △ バッチA）
+  if (m.guard) v += W.guard;
   // MTG 要素 ○ バッチB
   if (!m.sealed) v += wardTax(g, m) * W.ward;
   if (k.noRetaliation) v += W.menace;
@@ -421,6 +443,10 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
   }
   // 速度・王冠（MTG 要素 ○ バッチC2）
   v += (ps.speed ?? 0) * W.speed;
+  // MTG 要素 △ バッチA：経験・放射能（残り HP まで）・氷結（次のターンに凍る手札）
+  v += (ps.exp ?? 0) * W.exp;
+  v -= Math.min((s.rad ?? 0) * B.radDamage * W.radHitRate, ps.hp) * W.poison;
+  v -= (ps.ice ?? 0) * W.iced;
   // 王冠は持っている間ずっと1枚多く引く（残りターンの見込みぶん）
   if (g.crown === p) v += W.crown * Math.max(1, ctx.turnsLeft);
   v += ps.next.energy * W.nextEnergy + ps.next.draw * W.nextDraw + ps.discount * W.discount;
@@ -438,7 +464,9 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
   for (const m of ps.board) v += monsterValue(g, m, ctx);
 
   const noiseInHand = ps.hand.filter((c) => c.cardId === NOISE_CARD_ID).length;
-  const cards = ps.hand.length - noiseInHand;
+  // 凍った手札（MTG 要素 △ バッチA）はこのターン使えないので数えない
+  const icedInHand = ps.hand.filter((c) => c.iced === g.turnIndex).length;
+  const cards = ps.hand.length - noiseInHand - icedInHand;
   if (isMe) {
     // 手札は（中身が隠れていても）1枚ずつ価値がある。保持で残せる分は上乗せ
     v += cards * W.handCard + Math.min(ps.turn.retain, cards) * W.handCard;

@@ -36,6 +36,10 @@ export const TIMING_IDS = [
   'chapter2',
   'chapter3',
   'charged',
+  // MTG 要素 △ バッチA：相手のモンスターが攻撃するたび（罠）・捨てられたとき（マッドネス）・各ターン初めて自分のカードの対象になったとき（雄姿）
+  'enemyAttacked',
+  'discarded',
+  'valiant',
 ] as const;
 export type TimingId = (typeof TIMING_IDS)[number];
 
@@ -56,6 +60,8 @@ export const TARGET_IDS = [
   'bothPlayers',
   // MTG 要素 ○ バッチC2（種族のあるカードだけ）
   'tribeAllies',
+  // MTG 要素 △ バッチA：「相手のモンスターが攻撃するたび」の、攻撃してきたモンスター
+  'attacker',
 ] as const;
 export type TargetId = (typeof TARGET_IDS)[number];
 
@@ -102,6 +108,10 @@ export const CONDITION_IDS = [
   'tribeAlly',
   'maxSpeed',
   'hasCrown',
+  // MTG 要素 △ バッチA：収斂・落魄・長久
+  'converge',
+  'descend',
+  'rested',
 ] as const;
 export type ConditionId = (typeof CONDITION_IDS)[number];
 
@@ -109,7 +119,20 @@ export type ConditionId = (typeof CONDITION_IDS)[number];
  * 効果のオプション。pierce・drain はダメージ系（allowsMods）、nextTurn は遅延（予約）、
  * それ以外は数値に掛ける倍数（scalable な効果）
  */
-export const MODIFIER_IDS = ['pierce', 'drain', 'xEnergy', 'perEnemyMonster', 'perCardPlayed', 'nextTurn', 'perDiscardMonster', 'perTribeAlly'] as const;
+export const MODIFIER_IDS = [
+  'pierce',
+  'drain',
+  'xEnergy',
+  'perEnemyMonster',
+  'perCardPlayed',
+  'nextTurn',
+  'perDiscardMonster',
+  'perTribeAlly',
+  // MTG 要素 △ バッチA：萎縮（ダメージ系）・経験1につき・ばらつき（数値の倍数）
+  'witherDmg',
+  'perExp',
+  'gamble',
+] as const;
 export type ModifierId = (typeof MODIFIER_IDS)[number];
 
 /**
@@ -183,6 +206,8 @@ export interface AbilityInstance {
   option?: string;
   /** 能力に付ける条件（MTG 要素 ○ バッチC1：条件付き軽減の「〜なら」） */
   condition?: ConditionId;
+  /** 1回きり（MTG 要素 △ バッチA：蓄積の「プラン」。たまったら効果を出してパワーが消える）。AbilityDef.onceOption のある能力だけ */
+  once?: boolean;
 }
 
 export interface CardDef {

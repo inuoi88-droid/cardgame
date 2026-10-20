@@ -28,6 +28,7 @@ import {
   effectiveCost,
   enemyCandidates,
   fromDiscardAbility,
+  icedBlock,
   kickerCost,
   leavesPower,
   modeName,
@@ -44,6 +45,7 @@ import { isCurseCard } from '../classify.ts';
 import { modeTexts } from '../text.ts';
 import { effectsForMode } from './modes.ts';
 import { tribeAllies } from './runtime.ts';
+import { advanceableSagas } from './powers.ts';
 import type { EffectInstance, TimingId } from '../types.ts';
 import { ARMY_CARD_ID, NOISE_CARD_ID, type Action, type CardInst, type Chosen, type GameState, type HandAbilityKind, type PlayerId, type TargetRef } from './types.ts';
 
@@ -262,6 +264,14 @@ function specialWarning(g: GameState, p: PlayerId, id: string, n: number): strin
       return me.board.some((m) => m.card.token && m.card.cardId !== ARMY_CARD_ID) ? null : '自分のトークンがいません';
     case 'ramp':
       return (me.energyBonus ?? 0) >= BALANCE.battle.rampCap ? '最大エナジーはもう増やせません' : null;
+    // MTG 要素 △ バッチA
+    case 'advanceSaga':
+      return advanceableSagas(g, p).length > 0 ? null : '進められる英雄譚がありません';
+    case 'perpetual':
+      return me.hand.some((c) => c.cardId !== NOISE_CARD_ID && g.cards[c.cardId]?.stats) ? null : '手札にモンスターカードがありません';
+    case 'fateseal':
+    case 'exileMill':
+      return opp.deck.length > 0 ? null : '相手の山札がありません';
     default:
       return null;
   }
@@ -306,6 +316,7 @@ export function playInfo(g: GameState, p: PlayerId, card: CardInst, opts: { from
   if (g.phase !== 'main' || g.active !== p || g.pending) blocked = '今は使えません';
   else if (fromDiscard && !fd) blocked = '捨て札から使えません';
   else if (fromDiscard && !ps.discard.some((c) => c.uid === card.uid)) blocked = '捨て札にありません';
+  else if (!fromDiscard && icedBlock(g, card)) blocked = icedBlock(g, card);
   else if (cost > energy) blocked = 'エナジーが足りません';
   else blocked = drawbackBlock(g, p, card);
   // 捨て札から使うときの追加の支払い（再活：手札を1枚／脱出：他の捨て札を N 枚）
@@ -416,7 +427,8 @@ export function discardPlayInfos(g: GameState, p: PlayerId): PlayInfo[] {
 }
 
 /**
- * 手放してよい順（再活で捨てる手札・CPU の手札整理と同じ考え方）：ノイズ → 呪い → このターン払えないコストの重いもの → 軽いもの
+ * 手放してよい順（再活で捨てる手札・CPU の手札整理と同じ考え方）：ノイズ → 呪い → 捨てられたときの効果があるもの（MTG 要素 △ バッチA）→
+ * このターン払えないコストの重いもの → 軽いもの
  */
 export function discardPreference(g: GameState, p: PlayerId, cards: readonly CardInst[]): CardInst[] {
   const energy = g.players[p].energy;
@@ -425,6 +437,7 @@ export function discardPreference(g: GameState, p: PlayerId, cards: readonly Car
     const def = g.cards[c.cardId];
     if (!def) return 3000;
     if (isCurseCard(def)) return 2000;
+    if (def.effects.some((e) => e.timing === 'discarded')) return 1500;
     return def.cost > energy ? 100 + def.cost : 10 - def.cost;
   };
   return [...cards].sort((a, b) => key(b) - key(a));

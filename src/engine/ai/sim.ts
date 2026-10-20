@@ -42,6 +42,9 @@ export function chooseFor(g: GameState, p: PendingChoice, me: PlayerId): string[
   return [options[0]!.id];
 }
 
+/** 濫用で手放す累加維持費のモンスターの、場にあるターン数（CPU の判断の目安。バランスの数値ではない） */
+const EXPLOIT_UPKEEP_AGE = 3;
+
 /** カードの「いらなさ」：ノイズ → 呪い（デメリットつき）→ それ以外。大きいほど手放したい */
 function junkRank(g: GameState, cardId: string | undefined): number {
   if (!cardId || cardId === NOISE_CARD_ID) return 2;
@@ -72,10 +75,13 @@ function chooseSpecial(g: GameState, p: PendingChoice, me: PlayerId): string[] |
     const energy = g.players[me].energy;
     const cost = (id: string | undefined) => (id && g.cards[id] ? g.cards[id]!.cost : 0);
     const isSkill = (id: string | undefined) => (id && id !== NOISE_CARD_ID && g.cards[id] ? classifyCard(g.cards[id]!) === 'skill' : false);
+    // 捨てられたときの効果（MTG 要素 △ バッチA）のあるカードは、ノイズ・呪いの次に捨てる
+    const onDiscard = (id: string | undefined) => (id && g.cards[id] ? g.cards[id]!.effects.some((e) => e.timing === 'discarded') : false);
     const scored = options.map((o) => {
       const junk = junkRank(g, o.cardId);
       const c = cost(o.cardId);
-      const key = (junk > 0 ? 1000 * junk : c > energy ? 100 + c : 10 - c) + (step.then === 'recruit' && isSkill(o.cardId) ? 50 : 0);
+      const key =
+        (junk > 0 ? 1000 * junk : onDiscard(o.cardId) ? 500 : c > energy ? 100 + c : 10 - c) + (step.then === 'recruit' && isSkill(o.cardId) ? 50 : 0);
       return { o, key };
     });
     scored.sort((a, b) => b.key - a.key);
@@ -106,6 +112,16 @@ function chooseSpecial(g: GameState, p: PendingChoice, me: PlayerId): string[] |
     scored.sort((a, b) => b.v - a.v);
     return scored[0] ? [scored[0].o.id] : [];
   }
+  // MTG 要素 △ バッチA：消術（相手の山札の上のうち、ノイズ・呪いでないものを下へ）・永久強化（攻撃力の高いモンスター）・章を進める（いちばん古い英雄譚）
+  if (step.t === 'effect' && step.effect.id === 'fateseal') {
+    return options.filter((o) => junkRank(g, o.cardId) === 0).slice(0, p.max).map((o) => o.id);
+  }
+  if (step.t === 'effect' && step.effect.id === 'perpetual') {
+    const scored = options.map((o) => ({ o, v: g.cards[o.cardId ?? '']?.stats?.attack ?? -1 }));
+    scored.sort((a, b) => b.v - a.v);
+    return scored[0] ? [scored[0].o.id] : [];
+  }
+  if (step.t === 'effect' && step.effect.id === 'advanceSaga') return options[0] ? [options[0].id] : [];
   // MTG 要素 ○ バッチA：濫用・枯朽・捨て札の除外
   if (step.t === 'exploitChoice') {
     // 見える情報には解決待ちの効果が無い（view.ts がキューを隠す）ので、仮に実行して比べられない。
@@ -116,7 +132,9 @@ function chooseSpecial(g: GameState, p: PendingChoice, me: PlayerId): string[] |
         if (!m) return false;
         const def = g.cards[m.card.cardId];
         const decaying = m.counters.attackedTurn === g.turnIndex && (def?.drawbacks.some((d) => d.id === 'decay') ?? false);
-        return m.card.token !== undefined || m.betraying || m.counters.life === 1 || decaying;
+        // 累加維持費（MTG 要素 △ バッチA）が重くなったモンスターも手放す
+        const upkeep = (def?.drawbacks.some((d) => d.id === 'cumulativeUpkeep') ?? false) && (m.counters.age ?? 0) >= EXPLOIT_UPKEEP_AGE;
+        return m.card.token !== undefined || m.betraying || m.counters.life === 1 || decaying || upkeep;
       })
       .sort((a, b) => a.attack * 3 + a.hp * 1.5 - (b.attack * 3 + b.hp * 1.5));
     return expendable[0] ? [expendable[0].uid] : [];
@@ -232,8 +250,9 @@ export function usesRandom(view: GameState, action: Action): boolean {
   const oppBoard = view.players[opp].board.length;
   const myBoard = view.players[action.player].board.length;
   for (const e of ac.effects) {
-    // コイン投げ・激突の条件：仮の実行で結果を先読みしないよう、複数のシードの平均で評価する
+    // コイン投げ・激突の条件・ばらつき（MTG 要素 △ バッチA）：仮の実行で結果を先読みしないよう、複数のシードの平均で評価する
     if (e.condition === 'coinFlip' || e.condition === 'clash') return true;
+    if (e.mods?.includes('gamble')) return true;
     if (e.target !== 'random') continue;
     if (oppBoard > 0 || myBoard > 1) return true;
   }
@@ -344,7 +363,9 @@ export function actionKey(g: GameState, a: Action): string {
     const t = a.chosen?.enemy;
     // 捨て札から使う・キッカー（MTG 要素 ○ バッチC1）も区別する（捨て札のカードは手札に無いので、見つからなければ uid）
     const extra = `${a.from ?? ''}:${a.kick ? 'k' : ''}:${a.discardUid ?? ''}:${(a.exileUids ?? []).join('+')}:${a.mode ?? ''}`;
-    return `c:${card?.cardId ?? a.cardUid}:${card?.copy ?? ''}:${card?.grow ?? 0}:${card?.buybackTurn ?? ''}:${extra}|${t ? (t.kind === 'player' ? 'p' : t.uid) : ''}|${a.chosen?.ally ?? ''}`;
+    // 永久強化（MTG 要素 △ バッチA）された個体は別のカード
+    const perm = card?.perm ? `${card.perm.attack}/${card.perm.hp}` : '';
+    return `c:${card?.cardId ?? a.cardUid}:${card?.copy ?? ''}:${card?.grow ?? 0}:${card?.buybackTurn ?? ''}:${perm}:${extra}|${t ? (t.kind === 'player' ? 'p' : t.uid) : ''}|${a.chosen?.ally ?? ''}`;
   }
   if (a.type === 'handAbility') {
     const card = g.players[a.player].hand.find((c) => c.uid === a.cardUid);
@@ -355,7 +376,9 @@ export function actionKey(g: GameState, a: Action): string {
     const m = g.players[a.player].board.find((x) => x.uid === a.attackerUid);
     if (!m) return `a:${a.attackerUid}`;
     const t = a.target.kind === 'player' ? 'p' : a.target.uid;
-    return `a:${m.card.cardId}:${JSON.stringify(m.card.token ?? null)}:${m.attack}:${m.tempAttack ?? 0}:${m.hp}:${m.defense}:${m.attacksUsed}:${m.sealed}:${m.stealth}:${JSON.stringify(m.granted ?? [])}:${m.shieldUsed ?? false}:${m.counters.life ?? ''}:${m.counters.readyTurn === g.turnIndex ? 'r' : ''}:${JSON.stringify(m.status)}|${t}`;
+    // MTG 要素 △ バッチA：容疑・守護・消滅の印・このターンだけのキーワード・最大体力も区別する
+    const extra = `${m.maxHp}:${m.suspected ? 's' : ''}:${m.guard?.kind ?? ''}:${m.finality ? 'f' : ''}:${(m.tempGranted ?? []).join('+')}`;
+    return `a:${m.card.cardId}:${JSON.stringify(m.card.token ?? null)}:${m.attack}:${m.tempAttack ?? 0}:${m.hp}:${m.defense}:${m.attacksUsed}:${m.sealed}:${m.stealth}:${JSON.stringify(m.granted ?? [])}:${m.shieldUsed ?? false}:${m.counters.life ?? ''}:${m.counters.readyTurn === g.turnIndex ? 'r' : ''}:${extra}:${JSON.stringify(m.status)}|${t}`;
   }
   return JSON.stringify(a);
 }

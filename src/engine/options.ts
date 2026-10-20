@@ -3,7 +3,7 @@ import { BALANCE } from './balance.ts';
 import type { AbilityInstance, CardBase, ConditionId, TargetId, TimingId } from './types.ts';
 
 /** カードの能力の一覧（エディター・ポイント計算が渡す。省略は「能力を見ない」） */
-type Abilities = readonly Pick<AbilityInstance, 'id' | 'value' | 'option'>[] | undefined;
+type Abilities = readonly Pick<AbilityInstance, 'id' | 'value' | 'option' | 'once'>[] | undefined;
 
 /** 能力 ids のどれかを持っているか */
 export function hasAnyAbility(abilities: Abilities, ids: readonly string[]): boolean {
@@ -21,12 +21,13 @@ export function abilityValue(abilities: Abilities, id: string): number | undefin
  * 「選んだ1体」が何を指すか。
  * manual: 使うときにプレイヤーが選ぶ / attackTarget: その攻撃の相手 /
  * damageSource: ダメージを与えてきた相手 / triggerAlly: いま場に出た自分のモンスター（「自分のモンスターが出るたび」） /
+ * triggerEnemy: 攻撃してきた相手のモンスター（「相手のモンスターが攻撃するたび」。対象「攻撃してきたモンスター」。MTG 要素 △ バッチA） /
  * none: 選ぶ場面がない（「選んだ1体」は出さない）
  */
-export type ChosenMode = 'manual' | 'attackTarget' | 'damageSource' | 'triggerAlly' | 'none';
+export type ChosenMode = 'manual' | 'attackTarget' | 'damageSource' | 'triggerAlly' | 'triggerEnemy' | 'none';
 
 /** エディターの選択パネルの見出し（並び順） */
-export const TIMING_GROUPS = ['基本', 'このモンスター', 'ターン', '自分が使ったカード', '味方の出入り', '手札・捨て札', '起動', '英雄譚', '蓄積'] as const;
+export const TIMING_GROUPS = ['基本', 'このモンスター', 'ターン', '自分が使ったカード', '味方の出入り', '相手の行動', '手札・捨て札', '起動', '英雄譚', '蓄積'] as const;
 export type TimingGroup = (typeof TIMING_GROUPS)[number];
 
 export interface TimingDef {
@@ -56,6 +57,12 @@ export interface TimingDef {
 export const FROM_DISCARD_ABILITIES = ['flashback', 'jumpStart', 'escape'] as const;
 
 const maxRepeat = BALANCE.battle.maxRepeatTriggersPerTurn;
+
+/**
+ * 能力「罠」（MTG 要素 △ バッチA）のパワーが使えるタイミング：相手の行動で出るもの（相手のモンスターが攻撃するたび・
+ * 自分の他のモンスターが破壊されるたび）
+ */
+export const TRAP_TIMINGS: readonly TimingId[] = ['enemyAttacked', 'allyDestroyed'];
 
 /** モード（MTG 要素 ○ バッチC2）を付けられるタイミング：使用時・召喚時・捨て札から使ったとき */
 export const MODE_TIMINGS: readonly TimingId[] = ['play', 'summon', 'fromDiscard'];
@@ -300,10 +307,42 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     requiresAbility: ['charge'],
     noDrawbacks: true,
   },
+  // ---- MTG 要素 △ バッチA
+  enemyAttacked: {
+    id: 'enemyAttacked',
+    label: '相手のモンスターが攻撃するたび',
+    textPrefix: '相手のモンスターが攻撃するたび、',
+    bases: ['monster', 'spell'],
+    powerTiming: true,
+    chosen: 'triggerEnemy',
+    group: '相手の行動',
+    description: `相手のモンスターが自分か自分のモンスターを攻撃したあとに発動（インスタントの代わりの「罠」。対象「攻撃してきたモンスター」で反撃できる）。モンスター以外ならパワーになる。1つにつき1ターン${maxRepeat}回まで`,
+  },
+  discarded: {
+    id: 'discarded',
+    label: '捨てられたとき',
+    textPrefix: 'このカードが手札から捨てられたとき、',
+    bases: ['monster', 'spell'],
+    powerTiming: false,
+    chosen: 'none',
+    group: '手札・捨て札',
+    description:
+      'このカードが効果やコスト（手札整理・ランダムに捨てる・再活の支払い・サイクリング・魂力）で手札から捨てられたときに発動（マッドネス。ターン終了時に手札を捨てるときは出ない）',
+  },
+  valiant: {
+    id: 'valiant',
+    label: '各ターン初めて自分のカードの対象になったとき',
+    textPrefix: '各ターン初めて自分のカードの対象になったとき、',
+    bases: ['monster'],
+    powerTiming: false,
+    chosen: 'none',
+    group: 'このモンスター',
+    description: 'このモンスターが、各ターン最初に自分のカードの「選んだ自分のモンスター1体」になったときだけ発動（雄姿。英雄的の1ターン1回版。カードの効果より先に発動）',
+  },
 };
 
 /** 1つのカード（パワー・モンスター）につき1ターン maxRepeatTriggersPerTurn 回までのタイミング（安全装置） */
-export const REPEAT_CAPPED_TIMINGS: readonly TimingId[] = ['allySummoned', 'allyDestroyed', 'powerPlayed', 'skillPlayed', 'targeted', 'bigCardPlayed'];
+export const REPEAT_CAPPED_TIMINGS: readonly TimingId[] = ['allySummoned', 'allyDestroyed', 'powerPlayed', 'skillPlayed', 'targeted', 'bigCardPlayed', 'enemyAttacked'];
 
 /** 「攻撃するたび」の倍率に要る、モンスターの攻撃のしかた（キーワードから決まる。points.ts の attackProfile） */
 export interface AttackProfile {
@@ -327,6 +366,8 @@ export function timingMultiplier(
 ): number {
   const t = BALANCE.timing;
   const monster = base === 'monster';
+  // 罠（MTG 要素 △ バッチA）：罠のパワーの効果は1回で消えるので、罠のタイミングの倍率は能力の倍率
+  if (!monster && TRAP_TIMINGS.includes(timing) && hasAnyAbility(card.abilities, ['trap'])) return BALANCE.abilities.trap.timingRate;
   switch (timing) {
     case 'play':
       return t.play;
@@ -380,16 +421,23 @@ export function timingMultiplier(
       return t.chapter3;
     case 'charged':
       return chargedMultiplier(card.abilities);
+    case 'enemyAttacked':
+      return monster ? t.enemyAttackedMonster : t.enemyAttackedPower;
+    case 'discarded':
+      return t.discarded;
+    case 'valiant':
+      return t.valiant;
   }
 }
 
 /** 蓄積（MTG 要素 ○ バッチC2）の能力の必要数とイベント（能力が無ければ既定値） */
-export function chargeSpec(abilities: Abilities): { need: number; event: ChargeEvent } {
-  const a = (abilities ?? []).find((x) => x.id === 'charge');
+export function chargeSpec(abilities: Abilities): { need: number; event: ChargeEvent; once: boolean } {
+  const a = (abilities ?? []).find((x) => x.id === 'charge') as (Pick<AbilityInstance, 'id' | 'value' | 'option' | 'once'>) | undefined;
   const C = BALANCE.abilities.charge;
   const need = a?.value ?? CHARGE_DEFAULT_NEED;
   const event = (CHARGE_EVENTS as readonly string[]).includes(a?.option ?? '') ? (a!.option as ChargeEvent) : CHARGE_EVENTS[0];
-  return { need: Math.min(Math.max(need, C.min), C.max), event };
+  // プラン（MTG 要素 △ バッチA）：たまったら効果を出してパワーが消える
+  return { need: Math.min(Math.max(need, C.min), C.max), event, once: a?.once === true };
 }
 
 /** 蓄積カウンターがたまるイベント（MTG 要素 ○ バッチC2） */
@@ -407,9 +455,12 @@ export const CHARGE_DEFAULT_NEED = 3;
 
 /** 「蓄積がたまったとき」の倍率：chargedPower × min(1, イベントの頻度 ÷ 必要数) */
 export function chargedMultiplier(abilities: Abilities): number {
-  const { need, event } = chargeSpec(abilities);
+  const { need, event, once } = chargeSpec(abilities);
   const rate = BALANCE.abilities.charge.rates[event];
-  return BALANCE.timing.chargedPower * Math.min(1, rate / need);
+  const m = BALANCE.timing.chargedPower * Math.min(1, rate / need);
+  // プラン（1回きり。MTG 要素 △ バッチA）：×planRate、ただし planMin 未満にしない
+  const P = BALANCE.abilities.chargePlan;
+  return once ? Math.max(P.planMin, m * P.planRate) : m;
 }
 
 /**
@@ -469,27 +520,30 @@ export function targetMultiplier(target: TargetId, rule?: TargetRule): number {
 export function allowedTargets(rule: TargetRule, timing: TimingId, base?: CardBase): TargetId[] {
   const chosen = TIMINGS[timing].chosen;
   // 相手側の「選んだ1体」：攻撃した相手・ダメージを与えてきた相手・使うときに選ぶ1体
-  const hasChosen = chosen !== 'none' && chosen !== 'triggerAlly';
+  const hasChosen = chosen !== 'none' && chosen !== 'triggerAlly' && chosen !== 'triggerEnemy';
+  // 攻撃してきたモンスター（「相手のモンスターが攻撃するたび」。MTG 要素 △ バッチA）
+  const attacker = chosen === 'triggerEnemy' ? (['attacker'] as const) : [];
   switch (rule) {
     case 'enemyAny':
       return [
         ...(hasChosen ? (['chosen'] as const) : (['enemyPlayer'] as const)),
+        ...attacker,
         'random',
         'enemyMonsters',
         'enemyAll',
         'everyone',
       ];
     case 'enemyMonster':
-      return [...(hasChosen ? (['chosen'] as const) : []), 'random', 'enemyMonsters', 'everyone'];
+      return [...(hasChosen ? (['chosen'] as const) : []), ...attacker, 'random', 'enemyMonsters', 'everyone'];
     case 'enemyMonsterOne':
-      return [...(hasChosen ? (['chosen'] as const) : []), 'random'];
+      return [...(hasChosen ? (['chosen'] as const) : []), ...attacker, 'random'];
     case 'enemyPlayer':
       return ['enemyPlayer'];
     case 'allyMonsterOne': {
       // 自分のモンスターを選べるのは、使うときに選ぶ場面があるタイミングと「出たモンスター」だけ
       const monsterCard = base === 'monster' || (base === undefined && TIMINGS[timing].bases.every((b) => b === 'monster'));
-      // 引いたとき・魂力は、カード自身がまだ手札にある
-      const onBoard = monsterCard && timing !== 'drawn' && timing !== 'channel';
+      // 引いたとき・魂力・捨てられたときは、カード自身が手札（捨て札）にある
+      const onBoard = monsterCard && timing !== 'drawn' && timing !== 'channel' && timing !== 'discarded';
       return [
         ...(chosen === 'manual' || chosen === 'triggerAlly' ? (['chosen'] as const) : []),
         'random',
@@ -518,14 +572,19 @@ export function allowedTargets(rule: TargetRule, timing: TimingId, base?: CardBa
  * 「自分」に作用する効果のうち symmetric なもの（ドロー・回復など）は「お互い」も選べる（MTG 要素 ○ バッチA）
  */
 export function targetsForEffect(
-  def: { targetRule: TargetRule; excludeTargets?: readonly TargetId[]; symmetric?: boolean },
+  def: { targetRule: TargetRule; excludeTargets?: readonly TargetId[]; symmetric?: boolean; thisMonsterToo?: boolean },
   timing: TimingId,
   base?: CardBase,
 ): TargetId[] {
   const all = allowedTargets(def.targetRule, timing, base);
   if (def.symmetric && def.targetRule === 'self') all.push('bothPlayers');
+  // 相手に作用する効果のうち、自分のモンスター自身にも使えるもの（容疑。MTG 要素 △ バッチA）：場にいるモンスターのカードだけ
+  if (def.thisMonsterToo && base === 'monster' && !OFF_BOARD_TIMINGS.includes(timing) && !all.includes('thisMonster')) all.push('thisMonster');
   return def.excludeTargets ? all.filter((t) => !def.excludeTargets!.includes(t)) : all;
 }
+
+/** カード自身が場にいないタイミング（引いたとき・魂力・破壊されたとき・捨てられたとき） */
+const OFF_BOARD_TIMINGS: readonly TimingId[] = ['drawn', 'channel', 'destroyed', 'discarded'];
 
 /** エディターの選択肢に出す名前 */
 export function targetLabel(target: TargetId, rule: TargetRule, timing: TimingId): string {
@@ -564,6 +623,8 @@ export function targetLabel(target: TargetId, rule: TargetRule, timing: TimingId
       return 'お互い';
     case 'tribeAllies':
       return '同じ種族の自分のモンスター全体';
+    case 'attacker':
+      return '攻撃してきたモンスター';
   }
 }
 
@@ -606,6 +667,8 @@ export function targetNoun(target: TargetId, rule: TargetRule, timing: TimingId)
       return '自分';
     case 'tribeAllies':
       return '同じ種族の自分のモンスター全体';
+    case 'attacker':
+      return '攻撃してきたモンスター';
   }
 }
 
@@ -1049,6 +1112,39 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     timings: null,
     group: '種族・速度・王冠',
     description: '自分が王冠を持っていれば発動（統治者。王冠は「王冠を得る」で得て、相手のモンスターの攻撃でHPが減ると奪われる）',
+  },
+  // ---- MTG 要素 △ バッチA
+  converge: {
+    id: 'converge',
+    tier: 'strict',
+    label: `このターン${cp.convergeMin}種類以上のカードを使った`,
+    textPrefix: `このターン${cp.convergeMin}種類以上のカードを使っていれば、`,
+    timings: null,
+    excludeTimings: ['turnStart'],
+    group: 'このターン',
+    description: `このターンに使ったカードの種類（アタック・スキル・パワー・モンスター）が${cp.convergeMin}種類以上なら発動（収斂。使ったカード自身も数える。相手のターンには満たさない）`,
+  },
+  descend: {
+    id: 'descend',
+    tier: 'normal',
+    label: `捨て札にモンスターとパワーが合わせて${cp.descendMin}枚以上`,
+    textPrefix: `捨て札にモンスターとパワーが合わせて${cp.descendMin}枚以上あれば、`,
+    timings: null,
+    group: '捨て札',
+    description: `自分の捨て札のモンスターカードとパワーのカード（場に残るカード）が合わせて${cp.descendMin}枚以上なら発動（落魄）`,
+  },
+  rested: {
+    id: 'rested',
+    tier: 'normal',
+    label: 'このモンスターがこのターン攻撃していない',
+    textPrefix: 'このモンスターがこのターン攻撃していなければ、',
+    timings: null,
+    // 出たばかり・もう場にいない・手札・攻撃した直後では意味がない
+    excludeTimings: ['summon', 'destroyed', 'drawn', 'discarded', 'attack', 'hitEnemyPlayer', 'channel', 'fromDiscard'],
+    bases: ['monster'],
+    notForCost: true,
+    group: 'このモンスター',
+    description: 'このモンスターがこのターンにまだ攻撃していなければ発動（長久。「ターン終了時」＋鍛錬（このモンスター）で「攻撃しなかったら育つ」）',
   },
 };
 

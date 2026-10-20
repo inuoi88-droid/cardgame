@@ -20,6 +20,7 @@ export interface GlossaryEntry {
 export type StatusId =
   | 'poison'
   | 'doom'
+  | 'rad'
   | 'burn'
   | 'weak'
   | 'vulnerable'
@@ -49,6 +50,12 @@ export const glossary: Record<StatusId, GlossaryEntry> = {
     icon: '⏳',
     tone: 'bad',
     short: `自分のターン開始時に、呪縛の数だけダメージ（シールド・無効化を無視）。毒と違って減らない。浄化で消える。合計は${B.doomCap}まで`,
+  },
+  rad: {
+    name: '放射能',
+    icon: '☢',
+    tone: 'bad',
+    short: `自分のターン開始時（引いた後）に、山札の上を放射能の数だけ捨て札に置き、モンスター以外1枚ごとに${B.radDamage}ダメージ（シールド・無効化を無視）。放射能はその枚数だけ減る。合計${B.radCap}まで。浄化で消える`,
   },
   burn: {
     name: 'やけど',
@@ -127,6 +134,9 @@ const KEYWORD_ICON: Record<string, string> = {
   onslaught: '🐗',
   menace: '😠',
   doubleTeam: '👯',
+  // MTG 要素 △ バッチA
+  reach: '🏹',
+  skulk: '🐾',
 };
 
 /** キーワードの用語（レジストリから作る。名前と説明はエンジンの定義そのもの） */
@@ -145,6 +155,10 @@ const MODIFIER_ICON: Record<string, string> = {
   perCardPlayed: '🃏',
   perDiscardMonster: '🪦',
   perTribeAlly: '🐾',
+  // MTG 要素 △ バッチA
+  witherDmg: '🥀',
+  perExp: '🎖',
+  gamble: '🎲',
 };
 
 const ABILITY_ICON: Record<string, string> = {
@@ -165,6 +179,8 @@ const ABILITY_ICON: Record<string, string> = {
   // MTG 要素 ○ バッチC2
   entwine: '🔗',
   charge: '🔋',
+  // MTG 要素 △ バッチA
+  trap: '🪤',
 };
 
 /** カードの能力（MTG 要素 ○ バッチB。レジストリから作る） */
@@ -392,6 +408,64 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     tone: 'info',
     short: `蓄積のパワーは、決まった出来事のたびにカウンターが1つたまり（1ターン${B.maxRepeatTriggersPerTurn}つまで）、必要数たまると「蓄積がたまったとき」の効果が出て0に戻る`,
   },
+  // ---- MTG 要素 △ バッチA
+  plan: {
+    name: 'プラン',
+    icon: '📜',
+    tone: 'info',
+    short: '蓄積の「プラン（1回きり）」のパワーは、必要数たまったら「蓄積がたまったとき」の効果を出して消える（悪役の陰謀）',
+  },
+  trap: {
+    name: '罠',
+    icon: '🪤',
+    tone: 'info',
+    short: '能力「罠」のパワーは、「相手のモンスターが攻撃するたび」「自分の他のモンスターが破壊されるたび」の効果が初めて出たら、そのあと消える（相手のターンに働く。インスタントの代わり）',
+  },
+  attacker: {
+    name: '攻撃してきたモンスター',
+    icon: '🎯',
+    tone: 'info',
+    short: '「相手のモンスターが攻撃するたび」で、攻撃してきた相手のモンスター（攻撃のあとに解決。もう場にいなければ不発。呪禁・護法・挑発に関係しない）',
+  },
+  discarded: {
+    name: '捨てられたとき',
+    icon: '🗑',
+    tone: 'info',
+    short: 'タイミング「捨てられたとき」の効果は、効果やコスト（手札整理・ランダムに捨てる・再活の支払い・サイクリング・魂力）で手札から捨てられたときに出る。ターン終了時に手札を捨てるときは出ない',
+  },
+  finality: { name: '消滅の印', icon: '⚰', tone: 'bad', short: '消滅の印のモンスターは、破壊されると捨て札ではなく除外される（蘇生・回収できない）。場を離れると印も消える' },
+  suspected: {
+    name: '容疑',
+    icon: '🕵',
+    tone: 'info',
+    short: `容疑のモンスターは攻撃力+${BALANCE.effects.suspect.attack}、挑発を失い、攻撃されても反撃しない。攻撃したときは相手の反撃を受けない（場を離れるまで。封印されても残る）`,
+  },
+  indestructible: {
+    name: '不壊',
+    icon: '🛡',
+    tone: 'good',
+    short: '次の持ち主のターン開始まで、体力が1未満にならず、破壊の効果（接死・処刑・全体破壊・腐乱など）も効かない。生け贄・衰弱で体力0・寿命・バウンスは効く',
+  },
+  protection: { name: '加護', icon: '✨', tone: 'good', short: '次の持ち主のターン開始まで、すべてのダメージを受けず、相手のカードの「選んだ1体」に選ばれない（ランダム・全体の効果は当たるがダメージは0）' },
+  egg: {
+    name: B.eggName,
+    icon: B.eggIcon,
+    tone: 'info',
+    short: `培養で出る卵（トークン。攻撃力0）。攻撃できない（反撃はする）。${B.eggHatchTurns}回目の自分のターン開始時に孵化し、攻撃力が上がって${B.tokenName}になる`,
+  },
+  tempGranted: { name: '賛助のキーワード', icon: '🤝', tone: 'good', short: '賛助でこのターンだけ与えられたキーワード。ターン終了時に消える（封印中は働かない）' },
+  dormant: { name: '休眠', icon: '💤', tone: 'bad', short: '休眠のモンスター・パワーは1ターンおきに休む。休眠中は攻撃できず、場にいる間のタイミングの効果・起動が出ない（召喚時・破壊されたとき・反撃は普通どおり）' },
+  cumulativeUpkeep: { name: '累加維持費', icon: '⏫', tone: 'bad', short: '持ち主のターン開始時に「場にあるターン数×N」のダメージを受ける（毎ターン1ずつ増える）' },
+  withered: { name: '萎縮', icon: '🥀', tone: 'bad', short: '萎縮のダメージで、減った体力のぶん最大体力も減った（修理・回復で戻らない）' },
+  spawn: { name: '落とし子', icon: '⚡', tone: 'info', short: '落とし子のトークンが破壊されると、持ち主のエナジー+1（自分のターンならこのターン、相手のターンなら次のターン）' },
+  exp: { name: '経験', icon: '🎖', tone: 'good', short: `試合中ずっと残る数（最大${B.expCap}）。修飾「経験1につき」の数値が大きくなる（最大${BALANCE.modifierParams.expCountCap}）` },
+  ice: {
+    name: '氷結',
+    icon: '🧊',
+    tone: 'bad',
+    short: `次の自分のターン開始時（引いた後）に、手札（ノイズ以外）からランダムにこの枚数が凍り、そのターンは使えない（サイクリング・魂力も不可。合計${B.iceCap}まで。浄化で消える）`,
+  },
+  perpetual: { name: '永久強化', icon: '♾', tone: 'good', short: 'この試合のあいだ、このカードの攻撃力と体力が上がっている（山札・捨て札・除外を巡っても残る）' },
 };
 
 /** 状態異常・キーワード・オプション・しくみ・タイミング（timing:…）・条件（condition:…）のどの ID でも引ける */

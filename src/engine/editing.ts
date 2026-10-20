@@ -126,7 +126,7 @@ export function effectTimings(def: Pick<EffectDef, 'timings'>, base: CardBase, a
 }
 
 /** この効果に、このタイミングで付けられるオプション（防御無視・吸収と、数値の倍数と、遅延） */
-export function modifiersFor(def: Pick<EffectDef, 'allowsMods' | 'scalable' | 'noDelay'>, timing: TimingId): ModifierDef[] {
+export function modifiersFor(def: Pick<EffectDef, 'allowsMods' | 'scalable' | 'noDelay' | 'value'>, timing: TimingId): ModifierDef[] {
   return listModifiers().filter((m) => {
     if (!modifierFits(m, def)) return false;
     return !m.timings || m.timings.includes(timing);

@@ -99,7 +99,7 @@ describe('効果（○ バッチB）：ポイントとテキスト', () => {
     ['millEnemy', S({ id: 'mill', value: 2, option: 'enemy' }), 2, '相手の山札の上2枚を捨て札に置く。'],
     ['quashAny', SPELL([fx({ id: 'quash', target: 'enemyPlayer', option: 'any' })]), 25, '相手が次に使うカード1枚を無効にする（相手の次のターンの終わりまで）。'],
     ['quashSkill', SPELL([fx({ id: 'quash', target: 'enemyPlayer', option: 'skill' })]), 15, '相手が次に使うスキルのカード1枚を無効にする（相手の次のターンの終わりまで）。'],
-    ['proliferate', S({ id: 'proliferate', value: 1 }), 5, '相手の毒・出血・呪縛を+1、やけど・弱体・脆弱を1ターン延ばし、自分の筋力・再生を+1する（すでにあるものだけ）。'],
+    ['proliferate', S({ id: 'proliferate', value: 1 }), 5, '相手の毒・出血・呪縛を+1、放射能を+1、やけど・弱体・脆弱を1ターン延ばし、自分の筋力・再生を+1する（すでにあるものだけ）。'],
     ['populate', S({ id: 'populate' }), 6, '自分のトークン1体のコピーを出す。'],
     ['explore', SPELL([fx({ id: 'explore', value: 1 })]), 5, '山札の一番上を公開し、モンスターなら手札に加え、違えば捨て札に置いて自分のモンスター1体の攻撃力と体力を+1する。'],
     ['amass', S({ id: 'amass', value: 1 }), 7, '動員1（軍団がいなければ出し、軍団の攻撃力と体力を+1する）。'],

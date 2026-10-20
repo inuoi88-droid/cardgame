@@ -37,7 +37,7 @@ export default defineDrawback({
         rt.log('生け贄にするモンスターがいない');
         return;
       }
-      rt.destroy({ kind: 'monster', uid: m.uid });
+      rt.destroy({ kind: 'monster', uid: m.uid }, true);
     },
   },
 });

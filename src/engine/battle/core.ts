@@ -120,8 +120,21 @@ export function auraAttack(g: GameState, m: Monster): number {
   return n;
 }
 
-/** 実効攻撃力（攻撃力＋このターンだけの上乗せ＋激励） */
-export const effectiveAttack = (g: GameState, m: Monster): number => m.attack + (m.tempAttack ?? 0) + auraAttack(g, m);
+/** 実効攻撃力（攻撃力＋このターンだけの上乗せ＋激励＋容疑。容疑は MTG 要素 △ バッチA） */
+export const effectiveAttack = (g: GameState, m: Monster): number =>
+  m.attack + (m.tempAttack ?? 0) + auraAttack(g, m) + (m.suspected ? BALANCE.effects.suspect.attack : 0);
+
+/**
+ * 休眠（MTG 要素 △ バッチA）：起点 from（置いたときの持ち主の turnsTaken）からの、持ち主の turnsTaken の差が奇数なら休眠中
+ * （持ち主のターンと、その次の相手のターン）。from が無ければ休眠しない
+ */
+export function dormantNow(g: GameState, p: PlayerId, from: number | undefined): boolean {
+  if (from === undefined) return false;
+  return (g.players[p].turnsTaken - from) % 2 === 1;
+}
+
+/** 休眠中のモンスターか */
+export const monsterDormant = (g: GameState, m: Monster): boolean => dormantNow(g, m.controller, m.counters.dormantFrom);
 export const monsterRef = (m: Monster): TargetRef => ({ kind: 'monster', uid: m.uid });
 
 export function sourceOfPlayer(g: GameState, p: PlayerId): SourceRef {

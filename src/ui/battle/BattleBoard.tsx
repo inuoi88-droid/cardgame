@@ -835,8 +835,17 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           }
         >
           <CardDetailBody
-            def={grownDef(def, card.grow)}
-            extras={{ cost: i.cost, notes: [...(card.grow ? [`成長：この1枚のダメージ+${card.grow}（表示に含む）`] : []), ...(myTurn ? [...costLines(i), ...i.warnings] : costLines(i))], where: '手札' }}
+            def={grownDef(def, card.grow, card.perm)}
+            extras={{
+              cost: i.cost,
+              notes: [
+                ...(card.grow ? [`成長：この1枚のダメージ+${card.grow}（表示に含む）`] : []),
+                ...(card.perm ? [`永久強化：攻撃力+${card.perm.attack}・体力+${card.perm.hp}（表示に含む）`] : []),
+                ...(i.blocked === battle.WARN_ICED ? [i.blocked] : []),
+                ...(myTurn ? [...costLines(i), ...i.warnings] : costLines(i)),
+              ],
+              where: '手札',
+            }}
           />
         </CardDetailSheet>
       );

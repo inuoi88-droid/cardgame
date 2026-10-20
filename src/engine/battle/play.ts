@@ -11,7 +11,7 @@ import { cardName, enqueue, findMonster, log, newUid, other, playerRef, playReco
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
 import { cardTargetable, cardTargetableTaunts, wardTax } from './damage.ts';
 import { randInt } from './rng.ts';
-import { discardCard, summon } from './zones.ts';
+import { afterDiscarded, discardCard, summon } from './zones.ts';
 import { cardModes, effectsForMode, entwineCost, modeMatches, resolveMode } from './modes.ts';
 import { chargePowers, startSaga } from './powers.ts';
 import { MODE_LABEL, type ModeId } from '../types.ts';
@@ -246,7 +246,10 @@ export function enemyCandidates(g: GameState, p: PlayerId, rules: TargetRule[]):
  */
 export function allyCandidates(g: GameState, p: PlayerId, card: CardInst, timing?: TimingId): string[] {
   const def = g.cards[card.cardId];
-  const self = def?.stats && (timing === undefined || timing === 'summon' || timing === 'fromDiscard');
+  const t = timing ?? 'summon';
+  // 賛助（MTG 要素 △ バッチA）のように、使ったモンスター自身は選べない効果があれば自分自身は出さない
+  const notSelf = (def?.effects ?? []).some((e) => e.timing === t && e.target === 'chosen' && getEffect(e.id)?.notSelfAlly);
+  const self = def?.stats && (timing === undefined || timing === 'summon' || timing === 'fromDiscard') && !notSelf;
   return [...g.players[p].board.map((m) => m.uid), ...(self ? [card.uid] : [])];
 }
 
@@ -255,6 +258,8 @@ const sameRef = (a: TargetRef, b: TargetRef) =>
 
 /** 「選んだ1体」が候補に合っているか（使う・起動・魂力で共通）。合っていれば null */
 export function validateChosen(enemies: TargetRef[], allies: string[], chosen: Chosen | undefined): string | null {
+  // 「攻撃してきたモンスター」（MTG 要素 △ バッチA）は行動では選べない
+  if (chosen?.trigger !== undefined) return 'その対象は選べません';
   if (enemies.length > 0) {
     if (!chosen?.enemy) return '対象を選んでください';
     if (!enemies.some((t) => sameRef(t, chosen.enemy!))) return 'その対象は選べません';
@@ -315,6 +320,8 @@ export function validatePlay(g: GameState, p: PlayerId, cardUid: string, chosen:
   if (card.cardId === NOISE_CARD_ID) return 'ノイズは使えません（コストを払って除外はできます）';
   const def = g.cards[card.cardId];
   if (!def) return 'カードの定義が見つかりません';
+  const ice = icedBlock(g, card);
+  if (ice) return ice;
   if (fromDiscard) {
     const reason = validateFromDiscardPayment(g, p, card, def, opts);
     if (reason) return reason;
@@ -334,6 +341,21 @@ export function validatePlay(g: GameState, p: PlayerId, cardUid: string, chosen:
   if (reason) return reason;
   const rules = chosenRules(def, timing, opts.mode);
   return validateChosen(enemyCandidates(g, p, rules.enemy), rules.ally ? allyCandidates(g, p, card, timing) : [], chosen);
+}
+
+/** 氷結（MTG 要素 △ バッチA）で、このターンは使えない手札か。使えないなら理由 */
+export const WARN_ICED = '氷結：このターンは使えない';
+export function icedBlock(g: GameState, card: CardInst): string | null {
+  return card.iced !== undefined && card.iced === g.turnIndex ? WARN_ICED : null;
+}
+
+/** 使ったカードの種類をこのターンの記録に足す（条件「このターン3種類以上のカードを使った」。パワーアタックはパワー。MTG 要素 △ バッチA） */
+export function recordPlayedType(g: GameState, p: PlayerId, def: CardDef): void {
+  const t = classifyCard(def);
+  const kind = t === 'powerAttack' ? 'power' : t;
+  const turn = g.players[p].turn;
+  const list = turn.typesPlayed ?? [];
+  if (!list.includes(kind)) turn.typesPlayed = [...list, kind];
 }
 
 /** デメリットのせいで使えない理由（生け贄にするモンスターがいない など）。使えるなら null */
@@ -370,6 +392,7 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
   ps.turn.freezeTax = false;
   ps.discount = 0;
   ps.turn.cardsPlayed += 1;
+  recordPlayedType(g, p, def);
   zone.splice(index, 1);
   const fd = fromDiscard ? fromDiscardAbility(def) : undefined;
   const modeNote = opts.mode === undefined ? '' : opts.mode === 0 ? '双呪ですべてのモードで' : `モード${modeName(opts.mode)}で`;
@@ -406,6 +429,7 @@ function payFromDiscard(g: GameState, p: PlayerId, card: CardInst, fd: NonNullab
       const [d] = ps.hand.splice(i, 1);
       discardCard(g, d!);
       log(g, 1, `${fd.name}：${ps.name}は手札の「${cardName(g, d!.cardId)}」を捨てた`, 'info', undefined, { kind: 'discard', player: p, amount: 1 });
+      afterDiscarded(g, p, d!, 1);
     }
   }
   const exile = new Set(opts.exileUids ?? []);
@@ -468,8 +492,14 @@ function resolvePlay(
     log(g, depth, `X＝${x}${opts.from === 'free' ? '（無料で使ったので0）' : '（エナジーをすべて使った）'}`, 'info', undefined, { kind: 'energy', player: p, amount: ps.energy });
   }
   // 自分のカードの対象になるたび（英雄的。MTG 要素 ○ バッチA）：選んだ自分のモンスターの効果を、カードの効果より先に積む
-  if (chosen.ally && chosenRules(def, timing, mode).ally && ps.board.some((m) => m.uid === chosen.ally)) {
-    enqueueMonsters(g, p, 'targeted', depth, { onlyUid: chosen.ally });
+  const targetedAlly = chosen.ally && chosenRules(def, timing, mode).ally ? ps.board.find((m) => m.uid === chosen.ally) : undefined;
+  if (targetedAlly) {
+    enqueueMonsters(g, p, 'targeted', depth, { onlyUid: targetedAlly.uid });
+    // 各ターン初めて自分のカードの対象になったとき（雄姿。MTG 要素 △ バッチA）：1体につき1ターン1回
+    if (targetedAlly.counters.valiantTurn !== g.turnIndex) {
+      targetedAlly.counters.valiantTurn = g.turnIndex;
+      enqueueMonsters(g, p, 'valiant', depth, { onlyUid: targetedAlly.uid });
+    }
   }
   if (def.stats) {
     summon(g, p, card, chosen, depth, protectKey, timing, mode);
@@ -563,6 +593,7 @@ export function executeFreePlay(g: GameState, step: Extract<Step, { t: 'freePlay
     return;
   }
   ps.turn.cardsPlayed += 1;
+  recordPlayedType(g, p, def);
   log(g, step.depth, `${ps.name}は「${def.name}」を${mode !== undefined ? `モード${modeName(mode)}で` : ''}無料で使った`, 'action', undefined, {
     kind: 'play',
     player: p,
@@ -641,6 +672,8 @@ export function finishCard(g: GameState, p: PlayerId, card: CardInst, protectKey
       if (newPower.effects.length > 0 || newPower.drawbacks.length > 0) {
         const life = lifespanOf(def);
         if (life !== undefined) newPower.life = life;
+        // 休眠（MTG 要素 △ バッチA）：置いたターンを起点に1ターンおきに休む
+        if (def.drawbacks.some((d) => getDrawback(d.id)?.battle.dormant)) newPower.dormantFrom = ps.turnsTaken;
         addPower(g, p, newPower, depth);
         log(g, depth, `「${def.name}」はパワーとして場に残り、カードは除外された${life !== undefined ? `（寿命${life}）` : ''}`);
         // 蓄積（MTG 要素 ○ バッチC2）は0から。英雄譚は第1章が出る

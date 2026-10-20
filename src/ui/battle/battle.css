@@ -1142,17 +1142,31 @@ body:has(.battle) .toasts {
   font-weight: normal;
 }
 .log__row {
-  padding: 1px 6px 1px 10px;
+  --depth: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 6px 1px calc(var(--depth) * 14px + 6px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+/* 入れ子（効果の中で起きたこと）は、字下げした位置に細い縦線を引く */
+.log__row--nested {
+  background: linear-gradient(
+      to right,
+      transparent calc(var(--depth) * 14px - 4px),
+      rgba(166, 175, 207, 0.28) calc(var(--depth) * 14px - 4px),
+      rgba(166, 175, 207, 0.28) calc(var(--depth) * 14px - 2px),
+      transparent calc(var(--depth) * 14px - 2px)
+    )
+    no-repeat;
+}
+.log__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .log__row--action {
   font-weight: bold;
-}
-.log__row--damage {
-  color: #ffb3bc;
-}
-.log__row--damage.log__row--enemy {
-  color: #ffd2a8;
 }
 .log__row--result {
   font-weight: bold;
@@ -1167,7 +1181,54 @@ body:has(.battle) .toasts {
   color: #c4d0ff;
 }
 .log__mark {
-  margin-right: 3px;
+  flex: none;
+  width: 18px;
+  text-align: center;
+}
+.log__row--ev-play,
+.log__row--ev-attack {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* ログの文の色分け（logFormat.ts）：カード名は黄色、プレイヤー名は自分／相手の色、ダメージは赤、回復は緑 */
+.lt-card {
+  color: var(--card-name);
+  font-weight: bold;
+}
+button.lt-card {
+  font: inherit;
+  font-weight: bold;
+  color: var(--card-name);
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  border-radius: 3px;
+}
+button.lt-card:hover {
+  text-decoration-style: solid;
+}
+button.lt-card:focus-visible {
+  outline: 2px solid var(--card-name);
+  outline-offset: 1px;
+}
+.lt-mine {
+  color: var(--mine);
+  font-weight: bold;
+}
+.lt-enemy {
+  color: var(--enemy);
+  font-weight: bold;
+}
+.lt-dmg {
+  color: var(--log-dmg);
+}
+.lt-heal {
+  color: var(--ok);
 }
 
 /* ------------------------------------------------------------ ダイアログ（マリガン・選択・捨て札） */
@@ -1653,4 +1714,433 @@ body:has(.battle) .toasts {
   .mt__icon {
     font-size: 22px;
   }
+}
+
+
+/* ============================================================ ドラッグ＆ドロップ（useDrag・DragLayer） */
+:root {
+  /* カード名（ログ・詳細）。暗い面で 4.5:1 以上 */
+  --card-name: #ffd84a;
+  --log-dmg: #ff7b88;
+}
+/* 明るいテーマを足したとき用（暗い琥珀色で白地に 4.5:1 以上） */
+:root[data-theme='light'] {
+  --card-name: #8a5300;
+  --log-dmg: #b3172b;
+}
+
+/* 手札：横スクロールはブラウザに任せ、縦（上向き）の動きでドラッグを始める */
+.hc {
+  touch-action: pan-x;
+}
+.hc.is-playable {
+  cursor: grab;
+}
+@media (hover: hover) and (pointer: fine) {
+  .battle:not(.is-dragging) .hc.is-playable:hover {
+    transform: translateY(-6px);
+    z-index: 2;
+  }
+}
+.hc.is-drag-src {
+  opacity: 0.25;
+  transform: scale(0.96);
+  box-shadow: none;
+}
+.hc.is-drag-aim {
+  opacity: 1;
+  transform: translateY(-12px) scale(1.05);
+  border-color: var(--warn);
+  box-shadow:
+    0 0 0 2px var(--warn),
+    0 10px 22px rgba(0, 0, 0, 0.55);
+  z-index: 3;
+}
+.hc--ghost {
+  opacity: 1;
+  width: 100%;
+  cursor: grabbing;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.85),
+    0 18px 36px rgba(0, 0, 0, 0.6);
+}
+.hc--ghost.is-playable {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 18px rgba(111, 141, 255, 0.6),
+    0 18px 36px rgba(0, 0, 0, 0.6);
+}
+
+/* 場：攻撃できるモンスターはつかめる（タッチでもスクロールにしない） */
+.mt.is-ready {
+  touch-action: none;
+  cursor: grab;
+}
+.mt.is-dragging {
+  transform: translateY(-4px) scale(1.04);
+  border-color: var(--warn);
+  box-shadow:
+    0 0 0 2px var(--warn),
+    0 10px 22px rgba(0, 0, 0, 0.5);
+  z-index: 3;
+}
+.mt.is-drop-hover {
+  transform: scale(1.1);
+  border-color: #fff;
+  animation: none;
+  box-shadow:
+    0 0 0 3px var(--ok),
+    0 0 28px rgba(60, 207, 145, 0.85);
+}
+.pp.is-drop-hover {
+  animation: none;
+  border-color: var(--ok);
+  box-shadow:
+    0 0 0 3px var(--ok),
+    0 0 28px rgba(60, 207, 145, 0.75);
+}
+.battle.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.battle.is-dragging--arrow .board .mt:not(.is-targetable):not(.is-dragging),
+.battle.is-dragging--arrow .pp:not(.is-targetable) {
+  opacity: 0.55;
+}
+.hand__drop {
+  margin-left: auto;
+  color: var(--warn);
+  font-weight: bold;
+}
+
+.drag-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+}
+.play-zone {
+  position: fixed;
+  display: grid;
+  place-items: center;
+  border: 3px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: rgba(111, 141, 255, 0.12);
+  animation: fade-in var(--dur-fast);
+  transition:
+    background var(--dur-fast),
+    border-color var(--dur-fast);
+}
+.play-zone.is-hover {
+  border-color: var(--ok);
+  border-style: solid;
+  background: rgba(60, 207, 145, 0.16);
+  box-shadow: inset 0 0 40px rgba(60, 207, 145, 0.3);
+}
+.play-zone__label {
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  background: rgba(17, 21, 42, 0.92);
+  border: 1px solid var(--line-strong);
+  font-weight: bold;
+  font-size: var(--fs-md);
+  color: var(--text);
+  text-align: center;
+  max-width: calc(100% - 24px);
+}
+.play-zone.is-hover .play-zone__label {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.drag-ghost {
+  position: fixed;
+  transform: rotate(-3deg) scale(1.06);
+  transition: transform var(--dur-fast);
+  will-change: left, top;
+}
+.drag-ghost.is-ok {
+  transform: rotate(0deg) scale(1.1);
+}
+.drag-layer.is-back .drag-ghost {
+  transition:
+    left 200ms var(--ease),
+    top 200ms var(--ease),
+    transform 200ms var(--ease),
+    opacity 200ms;
+  opacity: 0.6;
+}
+.drag-arrow {
+  position: fixed;
+  inset: 0;
+  overflow: visible;
+}
+.drag-arrow__shadow {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 12;
+  stroke-linecap: round;
+}
+.drag-arrow__line {
+  fill: none;
+  stroke: var(--warn);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-dasharray: 14 10;
+  animation: arrow-flow 0.6s linear infinite;
+}
+.drag-arrow__head {
+  fill: var(--warn);
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 2;
+}
+.drag-arrow.is-ok .drag-arrow__line {
+  stroke: var(--ok);
+}
+.drag-arrow.is-ok .drag-arrow__head {
+  fill: var(--ok);
+}
+.drag-arrow.is-none .drag-arrow__line {
+  stroke: var(--muted);
+}
+.drag-arrow.is-none .drag-arrow__head {
+  fill: var(--muted);
+}
+.drag-arrow__reticle {
+  fill: none;
+  stroke: var(--ok);
+  stroke-width: 3;
+  animation: reticle 0.9s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.drag-hint {
+  position: fixed;
+  transform: translate(-50%, calc(-100% - var(--lift, 34px)));
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(17, 21, 42, 0.94);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  white-space: nowrap;
+  max-width: calc(100vw - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drag-hint--below {
+  transform: translate(-50%, 8px);
+}
+.drag-hint.is-ok {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+@keyframes arrow-flow {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+@keyframes reticle {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 0.6;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drag-arrow__line,
+  .drag-arrow__reticle {
+    animation: none;
+  }
+  .drag-ghost,
+  .drag-ghost.is-ok {
+    transform: none;
+  }
+}
+
+/* パワー（押すと詳細） */
+.st--btn {
+  position: relative;
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.st--btn::after {
+  content: '';
+  position: absolute;
+  inset: -8px -2px;
+}
+.st--btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ============================================================ カードの詳細（CardDetail.tsx） */
+.cdetail {
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+}
+.cdetail__card {
+  display: flex;
+  justify-content: center;
+}
+.cdetail__info {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+  align-content: start;
+}
+@media (min-width: 720px) {
+  .cdetail {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    justify-items: stretch;
+  }
+}
+.cdetail__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cdetail__tag {
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  line-height: 1.6;
+  padding: 1px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--panel-3);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+}
+.cdetail__tag small {
+  font-size: var(--fs-xs);
+  font-weight: normal;
+  color: var(--muted);
+}
+.cdetail__tag--rare {
+  border-color: var(--rare);
+  color: #a9d0ff;
+}
+.cdetail__tag--epic {
+  border-color: var(--epic);
+  color: #dcc2ff;
+}
+.cdetail__tag--legend {
+  border-color: var(--legend);
+  color: #ffe08a;
+}
+.cdetail__tag--curse {
+  border-color: var(--curse);
+  color: #ff9fbf;
+}
+.cdetail__tag--where {
+  color: var(--muted);
+}
+.cdetail__sec h3 {
+  margin: 0 0 6px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.cdetail__desc p {
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--panel-2);
+  border-left: 3px solid var(--card-name);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--fs-sm);
+}
+.cdetail__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 0 0 8px;
+}
+.cdetail__stats > div {
+  padding: 6px;
+  text-align: center;
+  background: var(--panel-2);
+  border-radius: var(--radius-sm);
+}
+.cdetail__stats dt {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.cdetail__stats dd {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+}
+.cdetail__stats dd small {
+  margin-left: 4px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.cdetail__stats dd small.is-up {
+  color: var(--ok);
+}
+.cdetail__stats dd small.is-down {
+  color: var(--ng);
+}
+.cdetail__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.cdetail__list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.cdetail__list li small {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.cdetail__plain {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: var(--fs-sm);
+}
+.cdetail__notes {
+  margin: 0;
+  padding: 8px 12px 8px 28px;
+  font-size: var(--fs-sm);
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-radius: var(--radius-sm);
+}
+.cdetail__actions {
+  position: sticky;
+  bottom: -16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 16px -16px -16px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+.cdetail__why {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.cdetail--noise p {
+  margin: 0;
 }

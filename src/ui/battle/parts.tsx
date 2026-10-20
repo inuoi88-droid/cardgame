@@ -4,6 +4,7 @@ import { BALANCE, battle, CARD_TYPE_LABEL, analyzeCard, getEffect, TIMINGS, type
 import { Popover, type PopoverCard } from '../components/Popover.tsx';
 import { glossary, keywordGlossary, type GlossaryEntry } from '../glossary.ts';
 import { cx } from '../util.ts';
+import { logIcon, tokenizeLog, type LogNames } from './logFormat.ts';
 import type { Float } from './useReplay.ts';
 import { monsterForecasts, summarizeCard } from './summary.ts';
 
@@ -90,9 +91,15 @@ interface PlayerPanelProps {
   hpShown?: number;
   /** 見出しに添える短いラベル（「あなた」「相手」） */
   roleLabel: string;
+  /** ドラッグの落とし先の鍵（p:0 / p:1） */
+  dropKey: string;
+  /** ドラッグ中、この上で離すと決まる */
+  dropHover?: boolean;
+  /** パワーを押したとき（詳細を開く） */
+  onPower?: (pw: battle.PowerInst) => void;
 }
 
-export function PlayerPanel({ ps, isMe, active, targetable, onClick, onPile, floats, flash, hpShown, roleLabel }: PlayerPanelProps) {
+export function PlayerPanel({ ps, isMe, active, targetable, onClick, onPile, floats, flash, hpShown, roleLabel, dropKey, dropHover, onPower }: PlayerPanelProps) {
   const hp = hpShown ?? ps.hp;
   const pct = Math.max(0, Math.min(100, (hp / ps.maxHp) * 100));
   const next = [
@@ -100,21 +107,16 @@ export function PlayerPanel({ ps, isMe, active, targetable, onClick, onPile, flo
     ps.next.draw ? `次のドロー${ps.next.draw > 0 ? '+' : ''}${ps.next.draw}` : '',
     ps.discount ? `次のカード−${ps.discount}` : '',
   ].filter(Boolean);
-  const powerChips: Chip[] = ps.powers.map((pw) => ({
-    id: pw.uid,
-    label: `✦${pw.name}`,
-    tone: 'power',
-    card: { title: `✦ ${pw.name}（パワー）`, description: '場に残っている持続効果', lines: powerLines(pw) },
-  }));
   return (
     <div
-      className={cx('pp', isMe ? 'pp--me' : 'pp--opp', active && 'is-active', targetable && 'is-targetable', flash)}
+      className={cx('pp', isMe ? 'pp--me' : 'pp--opp', active && 'is-active', targetable && 'is-targetable', dropHover && 'is-drop-hover', flash)}
       onClick={targetable ? onClick : undefined}
       onKeyDown={targetable ? (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onClick()) : undefined}
       role={targetable ? 'button' : undefined}
       tabIndex={targetable ? 0 : undefined}
       aria-label={targetable ? `${ps.name}を対象にする` : undefined}
       data-fx={isMe ? 'me' : 'opp'}
+      data-drop={dropKey}
     >
       <div className="pp__row">
         <span className="pp__role">{roleLabel}</span>
@@ -174,14 +176,28 @@ export function PlayerPanel({ ps, isMe, active, targetable, onClick, onPile, flo
             </span>
           </Popover>
         )}
-        <Chips chips={[...statusChips(ps.status, true), ...powerChips]} />
+        <Chips chips={statusChips(ps.status, true)} />
+        {ps.powers.map((pw) => (
+          <button
+            key={pw.uid}
+            type="button"
+            className="st st--power st--btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPower?.(pw);
+            }}
+            aria-label={`パワー「${pw.name}」の詳細`}
+          >
+            ✦{pw.name}
+          </button>
+        ))}
       </div>
       <Floats items={floats} />
     </div>
   );
 }
 
-function powerLines(pw: battle.PowerInst): ReactNode[] {
+export function powerLines(pw: battle.PowerInst): ReactNode[] {
   const effects = pw.effects.filter((x) => !x.removed).map((x) => `${TIMINGS[x.effect.timing]?.label ?? ''}：${getEffect(x.effect.id)?.name ?? x.effect.id}`);
   return [...effects, ...pw.drawbacks.map((d) => `☠ デメリット（${d.timing ? TIMINGS[d.timing].label : ''}）`)];
 }
@@ -197,9 +213,12 @@ interface MonsterTileProps {
   selected: boolean;
   targetable: boolean;
   flags: ReturnType<typeof battle.keywordFlags>;
+  /** タップ（クリック）：詳細を開く・対象選択中なら対象にする */
   onClick: () => void;
   /** 長押し（スマホ）で詳細 */
   onDetail?: () => void;
+  /** ドラッグの始まり（攻撃） */
+  onPointerDown?: (e: PointerEvent<HTMLElement>) => void;
   floats?: Float[];
   flash?: string;
   /** まだ出現の演出をしていない（見えない） */
@@ -207,10 +226,14 @@ interface MonsterTileProps {
   /** 破壊されて消えていく途中 */
   dying?: boolean;
   isMine: boolean;
+  /** ドラッグ中、この上で離すと決まる */
+  dropHover?: boolean;
+  /** つかんで動かしている */
+  dragging?: boolean;
 }
 
-export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, flags, onClick, onDetail, floats, flash, hidden, dying, isMine }: MonsterTileProps) {
-  const press = useLongPress(onDetail);
+/** モンスターの札（キーワード・封印・隠密・裏切り・予告・攻撃回数・状態異常）。タイルと詳細で共用 */
+export function monsterChips(def: CardDef | undefined, m: battle.Monster, flags: ReturnType<typeof battle.keywordFlags>): Chip[] {
   const kws: Chip[] = (def?.keywords ?? []).map((k) => {
     const g = keywordGlossary[k.id];
     return {
@@ -228,7 +251,12 @@ export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, f
   if ((flags.attacksPerTurn ?? 1) > 1 && m.attacksUsed > 0) {
     extra.push({ id: 'attacks', label: `攻撃${m.attacksUsed}/${flags.attacksPerTurn}`, tone: 'info', card: { title: 'このターンの攻撃回数', description: `${flags.attacksPerTurn}回まで攻撃できる` } });
   }
-  const chips = [...(m.sealed ? [] : kws), ...extra, ...statusChips(m.status, false)];
+  return [...(m.sealed ? [] : kws), ...extra, ...statusChips(m.status, false)];
+}
+
+export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, flags, onClick, onDetail, onPointerDown, floats, flash, hidden, dying, isMine, dropHover, dragging }: MonsterTileProps) {
+  const press = useLongPress(onDetail);
+  const chips = monsterChips(def, m, flags);
   const label = def?.name ?? '？';
   const state = targetable ? '対象' : selected ? '選択中' : ready ? '攻撃できる' : blockLabel ?? null;
   return (
@@ -241,6 +269,8 @@ export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, f
         ready && 'is-ready',
         selected && 'is-selected',
         targetable && 'is-targetable',
+        dropHover && 'is-drop-hover',
+        dragging && 'is-dragging',
         m.sealed && 'is-sealed',
         m.stealth && 'is-stealth',
         hidden && 'is-hidden',
@@ -249,15 +279,20 @@ export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, f
       )}
       role="button"
       tabIndex={dying ? -1 : 0}
-      aria-label={`${label}（攻撃力${m.attack}・体力${m.hp}・守備力${m.defense}）${state ? `・${state}` : ''}`}
+      aria-label={`${label}（攻撃力${m.attack}・体力${m.hp}・守備力${m.defense}）${state ? `・${state}` : ''}。押すと詳細`}
       aria-pressed={selected || undefined}
       data-fx={m.uid}
+      data-drop={dying ? undefined : `m:${m.uid}`}
       onClick={() => {
         if (press.consumed()) return;
         onClick();
       }}
       onKeyDown={(e) => handleKey(e, onClick)}
       {...press.handlers}
+      onPointerDown={(e) => {
+        press.handlers.onPointerDown?.(e);
+        onPointerDown?.(e);
+      }}
     >
       {state && <span className={cx('mt__state', targetable && 'mt__state--target', selected && 'mt__state--sel', ready && !targetable && !selected && 'mt__state--ready')}>{state}</span>}
       <span className="mt__icon" aria-hidden="true">
@@ -295,26 +330,42 @@ interface HandCardProps {
   selected: boolean;
   /** 相手のターンなど、今は使えない時間 */
   dim: boolean;
+  /** タップ（クリック）・Enter：詳細を開く */
   onClick: () => void;
-  onDetail: () => void;
+  onDetail?: () => void;
   onHover?: (el: HTMLElement | null) => void;
+  /** ドラッグの始まり（使う） */
+  onPointerDown?: (e: PointerEvent<HTMLElement>) => void;
+  /** つかんで動かしている（元の場所は薄く・持ち上げて表示） */
+  dragging?: 'ghost' | 'arrow' | null;
+  /** ドラッグのゴーストとして描く（操作を受けない） */
+  ghost?: boolean;
 }
 
-export function HandCard({ card, def, info, energy, playable, selected, dim, onClick, onDetail, onHover }: HandCardProps) {
-  const press = useLongPress(onDetail);
+export function HandCard({ card, def, info, energy, playable, selected, dim, onClick, onDetail, onHover, onPointerDown, dragging, ghost }: HandCardProps) {
+  const press = useLongPress(ghost ? undefined : onDetail);
   const ref = useRef<HTMLDivElement>(null);
   const cost = info.cost;
+  const interactive = ghost
+    ? { 'aria-hidden': true as const }
+    : {
+        role: 'button',
+        tabIndex: 0,
+        onClick: () => {
+          if (press.consumed()) return;
+          onClick();
+        },
+        onKeyDown: (e: KeyboardEvent) => handleKey(e, onClick),
+        ...press.handlers,
+        onPointerDown: (e: PointerEvent<HTMLElement>) => {
+          press.handlers.onPointerDown?.(e);
+          onPointerDown?.(e);
+        },
+      };
+  const dragCls = dragging === 'ghost' ? 'is-drag-src' : dragging === 'arrow' ? 'is-drag-aim' : null;
   if (!def) {
     return (
-      <div
-        ref={ref}
-        className={cx('hc', 'hc--noise', selected && 'is-selected', dim && 'is-dim')}
-        role="button"
-        tabIndex={0}
-        aria-label={`ノイズ（除外にエナジー${cost}）`}
-        onClick={onClick}
-        onKeyDown={(e) => handleKey(e, onClick)}
-      >
+      <div ref={ref} className={cx('hc', 'hc--noise', selected && 'is-selected', dim && 'is-dim', playable && 'is-playable', dragCls)} aria-label={`ノイズ（除外にエナジー${cost}）。押すと詳細`} {...interactive}>
         <span className={cx('hc__cost', cost > energy && 'is-short')}>{cost}</span>
         <span className="hc__icon" aria-hidden="true">
           📛
@@ -336,28 +387,26 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
     discounted ? `軽減で元のコスト${def.cost}より安い` : '',
     taxed ? `凍結で元のコスト${def.cost}より+${cost - def.cost}` : '',
   ].filter(Boolean);
+  const costEl = <span className={cx('hc__cost', discounted && 'is-down', taxed && 'is-up', short && 'is-short')}>{cost}</span>;
   return (
     <div
       ref={ref}
-      className={cx('hc', `frame--${def.rarity}`, a.isCurse && 'hc--curse', playable && 'is-playable', selected && 'is-selected', dim && 'is-dim', short && 'is-short')}
-      role="button"
-      tabIndex={0}
-      aria-label={`${def.name}（コスト${cost}）${badge ? `・${badge}` : ''}${selected ? '・選択中' : ''}`}
-      aria-pressed={selected || undefined}
-      onClick={() => {
-        if (press.consumed()) return;
-        onClick();
-      }}
-      onKeyDown={(e) => handleKey(e, onClick)}
+      className={cx('hc', `frame--${def.rarity}`, a.isCurse && 'hc--curse', playable && 'is-playable', selected && 'is-selected', dim && 'is-dim', short && 'is-short', dragCls, ghost && 'hc--ghost')}
+      aria-label={ghost ? undefined : `${def.name}（コスト${cost}）${badge ? `・${badge}` : ''}${selected ? '・選択中' : ''}。押すと詳細${playable ? '、場へドラッグで使う' : ''}`}
+      aria-pressed={!ghost && selected ? true : undefined}
       onMouseEnter={onHover ? () => onHover(ref.current) : undefined}
       onMouseLeave={onHover ? () => onHover(null) : undefined}
       onFocus={onHover ? () => onHover(ref.current) : undefined}
       onBlur={onHover ? () => onHover(null) : undefined}
-      {...press.handlers}
+      {...interactive}
     >
-      <Popover content={{ title: `コスト ${cost}`, lines: costNotes }} placement="top" hover={false} className="hc__costwrap">
-        <span className={cx('hc__cost', discounted && 'is-down', taxed && 'is-up', short && 'is-short')}>{cost}</span>
-      </Popover>
+      {ghost ? (
+        <span className="hc__costwrap">{costEl}</span>
+      ) : (
+        <Popover content={{ title: `コスト ${cost}`, lines: costNotes }} placement="top" hover={false} className="hc__costwrap">
+          {costEl}
+        </Popover>
+      )}
       {badge && <span className="hc__badge">{badge}</span>}
       <span className="hc__icon" aria-hidden="true">
         {def.icon}
@@ -388,6 +437,18 @@ function handleKey(e: KeyboardEvent, action: () => void) {
   }
 }
 
+/** 長押しをやめる移動量（px）。ドラッグを始める量（dragLogic）より小さくして、ドラッグ中に詳細が開かないようにする */
+const LONG_PRESS_SLOP = 5;
+
+interface PressHandlers {
+  onPointerDown?: (e: PointerEvent<HTMLElement>) => void;
+  onPointerMove?: (e: PointerEvent<HTMLElement>) => void;
+  onPointerUp?: () => void;
+  onPointerCancel?: () => void;
+  onPointerLeave?: () => void;
+  onContextMenu?: (e: { preventDefault(): void }) => void;
+}
+
 /** 長押し（450ms）で onLong。長押しが成立したら直後の click は無視する */
 function useLongPress(onLong?: () => void) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -398,9 +459,9 @@ function useLongPress(onLong?: () => void) {
     timer.current = null;
   };
   useEffect(() => clear, []);
-  const handlers = onLong
+  const handlers: PressHandlers = onLong
     ? {
-        onPointerDown: (e: PointerEvent) => {
+        onPointerDown: (e) => {
           if (e.button !== 0) return;
           fired.current = false;
           start.current = { x: e.clientX, y: e.clientY };
@@ -410,14 +471,14 @@ function useLongPress(onLong?: () => void) {
             onLong();
           }, 450);
         },
-        onPointerMove: (e: PointerEvent) => {
+        onPointerMove: (e) => {
           if (!start.current) return;
-          if (Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > 10) clear();
+          if (Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > LONG_PRESS_SLOP) clear();
         },
         onPointerUp: clear,
         onPointerCancel: clear,
         onPointerLeave: clear,
-        onContextMenu: (e: { preventDefault(): void }) => e.preventDefault(),
+        onContextMenu: (e) => e.preventDefault(),
       }
     : {};
   return {
@@ -455,7 +516,46 @@ function groupLog(log: battle.LogEntry[]): LogGroup[] {
   return groups;
 }
 
-export function LogPanel({ log, me, compact = false }: { log: battle.LogEntry[]; me: PlayerId; compact?: boolean }) {
+/** ログ1行の文（カード名は黄色で押すと詳細、プレイヤー名は自分／相手の色、ダメージは赤、回復は緑） */
+export function LogText({ text, names, me, preferId, onCard }: { text: string; names: LogNames; me: PlayerId; preferId?: string; onCard?: (cardId: string) => void }) {
+  const segs = tokenizeLog(text, names, preferId);
+  return (
+    <>
+      {segs.map((s, i) => {
+        switch (s.t) {
+          case 'card':
+            return onCard ? (
+              <button key={i} type="button" className="lt-card" onClick={(e) => (e.stopPropagation(), onCard(s.cardId))} aria-label={`${s.text}の詳細`}>
+                {s.text}
+              </button>
+            ) : (
+              <b key={i} className="lt-card">
+                {s.text}
+              </b>
+            );
+          case 'player':
+            return (
+              <span key={i} className={s.player === me ? 'lt-mine' : 'lt-enemy'}>
+                {s.text}
+              </span>
+            );
+          case 'num':
+            return s.tone === 'plain' ? (
+              <span key={i}>{s.text}</span>
+            ) : (
+              <b key={i} className={s.tone === 'damage' ? 'lt-dmg' : 'lt-heal'}>
+                {s.text}
+              </b>
+            );
+          default:
+            return <span key={i}>{s.text}</span>;
+        }
+      })}
+    </>
+  );
+}
+
+export function LogPanel({ log, me, names, onCard, compact = false }: { log: battle.LogEntry[]; me: PlayerId; names: LogNames; onCard?: (cardId: string) => void; compact?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const groups = groupLog(log);
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -489,16 +589,24 @@ export function LogPanel({ log, me, compact = false }: { log: battle.LogEntry[];
               <div className="log__head log__head--static">対戦開始</div>
             )}
             {isOpen &&
-              g.rows.map(({ e, i }) => (
-                <div
-                  key={i}
-                  className={cx('log__row', `log__row--${e.kind}`, e.private === me && 'log__row--private', rowTone(e, g.owner))}
-                  style={{ paddingLeft: `${Math.min(e.depth, 4) * 12 + 10}px` }}
-                >
-                  {e.ev?.kind === 'damage' || e.ev?.kind === 'retaliate' ? <span className="log__mark">💥</span> : e.ev?.kind === 'heal' ? <span className="log__mark">✚</span> : null}
-                  {e.text}
-                </div>
-              ))}
+              g.rows.map(({ e, i }) => {
+                const icon = logIcon(e.ev?.kind, e.kind);
+                const depth = Math.min(e.depth, 4);
+                return (
+                  <div
+                    key={i}
+                    className={cx('log__row', `log__row--${e.kind}`, e.ev && `log__row--ev-${e.ev.kind}`, depth > 0 && 'log__row--nested', e.private === me && 'log__row--private', rowTone(e, g.owner))}
+                    style={{ '--depth': depth } as CSSProperties}
+                  >
+                    <span className="log__mark" aria-hidden="true">
+                      {icon}
+                    </span>
+                    <span className="log__text">
+                      <LogText text={e.text} names={names} me={me} preferId={e.ev?.cardId} onCard={onCard} />
+                    </span>
+                  </div>
+                );
+              })}
           </section>
         );
       })}

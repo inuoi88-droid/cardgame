@@ -3,6 +3,9 @@
  * - 表示は viewFor() で相手の非公開情報を隠した状態（view）から作り、行動は onAction で親に渡す
  * - 画面は 100dvh の固定レイアウト（ページはスクロールしない。場だけ内部スクロール）
  * - 相手の行動は useReplay（イベント再生層）が順に演出する。どこかをタップすると残りを一気に反映する
+ * - 操作はドラッグ＆ドロップ（useDrag・dragLogic）：手札のカードを場（対象のあるカードは光る対象）へ、
+ *   攻撃できるモンスターを相手へ。タップ（クリック）はどのカードでも詳細を開く。
+ *   詳細の「使う」「攻撃する」からは、候補ボタンで対象を選ぶ（キーボード・ドラッグしにくいとき用）
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { battle, type CardDef } from '../../engine/index.ts';
@@ -15,15 +18,27 @@ import { useToast } from '../components/Toast.tsx';
 import { navigate } from '../router.ts';
 import { cx } from '../util.ts';
 import './battle.css';
+import { CardDetailBody, CardDetailSheet, NoiseDetailBody } from './CardDetail.tsx';
 import { CardRow, ChoiceDialog, MulliganDialog, ResultDialog, ZoomModal } from './dialogs.tsx';
+import { DragLayer } from './DragLayer.tsx';
+import { resolveDrop, parseSpot, targetKey, type DragSource } from './dragLogic.ts';
 import { keyOf } from './events.ts';
-import { HandCard, LogPanel, MonsterTile, PlayerPanel } from './parts.tsx';
+import { logNamesOf } from './logFormat.ts';
+import { HandCard, LogPanel, LogText, MonsterTile, PlayerPanel } from './parts.tsx';
+import { useBattleDrag, type DropResult } from './useDrag.ts';
 import { useReplay } from './useReplay.ts';
 
 type GameState = battle.GameState;
 type TargetRef = battle.TargetRef;
 
 type Selection = null | { kind: 'card'; uid: string; enemy?: TargetRef; ally?: string } | { kind: 'attacker'; uid: string };
+
+/** 詳細を開いているもの */
+type Detail =
+  | { kind: 'hand'; uid: string }
+  | { kind: 'monster'; uid: string }
+  | { kind: 'card'; cardId: string }
+  | { kind: 'power'; player: battle.PlayerId; uid: string };
 
 const sameRef = (a: TargetRef, b: TargetRef) =>
   a.kind === 'player' ? b.kind === 'player' && a.player === b.player : b.kind === 'monster' && a.uid === b.uid;
@@ -69,8 +84,9 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   const toast = useToast();
   const phone = useIsPhone(919);
   const canHover = useMediaQuery('(hover: hover) and (pointer: fine)');
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const [sel, setSel] = useState<Selection>(null);
-  const [detail, setDetail] = useState<{ def: CardDef; monster?: battle.Monster } | null>(null);
+  const [detail, setDetail] = useState<Detail | null>(null);
   const [pile, setPile] = useState<{ player: battle.PlayerId; kind: 'discard' | 'exile' } | null>(null);
   const [zoom, setZoom] = useState<CardDef | null>(null);
   const [logOpen, setLogOpen] = useState(false);
@@ -92,12 +108,6 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     const t = setTimeout(() => setResultReady(true), 450);
     return () => clearTimeout(t);
   }, [ended, replay.playing]);
-
-  // 状態が進んだら選択を解く
-  useEffect(() => {
-    setSel(null);
-    setHover(null);
-  }, [view.log.length, view.turnIndex, view.phase]);
 
   // 新しい対戦が始まったら、ターン終了の確認の設定を戻す
   useEffect(() => {
@@ -133,8 +143,9 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   const playableCount = mine.hand.filter(isPlayable).length;
   const readyAttackers = myTurn ? mine.board.filter((m) => !battle.attackBlockReason(view, m)) : [];
   const nothingLeft = myTurn && playableCount === 0 && readyAttackers.length === 0;
+  const names = useMemo(() => logNamesOf(view), [view]);
 
-  // 選択中のカード・攻撃モンスターの情報
+  // ---------------------------------------------------------------- 対象選択（詳細の「使う」・ドラッグで足りない選択）
   const selCard = sel?.kind === 'card' ? mine.hand.find((c) => c.uid === sel.uid) : undefined;
   const info = selCard ? infos.get(selCard.uid)! : null;
   const selDef = selCard ? view.cards[selCard.cardId] : undefined;
@@ -151,7 +162,6 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       : attacker
         ? attackTargets
         : [];
-  const isTarget = (t: TargetRef): boolean => candidates.some((x) => sameRef(x, t));
 
   // 対象選択に入ったら最初の候補を見えるところへ
   const selKey = sel ? `${sel.kind}:${sel.uid}:${needEnemy ? 'e' : needAlly ? 'a' : ''}` : '';
@@ -162,6 +172,16 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     el?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selKey]);
+
+  // 対象選択中は Esc でやめる
+  useEffect(() => {
+    if (!sel) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSel(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sel]);
 
   const confirmWarnings = async (i: battle.PlayInfo, def: CardDef): Promise<boolean> => {
     if (i.warnings.length === 0) return true;
@@ -201,7 +221,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   };
 
   const onTarget = (t: TargetRef) => {
-    if (!isTarget(t)) return false;
+    if (!candidates.some((x) => sameRef(x, t))) return false;
     if (sel?.kind === 'card') {
       if (needEnemy) void tryPlay({ ...sel, enemy: t });
       else if (t.kind === 'monster') void tryPlay({ ...sel, ally: t.uid });
@@ -214,35 +234,95 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     return false;
   };
 
-  const showMonster = (m: battle.Monster) => {
-    const def = view.cards[m.card.cardId];
-    if (def) setDetail({ def, monster: m });
+  // ---------------------------------------------------------------- ドラッグ＆ドロップ
+  const cardSource = (c: battle.CardInst): DragSource => {
+    const i = infos.get(c.uid)!;
+    const noise = c.cardId === battle.NOISE_CARD_ID;
+    let blocked = i.blocked;
+    if (!myTurn) blocked = view.phase === 'main' && view.active !== me ? `${opponentLabel}のターンです` : '今は使えません';
+    else if (noise && mine.energy < i.cost) blocked = `エナジーが足りません（必要${i.cost}・残り${mine.energy}）`;
+    else if (blocked === 'エナジーが足りません') blocked = `エナジーが足りません（必要${i.cost}・残り${mine.energy}）`;
+    return { kind: 'card', uid: c.uid, noise, blocked, enemyTargets: i.enemyTargets, allyTargets: i.allyTargets };
+  };
+  const attackerSource = (m: battle.Monster): DragSource => ({
+    kind: 'attacker',
+    uid: m.uid,
+    blocked: myTurn ? battle.attackBlockReason(view, m) : view.active !== me ? `${opponentLabel}のターンです` : '今は攻撃できません',
+    targets: myTurn ? battle.attackTargets(view, m) : [],
+  });
+
+  /** 攻撃できない相手に落としたときの理由 */
+  const attackMiss = (t: TargetRef): string => {
+    if (t.kind === 'player') {
+      if (t.player === me) return '自分は攻撃できません';
+      return battle.targetableTaunts(view, opp).length ? '挑発のモンスターがいるので、先にそちらを攻撃します' : 'プレイヤーは攻撃できません';
+    }
+    const m = battle.findMonster(view, t.uid);
+    if (!m) return 'そこは攻撃できません';
+    if (m.controller === me) return '自分のモンスターは攻撃できません';
+    if (m.stealth) return '隠密中のモンスターは攻撃できません';
+    if (battle.targetableTaunts(view, opp).length) return '挑発のモンスターがいるので、先にそちらを攻撃します';
+    return 'そのモンスターは攻撃できません';
   };
 
-  const onMonster = (m: battle.Monster) => {
-    if (onTarget({ kind: 'monster', uid: m.uid })) return;
-    if (m.controller === me && myTurn) {
-      const reason = battle.attackBlockReason(view, m);
-      if (!reason) {
-        setSel(sel?.kind === 'attacker' && sel.uid === m.uid ? null : { kind: 'attacker', uid: m.uid });
-        return;
+  const onDrop = (src: DragSource, key: string | null): DropResult => {
+    const d = resolveDrop(src, parseSpot(key));
+    const back = (text: string) => {
+      toast({ text, kind: 'ng', duration: 2600 });
+      return 'back' as const;
+    };
+    switch (d.t) {
+      case 'cancel':
+        return 'back';
+      case 'invalid': {
+        if (src.kind === 'attacker' && d.attempt?.target) return back(attackMiss(d.attempt.target));
+        if (src.kind === 'card' && d.attempt?.enemy) {
+          const i = infos.get(src.uid);
+          if (i?.tauntLimited) return back(battle.NOTE_TAUNT_LIMITED);
+        }
+        return back(d.reason);
       }
-      toast({ text: reason, kind: 'info', duration: 2500 });
+      case 'noise':
+        act({ type: 'removeNoise', player: me, cardUid: src.uid });
+        return 'ok';
+      case 'attack':
+        act({ type: 'attack', player: me, attackerUid: src.uid, target: d.target });
+        return 'ok';
+      case 'play':
+        void tryPlay({ kind: 'card', uid: src.uid, ...d.chosen });
+        return 'ok';
+      case 'need':
+        setSel({ kind: 'card', uid: src.uid, ...d.chosen });
+        return 'ok';
     }
-    showMonster(m);
   };
 
-  const onHand = (card: battle.CardInst) => {
-    if (sel?.kind === 'card' && sel.uid === card.uid) {
-      setSel(null);
-      return;
-    }
-    if (!myTurn) {
-      const def = view.cards[card.cardId];
-      if (def) setDetail({ def });
-      return;
-    }
-    setSel({ kind: 'card', uid: card.uid });
+  const drag = useBattleDrag({ rootRef, onDrop, zoneSelector: '.battle__board', reduceMotion });
+  const dragging = drag.drag?.phase === 'drag' ? drag.drag : null;
+  const dragTargets = useMemo(() => new Set(dragging ? dragging.plan.targets.map(targetKey) : []), [dragging]);
+  /** 光らせる対象か（ドラッグ中はドラッグの候補、対象選択中はその候補） */
+  const isLit = (t: TargetRef): boolean => (dragging ? dragTargets.has(targetKey(t)) : candidates.some((x) => sameRef(x, t)));
+  const isHover = (t: TargetRef): boolean => !!dragging && dragging.hover === targetKey(t) && dragTargets.has(dragging.hover);
+
+  // 状態が進んだら選択とドラッグを解く
+  useEffect(() => {
+    setSel(null);
+    setHover(null);
+    drag.cancel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view.log.length, view.turnIndex, view.phase]);
+
+  // ---------------------------------------------------------------- タップ（詳細）
+  const onMonsterTap = (m: battle.Monster) => {
+    if (drag.consumeClick()) return;
+    if (sel && onTarget({ kind: 'monster', uid: m.uid })) return;
+    setDetail({ kind: 'monster', uid: m.uid });
+  };
+
+  const onHandTap = (card: battle.CardInst) => {
+    if (drag.consumeClick()) return;
+    setSel(null);
+    setDetail({ kind: 'hand', uid: card.uid });
   };
 
   const endTurn = async () => {
@@ -284,14 +364,13 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     if (view.active !== me) return `${opponentLabel}のターンです…`;
     if (attacker) return `「${view.cards[attacker.card.cardId]?.name}」の攻撃先を選んでください`;
     if (selCard) {
-      if (selCard.cardId === battle.NOISE_CARD_ID) return 'ノイズ：エナジー1で除外できます';
       if (info?.blocked) return info.blocked;
       if (needEnemy) return `「${selDef?.name}」の対象を選んでください${info?.tauntLimited ? `（${battle.NOTE_TAUNT_LIMITED}）` : ''}`;
       if (needAlly) return `「${selDef?.name}」をかける自分のモンスターを選んでください`;
       return `「${selDef?.name}」を使いますか？`;
     }
     if (nothingLeft) return 'できることはもうありません。ターンを終了しましょう';
-    return 'カードを使うか、モンスターで攻撃してください';
+    return phone ? 'カードを上へドラッグで使用・タップで詳細' : 'カードを場へドラッグして使う・モンスターを相手へドラッグして攻撃（クリックで詳細）';
   })();
 
   const turnLabel =
@@ -328,33 +407,180 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     return (
       <div className={cx('board', isMine ? 'board--me' : 'board--opp', rows.length > 3 && 'board--many', rows.length > 6 && 'board--dense')} aria-label={isMine ? 'あなたの場' : '相手の場'}>
         {rows.length === 0 && <span className="board__empty">{isMine ? 'あなたの場：モンスターなし' : '相手の場：モンスターなし'}</span>}
-        {rows.map(({ m, ghost }) => (
-          <MonsterTile
-            key={m.uid}
-            m={m}
-            def={view.cards[m.card.cardId]}
-            isMine={isMine}
-            ready={isMine && myTurn && !battle.attackBlockReason(view, m)}
-            blockLabel={isMine && myTurn ? shortBlock(battle.attackBlockReason(view, m)) : null}
-            selected={sel?.kind === 'attacker' && sel.uid === m.uid}
-            targetable={!ghost && isTarget({ kind: 'monster', uid: m.uid })}
-            flags={battle.keywordFlags(view, m)}
-            onClick={() => (ghost ? undefined : onMonster(m))}
-            onDetail={() => showMonster(m)}
-            floats={replay.floats[m.uid]}
-            flash={replay.flash[m.uid]}
-            hidden={replay.hidden.has(m.uid)}
-            dying={ghost && (replay.ghosts.get(m.uid)?.dying ?? false)}
-          />
-        ))}
+        {rows.map(({ m, ghost }) => {
+          const ref: TargetRef = { kind: 'monster', uid: m.uid };
+          const ready = isMine && myTurn && !battle.attackBlockReason(view, m);
+          return (
+            <MonsterTile
+              key={m.uid}
+              m={m}
+              def={view.cards[m.card.cardId]}
+              isMine={isMine}
+              ready={ready}
+              blockLabel={isMine && myTurn ? shortBlock(battle.attackBlockReason(view, m)) : null}
+              selected={sel?.kind === 'attacker' && sel.uid === m.uid}
+              targetable={!ghost && isLit(ref)}
+              dropHover={!ghost && isHover(ref)}
+              dragging={dragging?.src.kind === 'attacker' && dragging.src.uid === m.uid}
+              flags={battle.keywordFlags(view, m)}
+              onClick={() => (ghost ? undefined : onMonsterTap(m))}
+              onDetail={ghost ? undefined : () => setDetail({ kind: 'monster', uid: m.uid })}
+              onPointerDown={
+                isMine && !ghost && view.phase === 'main'
+                  ? (e) => {
+                      // タッチでは攻撃できるモンスターだけつかめる（それ以外は場のスクロールに任せる）
+                      if (e.pointerType !== 'mouse' && !ready) return;
+                      drag.begin(e, 'board', () => attackerSource(m));
+                    }
+                  : undefined
+              }
+              floats={replay.floats[m.uid]}
+              flash={replay.flash[m.uid]}
+              hidden={replay.hidden.has(m.uid)}
+              dying={ghost && (replay.ghosts.get(m.uid)?.dying ?? false)}
+            />
+          );
+        })}
       </div>
     );
   };
 
   const revealDef = replay.reveal ? view.cards[replay.reveal.cardId] : undefined;
+  const oppRef: TargetRef = { kind: 'player', player: opp };
+  const meRef: TargetRef = { kind: 'player', player: me };
+  const dragCard = drag.drag?.src.kind === 'card' ? mine.hand.find((c) => c.uid === drag.drag!.src.uid) : undefined;
+
+  /** 詳細シートの中身と操作 */
+  const renderDetail = (): ReactNode => {
+    if (!detail) return null;
+    const close = () => setDetail(null);
+    if (detail.kind === 'hand') {
+      const card = mine.hand.find((c) => c.uid === detail.uid);
+      if (!card) return null;
+      const i = infos.get(card.uid)!;
+      const def = view.cards[card.cardId];
+      const src = cardSource(card);
+      const playable = isPlayable(card);
+      if (!def) {
+        return (
+          <CardDetailSheet
+            title="ノイズ"
+            onClose={close}
+            actions={
+              <>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  disabled={!playable}
+                  onClick={() => {
+                    close();
+                    act({ type: 'removeNoise', player: me, cardUid: card.uid });
+                  }}
+                >
+                  除外する（⚡{i.cost}）
+                </button>
+                {!playable && src.blocked && <span className="cdetail__why">{src.blocked}</span>}
+              </>
+            }
+          >
+            <NoiseDetailBody cost={i.cost} />
+          </CardDetailSheet>
+        );
+      }
+      const targeted = i.enemyTargets.length > 0 || i.allyTargets.length > 0;
+      return (
+        <CardDetailSheet
+          title={def.name}
+          onClose={close}
+          actions={
+            <>
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={!playable}
+                onClick={() => {
+                  close();
+                  if (targeted) setSel({ kind: 'card', uid: card.uid });
+                  else void tryPlay({ kind: 'card', uid: card.uid });
+                }}
+              >
+                {targeted ? '対象を選んで使う' : '使う'}（⚡{i.cost}）
+              </button>
+              {!playable && src.blocked && <span className="cdetail__why">{src.blocked}</span>}
+            </>
+          }
+        >
+          <CardDetailBody def={def} extras={{ cost: i.cost, notes: myTurn ? i.warnings : [], where: '手札' }} />
+        </CardDetailSheet>
+      );
+    }
+    if (detail.kind === 'monster') {
+      const m = battle.findMonster(view, detail.uid);
+      const def = m ? view.cards[m.card.cardId] : undefined;
+      if (!m || !def) return null;
+      const isMine = m.controller === me;
+      const reason = isMine && myTurn ? battle.attackBlockReason(view, m) : null;
+      return (
+        <CardDetailSheet
+          title={def.name}
+          onClose={close}
+          actions={
+            isMine && myTurn ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  disabled={!!reason}
+                  onClick={() => {
+                    close();
+                    setSel({ kind: 'attacker', uid: m.uid });
+                  }}
+                >
+                  ⚔ 攻撃する
+                </button>
+                {reason && <span className="cdetail__why">{reason}</span>}
+              </>
+            ) : undefined
+          }
+        >
+          <CardDetailBody def={def} extras={{ monster: m, flags: battle.keywordFlags(view, m), where: isMine ? 'あなたの場' : `${opponentLabel}の場` }} />
+        </CardDetailSheet>
+      );
+    }
+    if (detail.kind === 'power') {
+      const pw = view.players[detail.player].powers.find((x) => x.uid === detail.uid);
+      if (!pw) return null;
+      const def = view.cards[pw.cardId];
+      return (
+        <CardDetailSheet title={`${pw.name}（パワー）`} onClose={close}>
+          {def ? (
+            <CardDetailBody def={def} extras={{ power: pw, where: detail.player === me ? 'あなたのパワー' : `${opponentLabel}のパワー` }} />
+          ) : (
+            <p>{pw.name}</p>
+          )}
+        </CardDetailSheet>
+      );
+    }
+    const def = view.cards[detail.cardId];
+    if (!def) return null;
+    return (
+      <CardDetailSheet title={def.name} onClose={close}>
+        <CardDetailBody def={def} />
+      </CardDetailSheet>
+    );
+  };
+
+  const openCard = (cardId: string) => {
+    if (view.cards[cardId]) setDetail({ kind: 'card', cardId });
+  };
+  const lastLog = view.log.length ? view.log[view.log.length - 1]! : null;
 
   return (
-    <div ref={rootRef} className={cx('battle', replay.playing && 'is-replaying')} onPointerDownCapture={replay.playing ? replay.skip : undefined}>
+    <div
+      ref={rootRef}
+      className={cx('battle', replay.playing && 'is-replaying', dragging && 'is-dragging', dragging && `is-dragging--${dragging.plan.mode}`)}
+      onPointerDownCapture={replay.playing ? replay.skip : undefined}
+    >
       <header className="battle__head">
         <div className="battle__turn">
           <b>{turnLabel}</b>
@@ -377,11 +603,14 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           isMe={false}
           roleLabel="相手"
           active={view.active === opp && view.phase === 'main'}
-          targetable={isTarget({ kind: 'player', player: opp })}
-          onClick={() => onTarget({ kind: 'player', player: opp })}
+          targetable={isLit(oppRef)}
+          dropHover={isHover(oppRef)}
+          dropKey={targetKey(oppRef)}
+          onClick={() => onTarget(oppRef)}
           onPile={(kind) => setPile({ player: opp, kind })}
-          floats={replay.floats[keyOf({ kind: 'player', player: opp })]}
-          flash={replay.flash[keyOf({ kind: 'player', player: opp })]}
+          onPower={(pw) => setDetail({ kind: 'power', player: opp, uid: pw.uid })}
+          floats={replay.floats[keyOf(oppRef)]}
+          flash={replay.flash[keyOf(oppRef)]}
           hpShown={replay.hp[opp]}
         />
       </div>
@@ -393,22 +622,26 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           isMe
           roleLabel="あなた"
           active={view.active === me && view.phase === 'main'}
-          targetable={false}
-          onClick={() => undefined}
+          targetable={isLit(meRef)}
+          dropHover={isHover(meRef)}
+          dropKey={targetKey(meRef)}
+          onClick={() => onTarget(meRef)}
           onPile={(kind) => setPile({ player: me, kind })}
-          floats={replay.floats[keyOf({ kind: 'player', player: me })]}
-          flash={replay.flash[keyOf({ kind: 'player', player: me })]}
+          onPower={(pw) => setDetail({ kind: 'power', player: me, uid: pw.uid })}
+          floats={replay.floats[keyOf(meRef)]}
+          flash={replay.flash[keyOf(meRef)]}
           hpShown={replay.hp[me]}
         />
       </div>
 
-      <div className={cx('battle__hand', !myTurn && 'is-dim')}>
+      <div className={cx('battle__hand', !myTurn && 'is-dim')} data-drop="hand">
         <div className="hand__meta">
           <span>手札 {mine.hand.length}枚</span>
           {myTurn && <span className={cx('hand__usable', playableCount > 0 && 'is-some')}>使える：{playableCount}枚</span>}
           {!myTurn && view.phase === 'main' && <span className="hand__wait">{view.pending ? '選択待ち' : `${opponentLabel}のターン`}</span>}
+          {dragging && <span className="hand__drop">手札に戻すと取り消し</span>}
         </div>
-        <div className="hand" role="list" aria-label="手札">
+        <div className="hand" role="list" aria-label="手札（押すと詳細、場へドラッグで使う）">
           {mine.hand.map((c) => (
             <HandCard
               key={c.uid}
@@ -419,11 +652,10 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               playable={isPlayable(c)}
               selected={sel?.kind === 'card' && sel.uid === c.uid}
               dim={!myTurn}
-              onClick={() => onHand(c)}
-              onDetail={() => {
-                const def = view.cards[c.cardId];
-                if (def) setDetail({ def });
-              }}
+              dragging={drag.drag?.src.kind === 'card' && drag.drag.src.uid === c.uid ? drag.drag.plan.mode : null}
+              onClick={() => onHandTap(c)}
+              onDetail={() => setDetail({ kind: 'hand', uid: c.uid })}
+              onPointerDown={view.phase === 'main' ? (e) => drag.begin(e, 'hand', () => cardSource(c)) : undefined}
               onHover={canHover ? (el) => setHover(el && view.cards[c.cardId] ? { el, def: view.cards[c.cardId]! } : null) : undefined}
             />
           ))}
@@ -437,7 +669,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
 
       <aside className="battle__log" aria-label="ログ">
         <h2>ログ</h2>
-        {!phone && <LogPanel log={view.log} me={me} />}
+        {!phone && <LogPanel log={view.log} me={me} names={names} onCard={openCard} />}
       </aside>
 
       <div className="battle-bar">
@@ -445,7 +677,9 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           <span className="battle-bar__tickicon" aria-hidden="true">
             ›
           </span>
-          <span className="battle-bar__ticktext">{replay.ticker || (view.log.length ? view.log[view.log.length - 1]!.text : '')}</span>
+          <span className="battle-bar__ticktext">
+            <LogText text={replay.ticker || lastLog?.text || ''} names={names} me={me} />
+          </span>
         </button>
         {candidates.length > 0 && (
           <div className="battle-bar__cands" role="group" aria-label="対象の候補">
@@ -461,24 +695,9 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
             {hint}
           </div>
           <div className="battle-bar__btns">
-            {selCard && selCard.cardId === battle.NOISE_CARD_ID && myTurn && (
-              <button type="button" className="btn btn--primary" onClick={() => act({ type: 'removeNoise', player: me, cardUid: selCard.uid })}>
-                ノイズを除外
-              </button>
-            )}
-            {selCard && selDef && info && !info.blocked && info.enemyTargets.length === 0 && info.allyTargets.length === 0 && (
-              <button type="button" className="btn btn--primary" onClick={() => void tryPlay({ kind: 'card', uid: selCard.uid })}>
-                使う
-              </button>
-            )}
             {selCard && needAlly && !needEnemy && info?.allyTargets.includes(selCard.uid) && (
               <button type="button" className="btn btn--primary" onClick={() => void tryPlay({ ...(sel as Extract<Selection, { kind: 'card' }>), ally: selCard.uid })}>
                 このモンスター自身
-              </button>
-            )}
-            {selDef && (
-              <button type="button" className="btn" onClick={() => setDetail({ def: selDef })}>
-                詳細
               </button>
             )}
             {sel && (
@@ -518,7 +737,30 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           </div>
         </div>
       )}
-      {hover && canHover && !sel && <HoverPreview anchor={hover.el} def={hover.def} />}
+      {hover && canHover && !sel && !drag.drag && !detail && <HoverPreview anchor={hover.el} def={hover.def} />}
+      {drag.drag && (
+        <DragLayer
+          drag={drag.drag}
+          subscribe={drag.subscribe}
+          getPos={drag.getPos}
+          rootRef={rootRef}
+          ghost={
+            dragCard ? (
+              <HandCard
+                card={dragCard}
+                def={view.cards[dragCard.cardId]}
+                info={infos.get(dragCard.uid)!}
+                energy={mine.energy}
+                playable={isPlayable(dragCard)}
+                selected={false}
+                dim={false}
+                onClick={() => undefined}
+                ghost
+              />
+            ) : null
+          }
+        />
+      )}
 
       {view.phase === 'mulligan' && !mine.mulligan.done && !busy && <MulliganDialog view={view} me={me} onAction={act} timeLeft={timeLeft} />}
       {view.pending && view.pending.player === me && !busy && <ChoiceDialog view={view} me={me} onAction={act} timeLeft={timeLeft} />}
@@ -527,28 +769,14 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           {resultButtons}
         </ResultDialog>
       )}
-      {detail && (
-        <Modal title={detail.def.name} onClose={() => setDetail(null)}>
-          <div className="preview-modal">
-            <CardView card={detail.def} />
-          </div>
-          {detail.monster && (
-            <p className="hint" style={{ textAlign: 'center' }}>
-              いまの状態：攻撃力{detail.monster.attack}・体力{detail.monster.hp}/{detail.monster.maxHp}・守備力{detail.monster.defense}
-              {detail.monster.sealed ? '・封印中' : ''}
-              {detail.monster.controller === me && view.phase === 'main' && view.active === me && battle.attackBlockReason(view, detail.monster)
-                ? `・${battle.attackBlockReason(view, detail.monster)}`
-                : ''}
-            </p>
-          )}
-        </Modal>
-      )}
+      {renderDetail()}
       {pile && (
         <Modal title={`${pile.player === me ? 'あなた' : opponentLabel}の${pile.kind === 'discard' ? '捨て札' : '除外'}（${view.players[pile.player][pile.kind].length}枚）`} onClose={() => setPile(null)}>
           <div className="crow-list">
-            {view.players[pile.player][pile.kind].map((c) => (
-              <CardRow key={c.uid} def={view.cards[c.cardId]} label={battle.cardName(view, c.cardId)} picked={false} mark="" onToggle={() => void 0} onZoom={setZoom} />
-            ))}
+            {view.players[pile.player][pile.kind].map((c) => {
+              const def = view.cards[c.cardId];
+              return <CardRow key={c.uid} def={def} label={battle.cardName(view, c.cardId)} picked={false} mark="" onToggle={() => def && setZoom(def)} onZoom={setZoom} />;
+            })}
             {view.players[pile.player][pile.kind].length === 0 && <p className="hint">なし</p>}
           </div>
         </Modal>
@@ -556,7 +784,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       <ZoomModal def={zoom} onClose={() => setZoom(null)} />
       {phone && (
         <Sheet open={logOpen} title="ログ" onClose={() => setLogOpen(false)}>
-          <LogPanel log={view.log} me={me} />
+          <LogPanel log={view.log} me={me} names={names} onCard={openCard} />
         </Sheet>
       )}
       <Sheet open={menuOpen} title="メニュー" onClose={() => setMenuOpen(false)} desktop="modal">

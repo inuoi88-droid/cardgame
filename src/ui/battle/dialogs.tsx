@@ -1,9 +1,9 @@
-/** 対戦画面のダイアログ：マリガン、選択、結果。カードは読める大きさのリストで出し、タップで全文（CardView）を見られる */
+/** 対戦画面のダイアログ：マリガン、選択、結果。カードは読める大きさのリストで出し、🔍（一覧ではカードそのもの）で詳細を見られる */
 import { useState, type ReactNode } from 'react';
 import { analyzeCard, BALANCE, battle, CARD_TYPE_LABEL, type CardDef } from '../../engine/index.ts';
-import { CardView } from '../components/CardView.tsx';
 import { Modal } from '../components/controls.tsx';
 import { cx } from '../util.ts';
+import { CardDetailModal } from './CardDetail.tsx';
 import { summarizeResult } from './summary.ts';
 
 type GameState = battle.GameState;
@@ -66,23 +66,16 @@ export function CardRow({
           {picked ? mark : '○'}
         </span>
       </button>
-      <button type="button" className="btn btn--ghost btn--icon crow__zoom" onClick={() => onZoom(def)} aria-label={`${def.name}を大きく見る`}>
+      <button type="button" className="btn btn--ghost btn--icon crow__zoom" onClick={() => onZoom(def)} aria-label={`${def.name}の詳細`}>
         🔍
       </button>
     </div>
   );
 }
 
-/** 大きいカードを見る小窓（ダイアログの上に重ねる） */
+/** カードの詳細を見る小窓（ダイアログの上に重ねる。説明文・キーワードの説明つき） */
 export function ZoomModal({ def, onClose }: { def: CardDef | null; onClose: () => void }) {
-  if (!def) return null;
-  return (
-    <Modal title={def.name} onClose={onClose} size="sm">
-      <div className="preview-modal">
-        <CardView card={def} />
-      </div>
-    </Modal>
-  );
+  return <CardDetailModal def={def} onClose={onClose} />;
 }
 
 // ---------------------------------------------------------------- マリガン

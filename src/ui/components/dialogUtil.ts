@@ -19,9 +19,13 @@ interface TrapOptions {
   initialFocus?: RefObject<HTMLElement | null>;
 }
 
+/** 開いているフォーカストラップ（後から開いたものが上）。重なったときは一番上だけが Tab・Escape・フォーカスの引き戻しを扱う */
+const trapStack: HTMLElement[] = [];
+
 /**
  * ref の中に Tab を閉じ込め、閉じたら開く前の要素へフォーカスを戻す。
  * Escape は capture で拾うので、入力欄の中でも効く。
+ * ダイアログの上にダイアログを重ねたとき（一覧からカードの詳細など）は、一番上のものだけが働く。
  */
 export function useFocusTrap(ref: RefObject<HTMLElement | null>, { active = true, onEscape, initialFocus }: TrapOptions): void {
   useEffect(() => {
@@ -33,8 +37,11 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, { active = true
     const first = initialFocus?.current ?? focusableIn(root)[0] ?? root;
     // 開いた直後はまだ描画が終わっていないことがあるので、次のフレームで
     const raf = requestAnimationFrame(() => first.focus({ preventScroll: true }));
+    trapStack.push(root);
+    const isTop = () => trapStack[trapStack.length - 1] === root;
 
     const onKey = (e: KeyboardEvent) => {
+      if (!isTop()) return;
       if (e.key === 'Escape' && onEscape) {
         e.stopPropagation();
         e.preventDefault();
@@ -61,6 +68,7 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, { active = true
     };
     // フォーカスが外へ逃げたら戻す（マウスで背景をクリックしたときなど）
     const onFocusIn = (e: FocusEvent) => {
+      if (!isTop()) return;
       if (e.target instanceof Node && !root.contains(e.target)) (focusableIn(root)[0] ?? root).focus();
     };
     document.addEventListener('keydown', onKey, true);
@@ -69,6 +77,8 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, { active = true
       cancelAnimationFrame(raf);
       document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('focusin', onFocusIn);
+      const at = trapStack.lastIndexOf(root);
+      if (at >= 0) trapStack.splice(at, 1);
       if (opener && document.contains(opener)) opener.focus({ preventScroll: true });
     };
   }, [ref, active, onEscape, initialFocus]);

@@ -1213,3 +1213,12 @@
 .ed-row__mods .check.is-disabled {
   opacity: 0.5;
 }
+
+/* 内訳の補足：モードごとのポイント・親和／条件付き軽減の実コストの見込み（MTG 要素 ○ バッチC1・C2） */
+.point-panel__notes {
+  margin: 8px 0 0;
+  padding-left: 1.2em;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  line-height: 1.5;
+}

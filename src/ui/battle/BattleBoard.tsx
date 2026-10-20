@@ -24,7 +24,7 @@ import { DragLayer } from './DragLayer.tsx';
 import { resolveDrop, resolveModeDrop, parseSpot, targetKey, type DragSource } from './dragLogic.ts';
 import { keyOf } from './events.ts';
 import { logNamesOf } from './logFormat.ts';
-import { HandCard, LogPanel, LogText, MonsterTile, PlayerPanel, type ActivateButton } from './parts.tsx';
+import { grownDef, HandCard, LogPanel, LogText, MonsterTile, PlayerPanel, type ActivateButton } from './parts.tsx';
 import { useBattleDrag, type DropResult } from './useDrag.ts';
 import { useReplay } from './useReplay.ts';
 
@@ -159,6 +159,20 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
 
   const mine = view.players[me];
   const theirs = view.players[opp];
+  // 対戦中に手札へ入ったカード（引いた・サイクリング・引いたときの効果・戻ってきた）を少しの間光らせる
+  const prevHand = useRef<Set<string> | null>(null);
+  const [freshHand, setFreshHand] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    const now = mine.hand.map((c) => c.uid);
+    const before = prevHand.current;
+    prevHand.current = new Set(now);
+    if (!before || view.phase !== 'main') return;
+    const added = now.filter((u) => !before.has(u));
+    if (added.length === 0) return;
+    setFreshHand(new Set(added));
+    const t = setTimeout(() => setFreshHand(new Set()), 1600);
+    return () => clearTimeout(t);
+  }, [mine.hand, view.phase]);
   const myTurn = view.phase === 'main' && view.active === me && !view.pending && !busy;
   // 護法（MTG 要素 ○ バッチB）：エナジーが足りない相手は対象の候補にしない
   const infos = useMemo(
@@ -564,6 +578,18 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   /** 光らせる対象か（ドラッグ中はドラッグの候補、対象選択中はその候補） */
   const isLit = (t: TargetRef): boolean => (dragging ? dragTargets.has(targetKey(t)) : candidates.some((x) => sameRef(x, t)));
   const isHover = (t: TargetRef): boolean => !!dragging && dragging.hover === targetKey(t) && dragTargets.has(dragging.hover);
+  /** 護法（MTG 要素 ○ バッチB）：この対象を選ぶと増えるコスト（ドラッグ中・対象選択中のカード・起動・魂力。エンジンの targetCosts から） */
+  const costInfo: Pick<TargetInfo, 'cost' | 'targetCosts'> | undefined = dragging
+    ? dragging.src.kind === 'card'
+      ? (dragging.src.from === 'discard' ? discardInfos : infos).get(dragging.src.uid)
+      : dragging.src.kind === 'activate'
+        ? activateInfos.get(dragging.src.uid)
+        : undefined
+    : (info ?? undefined);
+  const extraCostOf = (t: TargetRef): number => {
+    const c = costInfo?.targetCosts?.[t.kind === 'player' ? `player:${t.player}` : t.uid];
+    return c !== undefined && costInfo ? Math.max(0, c - costInfo.cost) : 0;
+  };
 
   // 状態が進んだら選択とドラッグを解く
   useEffect(() => {
@@ -691,6 +717,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               blockLabel={isMine && myTurn ? shortBlock(battle.attackBlockReason(view, m)) : null}
               selected={sel?.kind === 'attacker' && sel.uid === m.uid}
               targetable={!ghost && isLit(ref)}
+              extraCost={!ghost && isLit(ref) ? extraCostOf(ref) : 0}
               dropHover={!ghost && isHover(ref)}
               dragging={dragging?.src.kind === 'attacker' && dragging.src.uid === m.uid}
               flags={battle.keywordFlags(view, m)}
@@ -807,7 +834,10 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
             </>
           }
         >
-          <CardDetailBody def={def} extras={{ cost: i.cost, notes: myTurn ? [...costLines(i), ...i.warnings] : costLines(i), where: '手札' }} />
+          <CardDetailBody
+            def={grownDef(def, card.grow)}
+            extras={{ cost: i.cost, notes: [...(card.grow ? [`成長：この1枚のダメージ+${card.grow}（表示に含む）`] : []), ...(myTurn ? [...costLines(i), ...i.warnings] : costLines(i))], where: '手札' }}
+          />
         </CardDetailSheet>
       );
     }
@@ -880,7 +910,18 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
             ) : undefined
           }
         >
-          <CardDetailBody def={def} extras={{ monster: m, flags: battle.keywordFlags(view, m), ownerTurns: view.players[m.controller].turnsTaken, attackNow: battle.effectiveAttack(view, m), where: isMine ? 'あなたの場' : `${opponentLabel}の場` }} />
+          <CardDetailBody
+            def={def}
+            extras={{
+              monster: m,
+              flags: battle.keywordFlags(view, m),
+              ownerTurns: view.players[m.controller].turnsTaken,
+              attackNow: battle.effectiveAttack(view, m),
+              where: isMine ? 'あなたの場' : `${opponentLabel}の場`,
+              // 装備しているカード（MTG 要素 ○ バッチB。公開情報）
+              equipment: (m.equipment ?? []).map((c) => view.cards[c.cardId]).filter((d): d is CardDef => !!d),
+            }}
+          />
         </CardDetailSheet>
       );
     }
@@ -1035,6 +1076,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           onPower={(pw) => setDetail({ kind: 'power', player: opp, uid: pw.uid })}
           hasCrown={view.crown === opp}
           powerDef={(pw) => view.cards[pw.cardId]}
+          powerFlash={replay.flash}
           floats={replay.floats[keyOf(oppRef)]}
           flash={replay.flash[keyOf(oppRef)]}
           hpShown={replay.hp[opp]}
@@ -1056,6 +1098,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           onPower={(pw) => setDetail({ kind: 'power', player: me, uid: pw.uid })}
           hasCrown={view.crown === me}
           powerDef={(pw) => view.cards[pw.cardId]}
+          powerFlash={replay.flash}
           floats={replay.floats[keyOf(meRef)]}
           flash={replay.flash[keyOf(meRef)]}
           hpShown={replay.hp[me]}
@@ -1084,6 +1127,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               playable={isPlayable(c)}
               selected={sel?.kind === 'card' && sel.uid === c.uid}
               dim={!myTurn}
+              fresh={freshHand.has(c.uid)}
               dragging={drag.drag?.src.kind === 'card' && drag.drag.src.uid === c.uid ? drag.drag.plan.mode : null}
               onClick={() => onHandTap(c)}
               onDetail={() => {

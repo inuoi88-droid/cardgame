@@ -4,7 +4,7 @@
  * 対戦画面ではシート（スマホは下から、PC は中央のモーダル）、ダイアログの中ではモーダルで出す。
  */
 import type { ReactNode } from 'react';
-import { analyzeCard, battle, CARD_TYPE_LABEL, CURSE_LABEL, RARITY_LABEL, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
+import { analyzeCard, battle, CARD_TYPE_LABEL, describeEffect, CURSE_LABEL, RARITY_LABEL, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
 import { CardView } from '../components/CardView.tsx';
 import { Modal } from '../components/controls.tsx';
 import { Sheet } from '../components/Sheet.tsx';
@@ -28,6 +28,8 @@ export interface DetailExtras {
   notes?: string[];
   /** 持ち主の表示（「あなたの場」「相手の場」など） */
   where?: string;
+  /** 装備しているカード（MTG 要素 ○ バッチB） */
+  equipment?: CardDef[];
 }
 
 /** カードの自由記述の説明（CardDef に description があれば。無い版のデータでも動くように読む） */
@@ -118,6 +120,23 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
                 ))}
               </ul>
             )}
+          </section>
+        )}
+
+        {extras.equipment && extras.equipment.length > 0 && (
+          <section className="cdetail__sec">
+            <h3>装備しているカード（場を離れると持ち主の手札に戻る）</h3>
+            <ul className="cdetail__list">
+              {extras.equipment.map((e, i) => (
+                <li key={`${e.id}${i}`}>
+                  <span className="st st--good">
+                    {e.icon}
+                    {e.name}
+                  </span>
+                  <span>{e.effects.filter((x) => x.id === 'equip').map((x) => describeEffect(x, e, { noTiming: true })).join('')}</span>
+                </li>
+              ))}
+            </ul>
           </section>
         )}
 

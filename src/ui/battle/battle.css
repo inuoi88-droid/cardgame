@@ -469,6 +469,11 @@ body:has(.battle) .toast__action {
   color: #2b1d00;
   border-color: var(--warn);
 }
+.mt__state--ward {
+  background: var(--danger-strong);
+  color: #fff;
+  border-color: var(--danger-strong);
+}
 .mt__state--sel {
   background: #fff;
   color: #111;
@@ -686,6 +691,18 @@ body:has(.battle) .toast__action {
   background: var(--warn);
   color: #2b1d00;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.hc__badge--quash {
+  background: var(--danger-strong);
+  color: #fff;
+}
+.hc__grow {
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 207, 110, 0.18);
+  color: var(--warn);
+  font-weight: bold;
 }
 .hc__icon {
   font-size: 26px;
@@ -2238,8 +2255,12 @@ button.lt-card:focus-visible {
   white-space: nowrap;
 }
 .mt.is-activate,
-.pp.is-activate {
+.pp.is-activate,
+.pw-chip.is-activate {
   animation: glow-activate 0.6s;
+}
+.pw-chip.is-activate {
+  border-radius: var(--radius-pill);
 }
 @keyframes glow-activate {
   0%,
@@ -2472,4 +2493,24 @@ button.lt-card:focus-visible {
 }
 .st__meter {
   font-variant-numeric: tabular-nums;
+}
+
+/* いま手札に入ったカード（引いた・サイクリング・引いたときの効果）を少しの間光らせる */
+.hc.is-fresh {
+  animation: hc-fresh 1.5s ease-out;
+}
+@keyframes hc-fresh {
+  0%,
+  40% {
+    box-shadow: 0 0 0 3px var(--warn), 0 0 18px rgba(255, 207, 110, 0.8);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hc.is-fresh {
+    animation: none;
+    outline: 2px solid var(--warn);
+  }
 }

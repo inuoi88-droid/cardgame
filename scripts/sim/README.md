@@ -32,7 +32,7 @@ node scripts/sim/final.mts after 200 rr mirror burn mono   # 最終調整（#84�
 | `lib.mts` | 共通部分。カード・デッキの作成（倍率1の数字で書く）、基準デッキ、1試合（`playGame`）、並列の連戦（`series`）、場面を作る道具、表の出力 |
 | `worker.mts` | `series` のワーカー（直接は動かさない） |
 | `presets.mts` | プリセット5つの総当たり（ミラー含む）と、先攻後攻ルールの候補の比較 |
-| `stress.mts` | 1つの効果だけに寄せた極端なデッキ（40 種類以上）を B0・B1 にぶつける。キーが m で始まる 25 個は MTG 要素（#85・#86）の極端なデッキ（トークン＋出るたび・X・呪縛・接死＋挑発など。測定は #89）。`node scripts/sim/stress.mts 60 mTokenSwarm mDeathTauntBurn …` |
+| `stress.mts` | 1つの効果だけに寄せた極端なデッキ（40 種類以上）を B0・B1 にぶつける。キーが m で始まる 25 個は MTG 要素（#85・#86）の極端なデッキ（トークン＋出るたび・X・呪縛・接死＋挑発など。測定は #89）。キーが o で始まる 22 個は ○ の MTG 要素（#91〜#94）の極端なデッキ（お互いドロー・予約・引いたときの連鎖・応召・動員・複写・封殺・続唱・激励・再利用・反復・フラッシュバック・脱出・起動のパワー・親和・キッカー＋新生・双呪・速度・王冠・英雄譚・蓄積・種族。測定は #95）。`node scripts/sim/stress.mts 60 mTokenSwarm mDeathTauntBurn …`、`node scripts/sim/stress.mts 60 oAmass oInspire` |
 | `stress10.mts` | 基準デッキ B0・B1 の1つの枠（10枚）を1つの効果の上限カードに差し替え、元の基準デッキと戦わせる（監査 sim-c の形。30枚すべてを寄せる stress.mts はダメージのないデッキが勝てずに引き分けばかりになるため）。差し替える枠は stress10.mts の冒頭 |
 | `length.mts` | 試合の長さ（各プレイヤーのターン数）の分布 |
 | `aicheck.mts` | 作った場面で CPU がリーサルを取れるか＋実戦での見逃し数 |

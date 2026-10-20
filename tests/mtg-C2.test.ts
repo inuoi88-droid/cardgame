@@ -91,10 +91,10 @@ describe('定義（○ バッチC2）：ポイント・テキスト', () => {
     ['エンジン始動', SPELL([fx({ id: 'startEngine', target: 'self' })], { cost: 0 }), 2, ['エンジン始動（速度が無ければ1になる）。']],
     ['王冠を得る', SPELL([fx({ id: 'crown', target: 'self' })], { cost: 1 }), 10, ['王冠を得る。']],
     ['速度が最大なら', SPELL([fx({ ...DMG5, condition: 'maxSpeed' })]), 8, ['速度が最大なら、相手1体に5ダメージを与える。']],
-    ['王冠を持っていれば', SPELL([fx({ ...DMG5, condition: 'hasCrown' })]), 9, ['王冠を持っていれば、相手1体に5ダメージを与える。']],
+    ['王冠を持っていれば', SPELL([fx({ ...DMG5, condition: 'hasCrown' })]), 12, ['王冠を持っていれば、相手1体に5ダメージを与える。']],
     ['同じ種族がいれば', SPELL([fx({ ...DMG5, condition: 'tribeAlly' })], { tribe: 'beast' }), 11, ['同じ種族の自分のモンスターがいれば、相手1体に5ダメージを与える。']],
     ['同じ種族1体につき', SPELL([fx({ ...DMG5, mods: ['perTribeAlly'] })], { tribe: 'dragon' }), 30, ['相手1体に5ダメージを与える（数値は同じ種族の自分のモンスター1体につき、最大3体）。']],
-    ['同じ種族の全体（ロード）', SPELL([fx({ id: 'train', value: 1, target: 'tribeAllies' })], { tribe: 'undead' }), 8, ['同じ種族の自分のモンスター全体の攻撃力と体力を+1する。']],
+    ['同じ種族の全体（ロード）', SPELL([fx({ id: 'train', value: 1, target: 'tribeAllies' })], { tribe: 'undead' }), 9, ['同じ種族の自分のモンスター全体の攻撃力と体力を+1する。']],
     ['同じ種族のサーチ', SPELL([fx({ id: 'search', option: 'tribe', target: 'self' })], { tribe: 'machine' }), 8, ['山札から同じ種族のカードを1枚選んで手札に加える。']],
   ];
   it.each(table)('%s', (_label, c, sum, text) => {
@@ -123,8 +123,8 @@ describe('定義（○ バッチC2）：ポイント・テキスト', () => {
     expect(charged(2, 'turnStart')).toBe(3);
     expect(charged(2, 'cardPlayed')).toBe(6);
     expect(charged(5, 'allyDestroyed')).toBeCloseTo(0.84);
-    expect([conditionMultiplier('tribeAlly'), conditionMultiplier('maxSpeed'), conditionMultiplier('hasCrown')]).toEqual([0.7, 0.5, 0.6]);
-    expect(analyzeCard(SPELL([fx({ id: 'train', value: 1, target: 'tribeAllies' })], { tribe: 'beast' })).points.lines[0]!.formula).toContain('1.6');
+    expect([conditionMultiplier('tribeAlly'), conditionMultiplier('maxSpeed'), conditionMultiplier('hasCrown')]).toEqual([0.7, 0.5, 0.75]);
+    expect(analyzeCard(SPELL([fx({ id: 'train', value: 1, target: 'tribeAllies' })], { tribe: 'beast' })).points.lines[0]!.formula).toContain('2.0');
   });
 
   it('タイミング・条件の見出し：英雄譚・蓄積、種族・速度・王冠', () => {

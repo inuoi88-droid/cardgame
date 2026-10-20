@@ -124,6 +124,8 @@ interface PlayerPanelProps {
   hasCrown?: boolean;
   /** パワーのカード定義（英雄譚の全章数・蓄積の必要数の表示） */
   powerDef?: (pw: battle.PowerInst) => CardDef | undefined;
+  /** 演出中のパワーの札の光（キーはパワーの uid。起動・英雄譚の章・蓄積） */
+  powerFlash?: Record<string, string>;
 }
 
 /** 起動の ⚡ ボタン（モンスター・パワー）。使えないときは灰色で、押すと理由を出す */
@@ -188,6 +190,7 @@ export function PlayerPanel({
   pileHover,
   hasCrown,
   powerDef,
+  powerFlash,
 }: PlayerPanelProps) {
   const hp = hpShown ?? ps.hp;
   const pct = Math.max(0, Math.min(100, (hp / ps.maxHp) * 100));
@@ -323,7 +326,7 @@ export function PlayerPanel({
           const act = powerActivate?.(pw) ?? null;
           const meter = powerMeter(pw, powerDef?.(pw));
           return (
-            <span key={pw.uid} className={cx('pw-chip', act && 'pw-chip--act')} data-fx={pw.uid}>
+            <span key={pw.uid} className={cx('pw-chip', act && 'pw-chip--act', powerFlash?.[pw.uid])} data-fx={pw.uid}>
               <button
                 type="button"
                 className="st st--power st--btn"
@@ -423,6 +426,8 @@ interface MonsterTileProps {
   attackNow?: number;
   /** 起動の ⚡ ボタン（自分のモンスターで起動の能力があるとき。MTG 要素 ○ バッチC1） */
   activate?: ActivateButton | null;
+  /** 対象にするとき増えるコスト（護法。MTG 要素 ○ バッチB）。0 なら出さない */
+  extraCost?: number;
 }
 
 /** 実効攻撃力（激励は盤面が要るので、呼び出し側が渡す。無ければ攻撃力＋一時強化） */
@@ -543,11 +548,13 @@ export function MonsterTile({
   ownerTurns,
   attackNow,
   activate,
+  extraCost = 0,
 }: MonsterTileProps) {
   const press = useLongPress(onDetail);
   const chips = monsterChips(def, m, flags, ownerTurns, attackNow);
   const label = def?.name ?? '？';
-  const state = targetable ? '対象' : selected ? '選択中' : ready ? '攻撃できる' : blockLabel ?? null;
+  // 護法（MTG 要素 ○ バッチB）：対象にすると増えるエナジーを「対象」の札に添える
+  const state = targetable ? (extraCost > 0 ? `対象 護法+${extraCost}⚡` : '対象') : selected ? '選択中' : ready ? '攻撃できる' : blockLabel ?? null;
   return (
     <div
       className={cx(
@@ -568,7 +575,7 @@ export function MonsterTile({
       )}
       role="button"
       tabIndex={dying ? -1 : 0}
-      aria-label={`${label}（攻撃力${attackOf(m, attackNow)}・体力${m.hp}・守備力${m.defense}）${state ? `・${state}` : ''}。押すと詳細`}
+      aria-label={`${label}（攻撃力${attackOf(m, attackNow)}・体力${m.hp}・守備力${m.defense}）${state ? `・${state}` : ''}${targetable && extraCost > 0 ? `・護法でエナジー+${extraCost}` : ''}。押すと詳細`}
       aria-pressed={selected || undefined}
       data-fx={m.uid}
       data-drop={dying ? undefined : `m:${m.uid}`}
@@ -583,7 +590,7 @@ export function MonsterTile({
         onPointerDown?.(e);
       }}
     >
-      {state && <span className={cx('mt__state', targetable && 'mt__state--target', selected && 'mt__state--sel', ready && !targetable && !selected && 'mt__state--ready')}>{state}</span>}
+      {state && <span className={cx('mt__state', targetable && 'mt__state--target', targetable && extraCost > 0 && 'mt__state--ward', selected && 'mt__state--sel', ready && !targetable && !selected && 'mt__state--ready')}>{state}</span>}
       <span className="mt__icon" aria-hidden="true">
         {def?.icon ?? '？'}
       </span>
@@ -635,9 +642,11 @@ interface HandCardProps {
   dragging?: 'ghost' | 'arrow' | null;
   /** ドラッグのゴーストとして描く（操作を受けない） */
   ghost?: boolean;
+  /** いま手札に入ったばかり（少しの間光らせる） */
+  fresh?: boolean;
 }
 
-export function HandCard({ card, def, info, energy, playable, selected, dim, onClick, onDetail, onHover, onPointerDown, dragging, ghost }: HandCardProps) {
+export function HandCard({ card, def, info, energy, playable, selected, dim, onClick, onDetail, onHover, onPointerDown, dragging, ghost, fresh }: HandCardProps) {
   const press = useLongPress(ghost ? undefined : onDetail);
   const ref = useRef<HTMLDivElement>(null);
   const cost = info.cost;
@@ -660,7 +669,7 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
   const dragCls = dragging === 'ghost' ? 'is-drag-src' : dragging === 'arrow' ? 'is-drag-aim' : null;
   if (!def) {
     return (
-      <div ref={ref} className={cx('hc', 'hc--noise', selected && 'is-selected', dim && 'is-dim', playable && 'is-playable', dragCls)} aria-label={`ノイズ（除外にエナジー${cost}）。押すと詳細`} {...interactive}>
+      <div ref={ref} className={cx('hc', 'hc--noise', selected && 'is-selected', dim && 'is-dim', playable && 'is-playable', dragCls, fresh && 'is-fresh')} aria-label={`ノイズ（除外にエナジー${cost}）。押すと詳細`} {...interactive}>
         <span className={cx('hc__cost', cost > energy && 'is-short')}>{cost}</span>
         <span className="hc__icon" aria-hidden="true">
           📛
@@ -675,8 +684,12 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
   const discounted = cost < def.cost;
   const taxed = cost > def.cost;
   const short = cost > energy;
+  // 封殺（MTG 要素 ○ バッチB）で無効になるカードは、他の注意より先に「封殺」の札（使う前の確認ダイアログもある）
+  const quashed = info.warnings.includes(battle.WARN_QUASH);
   const warn = info.warnings[0];
-  const badge = warn ? (battle.isPowerCapWarning(warn) ? 'パワー入替' : warn.startsWith('条件') ? '条件未達' : '対象なし') : null;
+  const badge = quashed ? '封殺' : warn ? (battle.isPowerCapWarning(warn) ? 'パワー入替' : warn.startsWith('条件') ? '条件未達' : '対象なし') : null;
+  // 成長（MTG 要素 ○ バッチB）：この1枚で増えたダメージ
+  const grown = card.grow ?? 0;
   // コストの内訳（MTG 要素 ○ バッチC1：親和・条件付き軽減・凍結・軽減効果）とキッカー
   const steps = info.breakdown?.steps ?? [];
   const costNotes = [
@@ -700,8 +713,8 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
   return (
     <div
       ref={ref}
-      className={cx('hc', `frame--${def.rarity}`, a.isCurse && 'hc--curse', playable && 'is-playable', selected && 'is-selected', dim && 'is-dim', short && 'is-short', dragCls, ghost && 'hc--ghost')}
-      aria-label={ghost ? undefined : `${def.name}（コスト${cost}）${badge ? `・${badge}` : ''}${selected ? '・選択中' : ''}。押すと詳細${playable ? '、場へドラッグで使う' : ''}`}
+      className={cx('hc', `frame--${def.rarity}`, a.isCurse && 'hc--curse', playable && 'is-playable', selected && 'is-selected', dim && 'is-dim', short && 'is-short', dragCls, ghost && 'hc--ghost', fresh && 'is-fresh')}
+      aria-label={ghost ? undefined : `${def.name}（コスト${cost}）${grown > 0 ? `・成長+${grown}` : ''}${badge ? `・${badge}` : ''}${selected ? '・選択中' : ''}。押すと詳細${playable ? '、場へドラッグで使う' : ''}`}
       aria-pressed={!ghost && selected ? true : undefined}
       onMouseEnter={onHover ? () => onHover(ref.current) : undefined}
       onMouseLeave={onHover ? () => onHover(null) : undefined}
@@ -716,7 +729,7 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
           {costEl}
         </Popover>
       )}
-      {badge && <span className="hc__badge">{badge}</span>}
+      {badge && <span className={cx('hc__badge', quashed && 'hc__badge--quash')}>{badge}</span>}
       {abil && (
         <span className="hc__abil" aria-hidden="true" title={abil.title}>
           {abil.icon}
@@ -729,8 +742,9 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
       <span className="hc__type">
         {CARD_TYPE_LABEL[a.cardType]}
         {card.copy ? '・コピー' : ''}
+        {grown > 0 && <span className="hc__grow">成長+{grown}</span>}
       </span>
-      <span className="hc__text">{summarizeCard(def)}</span>
+      <span className="hc__text">{summarizeCard(grownDef(def, grown))}</span>
       {def.stats && (
         <span className="hc__stats" aria-hidden="true">
           <span>⚔{def.stats.attack}</span>
@@ -740,6 +754,15 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
       )}
     </div>
   );
+}
+
+/**
+ * 成長（MTG 要素 ○ バッチB）した1枚の表示用の定義：使用時のダメージ・連撃の数値に grow を足す
+ * （エンジンの queue.ts の grownStep と同じ。保存はしない）
+ */
+export function grownDef(def: CardDef, grow: number | undefined): CardDef {
+  if (!grow) return def;
+  return { ...def, effects: def.effects.map((e) => (e.timing === 'play' && getEffect(e.id)?.isDamage ? { ...e, value: (e.value ?? 0) + grow } : e)) };
 }
 
 /** 手札から使う能力（サイクリング・魂力。MTG 要素 ○ バッチC1）の案内 */

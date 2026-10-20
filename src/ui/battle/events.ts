@@ -29,8 +29,8 @@ export type Show =
   | { t: 'attack'; source: FxKey; target: FxKey; retaliate: boolean }
   /** 起動（MTG 要素 ○ バッチC1）：起動したモンスター・パワー（key）を光らせ、短い見出しを出す */
   | { t: 'activate'; key: FxKey; player: PlayerId; cardId: string }
-  /** 中央の小さな通知（不発など） */
-  | { t: 'notice'; text: string; tone: 'mine' | 'enemy' | 'neutral' }
+  /** 中央の小さな通知（不発など）。key があれば、それ（パワーの札など）も光らせる */
+  | { t: 'notice'; text: string; tone: 'mine' | 'enemy' | 'neutral'; key?: FxKey }
   /** ティッカーの更新だけ */
   | { t: 'tick' };
 
@@ -106,6 +106,9 @@ function damageTone(kind: battle.DamageKind | undefined): FxTone {
   }
 }
 
+/** 場に残っているパワーか（パワーの札を光らせる） */
+const hasPower = (view: GameState, uid: string): boolean => view.players.some((ps) => ps.powers.some((pw) => pw.uid === uid));
+
 /** ログの行を演出に変える。演出にならない行（効果の説明文など）は省く */
 export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, firstId: number): BattleEvent[] {
   const out: BattleEvent[] = [];
@@ -135,7 +138,8 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
       // MTG 要素 ○ バッチC1：起動（モンスターはそのタイル、パワーはプレイヤーの枠を光らせる）・サイクリング・魂力
       case 'activate': {
         if (ev.player === undefined || !ev.cardId || !ev.uid) break;
-        const key = battle.findMonster(view, ev.uid) ? ev.uid : `p${ev.player}`;
+        // パワーは札そのもの（data-fx＝パワーの uid）を光らせる。見つからなければプレイヤーの枠
+        const key = battle.findMonster(view, ev.uid) || hasPower(view, ev.uid) ? ev.uid : `p${ev.player}`;
         push(e.text, ev.player, { t: 'activate', key, player: ev.player, cardId: ev.cardId }, DURATION.activate);
         break;
       }
@@ -160,13 +164,19 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
       case 'saga': {
         if (ev.player === undefined) break;
         const name = ev.cardId ? (view.cards[ev.cardId]?.name ?? '') : '';
-        push(e.text, ev.player, { t: 'notice', text: `📖 ${name ? `『${name}』` : '英雄譚'} 第${ev.amount ?? ''}章`, tone: ev.player === me ? 'mine' : 'enemy' }, DURATION.notice);
+        push(
+          e.text,
+          ev.player,
+          { t: 'notice', text: `📖 ${name ? `『${name}』` : '英雄譚'} 第${ev.amount ?? ''}章`, tone: ev.player === me ? 'mine' : 'enemy', ...(ev.uid && hasPower(view, ev.uid) ? { key: ev.uid } : {}) },
+          DURATION.notice,
+        );
         break;
       }
       case 'charge':
         if (ev.player === undefined) break;
         // たまりきったとき（効果が出る）だけ見出し。1つたまるのはティッカーだけ
-        if (e.kind === 'effect') push(e.text, ev.player, { t: 'notice', text: '🔋 蓄積がたまった', tone: ev.player === me ? 'mine' : 'enemy' }, DURATION.notice);
+        if (e.kind === 'effect')
+          push(e.text, ev.player, { t: 'notice', text: '🔋 蓄積がたまった', tone: ev.player === me ? 'mine' : 'enemy', ...(ev.uid && hasPower(view, ev.uid) ? { key: ev.uid } : {}) }, DURATION.notice);
         else push(e.text, ev.player, { t: 'tick' }, DURATION.tick);
         break;
       case 'damage':

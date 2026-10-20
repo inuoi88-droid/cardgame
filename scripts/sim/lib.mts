@@ -27,6 +27,8 @@ import {
   type DrawbackInstance,
   type Rarity,
   type Stats,
+  type AbilityInstance,
+  type TribeId,
 } from '../../src/engine/index.ts';
 import { PRESET_DECKS } from '../../src/presets.ts';
 
@@ -50,6 +52,10 @@ export interface CardParts {
   drawbacks?: DrawbackInstance[];
   name?: string;
   icon?: string;
+  /** カードの能力（○ バッチB〜C2） */
+  abilities?: AbilityInstance[];
+  /** 種族（○ バッチC2） */
+  tribe?: TribeId;
 }
 
 let seq = 0;
@@ -67,6 +73,8 @@ export function makeCard(name: string, rarity: Rarity, cost: number, parts: Card
     keywords: parts.keywords ?? [],
     effects: parts.effects ?? [],
     drawbacks: parts.drawbacks ?? [],
+    ...(parts.abilities?.length ? { abilities: parts.abilities } : {}),
+    ...(parts.tribe ? { tribe: parts.tribe } : {}),
   });
 }
 
@@ -101,7 +109,7 @@ export function cardAtCap(rarity: Rarity, cost: number, effects: EffectInstance[
 export function fitValue(
   rarity: Rarity,
   cost: number,
-  build: (v: number) => { effects?: EffectInstance[]; stats?: Stats | null; keywords?: KeywordInstance[]; drawbacks?: DrawbackInstance[]; name?: string },
+  build: (v: number) => { effects?: EffectInstance[]; stats?: Stats | null; keywords?: KeywordInstance[]; drawbacks?: DrawbackInstance[]; name?: string; abilities?: AbilityInstance[]; tribe?: TribeId },
   max = 30,
   min = 1,
 ): { card: CardDef; value: number } {
@@ -109,7 +117,7 @@ export function fitValue(
   for (let v = max; v >= min; v--) {
     const parts = build(v);
     try {
-      return { card: cardAtCap(rarity, cost, parts.effects ?? [], parts.stats, parts.keywords, { name: parts.name, drawbacks: parts.drawbacks }), value: v };
+      return { card: cardAtCap(rarity, cost, parts.effects ?? [], parts.stats, parts.keywords, { name: parts.name, drawbacks: parts.drawbacks, abilities: parts.abilities, tribe: parts.tribe }), value: v };
     } catch (e) {
       lastError = (e as Error).message;
     }

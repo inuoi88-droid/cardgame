@@ -145,6 +145,7 @@ export function useReplay(view: GameState, me: PlayerId, onDone?: () => void): U
           break;
         case 'notice':
           n.banner = { text: e.show.text, tone: e.show.tone, big: false };
+          if (e.show.key) n.flash = { [e.show.key]: 'is-activate' };
           n.ticker = e.text;
           break;
         case 'float': {

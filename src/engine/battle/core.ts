@@ -173,16 +173,28 @@ export function checkGameEnd(g: GameState): boolean {
   return true;
 }
 
+/** このカード（uid）がもうどこかの場所（山札・手札・捨て札・除外・場・装備・予約）にあるか */
+function cardPlaced(g: GameState, uid: string): boolean {
+  return g.players.some(
+    (ps) =>
+      [ps.deck, ps.hand, ps.discard, ps.exile].some((z) => z.some((c) => c.uid === uid)) ||
+      ps.board.some((m) => m.card.uid === uid || (m.equipment ?? []).some((c) => c.uid === uid)) ||
+      (ps.delayed ?? []).some((d) => d.rebound?.card.uid === uid),
+  );
+}
+
 export function endGame(g: GameState, winner: PlayerId | null, reason: GameResult['reason']): void {
   g.phase = 'ended';
   g.result = { winner, reason };
   // 処理の途中で決着したら、使っている途中のカードを捨て札に置いてから処理を打ち切る
+  // 無料で使う途中・反復の2回目の途中のカード（MTG 要素 ○ バッチB）も。もうどこかの場所にあるカード（召喚時に破壊されたモンスターなど）は動かさない
   for (const step of [...g.queue, ...(g.pending ? [g.pending.step] : [])]) {
-    if (step.t === 'cardDone' && !g.players.some((p) => p.board.some((m) => m.uid === step.card.uid))) {
-      g.players[step.card.owner].discard.push(step.card);
-    }
-    // 無料で使う途中・反復の2回目の途中のカード（MTG 要素 ○ バッチB）
-    if (step.t === 'freePlay' || step.t === 'reboundDone') g.players[step.card.owner].discard.push(step.card);
+    if (step.t !== 'cardDone' && step.t !== 'freePlay' && step.t !== 'reboundDone') continue;
+    const card = step.card;
+    if (card.token || cardPlaced(g, card.uid)) continue;
+    const owner = g.players[card.owner];
+    if (card.copy === 'temp' || card.exileOnLeave) owner.exile.push(card);
+    else owner.discard.push(card);
   }
   g.queue = [];
   g.pending = null;

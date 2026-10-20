@@ -84,6 +84,34 @@
  * | mCoinBurn       | コインを投げて表なら、相手1体に N ダメージ ×30               | |
  * | mLifespanHaste  | 速攻 N/2・寿命1 ×30                                           | 使い捨て召喚 |
  * | mSacrifice      | 小鬼 N/N を2体 ×15 ＋ 生け贄の大型 N/N（コスト1）×15          | |
+ *
+ * ○ の MTG 要素（決定事項 #91〜#94）の極端なデッキ（キーの頭に o。測定は #95）
+ *
+ * | キー            | 中身                                                          | 備考 |
+ * |-----------------|---------------------------------------------------------------|------|
+ * | oBothDraw       | お互い N 枚引く ×15 ＋ ダメージ N ×15                         | お互いの対象 |
+ * | oDelayBurn      | 次のターンに：相手1体に N ダメージ ×30                        | 予約の積み上げ |
+ * | oDrawnChain     | 引いたとき：1枚引く＋1枚引く ×8（レア）＋ ダメージ N ×22      | 引いたときの連鎖（コモンでは引いたときのドローを作れない） |
+ * | oMobilize       | 応召の小鬼 N/N を2体 ×15 ＋ パワー「出るたび、出たモンスターの攻撃力+N」×8 ＋ 兵士 ×7 | 一時トークン＋出るたび |
+ * | oAmass          | 動員 N ×30                                                    | 軍団 |
+ * | oClone          | 複写召喚 ×4（エピック）＋ 兵士 ×26                            | |
+ * | oQuash          | 封殺（すべて）×8（レア・コスト2）＋ ダメージ N ×22            | 封殺の連打 |
+ * | oCascade        | 続唱（コスト N 以下）×8（レア・コスト2）＋ ダメージ N ×22     | 続唱の連鎖 |
+ * | oInspire        | 激励 N 1/1 ×30                                                | 激励の並べ |
+ * | oBuyback        | 再利用：ダメージ N（コスト2）×30                              | 再利用の繰り返し |
+ * | oRebound        | 反復：ダメージ N ×30                                          | 反復 |
+ * | oFlashback      | フラッシュバック：ダメージ N ×30                              | 捨て札から |
+ * | oEscape         | 脱出3：ダメージ N ×8（レア）＋ ダメージ N ×22                 | 脱出の連打 |
+ * | oActivatePower  | パワー「起動（エナジー1）：相手に N ダメージ」×30              | 起動のパワーを重ねる |
+ * | oAffinity       | 親和（使ったカード）：ダメージ N（コスト3）×15 ＋ 小鬼 ×15    | 親和で軽くする |
+ * | oKickerOffspring| キッカー1・払えば新生：N/N（レア・コスト2）×8 ＋ 兵士 ×22     | キッカー＋新生 |
+ * | oEntwine        | 双呪1：A 相手1体に N ダメージ・B 回復 N ×30                   | 双呪の重ね使い |
+ * | oSpeed          | エンジン始動 ×6 ＋ 速度が最大なら相手に N ダメージ ×12 ＋ 速攻 ×12 | 速度4の条件 |
+ * | oCrown          | 王冠を得る ×8 ＋ 王冠を持っていれば N ダメージ ×22           | 王冠の奪い合い |
+ * | oSaga           | 英雄譚（第1〜3章：ダメージ N）×30                             | パワー枠の圧迫 |
+ * | oCharge         | 蓄積（カードを使うたび・2）：ダメージ N のパワー（コスト2）×15 ＋ ダメージ N ×15 | 蓄積 |
+ * | oTribe          | 獣の N/N（召喚時、同じ種族の自分のモンスター全体の攻撃力+1）×30 | 同じ種族の並べ（ロード） |
+ * | oLordAll        | N/N（召喚時、自分のモンスター全体の攻撃力+1）×30             | oTribe の比較用（種族なし。#85 の対象） |
  */
 import {
   B0,
@@ -106,7 +134,7 @@ import {
   type DeckSpec,
   type SeriesResult,
 } from './lib.mts';
-import { createEffect, type CardDef, type DrawbackInstance, type EffectInstance, type KeywordInstance, type Rarity, type Stats } from '../../src/engine/index.ts';
+import { createEffect, type AbilityInstance, type TribeId, type CardDef, type DrawbackInstance, type EffectInstance, type KeywordInstance, type Rarity, type Stats } from '../../src/engine/index.ts';
 
 /** 効果の既定（タイミング・対象・option）を createEffect からもらい、上書きする */
 const eff = (id: string, over: Partial<EffectInstance> = {}, monster = false): EffectInstance => ({ ...createEffect(id, monster ? 'monster' : 'spell'), ...over });
@@ -115,6 +143,8 @@ const SOLDIER = (): CardDef => cardAtCap('common', 1, [], { attack: 3, hp: 3, de
 const FIREBALL = (): CardDef => burnCard(7, '火球');
 
 interface Parts {
+  abilities?: AbilityInstance[];
+  tribe?: TribeId;
   drawbacks?: DrawbackInstance[];
   effects?: EffectInstance[];
   stats?: Stats | null;
@@ -263,6 +293,82 @@ export const EXTREME: Record<string, () => DeckSpec> = {
       [big, 15],
     ]);
   },
+  // ---------------------------------------------------------------- ○ の MTG 要素（#91〜#94）
+  oBothDraw: () => half('oBothDraw', burnCard(undefined, '火球'), (v) => ({ effects: [eff('draw', { value: Math.min(v, 3), target: 'bothPlayers' })], name: `お互いドロー${Math.min(v, 3)}` }), 'common', 1),
+  oDelayBurn: () => single('oDelayBurn', (v) => ({ effects: [eff('damage', { value: v, mods: ['nextTurn'] })], name: `予約火球${v}` })),
+  oDrawnChain: () => {
+    const lim = BALANCE.rarity.rare.deckLimit ?? 8;
+    return buildDeck('oDrawnChain', [
+      ...fill('連鎖の札', 'rare', 1, { effects: [eff('draw', { value: 1, timing: 'drawn', target: 'self' }), eff('draw', { value: 1, target: 'self' })] }, lim),
+      [burnCard(undefined, '火球'), 30 - lim],
+    ]);
+  },
+  oMobilize: () =>
+    buildDeck('oMobilize', [
+      ...fitFill('common', 1, (v) => ({ effects: [eff('token', { value: v, hits: 2, option: 'mobilize' })], name: `応召${v}x2` }), 15),
+      ...fitFill('rare', 1, (v) => ({ effects: [eff('attackUp', { value: v, timing: 'allySummoned', target: 'chosen' })], name: `号令${v}` }), BALANCE.rarity.rare.deckLimit ?? 8),
+      [SOLDIER(), 7],
+    ]),
+  oAmass: () => single('oAmass', (v) => ({ effects: [eff('amass', { value: v })], name: `動員${v}` })),
+  oClone: () => rareLimited('oClone', 'epic', 2, () => ({ effects: [eff('cloneToken')], name: '複写召喚' })),
+  oQuash: () =>
+    buildDeck('oQuash', [
+      ...fill('封殺', 'rare', 2, { effects: [eff('quash', { option: 'any' })] }, BALANCE.rarity.rare.deckLimit ?? 8),
+      [burnCard(undefined, '火球'), 30 - (BALANCE.rarity.rare.deckLimit ?? 8)],
+    ]),
+  oCascade: () =>
+    buildDeck('oCascade', [
+      ...fitFill('rare', 2, (v) => ({ effects: [eff('cascade', { value: Math.min(v, 2) }), eff('damage', { value: v })], name: `続唱${v}` }), BALANCE.rarity.rare.deckLimit ?? 8),
+      [burnCard(undefined, '火球'), 30 - (BALANCE.rarity.rare.deckLimit ?? 8)],
+    ]),
+  oInspire: () => mon('oInspire', (v) => ({ stats: { attack: 1, hp: 1, defense: 0 }, keywords: [{ id: 'inspire', value: v }], name: `激励${v}` })),
+  oBuyback: () => single('oBuyback', (v) => ({ effects: [eff('damage', { value: v })], abilities: [{ id: 'buyback' }], name: `再利用${v}` }), 'common', 2),
+  oRebound: () => single('oRebound', (v) => ({ effects: [eff('damage', { value: v })], abilities: [{ id: 'rebound' }], name: `反復${v}` })),
+  oFlashback: () => single('oFlashback', (v) => ({ effects: [eff('damage', { value: v })], abilities: [{ id: 'flashback', value: 0 }], name: `FB${v}` })),
+  oEscape: () =>
+    buildDeck('oEscape', [
+      ...fitFill('rare', 1, (v) => ({ effects: [eff('damage', { value: v })], abilities: [{ id: 'escape', value: 3 }], name: `脱出${v}` }), BALANCE.rarity.rare.deckLimit ?? 8),
+      [burnCard(undefined, '火球'), 30 - (BALANCE.rarity.rare.deckLimit ?? 8)],
+    ]),
+  oActivatePower: () =>
+    single('oActivatePower', (v) => ({ effects: [eff('damage', { value: v, timing: 'activated', target: 'chosen' })], abilities: [{ id: 'activate', value: 1 }], name: `起動砲${v}` })),
+  oAffinity: () => {
+    const tok = fitValue('common', 1, (v) => ({ effects: [eff('token', { value: v })], name: `小鬼${v}` })).card;
+    return half('oAffinity', tok, (v) => ({ effects: [eff('damage', { value: v })], abilities: [{ id: 'affinity', option: 'cardsPlayed' }], name: `親和${v}` }), 'common', 3);
+  },
+  oKickerOffspring: () =>
+    buildDeck('oKickerOffspring', [
+      ...fitFill('rare', 2, (v) => ({ stats: { attack: v, hp: v, defense: 0 }, effects: [eff('offspring', { condition: 'kicked' }, true)], abilities: [{ id: 'kicker', value: 1 }], name: `新生${v}` }), BALANCE.rarity.rare.deckLimit ?? 8),
+      [SOLDIER(), 30 - (BALANCE.rarity.rare.deckLimit ?? 8)],
+    ]),
+  oEntwine: () =>
+    single('oEntwine', (v) => ({ effects: [eff('damage', { value: v, mode: 1 }), eff('heal', { value: v, target: 'self', mode: 2 })], abilities: [{ id: 'entwine', value: 1 }], name: `双呪${v}` })),
+  oSpeed: () =>
+    buildDeck('oSpeed', [
+      [cardAtCap('common', 1, [eff('startEngine'), eff('draw', { value: 1, target: 'self' })], null, [], { name: 'エンジン始動' }), 6],
+      [fitValue('common', 1, (v) => ({ effects: [eff('damage', { value: v, condition: 'maxSpeed' })], name: `最高速${v}` })).card, 12],
+      [fitValue('common', 1, (v) => ({ stats: { attack: v, hp: 2, defense: 0 }, keywords: [{ id: 'haste' }], name: `速攻${v}/2` })).card, 12],
+    ]),
+  oCrown: () =>
+    buildDeck('oCrown', [
+      [cardAtCap('common', 1, [eff('crown')], null, [], { name: '戴冠' }), 8],
+      [fitValue('common', 1, (v) => ({ effects: [eff('damage', { value: v, condition: 'hasCrown' })], name: `王の火${v}` })).card, 22],
+    ]),
+  oSaga: () =>
+    single('oSaga', (v) => ({
+      effects: [1, 2, 3].map((c) => eff('damage', { value: v, timing: `chapter${c}` as EffectInstance['timing'], target: 'enemyPlayer' })),
+      name: `英雄譚${v}`,
+    })),
+  oCharge: () =>
+    half('oCharge', burnCard(undefined, '火球'), (v) => ({
+      effects: [eff('damage', { value: v, timing: 'charged', target: 'enemyPlayer' })],
+      abilities: [{ id: 'charge', value: 2, option: 'cardPlayed' }],
+      name: `蓄積${v}`,
+    }), 'common', 2),
+  oLordAll: () =>
+    single('oLordAll', (v) => ({ stats: { attack: v, hp: v, defense: 0 }, effects: [eff('attackUp', { value: 1, timing: 'summon', target: 'allyMonsters' }, true)], name: `号令の兵${v}` })),
+  oTribe: () =>
+    single('oTribe', (v) => ({ stats: { attack: v, hp: v, defense: 0 }, tribe: 'beast', effects: [eff('attackUp', { value: 1, timing: 'summon', target: 'tribeAllies' }, true)], name: `獣の群れ${v}` })),
   attackPoison: () => mon('attackPoison', (v) => ({ stats: { attack: 1, hp: 2, defense: 0 }, effects: [eff('poison', { value: v, timing: 'attack' }, true)], name: `毒牙${v}` })),
 };
 

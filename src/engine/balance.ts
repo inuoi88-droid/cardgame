@@ -145,8 +145,8 @@ export const BALANCE = {
     otherAllies: 1.8,
     weakestAlly: 0.9,
     bothPlayers: 0.4,
-    /** MTG 要素 ○ バッチC2：同じ種族の自分のモンスター全体（ロード） */
-    tribeAllies: 1.6,
+    /** MTG 要素 ○ バッチC2：同じ種族の自分のモンスター全体（ロード）。#95 で 1.6→2.0（同じ種族だけのデッキでは自分のモンスター全体と同じになるため） */
+    tribeAllies: 2.0,
   },
   /** モンスターにしか作用しない効果（処刑・封印など）の「敵味方すべて」はプレイヤーに当たらないぶん高い（決定事項 #68） */
   targetMonsterOnly: {
@@ -202,7 +202,8 @@ export const BALANCE = {
     /** MTG 要素 ○ バッチC2：同じ種族の自分のモンスターがいる・速度が最大・王冠を持っている */
     tribeAlly: 0.7,
     maxSpeed: 0.5,
-    hasCrown: 0.6,
+    /** #95 で 0.6→0.75（モンスターのいないデッキは王冠を奪われにくく、ほぼいつも満たせた） */
+    hasCrown: 0.75,
   },
   /** 「キッカーを払っていれば」の倍率（キッカーの追加エナジー1・2 の順。MTG 要素 ○ バッチC1） */
   conditionByKicker: [0.6, 0.45],
@@ -405,7 +406,8 @@ export const BALANCE = {
     proliferate: { perValue: 5, maxValue: x(3) },
     populate: { flat: x(6) },
     explore: { flat: x(2), perValue: 3, maxValue: x(5) },
-    amass: { perValue: 5, maxValue: x(5) },
+    /** 動員：#95 で perValue 5→7（1体に集まり、出たターン以外はすぐ攻撃できる。極端なデッキが基準デッキに全勝した） */
+    amass: { perValue: 7, maxValue: x(5) },
     harness: { perValue: x(5), maxValue: 2 },
     /** 徴募：捨てたのがスキルなら攻撃力 stat・体力 stat のトークン */
     recruit: { flat: x(6), stat: x(1) },
@@ -454,7 +456,8 @@ export const BALANCE = {
      * 威圧＝max(min, 攻撃力×perAttack)・分身＝rate×（攻撃力×3＋体力×1.5＋守備力×4。ステータスのポイント）
      */
     hitAndRun: { flat: x(1) },
-    inspire: { perValue: 4.5, maxValue: x(3) },
+    /** 激励：#95 で perValue 4.5→5.5（並べるほど増える。極端なデッキが B0 に 88%） */
+    inspire: { perValue: 5.5, maxValue: x(3) },
     ward: { perValue: x(3), maxValue: 2 },
     onslaught: { perValue: 2, maxValue: x(5) },
     menace: { min: x(3), perAttack: 1 },

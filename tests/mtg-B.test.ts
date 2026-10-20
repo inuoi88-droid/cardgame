@@ -62,7 +62,7 @@ describe('キーワード（○ バッチB）：ポイントとテキスト', ()
   // 攻撃力2・体力3 のモンスター
   const table: [string, number | undefined, number, string][] = [
     ['hitAndRun', undefined, 1, '攻撃したあと、持ち主の手札に戻る'],
-    ['inspire', 1, 4.5, '自分の他のモンスターの攻撃力+1（場にいる間）'],
+    ['inspire', 1, 5.5, '自分の他のモンスターの攻撃力+1（場にいる間）'],
     ['ward', 2, 6, '相手のカードの対象にするとコスト+2'],
     ['onslaught', 2, 4, '相手プレイヤーを攻撃するとき、攻撃力+2'],
     ['menace', undefined, 3, '攻撃したとき、反撃を受けない'],
@@ -102,7 +102,7 @@ describe('効果（○ バッチB）：ポイントとテキスト', () => {
     ['proliferate', S({ id: 'proliferate', value: 1 }), 5, '相手の毒・出血・呪縛を+1、やけど・弱体・脆弱を1ターン延ばし、自分の筋力・再生を+1する（すでにあるものだけ）。'],
     ['populate', S({ id: 'populate' }), 6, '自分のトークン1体のコピーを出す。'],
     ['explore', SPELL([fx({ id: 'explore', value: 1 })]), 5, '山札の一番上を公開し、モンスターなら手札に加え、違えば捨て札に置いて自分のモンスター1体の攻撃力と体力を+1する。'],
-    ['amass', S({ id: 'amass', value: 1 }), 5, '動員1（軍団がいなければ出し、軍団の攻撃力と体力を+1する）。'],
+    ['amass', S({ id: 'amass', value: 1 }), 7, '動員1（軍団がいなければ出し、軍団の攻撃力と体力を+1する）。'],
     ['harness', SPELL([fx({ id: 'harness', value: 1 })]), 5, '自分のモンスター1体をこのターン攻撃できなくし、エナジーを1得る。'],
     ['recruit', S({ id: 'recruit' }), 6, 'カードを1枚引き、手札を1枚捨てる。捨てたのがスキルなら攻撃力1・体力1の小鬼を出す。'],
     ['infight', S({ id: 'infight' }), 12, '相手モンスターそれぞれが、ランダムな他の相手モンスター1体に攻撃力ぶんのダメージを与える。'],
@@ -782,7 +782,7 @@ describe('価格の確かめ（仕様の例・倍率1）', () => {
     ok(card({ name: '続唱', rarity: 'rare', cost: 2, effects: [fx({ id: 'cascade', value: 2, target: 'self' })] }));
     ok(card({ name: '封殺', rarity: 'rare', cost: 2, effects: [fx({ id: 'quash', target: 'enemyPlayer' })] }));
     const insp = card({ name: '激励', cost: 1, stats: { attack: 1, hp: 3, defense: 0 }, keywords: [KW('inspire', 1)] });
-    expect(ok(insp).points.total).toBe(2);
+    expect(ok(insp).points.total).toBe(3);
     // 反復つき「相手1体に5ダメージ」＝26：コスト2コモン（25）は1超え、レアなら作れる
     const rb = (rarity: CardDef['rarity']) => card({ name: '反復', rarity, cost: 2, effects: [fx({ id: 'damage', value: 5 })], abilities: [AB('rebound')] });
     expect(codes(analyzeCard(rb('common')).violations)).toEqual(['POINTS_OVER_CAP']);

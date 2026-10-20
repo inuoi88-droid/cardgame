@@ -414,6 +414,18 @@ body:has(.battle) .toast__action {
 .mt.is-stealth {
   opacity: 0.72;
 }
+/* 休眠中（MTG 要素 △ バッチA）：効果が出ない。半透明 */
+.mt.is-dormant,
+.pw-chip.is-dormant {
+  opacity: 0.5;
+  filter: saturate(0.4);
+}
+/* 一時蘇生・ワープ（MTG 要素 △ バッチB・C）：ターン終了時に場を離れる。点線の枠で薄く */
+.mt.is-fleeting {
+  opacity: 0.8;
+  outline: 2px dashed rgba(180, 160, 255, 0.85);
+  outline-offset: -3px;
+}
 .mt.is-hidden {
   opacity: 0;
   transform: scale(0.6);
@@ -2811,5 +2823,22 @@ button.lt-card:focus-visible {
   .draft__cand .btn {
     padding-inline: 4px;
     font-size: var(--fs-xs);
+  }
+}
+
+/* 手札から捨てられたカードが入った捨て札の山（MTG 要素 △ バッチA・B）と、このターン捨てたカードの行 */
+.pile.is-fresh {
+  animation: hc-fresh 1.5s ease-out;
+}
+.pile-row.is-recent {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.pile-row__tag--recent {
+  color: var(--warn);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pile.is-fresh {
+    animation: none;
+    outline: 2px solid var(--warn);
   }
 }

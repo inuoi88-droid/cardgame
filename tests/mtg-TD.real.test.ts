@@ -34,14 +34,14 @@ describe('△ バッチD（実際の倍率）', () => {
       alchemist: { everyTurns: 4, energy: 1 },
       scholar: { everyTurns: 2, draw: 1 },
     });
-    expect(BALANCE.fields).toEqual({ volcano: { attack: 20 }, library: { draw: 1 }, sanctuary: { heal: 40 }, arena: {}, market: { discount: 1 }, fog: { rate: 0.25 }, planarEvery: 6 });
+    expect(BALANCE.fields).toEqual({ volcano: { attack: 10 }, library: { draw: 1 }, sanctuary: { heal: 40 }, arena: {}, market: { discount: 1 }, fog: { rate: 0.25 }, planarEvery: 6 });
     expect(BALANCE.effects.setField).toEqual({ flat: 120 });
     expect(BALANCE.dayNight).toEqual({ toNight: 0, toDay: 2 });
     expect(BALANCE.draft).toEqual({ rounds: 15, offer: 3, copies: 2 });
     expect([BALANCE.condition.isDay, BALANCE.condition.isNight]).toEqual([0.6, 0.6]);
     // 説明文の数字も実際の倍率
     expect(LEADERS.knight.description).toContain('+200');
-    expect(FIELDS.volcano.description).toContain('+20');
+    expect(FIELDS.volcano.description).toContain('+10');
   });
 
   it('効果「フィールド」は 120pt（コスト1のコモンでも作れる）', () => {
@@ -51,7 +51,7 @@ describe('△ バッチD（実際の倍率）', () => {
     expect(a.points.lines.find((l) => l.kind === 'effect')?.value).toBe(120);
   });
 
-  it('騎士は HP 2600、召喚士は出たモンスターの体力+20、火山で攻撃力+20、霧で顔へのダメージ75%', () => {
+  it('騎士は HP 2600、召喚士は出たモンスターの体力+20、火山で攻撃力+10（統合 #101 で 20→10）、霧で顔へのダメージ75%', () => {
     const r = battle.createGame({ seed: 1, first: 0, players: [setup('P0', 'knight'), setup('P1', 'summoner')], rules: { field: 'random' } });
     if (!r.ok) throw new Error(r.error);
     let g = r.state;
@@ -65,7 +65,7 @@ describe('△ バッチD（実際の倍率）', () => {
     g = act(g, { type: 'playCard', player: 1, cardUid: uid, chosen: {} });
     const mon = g.players[1].board[0]!;
     expect([mon.hp, mon.maxHp]).toEqual([80, 80]);
-    expect(battle.effectiveAttack(g, mon)).toBe(60);
+    expect(battle.effectiveAttack(g, mon)).toBe(50);
     g.field = { id: 'fog', by: null, since: 0 };
     g = act(g, { type: 'endTurn', player: 1 });
     g = act(g, { type: 'endTurn', player: 0 });

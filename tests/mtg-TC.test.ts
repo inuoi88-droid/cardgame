@@ -46,6 +46,8 @@ const nextMine = (g: G, energy = 20) => {
   return rich(g, 0, energy);
 };
 const view = (g: G, p: battle.PlayerId) => JSON.stringify(battle.viewFor(g, p));
+/** 裏向きのモンスター（本当のカードの uid から）のモンスターの uid */
+const byCard = (g: G, cardUid: string) => g.players.flatMap((ps) => ps.board).find((m) => m.faceDown?.card?.uid === cardUid)!.uid;
 
 const DMG4 = fx({ id: 'damage', value: 4 });
 const DRAW1 = fx({ id: 'draw', value: 1, target: 'self' });
@@ -57,7 +59,7 @@ describe('定義（△ バッチC）：ポイント・テキスト', () => {
     ['予顕−1（2）', SPELL([DMG4], { abilities: [AB('foretell', 1)] }), 2, 'エナジー2で伏せ、後のターンにコスト−1で使う。'],
     ['予顕−2（2＋6）', SPELL([DMG4], { abilities: [AB('foretell', 2)] }), 8, 'エナジー2で伏せ、後のターンにコスト−2で使う。'],
     ['計画（2）', SPELL([DMG4], { abilities: [AB('plot')] }), 2, '今払って待機させ、後のターンに無料で使う。'],
-    ['待機2—1（3）', SPELL([DMG4], { abilities: [AB('suspend', 2, { option: '1' })] }), 3, 'エナジー1で待機させ、2ターン後の自分のターン開始時に無料で使う。'],
+    ['待機2—1（3＋浮く2×6×0.85）', SPELL([DMG4], { abilities: [AB('suspend', 2, { option: '1' })] }), 14, 'エナジー1で待機させ、2ターン後の自分のターン開始時に無料で使う。'],
     ['ワープ1（2＋召喚時12×0.4）', MON(2, 2, { effects: [fx({ ...DMG4, timing: 'summon' })], abilities: [AB('warp', 1)] }), 7, 'エナジー1で出すと、ターン終了時に待機ゾーンへ（後で出し直せる）。'],
     ['出来事1（0）', MON(2, 2, { effects: [fx({ ...DMG4, timing: 'adventure' })], abilities: [AB('adventure', 1)] }), 0, 'エナジー1で「出来事」の効果を使い、あとでモンスターとして出せる。'],
     ['事件（1）', POWER([fx({ ...DRAW1, timing: 'achievedNow' })], { abilities: [AB('quest', undefined, { condition: 'manyMonsters' })] }), 1, '事件（解明条件：自分の場にモンスターが3体以上。ターン終了時に判定）。'],
@@ -386,7 +388,9 @@ describe('裏向きのモンスター（対戦）', () => {
     const hp = g.players[1].hp;
     g = play(g, c, { alt: 'faceDown' });
     expect(g.players[0].energy).toBe(18);
-    const m = monster(g, c)!;
+    // 裏向きのモンスターの uid は本当のカードの uid と別（統合 #101）
+    const fd = byCard(g, c);
+    const m = monster(g, fd)!;
     expect(m).toMatchObject({ attack: 2, hp: 2, card: { cardId: battle.FACE_DOWN_WARD_CARD_ID } });
     expect(m.faceDown).toMatchObject({ kind: 'disguise', revealCost: 1 });
     expect(g.players[1].hp).toBe(hp);
@@ -397,14 +401,14 @@ describe('裏向きのモンスター（対戦）', () => {
     g = endTurn(g);
     const zap = giveCard(g, 1, SPELL([fx({ id: 'damage', value: 1 })], { rarity: 'common', cost: 1 }));
     rich(g, 1, 20);
-    expect(battle.playInfo(g, 1, g.players[1].hand.find((x) => x.uid === zap)!).targetCosts).toEqual({ [c]: 2 });
-    g = play(g, zap, { chosen: { enemy: M(c) } });
-    expect(monster(g, c)!.hp).toBe(1);
+    expect(battle.playInfo(g, 1, g.players[1].hand.find((x) => x.uid === zap)!).targetCosts).toEqual({ [fd]: 2 });
+    g = play(g, zap, { chosen: { enemy: M(fd) } });
+    expect(monster(g, fd)!.hp).toBe(1);
     g = rich(endTurn(g), 0);
     expect(view(g, 1)).not.toContain(cardId);
-    g = act(g, { type: 'reveal', player: 0, uid: c, chosen: { enemy: P(1) } });
-    expect(monster(g, c)).toMatchObject({ attack: 4, hp: 5, maxHp: 6, card: { cardId } });
-    expect(monster(g, c)!.faceDown).toBeUndefined();
+    g = act(g, { type: 'reveal', player: 0, uid: fd, chosen: { enemy: P(1) } });
+    expect(monster(g, fd)).toMatchObject({ attack: 4, hp: 5, maxHp: 6, card: { cardId, uid: c } });
+    expect(monster(g, fd)!.faceDown).toBeUndefined();
     expect(g.players[1].hp).toBe(hp - 4);
     expect(g.players[0].energy).toBe(19);
   });
@@ -414,11 +418,12 @@ describe('裏向きのモンスター（対戦）', () => {
     const def = MON(4, 6, { effects: [fx({ ...DRAW1, timing: 'destroyed' })], abilities: [AB('disguise', 1)] });
     const c = giveCard(g, 0, def);
     g = play(g, c, { alt: 'faceDown' });
+    const fd = byCard(g, c);
     g = endTurn(g);
     rich(g, 1, 20);
     const hand = g.players[0].hand.length;
-    g = play(g, giveCard(g, 1, SPELL([fx({ id: 'damage', value: 5 })], { rarity: 'common', cost: 1 })), { chosen: { enemy: M(c) } });
-    expect(monster(g, c)).toBeUndefined();
+    g = play(g, giveCard(g, 1, SPELL([fx({ id: 'damage', value: 5 })], { rarity: 'common', cost: 1 })), { chosen: { enemy: M(fd) } });
+    expect(monster(g, fd)).toBeUndefined();
     expect(g.players[0].discard.map((x) => x.cardId)).toContain(`p0:${def.id}`);
     expect(g.players[0].hand.length).toBe(hand);
     expect(g.log.some((e) => e.text.includes('裏向きのモンスターは「'))).toBe(true);
@@ -430,16 +435,18 @@ describe('裏向きのモンスター（対戦）', () => {
     g.cards[`p0:${top.id}`] = top;
     g.players[0].deck.unshift({ uid: 'top1', cardId: `p0:${top.id}`, owner: 0 });
     g = play(g, giveCard(g, 0, SPELL([fx({ id: 'manifest', target: 'self' })])));
-    expect(monster(g, 'top1')).toMatchObject({ attack: 2, hp: 2, faceDown: { kind: 'manifest', revealCost: 4 }, card: { cardId: battle.FACE_DOWN_CARD_ID } });
+    const m1 = byCard(g, 'top1');
+    expect(monster(g, m1)).toMatchObject({ attack: 2, hp: 2, faceDown: { kind: 'manifest', revealCost: 4 }, card: { cardId: battle.FACE_DOWN_CARD_ID } });
     expect(view(g, 1)).not.toContain(`p0:${top.id}`);
-    g = act(g, { type: 'reveal', player: 0, uid: 'top1' });
-    expect(monster(g, 'top1')).toMatchObject({ attack: 5, hp: 5 });
+    g = act(g, { type: 'reveal', player: 0, uid: m1 });
+    expect(monster(g, m1)).toMatchObject({ attack: 5, hp: 5 });
     // 予示したのがモンスターでなければ表にできない
     g.players[0].deck.unshift({ uid: 'top2', cardId: g.players[0].deck[1]!.cardId, owner: 0 });
     g = play(g, giveCard(g, 0, SPELL([fx({ id: 'manifest', target: 'self' })])));
-    expect(monster(g, 'top2')?.faceDown?.revealCost).toBeNull();
-    expect(actError(g, { type: 'reveal', player: 0, uid: 'top2' })).toContain('表にできません');
-    expect(battle.revealInfos(g, 0).find((x) => x.uid === 'top2')?.blocked).toContain('表にできません');
+    const t2 = byCard(g, 'top2');
+    expect(monster(g, t2)?.faceDown?.revealCost).toBeNull();
+    expect(actError(g, { type: 'reveal', player: 0, uid: t2 })).toContain('表にできません');
+    expect(battle.revealInfos(g, 0).find((x) => x.uid === t2)?.blocked).toContain('表にできません');
   });
 });
 

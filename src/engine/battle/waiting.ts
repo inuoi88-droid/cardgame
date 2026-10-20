@@ -111,7 +111,7 @@ export function setAside(g: GameState, p: PlayerId, cardUid: string, kind: SetAs
   const energy = `（エナジー${cost}、エナジー ${before}→${ps.energy}）`;
   if (hidden) {
     // 予顕：相手にはカードの名前を見せない
-    log(g, 0, `${ps.name}は手札の1枚を予顕した（裏向きで待機）${energy}`, 'action', undefined, { kind: 'waiting', player: p, uid: card.uid, status: kind, amount: cost });
+    log(g, 0, `${ps.name}は手札の1枚を予顕した（裏向きで待機）${energy}`, 'action', undefined, { kind: 'waiting', player: p, status: kind, amount: cost });
     log(g, 0, `予顕したカード：「${def.name}」（後のターンにコスト−${x.ad.battle.setAside!.cut?.(x.a) ?? 0}で使える）`, 'info', p);
     return;
   }

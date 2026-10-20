@@ -56,7 +56,7 @@ describe('△ バッチC（実際の倍率）', () => {
     const uid = give(g, d);
     g = act(g, { type: 'playCard', player: 0, cardUid: uid, alt: 'faceDown' });
     expect([g.players[0].board[0]!.attack, g.players[0].board[0]!.hp]).toEqual([40, 40]);
-    g = act(g, { type: 'reveal', player: 0, uid });
+    g = act(g, { type: 'reveal', player: 0, uid: g.players[0].board[0]!.uid });
     expect([g.players[0].board[0]!.attack, g.players[0].board[0]!.hp]).toEqual([60, 80]);
     const s = fromBaseScale(card({ id: 's', name: '砦', rarity: 'common', cost: 1, effects: [fx({ id: 'siege', value: 3, target: 'self' })] }));
     g = act(g, { type: 'playCard', player: 0, cardUid: give(g, s) });

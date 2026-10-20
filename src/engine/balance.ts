@@ -662,8 +662,11 @@ export const BALANCE = {
     foretell: { setCost: 2, base: x(2), perCut: x(6), maxCut: 2 },
     /** 計画：今の実コストを払って表向きで待機させ、後のターンに無料で使う */
     plot: { flat: x(2) },
-    /** 待機：エナジーK（0〜maxCost。印刷コスト未満）で待機させ、Nターン（1〜maxTurns）後に無料で使う */
-    suspend: { flat: x(3), maxTurns: 3, maxCost: 2 },
+    /**
+     * 待機：エナジーK（0〜maxCost。印刷コスト未満）で待機させ、Nターン（1〜maxTurns）後に無料で使う。
+     * ポイントは flat＋(印刷コスト−K)×perSaved×delayRate[N−1]（浮くエナジーの値段。統合 #101：K=0 の待機だけのデッキが基準デッキに100%勝ったため）
+     */
+    suspend: { flat: x(3), perSaved: x(6), delayRate: [1, 0.85, 0.7], maxTurns: 3, maxCost: 2 },
     /** ワープ：エナジーK（1〜maxCost。印刷コスト未満）で出し、ターン終了時に待機ゾーンへ。flat＋召喚時の効果×summonRate */
     warp: { flat: x(2), summonRate: 0.4, maxCost: 3 },
     /** 出来事：出来事の効果は×rate（タイミングの倍率に掛ける。能力自体は0pt）。出来事のエナジーは0〜maxCost */
@@ -876,7 +879,7 @@ export const BALANCE = {
    * 霧：モンスターの攻撃で相手プレイヤーに与えるダメージ−rate（切り捨て）。次元（planar）は通算 planarEvery ターンごとに別のフィールドへ
    */
   fields: {
-    volcano: { attack: x(1) },
+    volcano: { attack: x(0.5) },
     library: { draw: 1 },
     sanctuary: { heal: x(2) },
     arena: {},

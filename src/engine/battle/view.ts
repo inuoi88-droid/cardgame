@@ -22,7 +22,8 @@ export function viewFor(g: GameState, p: PlayerId): GameState {
   v.log = v.log.filter((e) => e.private === undefined || e.private === p);
   // MTG 要素 △ バッチC：相手の待機ゾーンの予顕（裏向き）のカードと、相手が操る裏向きのモンスターの正体を隠す
   const oppWaiting = v.players[opp].waiting;
-  if (oppWaiting) v.players[opp].waiting = oppWaiting.map((w) => (w.hidden ? { ...w, card: { uid: w.card.uid, cardId: HIDDEN_CARD_ID, owner: w.card.owner } } : w));
+  // uid も隠す（山札の並びで振った uid から正体の見当がつくため。統合 #101）
+  if (oppWaiting) v.players[opp].waiting = oppWaiting.map((w, i) => (w.hidden ? { ...w, card: { uid: `hidden-w-${opp}-${i}`, cardId: HIDDEN_CARD_ID, owner: w.card.owner } } : w));
   for (const pl of v.players) {
     for (const m of pl.board) {
       if (m.faceDown && m.controller !== p) m.faceDown = { kind: m.faceDown.kind, revealCost: null };

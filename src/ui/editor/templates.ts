@@ -258,4 +258,56 @@ export const TEMPLATES: readonly CardTemplate[] = [
         abilities: [{ id: 'entwine', value: 1 }],
       }),
   },
+  // ---- MTG 要素 △ の統合（#101）：追加の支払い（バッチB）と待機ゾーン・裏向き（バッチC）の例
+  {
+    id: 'evoke',
+    title: '想起（安く出して効果だけ）',
+    description: 'ふつうに出せばモンスター。エナジー1で出すと召喚時の効果のあとすぐ破壊される（MTG の想起）',
+    build: (id) =>
+      make(id, {
+        name: '一閃の精霊',
+        icon: '🌬️',
+        rarity: 'rare',
+        cost: 4,
+        stats: { attack: 4, hp: 4, defense: 0 },
+        keywords: [],
+        effects: [{ id: 'damage', value: 4, timing: 'summon', target: 'chosen', condition: null }],
+        drawbacks: [],
+        abilities: [{ id: 'evoke', value: 1 }],
+      }),
+  },
+  {
+    id: 'foretell',
+    title: '予顕（伏せて後で安く）',
+    description: 'エナジー2で裏向きに待機ゾーンへ伏せ、後のターンにコスト−2で使う（MTG の予顕）',
+    build: (id) =>
+      make(id, {
+        name: '予言の雷',
+        icon: '🌩️',
+        rarity: 'rare',
+        cost: 4,
+        stats: null,
+        keywords: [],
+        effects: [{ id: 'damage', value: 10, timing: 'play', target: 'chosen', condition: null }],
+        drawbacks: [],
+        abilities: [{ id: 'foretell', value: 2 }],
+      }),
+  },
+  {
+    id: 'disguise',
+    title: '変装（裏向きで出す）',
+    description: 'エナジー2で正体を隠して出し（攻撃力・体力2・護法1）、あとで表にすると効果が出る（MTG の変装）',
+    build: (id) =>
+      make(id, {
+        name: '覆面の刺客',
+        icon: '🎭',
+        rarity: 'rare',
+        cost: 3,
+        stats: { attack: 3, hp: 3, defense: 0 },
+        keywords: [],
+        effects: [{ id: 'damage', value: 3, timing: 'revealed', target: 'chosen', condition: null }],
+        drawbacks: [],
+        abilities: [{ id: 'disguise', value: 2 }],
+      }),
+  },
 ];

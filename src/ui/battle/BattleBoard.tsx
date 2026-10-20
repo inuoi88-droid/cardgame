@@ -1628,7 +1628,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               return (
                 <div
                   key={c.uid}
-                  className={cx('pile-row', grab && 'pile-row--fd', usable && 'is-usable')}
+                  className={cx('pile-row', grab && 'pile-row--fd', usable && 'is-usable', c.discardedTurn === view.turnIndex && 'is-recent')}
                   data-pile-card={c.uid}
                   onPointerDown={grab && view.phase === 'main' ? (e) => drag.begin(e, 'list', () => discardSource(c)) : undefined}
                 >
@@ -1644,6 +1644,8 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
                     }}
                     onZoom={setZoom}
                   />
+                  {/* このターン手札から捨てたカード（大混乱で使える。MTG 要素 △ バッチB） */}
+                  {c.discardedTurn === view.turnIndex && <span className="pile-row__tag pile-row__tag--recent">このターン捨てた</span>}
                   {i && (
                     <span className={cx('pile-row__tag', myTurn && !i.blocked && 'is-ok')}>
                       {i.fromDiscard?.name}・⚡{i.cost}

@@ -765,7 +765,9 @@ export function placeFaceDown(g: GameState, p: PlayerId, card: CardInst, kind: '
   const ward = kind === 'disguise';
   const id = ward ? FACE_DOWN_WARD_CARD_ID : FACE_DOWN_CARD_ID;
   g.cards[id] ??= faceDownDef(ward);
-  const mask: CardInst = { uid: card.uid, cardId: id, owner: card.owner };
+  // 代わりのカード（とモンスター）の uid は新しく振る。本当のカードの uid は山札の並び（同じカードが続く）で振られているので、
+  // 相手に見せると正体の見当がつく（統合 #101）
+  const mask: CardInst = { uid: newUid(g, 'fd'), cardId: id, owner: card.owner };
   const m = placeMonster(g, p, mask, depth);
   if (!m) return undefined;
   m.faceDown = { kind, revealCost, card };

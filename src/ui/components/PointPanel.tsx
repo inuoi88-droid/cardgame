@@ -110,6 +110,7 @@ function PanelNotes({ card }: { card: CardDef }) {
     const cond = cut.condition ? CONDITIONS[cut.condition]?.label : undefined;
     notes.push(`実コストの見込み（条件付き軽減）：${cond ? `「${cond}」のとき` : '条件を満たすと'}コスト${card.cost}→${card.cost - k}`);
   }
+  notes.push(...payNotes(card));
   if (notes.length === 0) return null;
   return (
     <ul className="point-panel__notes">
@@ -118,4 +119,84 @@ function PanelNotes({ card }: { card: CardDef }) {
       ))}
     </ul>
   );
+}
+
+/**
+ * 追加の支払い・代わりの使い方・待機ゾーン（MTG 要素 △ バッチB・C）の実コストの見込み（統合 #101）。
+ * 数値はカードの能力の値と balance.ts から読む。実際の支払いは対戦の支払いのシートで選ぶ
+ */
+export function payNotes(card: CardDef): string[] {
+  const A = BALANCE.abilities;
+  const c = card.cost;
+  const out: string[] = [];
+  const at = (k: number) => Math.max(0, k);
+  for (const a of card.abilities ?? []) {
+    const v = a.value ?? 0;
+    switch (a.id) {
+      case 'prototype':
+        out.push(`実コストの見込み（試作）：コスト${at(c - v)}で半分の強さで出す／通常はコスト${c}`);
+        break;
+      case 'evoke':
+        out.push(`実コストの見込み（想起）：コスト${v}で出し、召喚時の効果のあと破壊／通常はコスト${c}`);
+        break;
+      case 'overload':
+        out.push(`実コストの見込み（超過）：コスト${c + v}で「選んだ1体」が全体になる`);
+        break;
+      case 'spree':
+        out.push(`実コストの見込み（放題）：モードを1つ足すごとに+${v}（全部でコスト${c + v * (BALANCE.modal.maxModes - 1)}まで）`);
+        break;
+      case 'tiered':
+        out.push(`実コストの見込み（段階）：モードA ${c}・B ${c + (A.tiered.surcharge[1] ?? 0)}・C ${c + (A.tiered.surcharge[2] ?? 0)}`);
+        break;
+      case 'cleave':
+        out.push(`実コストの見込み（切除）：コスト${c + v}で条件を無視`);
+        break;
+      case 'strive':
+        out.push(`実コストの見込み（奮励）：+${v}ごとに相手をもう1つ（最大${A.strive.maxTimes}回、コスト${c + v * A.strive.maxTimes}まで）`);
+        break;
+      case 'squad':
+        out.push(`実コストの見込み（分隊）：+${v}ごとにコピーを1体（最大${A.squad.maxTimes}回、コスト${c + v * A.squad.maxTimes}まで）`);
+        break;
+      case 'emerge':
+        out.push(`実コストの見込み（現出）：生け贄にしたモンスターの印刷コストぶん安くなる（最低0）`);
+        break;
+      case 'convoke':
+        out.push(`実コストの見込み（召集）：休ませたモンスター1体につき−1、最低${at(c - A.convoke.max)}`);
+        break;
+      case 'delve':
+        out.push(`実コストの見込み（探査）：除外した捨て札1枚につき−1、最低${at(c - A.delve.max)}`);
+        break;
+      case 'lifePay':
+        out.push(`実コストの見込み（血の支払い）：エナジー${Math.min(v, c)}までをHP${A.lifePay.hpPerEnergy}ずつで払える（最低エナジー${at(c - v)}）`);
+        break;
+      case 'pitch':
+        out.push('実コストの見込み（代替コスト）：手札の同じ種類のカード1枚を除外すれば0（1ターン1回）');
+        break;
+      case 'harmonize':
+        out.push(`実コストの見込み（調和）：捨て札からコスト${c + v}、休ませたモンスターの攻撃力${A.harmonize.attackPerEnergy}ごとに−1（最大−${A.harmonize.maxCut}）`);
+        break;
+      case 'unearth':
+        out.push(`実コストの見込み（一時蘇生）：捨て札からコスト${v}で速攻つき（ターン終わりに除外）`);
+        break;
+      case 'foretell':
+        out.push(`実コストの見込み（予顕）：いまエナジー${A.foretell.setCost}で伏せ、後のターンにコスト${at(c - v)}`);
+        break;
+      case 'plot':
+        out.push(`実コストの見込み（計画）：いまコスト${c}を払って置き、後のターンに無料`);
+        break;
+      case 'suspend':
+        out.push(`実コストの見込み（待機）：いまエナジー${a.option ?? '?'}で置き、${v}ターン後に無料で使われる`);
+        break;
+      case 'warp':
+        out.push(`実コストの見込み（ワープ）：コスト${v}で出し、ターン終了時に待機ゾーンへ（後でコスト${c}で出せる）`);
+        break;
+      case 'adventure':
+        out.push(`実コストの見込み（出来事）：コスト${v}で出来事として使い、後でコスト${c}でモンスターとして出す`);
+        break;
+      case 'disguise':
+        out.push(`実コストの見込み（変装）：エナジー${A.disguise.playCost}で裏向きに出し、エナジー${v}で表にする（合計${A.disguise.playCost + v}）`);
+        break;
+    }
+  }
+  return out;
 }

@@ -112,6 +112,44 @@
  * | oCharge         | 蓄積（カードを使うたび・2）：ダメージ N のパワー（コスト2）×15 ＋ ダメージ N ×15 | 蓄積 |
  * | oTribe          | 獣の N/N（召喚時、同じ種族の自分のモンスター全体の攻撃力+1）×30 | 同じ種族の並べ（ロード） |
  * | oLordAll        | N/N（召喚時、自分のモンスター全体の攻撃力+1）×30             | oTribe の比較用（種族なし。#85 の対象） |
+ *
+ * △ の MTG 要素（決定事項 #97〜#100）の極端なデッキ（キーの頭に t。測定は統合 #101）
+ *
+ * | キー            | 中身                                                          | 備考 |
+ * |-----------------|---------------------------------------------------------------|------|
+ * | tTrap           | 罠のパワー「相手のモンスターが攻撃するたび、攻撃してきたモンスターに N ダメージ」×15 ＋ 火球 ×15 | 罠（1回で消える） |
+ * | tAmbush         | パワー「相手のモンスターが攻撃するたび、攻撃してきたモンスターに N ダメージ」（コスト2）×15 ＋ 火球 ×15 | 罠なし（残る） |
+ * | tRad            | 放射能 N（相手）×30                                           | 山札削り＋ダメージ |
+ * | tDormant        | 休眠 N/N ×30                                                  | 1ターンおきに休む大型 |
+ * | tUpkeepPower    | パワー「ターン開始時に相手に N ダメージ」・累加維持費2 ×30   | （維持費1 では呪いの下限に届かない） |
+ * | tGamble         | ばらつき：ダメージ N ×30                                      | |
+ * | tIncubate       | 培養 N ×30                                                    | 卵のトークン |
+ * | tSpawn          | 落とし子 N/N を2体 ×30                                        | 破壊でエナジー |
+ * | tBackup         | 賛助 N（召喚時）1/2（コスト2）×30                             | |
+ * | tGuard          | 守護（不壊）×15 ＋ 兵士 ×15                                   | |
+ * | tExp            | 経験を得る N ×10 ＋ ダメージ N（経験1につき）×20               | |
+ * | tIce            | 氷結 N ×15 ＋ 火球 ×15                                        | |
+ * | tPitch          | 代替コスト：ダメージ N（レア・コスト3）×8 ＋ 火球 ×22         | 0⚡の呪文 |
+ * | tSquad          | 分隊2：N/N（レア・コスト2）×8 ＋ 兵士 ×22                     | コピーのトークン |
+ * | tEvoke          | 想起1：召喚時に相手1体へ N ダメージ（コスト4）×30            | |
+ * | tLifePay        | 血の支払い2：ダメージ N（コスト2）×30                         | HP で払う |
+ * | tUnearth        | 一時蘇生1：N/N ×30                                            | 捨て札から |
+ * | tEmbalm         | 不朽1：N/N ×30                                                | 捨て札からコピー |
+ * | tRetrace        | 回顧：ダメージ N ×30                                          | 捨て札から（手札を捨てて） |
+ * | tDelveDredge    | 探査：ダメージ N（コスト3）×15 ＋ 発掘2：ダメージ N ×15       | 捨て札を燃料に |
+ * | tEnlist         | 後援 N/N ×30                                                  | |
+ * | tForetell       | 予顕−2：ダメージ N（コスト4）×30                              | |
+ * | tSuspend        | 待機（エナジー0・2ターン）：ダメージ N（コスト3）×30          | |
+ * | tSuspendK1      | 待機（エナジー1・1ターン）：ダメージ N（コスト3）×30          | |
+ * | tWarp           | ワープ1：召喚時に相手1体へ N ダメージ（コスト3）×30           | ワープの出し入れ |
+ * | tDisguise       | 変装1：N/N（表になったとき相手1体に N ダメージ。コスト3）×30  | |
+ * | tLevelUp        | Lvアップ（エナジー1・Lv1つにつき+1）：N/N ×30                 | |
+ * | tEvolve         | 進化+2（自分の場にモンスターが3体以上）：N/N ×30              | |
+ * | tLoyalty        | 忠誠3：+1 で相手1体に N ダメージ（パワー・コスト2）×30       | |
+ * | tSiege          | 砦を築く（体力 N）・砦を落としたとき：2枚引く ×15 ＋ 兵士 ×15  | |
+ * | tExtraTurn      | 追加ターン（レジェンド）×2 ＋ 火球 ×28                        | 1試合1回 |
+ * | tAltWin         | 特殊勝利（カードを使う。レジェンドのパワー・コスト4）×2 ＋ 火球 ×28 | |
+ * | tEmblem         | 紋章：ターン開始時に相手に N ダメージ（レジェンド）×2 ＋ 火球 ×28 | |
  */
 import {
   B0,
@@ -369,6 +407,76 @@ export const EXTREME: Record<string, () => DeckSpec> = {
     single('oLordAll', (v) => ({ stats: { attack: v, hp: v, defense: 0 }, effects: [eff('attackUp', { value: 1, timing: 'summon', target: 'allyMonsters' }, true)], name: `号令の兵${v}` })),
   oTribe: () =>
     single('oTribe', (v) => ({ stats: { attack: v, hp: v, defense: 0 }, tribe: 'beast', effects: [eff('attackUp', { value: 1, timing: 'summon', target: 'tribeAllies' }, true)], name: `獣の群れ${v}` })),
+  // ---------------------------------------------------------------- △ の MTG 要素（#97〜#100。測定は統合 #101）
+  tTrap: () =>
+    half('tTrap', burnCard(undefined, '火球'), (v) => ({
+      effects: [eff('damage', { value: v, timing: 'enemyAttacked', target: 'attacker' })],
+      abilities: [{ id: 'trap' }],
+      name: `罠${v}`,
+    })),
+  tAmbush: () =>
+    half('tAmbush', burnCard(undefined, '火球'), (v) => ({ effects: [eff('damage', { value: v, timing: 'enemyAttacked', target: 'attacker' })], name: `迎撃${v}` }), 'common', 2),
+  tRad: () => single('tRad', (v) => ({ effects: [eff('rad', { value: v, option: 'enemy' })], name: `放射能${v}` })),
+  tDormant: () => single('tDormant', (v) => ({ stats: { attack: v, hp: v, defense: 0 }, drawbacks: [{ id: 'dormant', timing: null }], name: `休眠${v}` })),
+  tUpkeepPower: () =>
+    single('tUpkeepPower', (v) => ({ effects: [eff('damage', { value: v, timing: 'turnStart', target: 'enemyPlayer' })], drawbacks: [{ id: 'cumulativeUpkeep', timing: null, value: 2 }], name: `累加${v}` })),
+  tGamble: () => single('tGamble', (v) => ({ effects: [eff('damage', { value: v, mods: ['gamble'] })], name: `ばらつき${v}` })),
+  tIncubate: () => single('tIncubate', (v) => ({ effects: [eff('incubate', { value: v })], name: `培養${v}` })),
+  tSpawn: () => single('tSpawn', (v) => ({ effects: [eff('token', { value: v, hits: 2, option: 'spawn' })], name: `落とし子${v}x2` })),
+  tBackup: () => single('tBackup', (v) => ({ stats: { attack: 1, hp: 2, defense: 0 }, effects: [eff('backup', { value: v }, true)], name: `賛助${v}` }), 'common', 2),
+  tGuard: () => buildDeck('tGuard', [[cardAtCap('common', 1, [eff('guard', { option: 'indestructible' })], null, [], { name: '守護' }), 15], [SOLDIER(), 15]]),
+  tExp: () =>
+    buildDeck('tExp', [
+      ...fitFill('common', 1, (v) => ({ effects: [eff('gainExp', { value: Math.min(v, 3) })], name: `経験${Math.min(v, 3)}` }), 10),
+      ...fitFill('common', 1, (v) => ({ effects: [eff('damage', { value: v, mods: ['perExp'] })], name: `経験の火${v}` }), 20),
+    ]),
+  tIce: () => half('tIce', burnCard(undefined, '火球'), (v) => ({ effects: [eff('iceLock', { value: Math.min(v, 3) })], name: `氷結${Math.min(v, 3)}` })),
+  tPitch: () =>
+    buildDeck('tPitch', [
+      ...fitFill('rare', 3, (v) => ({ effects: [eff('damage', { value: v })], abilities: [{ id: 'pitch' }], name: `代替${v}` }), BALANCE.rarity.rare.deckLimit ?? 8),
+      [burnCard(undefined, '火球'), 30 - (BALANCE.rarity.rare.deckLimit ?? 8)],
+    ]),
+  tSquad: () =>
+    buildDeck('tSquad', [
+      ...fitFill('rare', 2, (v) => ({ stats: { attack: v, hp: v, defense: 0 }, abilities: [{ id: 'squad', value: 2 }], name: `分隊${v}` }), BALANCE.rarity.rare.deckLimit ?? 8),
+      [SOLDIER(), 30 - (BALANCE.rarity.rare.deckLimit ?? 8)],
+    ]),
+  tEvoke: () =>
+    single('tEvoke', (v) => ({ stats: { attack: 2, hp: 2, defense: 0 }, effects: [eff('damage', { value: v, timing: 'summon' }, true)], abilities: [{ id: 'evoke', value: 1 }], name: `想起${v}` }), 'common', 4),
+  tLifePay: () => single('tLifePay', (v) => ({ effects: [eff('damage', { value: v })], abilities: [{ id: 'lifePay', value: 2 }], name: `血${v}` }), 'common', 2),
+  tUnearth: () => single('tUnearth', (v) => ({ stats: { attack: v, hp: v, defense: 0 }, abilities: [{ id: 'unearth', value: 1 }], name: `蘇生${v}` })),
+  tEmbalm: () => single('tEmbalm', (v) => ({ stats: { attack: v, hp: v, defense: 0 }, abilities: [{ id: 'embalm', value: 1 }], name: `不朽${v}` })),
+  tRetrace: () => single('tRetrace', (v) => ({ effects: [eff('damage', { value: v })], abilities: [{ id: 'retrace' }], name: `回顧${v}` })),
+  tDelveDredge: () =>
+    buildDeck('tDelveDredge', [
+      ...fitFill('common', 3, (v) => ({ effects: [eff('damage', { value: v })], abilities: [{ id: 'delve' }], name: `探査${v}` }), 15),
+      ...fitFill('common', 1, (v) => ({ effects: [eff('damage', { value: v })], abilities: [{ id: 'dredge', value: 2 }], name: `発掘${v}` }), 15),
+    ]),
+  tEnlist: () => mon('tEnlist', (v) => ({ stats: { attack: v, hp: v, defense: 0 }, keywords: [{ id: 'enlist' }], name: `後援${v}` })),
+  tForetell: () => single('tForetell', (v) => ({ effects: [eff('damage', { value: v })], abilities: [{ id: 'foretell', value: 2 }], name: `予顕${v}` }), 'common', 4),
+  tSuspend: () => single('tSuspend', (v) => ({ effects: [eff('damage', { value: v })], abilities: [{ id: 'suspend', value: 2, option: '0' }], name: `待機${v}` }), 'common', 3),
+  tSuspendK1: () => single('tSuspendK1', (v) => ({ effects: [eff('damage', { value: v })], abilities: [{ id: 'suspend', value: 1, option: '1' }], name: `待機1—1:${v}` }), 'common', 3),
+  tWarp: () =>
+    single('tWarp', (v) => ({ stats: { attack: 2, hp: 2, defense: 0 }, effects: [eff('damage', { value: v, timing: 'summon' }, true)], abilities: [{ id: 'warp', value: 1 }], name: `ワープ${v}` }), 'common', 3),
+  tDisguise: () =>
+    single('tDisguise', (v) => ({ stats: { attack: v, hp: v, defense: 0 }, effects: [eff('damage', { value: v, timing: 'revealed' }, true)], abilities: [{ id: 'disguise', value: 1 }], name: `変装${v}` }), 'common', 3),
+  tLevelUp: () => single('tLevelUp', (v) => ({ stats: { attack: v, hp: v, defense: 0 }, abilities: [{ id: 'levelUp', value: 1, option: '1' }], name: `Lv${v}` })),
+  tEvolve: () => single('tEvolve', (v) => ({ stats: { attack: v, hp: v, defense: 0 }, abilities: [{ id: 'evolve', value: 2, condition: 'manyMonsters' }], name: `進化${v}` })),
+  tLoyalty: () =>
+    single('tLoyalty', (v) => ({ effects: [eff('damage', { value: v, timing: 'loyaltyPlus', target: 'chosen' })], abilities: [{ id: 'loyalty', value: 3, option: '3' }], name: `忠誠${v}` }), 'common', 2),
+  tSiege: () =>
+    half('tSiege', SOLDIER(), (v) => ({ effects: [eff('siege', { value: Math.max(2, Math.min(v, 6)), target: 'self' }), eff('draw', { value: 2, timing: 'siegeWon', target: 'self' })], name: `砦${v}` })),
+  tExtraTurn: () => buildDeck('tExtraTurn', [...fill('追加ターン', 'legend', 3, { effects: [eff('extraTurn')] }, BALANCE.rarity.legend.deckLimit ?? 2), [burnCard(undefined, '火球'), 30 - (BALANCE.rarity.legend.deckLimit ?? 2)]]),
+  tAltWin: () =>
+    buildDeck('tAltWin', [
+      ...fill('特殊勝利', 'legend', 4, { effects: [eff('draw', { value: 1, timing: 'turnStart', target: 'self' })], abilities: [{ id: 'altWin', option: 'cards' }] }, BALANCE.rarity.legend.deckLimit ?? 2),
+      [burnCard(undefined, '火球'), 30 - (BALANCE.rarity.legend.deckLimit ?? 2)],
+    ]),
+  tEmblem: () =>
+    buildDeck('tEmblem', [
+      ...fitFill('legend', 3, (v) => ({ effects: [eff('damage', { value: v, timing: 'turnStart', target: 'enemyPlayer' })], abilities: [{ id: 'emblem' }], name: `紋章${v}` }), BALANCE.rarity.legend.deckLimit ?? 2),
+      [burnCard(undefined, '火球'), 30 - (BALANCE.rarity.legend.deckLimit ?? 2)],
+    ]),
   attackPoison: () => mon('attackPoison', (v) => ({ stats: { attack: 1, hp: 2, defense: 0 }, effects: [eff('poison', { value: v, timing: 'attack' }, true)], name: `毒牙${v}` })),
 };
 

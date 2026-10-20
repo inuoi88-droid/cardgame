@@ -12,6 +12,22 @@ import { dayNightBand, fieldBand } from './matchOptions.ts';
 type Statuses = battle.Statuses;
 type PlayerId = battle.PlayerId;
 
+
+/** 数が増えたら ms の間だけ true（捨て札の山を光らせる） */
+function useBump(n: number, ms = 1500): boolean {
+  const prev = useRef(n);
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const grew = n > prev.current;
+    prev.current = n;
+    if (!grew) return;
+    setOn(true);
+    const t = setTimeout(() => setOn(false), ms);
+    return () => clearTimeout(t);
+  }, [n, ms]);
+  return on;
+}
+
 export interface Chip {
   id: string;
   label: string;
@@ -216,6 +232,8 @@ export function PlayerPanel({
   waitingUsable = 0,
 }: PlayerPanelProps) {
   const waiting = ps.waiting ?? [];
+  // 手札から捨てられたカード（MTG 要素 △ バッチA：捨てられたとき。B：大混乱）が捨て札に入ったら、捨て札の山を少しの間光らせる
+  const pileFresh = useBump(ps.discard.filter((c) => c.discardedTurn !== undefined).length);
   const hp = hpShown ?? ps.hp;
   const pct = Math.max(0, Math.min(100, (hp / ps.maxHp) * 100));
   const next = [
@@ -273,7 +291,7 @@ export function PlayerPanel({
         </Popover>
         <button
           type="button"
-          className={cx('pile pile--btn', isMe && 'pile--drop', pileLit && 'is-lit', pileHover && 'is-drop-hover')}
+          className={cx('pile pile--btn', isMe && 'pile--drop', pileLit && 'is-lit', pileHover && 'is-drop-hover', pileFresh && 'is-fresh')}
           onClick={(e) => (e.stopPropagation(), onPile('discard'))}
           aria-label={`捨て札${ps.discard.length}枚を見る${discardUsable > 0 ? `（捨て札から使えるカード${discardUsable}枚）` : ''}`}
           data-drop={isMe ? 'pile' : undefined}
@@ -408,8 +426,10 @@ export function PlayerPanel({
           const acts = powerActivate?.(pw) ?? [];
           const act = acts.length > 0;
           const meter = powerMeter(pw, powerDef?.(pw), ps.turnsTaken);
+          // 休眠中（MTG 要素 △ バッチA）のパワーは半透明（効果が出ない）
+          const dormant = pw.dormantFrom !== undefined && (ps.turnsTaken - pw.dormantFrom) % 2 === 1;
           return (
-            <span key={pw.uid} className={cx('pw-chip', act && 'pw-chip--act', powerFlash?.[pw.uid])} data-fx={pw.uid}>
+            <span key={pw.uid} className={cx('pw-chip', act && 'pw-chip--act', dormant && 'is-dormant', powerFlash?.[pw.uid])} data-fx={pw.uid}>
               <button
                 type="button"
                 className="st st--power st--btn"
@@ -788,6 +808,9 @@ export function MonsterTile({
   const label = def?.name ?? '？';
   // 護法（MTG 要素 ○ バッチB）：対象にすると増えるエナジーを「対象」の札に添える
   const state = targetable ? (extraCost > 0 ? `対象 護法+${extraCost}⚡` : '対象') : selected ? '選択中' : ready ? '攻撃できる' : blockLabel ?? null;
+  // 休眠中（MTG 要素 △ バッチA）は半透明。一時蘇生・ワープ（△ バッチB・C）はターン終了時に場を離れるので点線の枠で薄く
+  const dormant = m.counters.dormantFrom !== undefined && ownerTurns !== undefined && (ownerTurns - m.counters.dormantFrom) % 2 === 1;
+  const fleeting = m.unearthed === true || m.warped === true;
   return (
     <div
       className={cx(
@@ -802,6 +825,8 @@ export function MonsterTile({
         dragging && 'is-dragging',
         m.sealed && 'is-sealed',
         m.stealth && 'is-stealth',
+        dormant && 'is-dormant',
+        fleeting && 'is-fleeting',
         hidden && 'is-hidden',
         dying && 'is-dying',
         flash,

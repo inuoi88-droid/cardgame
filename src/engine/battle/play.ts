@@ -792,7 +792,8 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
   const energyNote = `（コスト${cost}${notes ? `：${notes}` : ''}、エナジー ${before}→${ps.energy}）`;
   if (opts.alt === 'faceDown') {
     // 裏向き（変装。MTG 要素 △ バッチC）：相手にはカードの名前を見せない
-    log(g, 0, `${ps.name}はモンスターを裏向きで出した${energyNote}`, 'action', undefined, { kind: 'play', player: p, cardId: FACE_DOWN_WARD_CARD_ID, uid: card.uid });
+    // 実コストの内訳（変装で±N）は本当の印刷コストを明かすので書かない。uid も本当のカードのものなので付けない（統合 #101）
+    log(g, 0, `${ps.name}はモンスターを裏向きで出した（コスト${cost}、エナジー ${before}→${ps.energy}）`, 'action', undefined, { kind: 'play', player: p, cardId: FACE_DOWN_WARD_CARD_ID });
     log(g, 0, `裏向きで出したカード：「${def.name}」`, 'info', p);
   } else {
     log(g, 0, `${ps.name}は${fd ? `捨て札から${fd.name}で` : fromWaiting ? '待機ゾーンから' : ''}「${def.name}」を${alt ? `${alt.name}で` : ''}${modeNote}使った${energyNote}`, 'action', undefined, {

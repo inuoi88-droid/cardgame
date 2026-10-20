@@ -734,8 +734,13 @@ describe('MTG 要素 △ バッチC（サーバー越し）', () => {
     ok(s.send(actionReq(tokenOf(opp), s.room!.version, { type: 'endTurn', player: opp }), { tokenHash: tokenOf(opp), now: now + 5 }));
     s.room!.state!.players[p].energy = 10;
     ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'playCard', player: p, cardUid: f, from: 'waiting' }), { tokenHash: tokenOf(p), now: now + 6 }));
-    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'reveal', player: p, uid: m }), { tokenHash: tokenOf(p), now: now + 7 }));
-    expect(s.room!.state!.players[p].board.find((x) => x.uid === m)!.card.cardId).toBe(`p${p}:mask`);
+    // 裏向きのモンスターの uid は本当のカードの uid と別（相手に見せない。統合 #101）
+    const fd = s.room!.state!.players[p].board.find((x) => x.faceDown?.card?.uid === m)!;
+    expect(fd.uid).not.toBe(m);
+    expect(theirs).not.toContain(`"${m}"`);
+    expect(theirs).not.toContain(`"${f}"`);
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'reveal', player: p, uid: fd.uid }), { tokenHash: tokenOf(p), now: now + 7 }));
+    expect(s.room!.state!.players[p].board.find((x) => x.uid === fd.uid)!.card.cardId).toBe(`p${p}:mask`);
   });
 
   it('追加ターン：締め切りは同じプレイヤーのまま次のターンへ', () => {

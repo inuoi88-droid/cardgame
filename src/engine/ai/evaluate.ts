@@ -11,10 +11,10 @@
  *   使える回数、反撃（状態）は相手の攻撃回数、毒・やけどは残り HP までしか効かない。
  */
 import { BALANCE } from '../balance.ts';
-import { attackBlockReason, attacksPerTurn } from '../battle/combat.ts';
-import { other } from '../battle/core.ts';
-import { keywordFlags } from '../battle/damage.ts';
-import { effectiveCost } from '../battle/play.ts';
+import { attackBlockReason, attacksPerTurn, cannotAttack } from '../battle/combat.ts';
+import { effectiveAttack, other } from '../battle/core.ts';
+import { combatBonus, keywordFlags } from '../battle/damage.ts';
+import { effectiveCost, lifespanOf } from '../battle/play.ts';
 import { energyForTurn } from '../battle/turn.ts';
 import { getKeyword } from '../registry.ts';
 import type { CardDef } from '../types.ts';
@@ -74,6 +74,22 @@ export const WEIGHTS = {
   tieEpsilon: 0.25 * S,
   /** 「やさしい」の評価のゆらぎ（標準偏差） */
   easyNoiseSigma: 3 * S,
+  // ---- MTG 要素バッチ2
+  deathtouch: 2 * S,
+  hexproof: 1 * S,
+  firstStrike: 0.5 * S,
+  /** 絆魂：攻撃力1につき（回復のぶん） */
+  lifelink: 0.4,
+  /** 武士道：上昇量1につき */
+  bushido: 0.5,
+  divineShield: 1.5 * S,
+  /** 呪縛：残りの見込みターン（固定）× 量 × 毒の重み */
+  doomTurns: 4,
+  /** このターンだけの攻撃力（一時強化）と、再行動で増えた攻撃：このターンに残っている攻撃1回につき */
+  readyAttack: 0.8,
+  /** 寿命の残り1ターンにつき、モンスターの価値に掛ける割合（残り1なら 0.25+0.25＝半分） */
+  lifespanBase: 0.25,
+  lifespanPerTurn: 0.25,
 } as const;
 
 const W = WEIGHTS;
@@ -158,7 +174,7 @@ export function nextTurnThreat(g: GameState, p: PlayerId): Threat {
   let board = 0;
   let attacks = 0;
   for (const m of ps.board) {
-    if (m.betraying || m.status.freezePending) continue;
+    if (m.betraying || m.status.freezePending || cannotAttack(g, m)) continue;
     const n = attacksPerTurn(g, m);
     let atk = m.attack;
     if (m.status.weak > 0) atk = Math.floor(atk * (1 - B.weakRate));
@@ -179,7 +195,7 @@ export function remainingPotential(g: GameState, p: PlayerId): { damage: number;
   for (const m of ps.board) {
     if (attackBlockReason(g, m)) continue;
     const left = attacksPerTurn(g, m) - m.attacksUsed;
-    damage += m.attack * left;
+    damage += effectiveAttack(m) * left;
     attacks += left;
   }
   const cards = handFaceDamage(g, p);
@@ -246,15 +262,31 @@ export function raceContext(g: GameState, me: PlayerId, frame?: RaceFrame): Race
 
 function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   if (m.betraying) return -m.attack * W.monsterAttack * 2;
+  const def = g.cards[m.card.cardId];
+  // 腐乱：攻撃したターンの終わりに破壊される
+  if (m.counters.attackedTurn === g.turnIndex && def?.drawbacks.some((d) => d.id === 'decay')) return 0;
   const k = keywordFlags(g, m);
   const n = attacksPerTurn(g, m);
   const T = ctx.turnsLeft;
   let attackTurns = T;
   if (m.status.freezePending || m.status.freezeActive) attackTurns -= 1;
   if (m.status.weak > 0) attackTurns -= Math.min(m.status.weak, attackTurns) * B.weakRate;
-  let attackVal = m.attack * n * W.monsterAttack * Math.max(0, attackTurns);
+  // 防衛：攻撃しないので打点として数えない
+  let attackVal = cannotAttack(g, m) ? 0 : m.attack * n * W.monsterAttack * Math.max(0, attackTurns);
   if (m.status.confusePending || m.status.confuseActive) attackVal *= W.confusedFactor;
   let v = attackVal + m.hp * W.monsterHp + m.defense * W.monsterDefense;
+  // 一時強化・再行動：このターンに残っている攻撃のぶん（自分のターン中だけ）
+  if (g.phase === 'main' && g.active === m.controller && !attackBlockReason(g, m)) {
+    const left = attacksPerTurn(g, m) - m.attacksUsed;
+    const readied = m.counters.readyTurn === g.turnIndex;
+    v += ((m.tempAttack ?? 0) + (readied ? m.attack : 0)) * left * W.readyAttack;
+  }
+  if (k.deathtouch) v += W.deathtouch;
+  if (k.hexproof) v += W.hexproof;
+  if (k.firstStrike) v += W.firstStrike;
+  if (k.lifelink) v += m.attack * W.lifelink * Math.max(1, attackTurns);
+  if (k.divineShield && !m.shieldUsed) v += W.divineShield;
+  v += combatBonus(g, m) * W.bushido * Math.max(1, attackTurns);
   if (k.taunt) v += W.taunt;
   if (k.flying) v += W.flying;
   if (k.trample) v += W.trample;
@@ -264,6 +296,9 @@ function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   v -= Math.min(decayingTotal(m.status.poison, B.poisonKeepRate), m.hp) * W.poison;
   v -= Math.min(m.status.burn * B.burnDamage, m.hp) * W.burn;
   if (m.status.vulnerable > 0) v -= W.monsterVulnerable;
+  // 寿命：残りが短いほど価値が下がる
+  const life = m.counters.life ?? lifespanOf(def);
+  if (life !== undefined) v *= Math.min(1, W.lifespanBase + W.lifespanPerTurn * life);
   return v;
 }
 
@@ -283,6 +318,8 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
   // 毒・やけど（残り HP までしか効かない）
   v -= Math.min(decayingTotal(s.poison, B.poisonKeepRate), ps.hp) * W.poison;
   v -= Math.min(s.burn * B.burnDamage, ps.hp) * W.burn;
+  // 呪縛：減らずに毎ターン効く（見込みのターン数ぶん）
+  v -= Math.min((s.doom ?? 0) * W.doomTurns, ps.hp) * W.poison;
   // 弱体：そのプレイヤーのカードのダメージだけ減る
   v -= s.weak * ctx.threat[p].cards * B.weakRate * W.weak;
   // 脆弱：相手がそのターンに出す打点が増える（残りターンは持ち主のターン終了時に減る）
@@ -308,7 +345,10 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
   v += s.nullify * W.nullify;
   if (s.freezePending || (s.freezeActive && ps.turn.freezeTax)) v -= W.frozen;
 
-  for (const pw of ps.powers) v += pw.effects.filter((x) => !x.removed).length * W.power;
+  for (const pw of ps.powers) {
+    const life = pw.life === undefined ? 1 : Math.min(1, W.lifespanBase + W.lifespanPerTurn * pw.life);
+    v += pw.effects.filter((x) => !x.removed).length * W.power * life;
+  }
   v += ps.next.energy * W.nextEnergy + ps.next.draw * W.nextDraw + ps.discount * W.discount;
   v -= ps.deck.filter((c) => c.cardId === NOISE_CARD_ID).length * W.noiseInDeck;
   for (const m of ps.board) v += monsterValue(g, m, ctx);

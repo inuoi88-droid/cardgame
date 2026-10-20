@@ -34,6 +34,8 @@ export interface Statuses {
   strength: number;
   /** 気合（プレイヤー、このターンだけ） */
   focus: number;
+  /** 呪縛（プレイヤー。MTG 要素バッチ2）：自分のターン開始時にこの数だけダメージ。減らない。無ければ0 */
+  doom?: number;
 }
 
 /** 対戦中のカード1枚 */
@@ -45,9 +47,16 @@ export interface CardInst {
   owner: PlayerId;
   /** 複製で作られたコピー。temp は使うかターン終了で除外、keep はこの試合のデッキに残る */
   copy?: 'temp' | 'keep';
+  /**
+   * トークン（MTG 要素バッチ2）の強さ。cardId は TOKEN_CARD_ID。場を離れるとどこにも行かずに消える
+   * （捨て札・除外・手札に入らない）
+   */
+  token?: { attack: number; hp: number };
 }
 
 export const NOISE_CARD_ID = '__noise__';
+/** トークンのカード定義のキー（GameState.cards。最初のトークンを出すときに登録する） */
+export const TOKEN_CARD_ID = '__token__';
 
 export interface Monster {
   uid: string;
@@ -74,8 +83,12 @@ export interface Monster {
    */
   counters: Record<string, number>;
   status: Statuses;
-  /** このターンだけの攻撃力の上乗せ（一時強化。無ければ0。実効攻撃力は core.ts の effectiveAttack） */
+  /** このターンだけの攻撃力の上乗せ（一時強化。無ければ0。実効攻撃力は core.ts の effectiveAttack）。各ターン終了時に消える */
   tempAttack?: number;
+  /** 効果で与えられたキーワードの ID（キーワード付与。場を離れると消える。封印中は働かない） */
+  granted?: string[];
+  /** 聖盾を使った（キーワード付与で聖盾を与え直すと未使用に戻る） */
+  shieldUsed?: boolean;
 }
 
 /** 場に残っているパワー */
@@ -91,6 +104,8 @@ export interface PowerInst {
   triggers?: { turnIndex: number; count: number };
   /** 「出るたび」「破壊されるたび」「パワー・スキルを使うたび」が発動した回数（タイミングごと・通算ターンごと。安全装置） */
   repeats?: Partial<Record<TimingId, { turnIndex: number; count: number }>>;
+  /** 寿命（デメリット）の残り：持ち主のターン終了時に1減り、0で消える。無ければ寿命なし */
+  life?: number;
 }
 
 /** 1ターンの上限を数える（安全装置：決定事項 #64）。turnIndex が変わったら数え直す */
@@ -169,7 +184,9 @@ export type Step =
       depth: number;
       picks?: string[];
     }
-  | { t: 'drawback'; src: SourceRef; drawback: DrawbackInstance; protectKey?: string; depth: number }
+  | { t: 'drawback'; src: SourceRef; drawback: DrawbackInstance; protectKey?: string; depth: number; picks?: string[] }
+  /** 手札を count 枚選んで捨てる（手札整理） */
+  | { t: 'discardChoice'; player: PlayerId; count: number; depth: number; picks?: string[] }
   | { t: 'cardDone'; player: PlayerId; card: CardInst; protectKey: string; depth: number }
   | { t: 'autoAttacks'; player: PlayerId }
   | { t: 'turnEndEffects'; player: PlayerId }
@@ -195,10 +212,10 @@ export interface PendingChoice {
 }
 
 /**
- * ダメージの種類。attack：モンスターの攻撃 / hit：ダメージ・連撃効果の1回分 / counter：反撃（状態） /
- * retaliate：攻撃されたモンスターの反撃 / trample：貫通の余り / poison・burn：毒・やけど / self：自傷・維持費・寄生
+ * ダメージの種類。attack：モンスターの攻撃 / hit：ダメージ・連撃効果の1回分（格闘も） / counter：反撃（状態） /
+ * retaliate：攻撃されたモンスターの反撃 / trample：貫通の余り / poison・burn・doom：毒・やけど・呪縛 / self：自傷・維持費・寄生
  */
-export type DamageKind = 'attack' | 'hit' | 'counter' | 'retaliate' | 'trample' | 'poison' | 'burn' | 'self';
+export type DamageKind = 'attack' | 'hit' | 'counter' | 'retaliate' | 'trample' | 'poison' | 'burn' | 'doom' | 'self';
 
 /** ログに付ける構造化された出来事（UI の演出・再生用。決定事項 #71）。公開情報だけを入れる */
 export interface LogEvent {
@@ -344,6 +361,25 @@ export interface EffectRuntime {
   dispelOptions(player: PlayerId): ChoiceOption[];
   dispel(player: PlayerId, key: string): void;
   log(text: string): void;
+  // ---- MTG 要素バッチ2
+  /** 攻撃力と体力（最大値も）を変える（衰弱で体力が0以下になると破壊。ダメージではない） */
+  changeStats(target: TargetRef, attack: number, hp: number): void;
+  /** このターンだけ攻撃力を上げる（一時強化） */
+  addTempAttack(target: TargetRef, amount: number): void;
+  /** キーワードを与える（重複は無視。不屈・聖盾は使用済みを戻す） */
+  grantKeyword(target: TargetRef, keywordId: string): void;
+  /** もう一度攻撃できるようにする（1体につき1ターン1回） */
+  ready(target: TargetRef): void;
+  /** 格闘：ally と enemy が互いに攻撃力ぶんのダメージを与え合う */
+  fight(ally: TargetRef, enemy: TargetRef): void;
+  /** 攻撃力 attack・体力 hp のトークンを count 体出す（場のトークンの上限まで） */
+  createTokens(player: PlayerId, attack: number, hp: number, count: number): void;
+  /** 手札を count 枚選んで捨てる処理を積む（この効果のあとに選ぶ） */
+  chooseDiscard(player: PlayerId, count: number): void;
+  /** 手札か捨て札のカードを除外する */
+  exileCard(player: PlayerId, cardUid: string): void;
+  /** 占術：山札の上の uids を、元の並びのまま山札の下か捨て札へ */
+  scryMove(player: PlayerId, uids: string[], toDiscard: boolean): void;
 }
 
 export type StatusKey =
@@ -358,7 +394,8 @@ export type StatusKey =
   | 'nullify'
   | 'regen'
   | 'strength'
-  | 'focus';
+  | 'focus'
+  | 'doom';
 
 /** 選択を求めるときの指定（効果ファイルが返す） */
 export interface ChoiceSpec {

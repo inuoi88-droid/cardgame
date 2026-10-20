@@ -19,6 +19,7 @@ export interface GlossaryEntry {
 /** 状態異常・持続効果の ID（battle.Statuses のキーと、モンスターの隠密・裏切り、モンスターの反撃） */
 export type StatusId =
   | 'poison'
+  | 'doom'
   | 'burn'
   | 'weak'
   | 'vulnerable'
@@ -42,6 +43,12 @@ export const glossary: Record<StatusId, GlossaryEntry> = {
     icon: '☠',
     tone: 'bad',
     short: `自分のターン開始時に、毒の数だけダメージ（守備力・シールド・無効化を無視）。そのあと毒は半分（切り捨て）になる`,
+  },
+  doom: {
+    name: '呪縛',
+    icon: '⏳',
+    tone: 'bad',
+    short: `自分のターン開始時に、呪縛の数だけダメージ（シールド・無効化を無視）。毒と違って減らない。浄化で消える。合計は${B.doomCap}まで`,
   },
   burn: {
     name: 'やけど',
@@ -107,6 +114,12 @@ const KEYWORD_ICON: Record<string, string> = {
   stealth: '👤',
   undying: '💀',
   selfRepair: '🔧',
+  deathtouch: '☣',
+  firstStrike: '🏹',
+  hexproof: '🔰',
+  lifelink: '💞',
+  bushido: '🎌',
+  divineShield: '✴',
 };
 
 /** キーワードの用語（レジストリから作る。名前と説明はエンジンの定義そのもの） */
@@ -146,6 +159,36 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   thisMonster: { name: 'このモンスター', icon: '🎯', tone: 'info', short: '効果を持つモンスター自身。場にいなければ不発' },
   allyMonsters: { name: '自分のモンスター全体', icon: '👥', tone: 'info', short: '自分の場のモンスターすべて（効果を持つモンスター自身も含む）' },
   triggerAlly: { name: '出たモンスター', icon: '✨', tone: 'info', short: '「自分のモンスターが出るたび」で、いま場に出た自分のモンスター' },
+  token: {
+    name: 'トークン',
+    icon: B.tokenIcon,
+    tone: 'info',
+    short: `効果で出る${B.tokenName}。ふつうのモンスターと同じく戦うが、場を離れると（破壊・手札に戻る）どこにも行かずに消える。1人${B.maxTokens}体まで`,
+  },
+  tempAttack: {
+    name: '一時強化',
+    icon: '⤴',
+    tone: 'good',
+    short: 'このターンだけ攻撃力が上がっている（攻撃・反撃・格闘に乗る）。ターン終了時に消える',
+  },
+  granted: {
+    name: '付与されたキーワード',
+    icon: '➕',
+    tone: 'info',
+    short: '効果で与えられたキーワード。場にいる間ずっと働く（封印中は働かない）。場を離れると消える',
+  },
+  fight: {
+    name: '格闘',
+    icon: '🤼',
+    tone: 'info',
+    short: '自分のモンスターと相手モンスターが、互いに攻撃力（一時強化・武士道を含む）ぶんのダメージを与え合う。反撃・「攻撃するたび」は起きない。接死・絆魂は働く',
+  },
+  lifespan: {
+    name: '寿命',
+    icon: '⌛',
+    tone: 'bad',
+    short: '持ち主のターン終了時に1ずつ減り、0になると場から消える（モンスターは破壊、パワーは消える）。出たターンも数える',
+  },
   repeatCap: {
     name: '繰り返し誘発の上限',
     icon: '🔁',

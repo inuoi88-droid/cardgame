@@ -6,9 +6,9 @@ import type { CardDef } from '../types.ts';
 import { attackBlockReason, attackTargets } from './combat.ts';
 import { checkCondition } from './conditions.ts';
 import { other } from './core.ts';
-import { targetableTaunts } from './damage.ts';
+import { cardTargetableTaunts } from './damage.ts';
 import { nextFullMulliganSize } from './mulligan.ts';
-import { allyCandidates, chosenRules, effectiveCost, enemyCandidates, leavesPower, validatePlay } from './play.ts';
+import { allyCandidates, chosenRules, drawbackBlock, effectiveCost, enemyCandidates, leavesPower, validatePlay } from './play.ts';
 import { NOISE_CARD_ID, type Action, type CardInst, type GameState, type PlayerId, type TargetRef } from './types.ts';
 
 export interface PlayInfo {
@@ -60,6 +60,13 @@ export function playWarnings(g: GameState, p: PlayerId, def: CardDef, allyTarget
     if (e.condition && !checkCondition(g, p, e.condition)) add(`条件を満たしていません：${CONDITIONS[e.condition].label}`);
     const rule = ed.targetRule;
     const monsterOnly = isMonsterOnlyRule(rule);
+    if (rule === 'fight') {
+      // 格闘：自分のモンスターと相手モンスターの両方が要る
+      const enemies = e.target === 'chosen' ? enemyCandidates(g, p, [rule]).length : oppMonsters;
+      const allies = e.target === 'chosen' ? allyTargets.length : myMonsters;
+      if (enemies === 0 || allies === 0) add(WARN_NO_TARGET);
+      continue;
+    }
     switch (e.target) {
       case 'chosen':
         if (rule === 'allyMonsterOne') {
@@ -103,7 +110,8 @@ export function playInfo(g: GameState, p: PlayerId, card: CardInst): PlayInfo {
   let blocked: string | null = null;
   if (g.phase !== 'main' || g.active !== p || g.pending) blocked = '今は使えません';
   else if (cost > g.players[p].energy) blocked = 'エナジーが足りません';
-  const tauntLimited = enemyTargets.length > 0 && targetableTaunts(g, other(p)).length > 0;
+  else blocked = drawbackBlock(g, p, card);
+  const tauntLimited = enemyTargets.length > 0 && cardTargetableTaunts(g, other(p)).length > 0;
   return { card, cost, blocked, enemyTargets, allyTargets, warnings: playWarnings(g, p, def, allyTargets), tauntLimited };
 }
 

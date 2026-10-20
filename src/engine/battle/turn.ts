@@ -2,8 +2,9 @@
 import { BALANCE } from '../balance.ts';
 import { getDrawback, getKeyword } from '../registry.ts';
 import { checkGameEnd, endGame, enqueue, log, monsterLabel, other, playerRef, sourceOfMonster, isEnded, turnLimits } from './core.ts';
-import { autoAttackTarget, attacksPerTurn, performAttack } from './combat.ts';
-import { dealDamage, heal } from './damage.ts';
+import { autoAttackTarget, attacksPerTurn, cannotAttack, performAttack } from './combat.ts';
+import { dealDamage, destroyMonster, heal } from './damage.ts';
+import { lifespanOf } from './play.ts';
 import { randInt } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
 import { enqueueMonsters, enqueuePowers } from './triggers.ts';
@@ -61,6 +62,12 @@ export function startTurn(g: GameState, p: PlayerId): void {
       dealDamage(g, { kind: 'monster', uid: m.uid }, n, { kind: 'poison', source: null, depth: 1 });
       if (isEnded(g)) return;
     }
+  }
+
+  // 呪縛（シールド・無効化を貫通。減らない：MTG 要素バッチ2）
+  if ((ps.status.doom ?? 0) > 0) {
+    dealDamage(g, playerRef(p), ps.status.doom!, { kind: 'doom', source: null, depth: 1 });
+    if (isEnded(g)) return;
   }
 
   // 再生。その後、半分（切り捨て）になる
@@ -124,6 +131,8 @@ export function runAutoAttacks(g: GameState, p: PlayerId): void {
   for (const m of [...g.players[p].board]) {
     if (!(m.status.confuseActive || m.betraying)) continue;
     if (m.status.freezeActive) continue;
+    // 防衛のモンスターは自動でも攻撃しない
+    if (cannotAttack(g, m)) continue;
     const times = attacksPerTurn(g, m) - m.attacksUsed;
     for (let i = 0; i < times; i++) {
       const alive = g.players[p].board.find((x) => x.uid === m.uid);
@@ -170,7 +179,50 @@ export function turnEndEffects(g: GameState, p: PlayerId): void {
   tickEnd(ps.status);
   for (const m of ps.board) tickEnd(m.status);
 
+  boardTurnEnd(g, p);
+  if (isEnded(g)) return;
+
   enqueue(g, { t: 'retain', player: p });
+}
+
+/**
+ * 持ち主のターン終了時のデメリット（MTG 要素バッチ2）：腐乱（攻撃したターンなら破壊）、寿命（1減り、0で場から消える）。
+ * 破壊されたときの効果は、このあとの手札の処理より先に解決する
+ */
+function boardTurnEnd(g: GameState, p: PlayerId): void {
+  const ps = g.players[p];
+  for (const m of [...ps.board]) {
+    if (!ps.board.includes(m)) continue;
+    const def = g.cards[m.card.cardId];
+    if (!def) continue;
+    const rt = makeRuntime(g, sourceOfMonster(g, m), [], { depth: 1, attackCard: false });
+    for (const d of def.drawbacks) {
+      if (!ps.board.includes(m)) break;
+      getDrawback(d.id)?.battle.onBoardTurnEnd?.(rt, d, m);
+    }
+    if (!ps.board.includes(m)) continue;
+    const life = lifespanOf(def);
+    if (life === undefined) continue;
+    m.counters.life = (m.counters.life ?? life) - 1;
+    if (m.counters.life <= 0) {
+      log(g, 1, `${monsterLabel(g, m)}の寿命が尽きた`);
+      destroyMonster(g, m, 2);
+    } else {
+      log(g, 1, `${monsterLabel(g, m)}の寿命：あと${m.counters.life}ターン`, 'info');
+    }
+    if (isEnded(g)) return;
+  }
+  // パワーの寿命（消えるときに効果は発動しない）
+  for (const pw of [...ps.powers]) {
+    if (pw.life === undefined) continue;
+    pw.life -= 1;
+    if (pw.life <= 0) {
+      ps.powers = ps.powers.filter((x) => x !== pw);
+      log(g, 1, `パワー『${pw.name}』の寿命が尽きて消えた`, 'effect', undefined, { kind: 'destroy', player: p, cardId: pw.cardId, uid: pw.uid });
+    } else {
+      log(g, 1, `パワー『${pw.name}』の寿命：あと${pw.life}ターン`, 'info');
+    }
+  }
 }
 
 /** 保持で残せる手札（残らないコピーは除く） */
@@ -193,6 +245,8 @@ export function turnEndFinish(g: GameState, p: PlayerId, kept: string[]): void {
   }
   ps.status.focus = 0;
   ps.turn.freezeTax = false;
+  // 一時強化はターンの終わりに消える（両者のモンスター）
+  for (const pl of g.players) for (const m of pl.board) if (m.tempAttack) delete m.tempAttack;
 
   // 隠密：召喚してから相手の次のターン終了まで
   for (const m of g.players[other(p)].board) {

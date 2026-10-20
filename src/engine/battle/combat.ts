@@ -1,7 +1,21 @@
 /** モンスターの攻撃 */
 import { BALANCE } from '../balance.ts';
-import { allMonsters, findMonster, log, monsterLabel, newUid, other, playerRef, sourceOfMonster, targetExists, targetLabel, isEnded } from './core.ts';
-import { dealDamage, keywordFlags, targetableTaunts } from './damage.ts';
+import { getDrawback } from '../registry.ts';
+import {
+  allMonsters,
+  effectiveAttack,
+  findMonster,
+  log,
+  monsterLabel,
+  newUid,
+  other,
+  playerRef,
+  sourceOfMonster,
+  targetExists,
+  targetLabel,
+  isEnded,
+} from './core.ts';
+import { combatBonus, combatSourceOf, dealDamage, keywordFlags, targetableTaunts } from './damage.ts';
 import { enqueueCardTiming } from './triggers.ts';
 import type { GameState, Monster, TargetRef } from './types.ts';
 
@@ -9,10 +23,16 @@ export function attacksPerTurn(g: GameState, m: Monster): number {
   return keywordFlags(g, m).attacksPerTurn ?? 1;
 }
 
+/** 攻撃できないデメリット（防衛。封印されても働く）を持つか */
+export function cannotAttack(g: GameState, m: Monster): boolean {
+  return (g.cards[m.card.cardId]?.drawbacks ?? []).some((d) => getDrawback(d.id)?.battle.cannotAttack === true);
+}
+
 /** このモンスターが今、手動で攻撃できるか。できなければ理由 */
 export function attackBlockReason(g: GameState, m: Monster): string | null {
   if (g.phase !== 'main') return '今は攻撃できません';
   if (m.controller !== g.active) return '自分のターンではありません';
+  if (cannotAttack(g, m)) return '防衛：このモンスターは攻撃できない';
   if (m.status.freezeActive) return '凍結していて攻撃できません';
   if (m.status.confuseActive) return '混乱していて、ターン開始時に自動で攻撃しました';
   if (m.betraying) return '裏切ったモンスターは自分では攻撃できません';
@@ -35,6 +55,8 @@ export function attackTargets(g: GameState, m: Monster): TargetRef[] {
 /** 攻撃を1回行う（手動・自動共通） */
 export function performAttack(g: GameState, m: Monster, target: TargetRef, depth: number, note = ''): void {
   m.attacksUsed += 1;
+  // 腐乱などが見る「攻撃したターン」
+  m.counters.attackedTurn = g.turnIndex;
   // このターンの記録：手番のプレイヤーのモンスターが攻撃した（自動攻撃も数える）
   if (m.controller === g.active) {
     const turn = g.players[g.active].turn;
@@ -45,12 +67,17 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   const defender = target.kind === 'monster' ? findMonster(g, target.uid) : undefined;
   // この1回の攻撃の記録のキー：出血・反撃（状態）は攻撃と「攻撃するたび」の効果を合わせて1回（決定事項 #70 R4）
   const playKey = newUid(g, 'pk');
-  // モンスターの反撃（決定事項 #69）：攻撃される前の守備側の攻撃力・弱体で決まる（同時に解決する扱い）
+  // モンスターの反撃（決定事項 #69）：攻撃される前の守備側の攻撃力（一時強化・武士道を含む）・弱体・接死・絆魂で決まる（同時に解決する扱い）
+  const retaliationAmount = defender ? effectiveAttack(defender) + combatBonus(g, defender) : 0;
   const retaliation =
-    defender && BALANCE.battle.retaliation.enabled && defender.attack > 0
-      ? { amount: defender.attack, weak: defender.status.weak > 0, label: monsterLabel(g, defender) }
+    defender && BALANCE.battle.retaliation.enabled && retaliationAmount > 0
+      ? { amount: retaliationAmount, weak: defender.status.weak > 0, label: monsterLabel(g, defender), source: combatSourceOf(g, defender) }
       : null;
-  const r = dealDamage(g, target, m.attack, { kind: 'attack', source: attackerRef, playKey, depth: depth + 1 });
+  /** 先制攻撃：攻撃で相手モンスターを倒したら反撃を受けない */
+  const firstStrike = keywordFlags(g, m).firstStrike === true;
+  // 武士道：モンスターと戦うときだけ攻撃力に足す
+  const amount = effectiveAttack(m) + (defender ? combatBonus(g, m) : 0);
+  const r = dealDamage(g, target, amount, { kind: 'attack', source: attackerRef, playKey, depth: depth + 1 });
   if (isEnded(g)) return;
   const enemy = other(m.controller);
   /** 相手プレイヤーのHPを減らしたか（「相手プレイヤーにダメージを与えたとき」。裏切り・混乱で自分を殴ったときは数えない） */
@@ -62,12 +89,16 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
     if (defender.controller === enemy && t.hpLost > 0) hitEnemy = true;
     if (isEnded(g)) return;
   }
-  // 反撃：守備側が倒れていても、封印・凍結・隠密でも返す。守備側の「攻撃するたび」は発動しない
-  if (retaliation && defender) {
+  // 反撃：守備側が倒れていても、封印・凍結・隠密でも返す。守備側の「攻撃するたび」は発動しない。
+  // 先制攻撃のモンスターが相手を倒したときは反撃を受けない
+  if (retaliation && defender && firstStrike && r.destroyed) {
+    log(g, depth + 1, `先制攻撃：${retaliation.label}の反撃を受けない`);
+  } else if (retaliation && defender) {
     dealDamage(g, attackerRef, retaliation.amount, {
       kind: 'retaliate',
       source: { kind: 'monster', uid: defender.uid },
       sourceWeak: retaliation.weak,
+      combatSource: retaliation.source,
       prefix: `${retaliation.label}の反撃：`,
       depth: depth + 1,
     });

@@ -302,7 +302,8 @@ describe('すべての効果が対戦で処理できる', () => {
     const rule = def.targetRule;
     effect.target = rule === 'self' ? 'self' : rule === 'enemyPlayer' ? 'enemyPlayer' : rule === 'board' ? 'board' : 'chosen';
     const c = giveCard(g, 0, legend([effect]));
-    const chosen = rule === 'allyMonsterOne' ? { ally: mine } : effect.target === 'chosen' ? { enemy: M(theirs) } : {};
+    const chosen =
+      rule === 'allyMonsterOne' ? { ally: mine } : rule === 'fight' ? { ally: mine, enemy: M(theirs) } : effect.target === 'chosen' ? { enemy: M(theirs) } : {};
     g = play(g, c, chosen);
     if (g.pending) g = act(g, { type: 'choose', player: 0, picks: g.pending.options.slice(0, Math.max(1, g.pending.min)).map((o) => o.id) });
     expect(g.pending).toBeNull();

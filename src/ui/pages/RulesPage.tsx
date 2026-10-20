@@ -82,7 +82,7 @@ export function RulesPage() {
     })
     .join('、');
   const firstEnergy = (energy[0]?.energy ?? 0) - B.firstPlayerFirstTurnPenalty;
-  const statusOrder: StatusId[] = ['poison', 'burn', 'weak', 'vulnerable', 'bleed', 'freeze', 'confuse', 'seal', 'shield', 'counter', 'nullify', 'regen', 'strength', 'focus', 'stealth', 'betrayal'];
+  const statusOrder: StatusId[] = ['poison', 'doom', 'burn', 'weak', 'vulnerable', 'bleed', 'freeze', 'confuse', 'seal', 'shield', 'counter', 'nullify', 'regen', 'strength', 'focus', 'stealth', 'betrayal'];
 
   return (
     <div className="rules">
@@ -125,7 +125,7 @@ export function RulesPage() {
         <h3>ターン開始時（この順）</h3>
         <ol>
           <li>シールドと反撃（状態）が消え、凍結・混乱が発効します。</li>
-          <li>毒のダメージを受け、毒が半分（切り捨て）になります。再生で回復し、再生も半分になります。</li>
+          <li>毒のダメージを受け、毒が半分（切り捨て）になります。呪縛のダメージを受けます（呪縛は減りません）。再生で回復し、再生も半分になります。</li>
           <li>維持費・裏切りなどのデメリット、自己修復が働きます。</li>
           <li>
             エナジーを得ます。エナジーは自分のターン数で増えます：<b>{energyText}</b>。先攻の1ターン目だけ−{B.firstPlayerFirstTurnPenalty}（{firstEnergy}）です。エナジーは次のターンに持ち越せません。
@@ -146,8 +146,9 @@ export function RulesPage() {
           <li>
             やけどのダメージ（{B.burnDamage}）。出血が半分、弱体・脆弱の残りターンが1減り、凍結・混乱が切れます。
           </li>
+          <li>腐乱のモンスター（このターンに攻撃したもの）が破壊され、寿命が1減ります（0になると場から消えます）。</li>
           <li>
-            <b>手札をすべて捨て札にします</b>（「保持」で残したカードを除く）。気合が消えます。
+            <b>手札をすべて捨て札にします</b>（「保持」で残したカードを除く）。気合と、両者のモンスターの一時強化が消えます。
           </li>
         </ol>
       </Section>
@@ -197,6 +198,14 @@ export function RulesPage() {
             <b>貫通</b>のモンスターがモンスターを倒すと、余ったダメージが持ち主のプレイヤーに通ります。<b>不屈</b>のモンスターは1度だけ体力{B.undyingHp}で踏みとどまります。
           </li>
           <li>「攻撃するたび」の効果は、攻撃したモンスターが場に残っていれば発動します（反撃では発動しません）。</li>
+          <li>
+            <b>接死</b>のモンスターが攻撃・反撃・格闘でダメージを与えたモンスターは破壊されます（不屈でも踏みとどまれません）。<b>先制攻撃</b>のモンスターは、攻撃で相手を倒せば反撃を受けません。<b>聖盾</b>は最初のダメージ1回を0にします。<b>呪禁</b>のモンスターはカードの「選んだ1体」に選べません（呪禁の挑発は、カードの対象選びを縛りません）。<b>防衛</b>のモンスターは攻撃できませんが、反撃はします。
+          </li>
+          {(['token', 'tempAttack', 'granted', 'fight', 'lifespan'] as const).map((id) => (
+            <li key={id}>
+              <b>{mechanicGlossary[id]!.name}</b>：{mechanicGlossary[id]!.short}。
+            </li>
+          ))}
         </ul>
       </Section>
 

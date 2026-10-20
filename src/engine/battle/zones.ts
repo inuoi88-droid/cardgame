@@ -7,8 +7,10 @@ import { keywordFlags } from './damage.ts';
 import { pick, randInt, shuffle } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
+import type { CardDef } from '../types.ts';
 import {
   NOISE_CARD_ID,
+  TOKEN_CARD_ID,
   type CardInst,
   type ChoiceOption,
   type Chosen,
@@ -65,18 +67,20 @@ export function drawCards(g: GameState, p: PlayerId, count: number, depth: numbe
   return drawn.length;
 }
 
-/** モンスターを場に出す（召喚時の効果は呼び出し側で積む） */
+/** モンスターを場に出す（召喚時の効果は呼び出し側で積む）。トークンは CardInst.token の強さで出る */
 export function placeMonster(g: GameState, p: PlayerId, card: CardInst, depth: number): Monster | undefined {
   const def = g.cards[card.cardId];
   if (!def?.stats) return undefined;
+  const attack = card.token?.attack ?? def.stats.attack;
+  const hp = card.token?.hp ?? def.stats.hp;
   const m: Monster = {
     uid: card.uid,
     card,
     owner: card.owner,
     controller: p,
-    attack: def.stats.attack,
-    hp: def.stats.hp,
-    maxHp: def.stats.hp,
+    attack,
+    hp,
+    maxHp: hp,
     defense: def.stats.defense,
     enteredTurn: g.turnIndex,
     attacksUsed: 0,
@@ -151,8 +155,9 @@ export function discardRandom(g: GameState, p: PlayerId, count: number, depth: n
   }
 }
 
-/** 捨て札に置く（残らないコピーは除外）。元の持ち主の捨て札へ */
+/** 捨て札に置く（残らないコピーは除外。トークンはどこにも行かない）。元の持ち主の捨て札へ */
 export function discardCard(g: GameState, card: CardInst): void {
+  if (card.token) return;
   const owner = g.players[card.owner];
   if (card.copy === 'temp') owner.exile.push(card);
   else owner.discard.push(card);
@@ -169,6 +174,11 @@ export function bounce(g: GameState, uid: string, depth: number): void {
   if (!m) return;
   const label = monsterLabel(g, m);
   removeFromBoard(g, m);
+  // トークンは手札に戻らず消える
+  if (m.card.token) {
+    log(g, depth, `${label}は場を離れて消えた（トークン）`, 'effect', undefined, { kind: 'destroy', player: m.controller, cardId: m.card.cardId, uid: m.uid });
+    return;
+  }
   g.players[m.card.owner].hand.push(m.card);
   log(g, depth, `${label}を持ち主（${g.players[m.card.owner].name}）の手札に戻した`);
 }
@@ -269,6 +279,92 @@ export function dispel(g: GameState, p: PlayerId, key: string, depth: number): v
   ps.powers = ps.powers.filter((pw) => pw.effects.some((x) => !x.removed) || pw.drawbacks.length > 0);
   const name = getEffect(id ?? '')?.name ?? id;
   log(g, depth, `${ps.name}の持続効果「${name}」を${count}つ消した`);
+}
+
+// ---------------------------------------------------------------- MTG 要素バッチ2
+
+/** トークンのカード定義（名前・アイコンは balance.ts。強さは CardInst.token が決める） */
+export function tokenDef(): CardDef {
+  const B = BALANCE.battle;
+  return {
+    v: 1,
+    id: TOKEN_CARD_ID,
+    name: B.tokenName,
+    icon: B.tokenIcon,
+    rarity: 'common',
+    cost: 0,
+    stats: { attack: 0, hp: 1, defense: 0 },
+    keywords: [],
+    effects: [],
+    drawbacks: [],
+  };
+}
+
+/** 場のトークンの数 */
+export function tokenCount(g: GameState, p: PlayerId): number {
+  return g.players[p].board.filter((m) => m.card.token).length;
+}
+
+/** トークンを出す（1体ずつ場に出て「自分のモンスターが出るたび」が働く）。場のトークンの上限を超える分は出ない */
+export function createTokens(g: GameState, p: PlayerId, attack: number, hp: number, count: number, depth: number): void {
+  g.cards[TOKEN_CARD_ID] ??= tokenDef();
+  const max = BALANCE.battle.maxTokens;
+  for (let i = 0; i < count; i++) {
+    if (tokenCount(g, p) >= max) {
+      log(g, depth, `トークンは1人${max}体までなので、これ以上出せない`);
+      return;
+    }
+    const card: CardInst = { uid: newUid(g, 'tk'), cardId: TOKEN_CARD_ID, owner: p, token: { attack, hp } };
+    const m = placeMonster(g, p, card, depth);
+    if (m) onMonsterEntered(g, m, depth + 1);
+  }
+}
+
+/** 手札か捨て札のカードを除外する（処分） */
+export function exileCard(g: GameState, p: PlayerId, cardUid: string, depth: number): void {
+  const ps = g.players[p];
+  for (const [zone, label] of [
+    [ps.hand, '手札'],
+    [ps.discard, '捨て札'],
+  ] as const) {
+    const i = zone.findIndex((c) => c.uid === cardUid);
+    if (i < 0) continue;
+    const [card] = zone.splice(i, 1);
+    if (!card!.token) ps.exile.push(card!);
+    log(g, depth, `${ps.name}は${label}の「${cardName(g, card!.cardId)}」を除外した`);
+    return;
+  }
+}
+
+/** 占術：山札の上の uids を、元の並びのまま山札の下か捨て札へ（下に置いたカードの名前は公開しない） */
+export function scryMove(g: GameState, p: PlayerId, uids: string[], toDiscard: boolean, depth: number): void {
+  const ps = g.players[p];
+  const set = new Set(uids);
+  const moved = ps.deck.filter((c) => set.has(c.uid));
+  if (moved.length === 0) {
+    log(g, depth, `${ps.name}は山札の上のカードをそのまま残した`);
+    return;
+  }
+  ps.deck = ps.deck.filter((c) => !set.has(c.uid));
+  if (toDiscard) {
+    for (const c of moved) discardCard(g, c);
+    log(g, depth, `${ps.name}は山札の上から${moved.length}枚を捨て札に置いた：${moved.map((c) => cardName(g, c.cardId)).join('、')}`);
+  } else {
+    ps.deck.push(...moved);
+    log(g, depth, `${ps.name}は山札の上から${moved.length}枚を山札の下に置いた`);
+  }
+}
+
+/** 手札を選んで捨てる（手札整理）。捨てても何も誘発しない */
+export function discardChosen(g: GameState, p: PlayerId, uids: string[], depth: number): void {
+  const ps = g.players[p];
+  for (const uid of uids) {
+    const i = ps.hand.findIndex((c) => c.uid === uid);
+    if (i < 0) continue;
+    const [card] = ps.hand.splice(i, 1);
+    discardCard(g, card!);
+    log(g, depth, `${ps.name}は手札の「${cardName(g, card!.cardId)}」を捨てた`, 'info', undefined, { kind: 'discard', player: p, amount: 1 });
+  }
 }
 
 /** 新しい対戦用カード（ID の付け直しは setup で済ませる） */

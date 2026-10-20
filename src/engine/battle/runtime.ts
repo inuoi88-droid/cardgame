@@ -2,18 +2,22 @@
 import { BALANCE } from '../balance.ts';
 import { TIMINGS, type TargetRule } from '../options.ts';
 import type { EffectInstance, TimingId } from '../types.ts';
-import { cardName, findMonster, log, monsterLabel, other, playerRef, playRecord, targetExists, turnLimits } from './core.ts';
-import { addStatus, cleanse, dealDamage, destroyMonster, heal } from './damage.ts';
+import { getKeyword } from '../registry.ts';
+import { cardName, effectiveAttack, enqueue, findMonster, log, monsterLabel, other, playerRef, playRecord, targetExists, turnLimits } from './core.ts';
+import { addStatus, cleanse, combatBonus, combatSourceOf, dealDamage, destroyMonster, heal } from './damage.ts';
 import { pick } from './rng.ts';
 import {
   addNoise,
   bounce,
   copyFromHand,
+  createTokens,
   discardRandom,
   dispel,
   dispelOptions,
   drawCards,
+  exileCard,
   reviveFromDiscard,
+  scryMove,
   steal,
   takeFromDeck,
   takeFromDiscard,
@@ -42,6 +46,18 @@ export function resolveTargets(
       return [...mons(g.active), ...mons(other(g.active))];
     case 'chosen': {
       if (TIMINGS[timing]?.chosen === 'none') return [];
+      if (rule === 'fight') {
+        // 格闘：選んだ自分のモンスターと相手モンスターの組（どちらかがいなければ不発）
+        const ally = chosen.ally ? findMonster(g, chosen.ally) : undefined;
+        const t = chosen.enemy;
+        const enemy = t?.kind === 'monster' ? findMonster(g, t.uid) : undefined;
+        return ally && ally.controller === me && enemy && enemy.controller === opp
+          ? [
+              { kind: 'monster', uid: ally.uid },
+              { kind: 'monster', uid: enemy.uid },
+            ]
+          : [];
+      }
       if (rule === 'allyMonsterOne') {
         const m = chosen.ally ? findMonster(g, chosen.ally) : undefined;
         return m && m.controller === me ? [{ kind: 'monster', uid: m.uid }] : [];
@@ -52,6 +68,12 @@ export function resolveTargets(
       return [t];
     }
     case 'random': {
+      if (rule === 'fight') {
+        const mine = mons(me);
+        const theirs = mons(opp);
+        if (mine.length === 0 || theirs.length === 0) return [];
+        return [pick(g, mine)!, pick(g, theirs)!];
+      }
       const pool: TargetRef[] =
         rule === 'allyMonsterOne' ? mons(me) : monsterOnly ? mons(opp) : [playerRef(opp), ...mons(opp)];
       const t = pick(g, pool);
@@ -261,6 +283,78 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
     },
     log(text) {
       log(g, depth, text);
+    },
+    // ---- MTG 要素バッチ2
+    changeStats(target, dAttack, dHp) {
+      const m = monsterOf(target);
+      if (!m) return;
+      const before = { attack: m.attack, hp: m.hp, maxHp: m.maxHp };
+      m.attack = Math.max(0, m.attack + dAttack);
+      m.maxHp += dHp;
+      m.hp = Math.min(m.maxHp, m.hp + dHp);
+      log(g, depth, `${monsterLabel(g, m)}：攻撃力 ${before.attack}→${m.attack}、体力 ${before.hp}→${Math.max(0, m.hp)}（最大${before.maxHp}→${Math.max(0, m.maxHp)}）`);
+      // 体力が0以下になったら破壊（ダメージではないので守備力・聖盾・不屈は効かない）
+      if (m.hp <= 0) {
+        m.hp = 0;
+        destroyMonster(g, m, depth + 1);
+      }
+    },
+    addTempAttack(target, amount) {
+      const m = monsterOf(target);
+      if (!m) return;
+      const before = effectiveAttack(m);
+      m.tempAttack = (m.tempAttack ?? 0) + amount;
+      log(g, depth, `${monsterLabel(g, m)}の攻撃力がこのターンだけ ${before}→${effectiveAttack(m)}`);
+    },
+    grantKeyword(target, keywordId) {
+      const m = monsterOf(target);
+      const kd = getKeyword(keywordId);
+      if (!m || !kd) return;
+      if (!(m.granted ?? []).includes(keywordId)) m.granted = [...(m.granted ?? []), keywordId];
+      // 不屈・聖盾は与え直すと使えるようになる
+      if (kd.battle.undying) m.undyingUsed = false;
+      if (kd.battle.divineShield) m.shieldUsed = false;
+      log(g, depth, `${monsterLabel(g, m)}に「${kd.name}」を与えた${m.sealed ? '（封印中は働かない）' : ''}`);
+    },
+    ready(target) {
+      const m = monsterOf(target);
+      if (!m) return;
+      if (m.counters.readyTurn === g.turnIndex) {
+        log(g, depth, `${monsterLabel(g, m)}はこのターンもう再行動した（1体につき1ターン1回）`);
+        return;
+      }
+      m.counters.readyTurn = g.turnIndex;
+      m.attacksUsed = 0;
+      log(g, depth, `${monsterLabel(g, m)}はもう一度攻撃できるようになった`);
+    },
+    fight(allyRef, enemyRef) {
+      const a = monsterOf(allyRef);
+      const e = monsterOf(enemyRef);
+      if (!a || !e) return;
+      // 先に両方の量（攻撃力＋一時強化＋武士道）と、弱体・接死・絆魂を決めてから、相手へ → 自分へ の順に与える
+      const toEnemy = effectiveAttack(a) + combatBonus(g, a);
+      const toAlly = effectiveAttack(e) + combatBonus(g, e);
+      const aInfo = { weak: a.status.weak > 0, src: combatSourceOf(g, a), label: monsterLabel(g, a) };
+      const eInfo = { weak: e.status.weak > 0, src: combatSourceOf(g, e), label: monsterLabel(g, e) };
+      log(g, depth, `格闘：${aInfo.label}（${toEnemy}）と${eInfo.label}（${toAlly}）が戦う`);
+      if (toEnemy > 0) {
+        dealDamage(g, enemyRef, toEnemy, { kind: 'hit', source: allyRef, sourceWeak: aInfo.weak, combat: true, combatSource: aInfo.src, depth: depth + 1 });
+      }
+      if (toAlly > 0 && targetExists(g, allyRef)) {
+        dealDamage(g, allyRef, toAlly, { kind: 'hit', source: enemyRef, sourceWeak: eInfo.weak, combat: true, combatSource: eInfo.src, depth: depth + 1 });
+      }
+    },
+    createTokens(p, attack, hp, count) {
+      createTokens(g, p, attack, hp, count, depth);
+    },
+    chooseDiscard(p, count) {
+      enqueue(g, { t: 'discardChoice', player: p, count, depth });
+    },
+    exileCard(p, uid) {
+      exileCard(g, p, uid, depth);
+    },
+    scryMove(p, uids, toDiscard) {
+      scryMove(g, p, uids, toDiscard, depth);
     },
   };
 }

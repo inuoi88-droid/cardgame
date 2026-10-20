@@ -247,6 +247,44 @@ export const BALANCE = {
     duplicate: { flat: x(12), flatKeep: x(15) },
     wipe: { flat: x(25) },
     steal: { flat: x(45) },
+
+    /**
+     * MTG 要素の採用：バッチ2（決定事項ログ）。価格は目安。
+     * トークン生成：基礎 =（強さ N × perValue + perToken）× 体数 M。強さは攻撃力と体力の両方（守備力0）
+     */
+    token: { perValue: 4, perToken: x(1), maxValue: x(5), maxTokens: 3 },
+    /** 鍛錬：攻撃力と体力を+N（永続） */
+    train: { perValue: 4.5, maxValue: x(10) },
+    /** 衰弱：攻撃力と体力を−N（体力が0になると破壊） */
+    wither: { perValue: 5, maxValue: x(10) },
+    /** キーワード付与：与えるキーワードごとの固定ポイント */
+    grantKeyword: {
+      haste: x(4),
+      taunt: x(7),
+      flying: x(3),
+      trample: x(2),
+      undying: x(4),
+      deathtouch: x(6),
+      lifelink: x(3),
+      divineShield: x(4),
+      hexproof: x(4),
+      firstStrike: x(2),
+    },
+    /** 格闘：自分のモンスター1体と相手モンスター1体が互いに攻撃力ぶんのダメージを与え合う */
+    fight: { flat: x(9) },
+    /** 再行動：もう一度攻撃できるようにする（1体につき1ターン1回） */
+    ready: { flat: x(10) },
+    /** 占術の N は枚数 */
+    scry: { perValue: x(1.5), maxValue: 5 },
+    /** 手札整理：N 枚引いて1枚捨てる。N は枚数 */
+    loot: { perValue: x(3), maxValue: 3 },
+    purge: { flat: x(3) },
+    /** 倍化：毒は1つの効果の毒の上限（poison.maxValue）まで、出血は bleedMaxAdd まで増える。筋力は strengthCap まで */
+    double: { flat: x(12), bleedMaxAdd: x(5) },
+    /** 呪縛：相手のターン開始時に N ダメージ（減らない）。合計は battle.doomCap まで */
+    doom: { perValue: 15, maxValue: x(2) },
+    /** 一時強化：このターンだけ攻撃力+N */
+    pump: { perValue: 1.5, maxValue: x(10) },
   },
 
   /** モンスター専用キーワードのポイント（A は攻撃力）。挑発は #83（カードの効果の対象も挑発に限る）のあと #84 で 6→8 */
@@ -260,6 +298,16 @@ export const BALANCE = {
     stealth: { flat: x(2), perAttack: 1 },
     undying: { flat: x(3), perAttack: 1 },
     selfRepair: { perValue: 2 },
+    /** MTG 要素の採用：バッチ2（決定事項ログ）。接死・先制攻撃・呪禁・絆魂・武士道・聖盾 */
+    deathtouch: { flat: x(6) },
+    /** 先制攻撃：max(min, 攻撃力×perAttack) */
+    firstStrike: { min: x(2), perAttack: 0.5 },
+    hexproof: { flat: x(4) },
+    /** 絆魂：max(min, 攻撃力×perAttack) */
+    lifelink: { min: x(1), perAttack: 1 },
+    /** 武士道 N：モンスターと戦うときだけ攻撃力+N */
+    bushido: { perValue: 2, maxValue: x(5) },
+    divineShield: { flat: x(4) },
   },
 
   /**
@@ -279,6 +327,15 @@ export const BALANCE = {
     parasite: { fixed: x(5), damage: x(2) },
     /** 裏切り：fixed + 攻撃力×perAttack（強いモンスターほど裏切りが痛い） */
     betrayal: { fixed: x(6), perAttack: 3, turns: 3 },
+    /** MTG 要素の採用：バッチ2（決定事項ログ）。防衛：max(min, 攻撃力×perAttack)（固定値） */
+    defender: { min: x(1), perAttack: 2 },
+    /** 寿命 N（N＝1・2・3 の順の固定値。短いほど大きい） */
+    lifespan: { byTurns: [x(6), x(4), x(2)] },
+    /** 腐乱：max(min, 攻撃力×perAttack)（固定値） */
+    decay: { min: x(1), perAttack: 1 },
+    exhaust: { flat: x(3) },
+    /** 生け贄（タイミングの倍率を掛ける。使用時・召喚時だけ） */
+    sacrifice: { flat: x(5) },
   },
 
   /** オンライン対戦（決定事項 #57） */
@@ -360,6 +417,12 @@ export const BALANCE = {
     maxDrawJamPerTurn: 2,
     /** 相手の効果で自分の山札に入れられるノイズは、1ターンにこの枚数まで */
     maxNoiseReceivedPerTurn: 3,
+    /** トークン（MTG 要素バッチ2）：場に出せるトークンは1人この数まで（数なので倍率は掛けない） */
+    maxTokens: 5,
+    tokenName: '小鬼',
+    tokenIcon: '👺',
+    /** 呪縛（MTG 要素バッチ2）の合計の上限 */
+    doomCap: x(5),
   },
 } as const;
 

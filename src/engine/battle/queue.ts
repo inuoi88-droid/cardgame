@@ -10,6 +10,7 @@ import { checkGameEnd, enqueue, findMonster, log, other, playRecord } from './co
 import { finishCard } from './play.ts';
 import { makeRuntime, resolveTargets } from './runtime.ts';
 import { retainOptions, runAutoAttacks, turnEndEffects, turnEndFinish } from './turn.ts';
+import { discardChosen } from './zones.ts';
 import { CONDITIONS, REPEAT_CAPPED_TIMINGS } from '../options.ts';
 import type { GameState, Step } from './types.ts';
 
@@ -45,6 +46,8 @@ function executeStep(g: GameState, step: Step): void {
       return turnEndEffects(g, step.player);
     case 'retain':
       return executeRetain(g, step);
+    case 'discardChoice':
+      return executeDiscardChoice(g, step);
     case 'turnEndFinish':
       return turnEndFinish(g, step.player, step.kept);
   }
@@ -158,14 +161,58 @@ function executeDrawback(g: GameState, step: Extract<Step, { t: 'drawback' }>): 
   const me = step.src.controller;
   const s = g.players[me].status;
   const before = { poison: s.poison, burn: s.burn };
-  log(g, step.depth, `${step.src.name}のデメリット：${describeDrawback(step.drawback)}`, 'effect');
-  def.battle.resolve(makeRuntime(g, step.src, [], { depth: step.depth + 1, attackCard: false }), step.drawback);
+  if (!step.picks) log(g, step.depth, `${step.src.name}のデメリット：${describeDrawback(step.drawback)}`, 'effect');
+  const rt = makeRuntime(g, step.src, [], { depth: step.depth + 1, attackCard: false });
+  // 選択が要るデメリット（生け贄）
+  let picks = step.picks;
+  if (!picks && def.battle.choose) {
+    const spec = def.battle.choose(rt, step.drawback);
+    if (spec) {
+      if (spec.options.length === 0) {
+        log(g, step.depth + 1, '選べるものがないため何も起きない');
+        return;
+      }
+      if (spec.options.length === 1 && spec.min >= 1) {
+        picks = [spec.options[0]!.id];
+      } else {
+        g.pending = { player: me, prompt: spec.prompt, options: spec.options, min: spec.min, max: spec.max, step };
+        return;
+      }
+    }
+  }
+  def.battle.resolve(rt, step.drawback, picks);
   // このデメリットで付いた毒・やけどは、同じカードの浄化では消えない（決定事項 #34）
   if (step.protectKey) {
     const rec = playRecord(g, step.protectKey);
     rec.poison += Math.max(0, s.poison - before.poison);
     rec.burn += Math.max(0, s.burn - before.burn);
   }
+}
+
+/** 手札を選んで捨てる（手札整理）。手札が足りなければあるだけ */
+function executeDiscardChoice(g: GameState, step: Extract<Step, { t: 'discardChoice' }>): void {
+  const ps = g.players[step.player];
+  const n = Math.min(step.count, ps.hand.length);
+  if (step.picks) {
+    discardChosen(g, step.player, step.picks.slice(0, n), step.depth);
+    return;
+  }
+  if (n === 0) {
+    log(g, step.depth, `${ps.name}は捨てる手札がない`);
+    return;
+  }
+  if (n === ps.hand.length) {
+    discardChosen(g, step.player, ps.hand.map((c) => c.uid), step.depth);
+    return;
+  }
+  g.pending = {
+    player: step.player,
+    prompt: `手札から捨てるカードを${n}枚選んでください`,
+    options: ps.hand.map((c) => ({ id: c.uid, label: g.cards[c.cardId]?.name ?? 'ノイズ', cardId: c.cardId })),
+    min: n,
+    max: n,
+    step,
+  };
 }
 
 function executeRetain(g: GameState, step: Extract<Step, { t: 'retain' }>): void {

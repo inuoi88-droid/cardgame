@@ -4,10 +4,11 @@
  */
 import { BALANCE } from '../balance.ts';
 import { applyAction } from '../battle/apply.ts';
-import { other } from '../battle/core.ts';
+import { findMonster, other } from '../battle/core.ts';
 import { effectiveCost } from '../battle/play.ts';
-import type { Action, GameState, PendingChoice, PlayerId } from '../battle/types.ts';
-import { cardPickScore, evaluate, raceFrame, WEIGHTS, type RaceFrame } from './evaluate.ts';
+import { NOISE_CARD_ID, type Action, type GameState, type PendingChoice, type PlayerId } from '../battle/types.ts';
+import { getEffect } from '../registry.ts';
+import { cardPickScore, evaluate, nextEnergy, raceFrame, WEIGHTS, type RaceFrame } from './evaluate.ts';
 
 /** ランダムな対象の平均を取るときのシードの数 */
 export const RANDOM_SEEDS = 3;
@@ -21,6 +22,9 @@ export function chooseFor(g: GameState, p: PendingChoice, me: PlayerId): string[
   if (options.length === 0) return [];
   const step = p.step;
   const effectId = step.t === 'effect' ? step.effect.id : step.t === 'retain' ? 'retain' : '';
+  // MTG 要素バッチ2：占術・手札整理・処分・生け贄の選び方
+  const special = chooseSpecial(g, p, me);
+  if (special) return special;
   // カードを選ぶもの：すぐ使えるコスト・高いカードを優先
   const withCards = options.filter((o) => o.cardId && g.cards[o.cardId]);
   if (withCards.length === options.length && options.length > 0) {
@@ -32,6 +36,64 @@ export function chooseFor(g: GameState, p: PendingChoice, me: PlayerId): string[
   }
   if (p.max > 1 || p.min === 0) return options.slice(0, p.max).map((o) => o.id);
   return [options[0]!.id];
+}
+
+/** カードの「いらなさ」：ノイズ → 呪い（デメリットつき）→ それ以外。大きいほど手放したい */
+function junkRank(g: GameState, cardId: string | undefined): number {
+  if (!cardId || cardId === NOISE_CARD_ID) return 2;
+  const def = g.cards[cardId];
+  if (!def) return 2;
+  return def.drawbacks.length > 0 ? 1 : 0;
+}
+
+/** 占術・手札整理・処分・生け贄（MTG 要素バッチ2）の選び方。当てはまらなければ null */
+function chooseSpecial(g: GameState, p: PendingChoice, me: PlayerId): string[] | null {
+  const step = p.step;
+  const options = p.options;
+  const n = Math.max(p.min, 0);
+  if (step.t === 'effect' && step.effect.id === 'scry') {
+    // 残すのは「ノイズ・呪いでなく、次のターンの基本エナジー以下のコスト」のカード。それ以外を山札の下（捨て札）へ
+    const energy = nextEnergy(g, me);
+    return options
+      .filter((o) => {
+        if (junkRank(g, o.cardId) > 0) return true;
+        return (g.cards[o.cardId!]?.cost ?? 0) > energy;
+      })
+      .slice(0, p.max)
+      .map((o) => o.id);
+  }
+  if (step.t === 'discardChoice') {
+    // ノイズ → 呪い → このターン払えないコストのうち一番重いもの → 一番軽いもの
+    const energy = g.players[me].energy;
+    const cost = (id: string | undefined) => (id && g.cards[id] ? g.cards[id]!.cost : 0);
+    const scored = options.map((o) => {
+      const junk = junkRank(g, o.cardId);
+      const c = cost(o.cardId);
+      const key = junk > 0 ? 1000 * junk : c > energy ? 100 + c : 10 - c;
+      return { o, key };
+    });
+    scored.sort((a, b) => b.key - a.key);
+    return scored.slice(0, n).map((x) => x.o.id);
+  }
+  if (step.t === 'effect' && step.effect.id === 'purge') {
+    // ノイズ → 呪いカード → 選ばない
+    const best = [...options].sort((a, b) => junkRank(g, b.cardId) - junkRank(g, a.cardId))[0];
+    return best && junkRank(g, best.cardId) > 0 ? [best.id] : [];
+  }
+  if (step.t === 'drawback' && step.drawback.id === 'sacrifice') {
+    // トークン → 破壊されたときの効果を持つもの → 評価値（攻撃力×3＋体力×1.5）が一番低いもの
+    const scored = options.map((o) => {
+      const m = findMonster(g, o.id);
+      if (!m) return { o, key: Infinity };
+      const def = g.cards[m.card.cardId];
+      const onDeath = def?.effects.some((e) => e.timing === 'destroyed' && getEffect(e.id)) ?? false;
+      const value = m.attack * 3 + m.hp * 1.5;
+      return { o, key: (m.card.token ? 0 : onDeath ? 1e6 : 2e6) + value };
+    });
+    scored.sort((a, b) => a.key - b.key);
+    return scored.slice(0, Math.max(1, n)).map((x) => x.o.id);
+  }
+  return null;
 }
 
 /**
@@ -148,11 +210,14 @@ export function signature(g: GameState): string {
     parts.push(p.hand.map((c) => c.uid).join(','));
     parts.push(
       p.board
-        .map((m) => `${m.uid}:${m.hp}:${m.attack}:${m.attacksUsed}:${m.status.poison}:${m.status.vulnerable}:${m.status.weak}`)
+        .map(
+          (m) =>
+            `${m.uid}:${m.hp}:${m.attack}:${m.tempAttack ?? 0}:${m.attacksUsed}:${m.status.poison}:${m.status.vulnerable}:${m.status.weak}:${(m.granted ?? []).join('+')}:${m.shieldUsed ? 1 : 0}`,
+        )
         .join(','),
     );
     const s = p.status;
-    parts.push(`${s.poison}:${s.vulnerable}:${s.weak}:${s.bleed}:${s.strength}:${s.focus}:${s.nullify}:${s.counter}`);
+    parts.push(`${s.poison}:${s.vulnerable}:${s.weak}:${s.bleed}:${s.strength}:${s.focus}:${s.nullify}:${s.counter}:${s.doom ?? 0}`);
   }
   parts.push(g.pending ? 'p' : '');
   return parts.join('|');
@@ -172,7 +237,7 @@ export function actionKey(g: GameState, a: Action): string {
     const m = g.players[a.player].board.find((x) => x.uid === a.attackerUid);
     if (!m) return `a:${a.attackerUid}`;
     const t = a.target.kind === 'player' ? 'p' : a.target.uid;
-    return `a:${m.card.cardId}:${m.attack}:${m.hp}:${m.defense}:${m.attacksUsed}:${m.sealed}:${m.stealth}:${JSON.stringify(m.status)}|${t}`;
+    return `a:${m.card.cardId}:${JSON.stringify(m.card.token ?? null)}:${m.attack}:${m.tempAttack ?? 0}:${m.hp}:${m.defense}:${m.attacksUsed}:${m.sealed}:${m.stealth}:${JSON.stringify(m.granted ?? [])}:${m.shieldUsed ?? false}:${m.counters.life ?? ''}:${m.counters.readyTurn === g.turnIndex ? 'r' : ''}:${JSON.stringify(m.status)}|${t}`;
   }
   return JSON.stringify(a);
 }

@@ -32,11 +32,28 @@ export function availableEffects(rarity: Rarity): EffectDef[] {
   return listEffects().filter((d) => !d.minRarity || rarityRank(rarity) >= rarityRank(d.minRarity));
 }
 
-/** このカードに追加できるデメリット（使用済みとモンスター専用を除く） */
+/** このデメリットをこの土台のカードに付けられるか（モンスター専用・付けられる種類。種類の細かい判定は validate） */
+export function drawbackFitsBase(def: Pick<DrawbackDef, 'monsterOnly' | 'cardTypes'>, base: CardBase): boolean {
+  if (def.monsterOnly && base !== 'monster') return false;
+  if (!def.cardTypes) return true;
+  return base === 'monster' ? def.cardTypes.includes('monster') : def.cardTypes.some((t) => t !== 'monster');
+}
+
+/** このカードに追加できるデメリット（使用済み・土台に合わないもの・同時に付けられないものを除く） */
 export function availableDrawbacks(card: CardDef): DrawbackDef[] {
   const base = cardBase(card);
   const used = new Set(card.drawbacks.map((d) => d.id));
-  return listDrawbacks().filter((d) => !used.has(d.id) && (!d.monsterOnly || base === 'monster'));
+  return listDrawbacks().filter(
+    (d) =>
+      !used.has(d.id) &&
+      drawbackFitsBase(d, base) &&
+      !card.drawbacks.some((x) => d.conflicts?.includes(x.id) || getDrawback(x.id)?.conflicts?.includes(d.id)),
+  );
+}
+
+/** このデメリットをこの土台のカードに付けるとき選べるタイミング（デメリットごとの制限 timings を含む） */
+export function drawbackTimings(def: Pick<DrawbackDef, 'timings'>, base: CardBase): TimingId[] {
+  return timingsFor(base).filter((t) => !def.timings || def.timings.includes(t));
 }
 
 /** 土台に合わないタイミングは、その土台の基本タイミング（使用時／召喚時）に読み替える */
@@ -99,7 +116,9 @@ export function fitDrawback(d: DrawbackInstance, base: CardBase): DrawbackInstan
   const def = getDrawback(d.id);
   if (!def) return d;
   if (def.fixed) return { ...d, timing: null };
-  return { ...d, timing: mapTiming(d.timing ?? defaultTiming(base), base) };
+  const mapped = mapTiming(d.timing ?? defaultTiming(base), base);
+  const timings = drawbackTimings(def, base);
+  return { ...d, timing: timings.includes(mapped) ? mapped : (timings[0] ?? defaultTiming(base)) };
 }
 
 export function createDrawback(drawbackId: string, base: CardBase): DrawbackInstance {
@@ -118,7 +137,10 @@ export function setMonster(card: CardDef, monster: boolean): CardDef {
     keywords: monster ? card.keywords : [],
     effects: card.effects.map((e) => fitEffect(e, base)),
     drawbacks: card.drawbacks
-      .filter((d) => monster || !getDrawback(d.id)?.monsterOnly)
+      .filter((d) => {
+        const def = getDrawback(d.id);
+        return !def || drawbackFitsBase(def, base);
+      })
       .map((d) => fitDrawback(d, base)),
   };
 }

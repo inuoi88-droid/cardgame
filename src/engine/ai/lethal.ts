@@ -5,7 +5,7 @@
  * 相手の毒が HP 以上なら、ターンを終えるだけで勝てる（毒はシールド・無効化を貫通し、ターン開始時に最初に働く）。
  */
 import { attackBlockReason, attacksPerTurn } from '../battle/combat.ts';
-import { other } from '../battle/core.ts';
+import { effectiveAttack, other } from '../battle/core.ts';
 import { keywordFlags, targetableTaunts } from '../battle/damage.ts';
 import { legalActions } from '../battle/legal.ts';
 import { effectiveCost } from '../battle/play.ts';
@@ -46,7 +46,7 @@ export function damageUpperBound(g: GameState, me: PlayerId): number {
     if (attackBlockReason(g, m)) continue;
     const left = attacksPerTurn(g, m) - m.attacksUsed;
     attacksLeft += left;
-    let dmg = m.attack * left;
+    let dmg = effectiveAttack(m) * left;
     const def = g.cards[m.card.cardId];
     if (def && !m.sealed) {
       for (const e of def.effects) {
@@ -73,7 +73,7 @@ export function damageUpperBound(g: GameState, me: PlayerId): number {
     for (const e of def.effects) {
       if (e.timing !== timing) continue;
       if (e.id === 'energy' && e.target === 'self') energy += Math.min(e.value ?? 0, BALANCE.battle.maxEnergyGainPerTurn);
-      if (e.id === 'attackUp') attackUp += e.value ?? 0;
+      if (e.id === 'attackUp' || e.id === 'pump' || e.id === 'train') attackUp += e.value ?? 0;
       if (e.id === 'focus' || e.id === 'strength') bonus += e.value ?? 0;
       if (e.id === 'vulnerable' && e.target !== 'self') vulnerable = true;
       if (REMOVAL.has(e.id)) removal = true;
@@ -120,7 +120,7 @@ export function damageUpperBound(g: GameState, me: PlayerId): number {
 }
 
 /** 挑発モンスターをダメージ以外で退かせる効果 */
-const REMOVAL: ReadonlySet<string> = new Set(['execute', 'bounce', 'steal', 'wipe', 'seal']);
+const REMOVAL: ReadonlySet<string> = new Set(['execute', 'bounce', 'steal', 'wipe', 'seal', 'wither', 'fight']);
 
 interface Search {
   me: PlayerId;

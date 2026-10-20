@@ -5,10 +5,11 @@
  * エディター・ポイント計算・効果テキストのすべてに反映される（索引は scripts/gen-registry.mjs が自動生成）。
  */
 import { BALANCE } from './balance.ts';
-import type { ChoiceSpec, EffectRuntime, Monster, TargetRef } from './battle/types.ts';
+import type { CardInst, ChoiceSpec, EffectRuntime, GameState, Monster, PlayerId, TargetRef } from './battle/types.ts';
 import type { TargetRule } from './options.ts';
 import type {
   CardDef,
+  CardType,
   DrawbackInstance,
   EffectInstance,
   KeywordInstance,
@@ -149,6 +150,18 @@ export interface KeywordDef {
     trample?: boolean;
     undying?: boolean;
     stealthOnSummon?: boolean;
+    /** 接死：攻撃・反撃・格闘でダメージを与えたモンスターを破壊する（MTG 要素バッチ2） */
+    deathtouch?: boolean;
+    /** 先制攻撃：攻撃でモンスターを倒したとき反撃を受けない */
+    firstStrike?: boolean;
+    /** 呪禁：相手のカードの「選んだ1体」にならない */
+    hexproof?: boolean;
+    /** 絆魂：攻撃・反撃・格闘で減らしたぶん持ち主が回復する */
+    lifelink?: boolean;
+    /** 聖盾：最初に受けるダメージ1回を0にする */
+    divineShield?: boolean;
+    /** モンスターと戦うとき（攻撃・反撃・格闘）だけ攻撃力に足す量（武士道） */
+    combatBonus?(k: KeywordInstance): number;
     /** 持ち主のターン開始時 */
     onTurnStart?(rt: EffectRuntime, k: KeywordInstance, monster: Monster): void;
   };
@@ -163,6 +176,12 @@ export interface DrawbackDef {
   value?: ParamSpec;
   /** モンスターにしか付けられない */
   monsterOnly?: boolean;
+  /** 付けられるカードの種類（省略ならすべて。寿命はモンスターとパワー、廃棄はアタックとスキル） */
+  cardTypes?: readonly CardType[];
+  /** 同じカードに付けられないデメリット（防衛と裏切り） */
+  conflicts?: readonly string[];
+  /** 選べるタイミングの制限（省略ならその土台のすべて。生け贄は使用時・召喚時だけ） */
+  timings?: readonly TimingId[];
   /** 倍率込みの固定値（タイミングを選ばず、basePoints がそのままポイントになる） */
   fixed?: boolean;
   /** 倍率を掛ける前のポイント（正の数）。card はステータスを見るデメリット（裏切り）が使う */
@@ -172,8 +191,20 @@ export interface DrawbackDef {
   describe(d: DrawbackInstance): string;
   /** 対戦での処理（封印されても働く） */
   battle: {
-    /** タイミングを選ぶデメリットの処理 */
-    resolve?(rt: EffectRuntime, d: DrawbackInstance): void;
+    /** 使えるか（使えなければ理由）。生け贄にするモンスターがいない、など */
+    canPlay?(g: GameState, p: PlayerId, card: CardInst): string | null;
+    /** 選択が要るデメリット（生け贄）は選択肢を返す */
+    choose?(rt: EffectRuntime, d: DrawbackInstance): ChoiceSpec | null;
+    /** タイミングを選ぶデメリットの処理。picks は選んだ選択肢の ID */
+    resolve?(rt: EffectRuntime, d: DrawbackInstance, picks?: string[]): void;
+    /** このモンスターは攻撃できない（防衛。混乱・裏切りの自動攻撃もしない） */
+    cannotAttack?: boolean;
+    /** 寿命：場に残るターン数（持ち主のターン終了時に1減り、0で場から消える。モンスターは破壊、パワーは消える） */
+    lifespan?(d: DrawbackInstance): number;
+    /** 使ったあと捨て札ではなく除外される（廃棄。パワーとして残らない呪文だけ） */
+    exhaust?: boolean;
+    /** 場にいる間、持ち主のターン終了時（腐乱） */
+    onBoardTurnEnd?(rt: EffectRuntime, d: DrawbackInstance, monster: Monster): void;
     /** 場にいる間、持ち主のターン開始時（維持費・裏切り） */
     onBoardTurnStart?(rt: EffectRuntime, d: DrawbackInstance, monster: Monster): void;
     /** このカードを引いたとき（寄生）。対戦開始時の手札・マリガンの引き直しでも働く（決定事項 #70 R7） */

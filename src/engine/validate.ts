@@ -1,8 +1,8 @@
 /** カード作成ルールの検証。違反があれば理由を返す（空なら作成できる）。 */
 import { BALANCE } from './balance.ts';
-import { cardBase, isCurseCard, rarityRank } from './classify.ts';
+import { cardBase, classifyCard, isCurseCard, rarityRank } from './classify.ts';
 import type { ParamSpec } from './define.ts';
-import { RARITY_LABEL } from './labels.ts';
+import { CARD_TYPE_LABEL, RARITY_LABEL } from './labels.ts';
 import { isIntInRange } from './math.ts';
 import { CONDITIONS, TIMINGS, conditionsFor, targetLabel, targetsForEffect } from './options.ts';
 import { getDrawback, getEffect, getKeyword, getModifier } from './registry.ts';
@@ -174,6 +174,7 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
 
   // デメリット
   const seenDrawbacks = new Set<string>();
+  const cardType = classifyCard(card);
   card.drawbacks.forEach((d, i) => {
     const def = getDrawback(d.id);
     const path = `drawbacks.${i}`;
@@ -186,6 +187,17 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     seenDrawbacks.add(d.id);
     if (def.monsterOnly && base !== 'monster') {
       out.push({ code: 'DRAWBACK_MONSTER_ONLY', path, message: `${what}はモンスター専用です` });
+    } else if (def.cardTypes && !def.cardTypes.includes(cardType)) {
+      const ok = def.cardTypes.map((t) => CARD_TYPE_LABEL[t]).join('・');
+      out.push({ code: 'DRAWBACK_CARD_TYPE', path, message: `${what}は${ok}のカードにしか付けられません（このカードは${CARD_TYPE_LABEL[cardType]}）` });
+    }
+    // 同時に付けられない組（1組につき1回だけ出す）
+    for (const other of card.drawbacks.slice(i + 1)) {
+      if (other.id === d.id) continue;
+      const otherDef = getDrawback(other.id);
+      if (def.conflicts?.includes(other.id) || otherDef?.conflicts?.includes(d.id)) {
+        out.push({ code: 'DRAWBACK_CONFLICT', path, message: `${what}と「${otherDef?.name ?? other.id}」は同時に付けられません` });
+      }
     }
     checkParam(out, 'DRAWBACK_VALUE', `${path}.value`, what, def.value, d.value);
     if (def.fixed) {
@@ -199,6 +211,9 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
       } else if (!timing.bases.includes(base)) {
         const who = base === 'monster' ? 'モンスター以外' : 'モンスター';
         out.push({ code: 'DRAWBACK_TIMING', path: `${path}.timing`, message: `「${timing.label}」は${who}専用のタイミングです` });
+      } else if (def.timings && !def.timings.includes(d.timing!)) {
+        const ok = def.timings.map((t) => `「${TIMINGS[t].label}」`).join('・');
+        out.push({ code: 'DRAWBACK_TIMING', path: `${path}.timing`, message: `${what}は${ok}でしか使えません` });
       }
     }
   });

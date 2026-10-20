@@ -153,7 +153,7 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     powerTiming: true,
     chosen: 'triggerAlly',
     group: '味方の出入り',
-    description: `このカード以外の自分のモンスターが場に出るたび（召喚・蘇生）。1つにつき1ターン${maxRepeat}回まで`,
+    description: `このカード以外の自分のモンスターが場に出るたび（召喚・蘇生・トークン）。1つにつき1ターン${maxRepeat}回まで`,
   },
   allyDestroyed: {
     id: 'allyDestroyed',
@@ -163,7 +163,7 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     powerTiming: true,
     chosen: 'none',
     group: '味方の出入り',
-    description: `このカード以外の自分のモンスターが破壊されるたび（どちらのターンでも）。1つにつき1ターン${maxRepeat}回まで`,
+    description: `このカード以外の自分のモンスターが破壊されるたび（どちらのターンでも。トークンも含む）。1つにつき1ターン${maxRepeat}回まで`,
   },
 };
 
@@ -239,7 +239,8 @@ export function isPowerTiming(timing: TimingId | null, base: CardBase): boolean 
  * 効果がどんな相手に作用するか（効果定義ごとに1つ選ぶ）。
  * enemyAny: 相手のプレイヤーかモンスター / enemyMonster: 相手モンスター /
  * enemyMonsterOne: 相手モンスター1体限定 / enemyPlayer: 相手プレイヤー限定 /
- * allyMonsterOne: 自分のモンスター1体 / self: 自分 / board: 場全体
+ * allyMonsterOne: 自分のモンスター1体 / self: 自分 / board: 場全体 /
+ * fight: 自分のモンスター1体と相手モンスター1体の組（格闘。MTG 要素バッチ2）
  */
 export type TargetRule =
   | 'enemyAny'
@@ -248,7 +249,8 @@ export type TargetRule =
   | 'enemyPlayer'
   | 'allyMonsterOne'
   | 'self'
-  | 'board';
+  | 'board'
+  | 'fight';
 
 /** モンスターにしか作用しない効果か（処刑・封印・混乱・バウンスなど） */
 export function isMonsterOnlyRule(rule: TargetRule): boolean {
@@ -299,6 +301,9 @@ export function allowedTargets(rule: TargetRule, timing: TimingId, base?: CardBa
       return ['self'];
     case 'board':
       return ['board'];
+    case 'fight':
+      // 両方を選ぶのは使うときに選ぶ場面があるタイミングだけ。ランダムはどこでも
+      return [...(chosen === 'manual' ? (['chosen'] as const) : []), 'random'];
   }
 }
 
@@ -318,10 +323,12 @@ export function targetLabel(target: TargetId, rule: TargetRule, timing: TimingId
   switch (target) {
     case 'chosen':
       if (rule === 'allyMonsterOne') return chosen === 'triggerAlly' ? '出たモンスター' : '選んだ自分のモンスター1体';
+      if (rule === 'fight') return '選んだ自分のモンスター1体と相手モンスター1体';
       if (chosen === 'attackTarget') return '攻撃した相手';
       if (chosen === 'damageSource') return 'ダメージを与えてきた相手';
       return '選んだ1体';
     case 'random':
+      if (rule === 'fight') return 'ランダムな自分のモンスター1体と相手モンスター1体';
       return rule === 'allyMonsterOne' ? 'ランダムな自分のモンスター1体' : 'ランダムな1体';
     case 'enemyMonsters':
       return '相手モンスター全体';
@@ -349,11 +356,13 @@ export function targetNoun(target: TargetId, rule: TargetRule, timing: TimingId)
   switch (target) {
     case 'chosen':
       if (rule === 'allyMonsterOne') return chosen === 'triggerAlly' ? '出たモンスター' : '自分のモンスター1体';
+      if (rule === 'fight') return '自分のモンスター1体と相手モンスター1体';
       if (chosen === 'attackTarget') return monsterOnly ? '攻撃したモンスター' : '相手';
       if (chosen === 'damageSource') return monsterOnly ? 'ダメージを与えてきたモンスター' : 'ダメージを与えてきた相手';
       return monsterOnly ? '相手モンスター1体' : '相手1体';
     case 'random':
       if (rule === 'allyMonsterOne') return 'ランダムな自分のモンスター1体';
+      if (rule === 'fight') return 'ランダムな自分のモンスター1体とランダムな相手モンスター1体';
       return monsterOnly ? 'ランダムな相手モンスター1体' : 'ランダムな相手1体';
     case 'enemyMonsters':
       return '相手モンスター全体';
@@ -570,7 +579,7 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     timings: null,
     excludeTimings: ['turnStart'],
     group: 'このターン',
-    description: `自分のターン中に、モンスターを${cp.summonsMin}体以上場に出していれば発動（召喚・蘇生。いま出たものも数える）`,
+    description: `自分のターン中に、モンスターを${cp.summonsMin}体以上場に出していれば発動（召喚・蘇生・トークン。いま出たものも数える）`,
   },
   bigDiscard: {
     id: 'bigDiscard',

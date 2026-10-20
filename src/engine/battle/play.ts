@@ -2,11 +2,11 @@
 import { BALANCE } from '../balance.ts';
 import { classifyCard } from '../classify.ts';
 import { TIMINGS, isPowerTiming, type TargetRule } from '../options.ts';
-import { getEffect } from '../registry.ts';
+import { getDrawback, getEffect } from '../registry.ts';
 import type { CardDef } from '../types.ts';
 import { enqueue, log, newUid, other, playerRef, playRecord } from './core.ts';
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
-import { targetableTaunts } from './damage.ts';
+import { cardTargetable, cardTargetableTaunts } from './damage.ts';
 import { discardCard, summon } from './zones.ts';
 import { NOISE_CARD_ID, type CardInst, type Chosen, type GameState, type PlayerId, type PowerInst, type TargetRef } from './types.ts';
 
@@ -28,21 +28,26 @@ export function chosenRules(def: CardDef): { enemy: TargetRule[]; ally: boolean 
     if (e.timing !== timing || e.target !== 'chosen' || TIMINGS[timing].chosen !== 'manual') continue;
     const rule = getEffect(e.id)?.targetRule;
     if (rule === 'allyMonsterOne') ally = true;
-    else if (rule) enemy.push(rule);
+    else if (rule === 'fight') {
+      // 格闘：自分のモンスターと相手モンスターの両方を選ぶ
+      ally = true;
+      enemy.push(rule);
+    } else if (rule) enemy.push(rule);
   }
   return { enemy, ally };
 }
 
 /**
- * 相手側の「選んだ1体」の候補（隠密は選べない）。
- * 相手に選べる挑発モンスターがいる間は、その挑発モンスターしか選べない（相手プレイヤーも選べない：決定事項 #83）
+ * 相手側の「選んだ1体」の候補（隠密・呪禁は選べない）。
+ * 相手に選べる挑発モンスターがいる間は、その挑発モンスターしか選べない（相手プレイヤーも選べない：決定事項 #83）。
+ * 呪禁の挑発は数えない（呪禁の挑発しかいなければ、呪禁でないモンスターとプレイヤーから自由に選べる）
  */
 export function enemyCandidates(g: GameState, p: PlayerId, rules: TargetRule[]): TargetRef[] {
   if (rules.length === 0) return [];
   const opp = other(p);
-  const taunts = targetableTaunts(g, opp);
+  const taunts = cardTargetableTaunts(g, opp);
   if (taunts.length > 0) return taunts.map((m): TargetRef => ({ kind: 'monster', uid: m.uid }));
-  const monsters = g.players[opp].board.filter((m) => !m.stealth).map((m): TargetRef => ({ kind: 'monster', uid: m.uid }));
+  const monsters = g.players[opp].board.filter((m) => cardTargetable(g, m)).map((m): TargetRef => ({ kind: 'monster', uid: m.uid }));
   const allowPlayer = rules.some((r) => r === 'enemyAny');
   return [...(allowPlayer ? [playerRef(opp)] : []), ...monsters];
 }
@@ -65,6 +70,8 @@ export function validatePlay(g: GameState, p: PlayerId, cardUid: string, chosen:
   if (!def) return 'カードの定義が見つかりません';
   const cost = effectiveCost(g, p, card);
   if (cost > ps.energy) return `エナジーが足りません（必要${cost}、残り${ps.energy}）`;
+  const reason = drawbackBlock(g, p, card);
+  if (reason) return reason;
   const rules = chosenRules(def);
   const enemies = enemyCandidates(g, p, rules.enemy);
   if (enemies.length > 0) {
@@ -81,6 +88,25 @@ export function validatePlay(g: GameState, p: PlayerId, cardUid: string, chosen:
     return '自分のモンスターは選べません';
   }
   return null;
+}
+
+/** デメリットのせいで使えない理由（生け贄にするモンスターがいない など）。使えるなら null */
+export function drawbackBlock(g: GameState, p: PlayerId, card: CardInst): string | null {
+  for (const d of g.cards[card.cardId]?.drawbacks ?? []) {
+    const reason = getDrawback(d.id)?.battle.canPlay?.(g, p, card) ?? null;
+    if (reason) return reason;
+  }
+  return null;
+}
+
+/** カードのデメリットの寿命（あれば最短のもの） */
+export function lifespanOf(def: CardDef | undefined): number | undefined {
+  let life: number | undefined;
+  for (const d of def?.drawbacks ?? []) {
+    const n = getDrawback(d.id)?.battle.lifespan?.(d);
+    if (n !== undefined) life = life === undefined ? n : Math.min(life, n);
+  }
+  return life;
 }
 
 export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Chosen): void {
@@ -178,12 +204,18 @@ export function finishCard(g: GameState, p: PlayerId, card: CardInst, protectKey
         drawbacks: def.drawbacks.filter((d) => isPowerTiming(d.timing, 'spell')),
       };
       if (newPower.effects.length > 0 || newPower.drawbacks.length > 0) {
+        const life = lifespanOf(def);
+        if (life !== undefined) newPower.life = life;
         addPower(g, p, newPower, depth);
-        log(g, depth, `「${def.name}」はパワーとして場に残り、カードは除外された`);
+        log(g, depth, `「${def.name}」はパワーとして場に残り、カードは除外された${life !== undefined ? `（寿命${life}）` : ''}`);
       } else {
         log(g, depth, `「${def.name}」は除外された`);
       }
       ps.exile.push(card);
+    } else if (def.drawbacks.some((d) => getDrawback(d.id)?.battle.exhaust)) {
+      // 廃棄：捨て札ではなく除外へ
+      g.players[card.owner].exile.push(card);
+      log(g, depth, `廃棄：「${def.name}」は除外された`);
     } else {
       discardCard(g, card);
     }

@@ -1817,7 +1817,7 @@ button.lt-card:focus-visible {
   -webkit-user-select: none;
 }
 .battle.is-dragging--arrow .board .mt:not(.is-targetable):not(.is-dragging),
-.battle.is-dragging--arrow .pp:not(.is-targetable) {
+.battle.is-dragging--arrow .pp:not(.is-targetable):not(:has(.pile.is-lit)) {
   opacity: 0.55;
 }
 .hand__drop {
@@ -1940,6 +1940,14 @@ button.lt-card:focus-visible {
   max-width: calc(100vw - 16px);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* 長い案内（サイクリング・魂力の「🗑で離すと…」つき）は2行まで折り返す */
+.drag-hint.is-long {
+  white-space: normal;
+  width: max-content;
+  max-width: min(220px, calc(100vw - 16px));
+  text-align: center;
+  border-radius: 12px;
 }
 .drag-hint--below {
   transform: translate(-50%, 8px);
@@ -2155,4 +2163,184 @@ button.lt-card:focus-visible {
 }
 .cdetail--noise p {
   margin: 0;
+}
+
+/* ============================================================ MTG 要素 ○ バッチC1：起動・捨て札から使う・サイクリング／魂力・コスト */
+
+/* 起動の ⚡ ボタン（モンスターの右端・パワーの札の横）。使えないときは灰色 */
+.act-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 26px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  color: #ffe9a3;
+  background: #3b2c05;
+  border: 1.5px solid #ffd85c;
+  border-radius: var(--radius-pill);
+  box-shadow:
+    0 0 8px rgba(255, 216, 92, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.45);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.act-btn::after {
+  content: '';
+  position: absolute;
+  inset: -6px -4px;
+}
+.act-btn.is-blocked {
+  color: var(--muted);
+  background: var(--panel-3);
+  border-color: var(--line);
+  box-shadow: none;
+  cursor: pointer;
+}
+.act-btn.is-dragging {
+  outline: 2px solid var(--warn);
+  outline-offset: 2px;
+}
+.act-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.mt__act {
+  position: absolute;
+  top: 24px;
+  right: -8px;
+  z-index: 2;
+}
+.pw-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.pw-chip .act-btn {
+  min-height: 22px;
+  min-width: 30px;
+}
+.act-ghost {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-weight: bold;
+  color: #ffe9a3;
+  background: #3b2c05;
+  border: 1.5px solid #ffd85c;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+.mt.is-activate,
+.pp.is-activate {
+  animation: glow-activate 0.6s;
+}
+@keyframes glow-activate {
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  40% {
+    box-shadow:
+      0 0 0 3px #ffd85c,
+      0 0 22px rgba(255, 216, 92, 0.8);
+  }
+}
+
+/* 捨て札の山：捨て札から使えるカードの数、サイクリング・魂力の落とし先 */
+.pile__usable {
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  font-weight: bold;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #06281a;
+  background: var(--ok);
+}
+.pile--btn.is-lit {
+  border-color: var(--warn);
+  color: var(--warn);
+  animation: target-pulse 1.1s ease-in-out infinite;
+}
+.pile--btn.is-drop-hover {
+  animation: none;
+  border-color: var(--ok);
+  color: #fff;
+  background: rgba(60, 207, 145, 0.3);
+  box-shadow:
+    0 0 0 3px var(--ok),
+    0 0 20px rgba(60, 207, 145, 0.8);
+  transform: scale(1.12);
+}
+
+/* 自分の捨て札の一覧（捨て札から使えるカードは光り、つかんで盤面へ） */
+.pile-hint {
+  margin: 0 0 8px;
+}
+.pile-row {
+  position: relative;
+  display: grid;
+  gap: 2px;
+}
+.pile-row--fd {
+  touch-action: pan-y;
+  cursor: grab;
+}
+.pile-row.is-usable .crow {
+  border-color: var(--ok);
+  box-shadow: 0 0 0 1px var(--ok) inset;
+}
+.pile-row__tag {
+  justify-self: start;
+  margin-left: 6px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.pile-row__tag.is-ok {
+  color: var(--ok);
+  font-weight: bold;
+}
+
+/* 手札のコスト：キッカーの追加（コストの丸の右肩に小さく） */
+.hc__cost {
+  position: relative;
+}
+.hc__kick {
+  position: absolute;
+  left: calc(100% - 4px);
+  top: -6px;
+  padding: 0 3px;
+  border-radius: var(--radius-pill);
+  font-size: 9px;
+  line-height: 1.4;
+  font-weight: bold;
+  color: #2b1d00;
+  background: #ffd85c;
+  white-space: nowrap;
+}
+
+/* キッカー・魂力の確認の中の効果テキスト */
+.kick-list li {
+  color: var(--text);
+}
+
+/* 手札：サイクリング・魂力の印（左下） */
+.hc__abil {
+  position: absolute;
+  left: -4px;
+  bottom: -6px;
+  z-index: 2;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--panel-3);
+  border: 1px solid var(--line-strong);
 }

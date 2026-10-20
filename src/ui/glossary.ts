@@ -145,7 +145,22 @@ const MODIFIER_ICON: Record<string, string> = {
   perCardPlayed: '🃏',
 };
 
-const ABILITY_ICON: Record<string, string> = { shuffleBack: '🔄', buyback: '↩', rebound: '🔁', grow: '🌱' };
+const ABILITY_ICON: Record<string, string> = {
+  shuffleBack: '🔄',
+  buyback: '↩',
+  rebound: '🔁',
+  grow: '🌱',
+  // MTG 要素 ○ バッチC1
+  flashback: '⚱',
+  jumpStart: '🦘',
+  escape: '🏃',
+  activate: '⚡',
+  cycling: '♻',
+  channel: '🌀',
+  affinity: '🧲',
+  costCut: '✂',
+  kicker: '🦶',
+};
 
 /** カードの能力（MTG 要素 ○ バッチB。レジストリから作る） */
 export const abilityGlossary: Record<string, GlossaryEntry> = Object.fromEntries(
@@ -294,7 +309,39 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     name: 'カードの能力',
     icon: '✦',
     tone: 'info',
-    short: `循環・再利用・反復・成長など、カード1枚に付く性質（1枚に${BALANCE.card.maxAbilities}つまで）。使い終えたカードの行き先は、装備 → 反復 → 再利用 → 循環 → 廃棄 → 捨て札 の順に決まる`,
+    short: `循環・再利用・反復・成長・捨て札から使う・起動・サイクリング・魂力・親和・条件付き軽減・キッカーなど、カード1枚に付く性質（1枚に${BALANCE.card.maxAbilities}つまで）。使い終えたカードの行き先は、装備 → 捨て札から使った（除外）→ 反復 → 再利用 → 循環 → 廃棄 → 捨て札 の順に決まる`,
+  },
+  // ---- MTG 要素 ○ バッチC1
+  playFromDiscard: {
+    name: '捨て札から使う',
+    icon: '⚱',
+    tone: 'info',
+    short:
+      'フラッシュバック・再活・脱出のカードは、自分のターンに捨て札から使える（使った枚数に数え、封殺にも掛かる）。フラッシュバック・再活は使ったら除外（モンスターなら場を離れるとき除外）、脱出は捨て札に戻る。「捨て札から使ったとき」の効果があれば、使用時・召喚時の効果の代わりにそれが出る。山札が尽きて捨て札を混ぜると山札に戻る',
+  },
+  activated: {
+    name: '起動',
+    icon: '⚡',
+    tone: 'info',
+    short: '起動のモンスター・パワーは、自分のターンにエナジーを払って「起動」の効果を使える（1つにつき1ターン1回。召喚したターンも使える）。カードを使ったことには数えない（「カードを使うたび」・封殺に関係しない）。封印されたモンスターは起動できない',
+  },
+  handAbility: {
+    name: 'サイクリング・魂力',
+    icon: '♻',
+    tone: 'info',
+    short: `手札のサイクリングのカードは、エナジー${BALANCE.abilities.cycling.cost}で捨てて1枚引ける。魂力のカードは、エナジーを払って捨て、「魂力」の効果を使える（本体と二者択一）。どちらもカードを使ったことには数えない。対戦画面では捨て札の山へドラッグ`,
+  },
+  dynamicCost: {
+    name: '動的コスト',
+    icon: '🧲',
+    tone: 'info',
+    short: `コストは状況で変わる：印刷コスト → 親和・条件付き軽減（親和は${BALANCE.abilities.affinity.minCost}まで、条件付き軽減は${BALANCE.abilities.costCut.minCost}まで）→ 凍結の+${B.freezeCostIncrease}・軽減効果 → キッカー・フラッシュバック・護法の追加。手札のコストの数字は今の実コスト（下がれば緑、上がれば赤）`,
+  },
+  kicker: {
+    name: 'キッカー',
+    icon: '🦶',
+    tone: 'info',
+    short: '使うときにエナジーを追加で払ってもよい。払えば条件「キッカーを払っていれば」の効果も出る（払えるときだけ、使ったあとに聞かれる）',
   },
 };
 

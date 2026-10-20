@@ -136,7 +136,7 @@ function executeEffect(g: GameState, original: Extract<Step, { t: 'effect' }>): 
   const me = step.src.controller;
   if (!step.picks) {
     if (sourceGone(g, step)) return;
-    log(g, step.depth, `${step.src.name}：${describeEffect(step.effect)}`, 'effect');
+    log(g, step.depth, `${step.src.name}：${describeEffect(step.effect, g.cards[step.src.cardId])}`, 'effect');
     const opts = { roll: { depth: step.depth + 1 }, src: step.src, ...(step.protectKey ? { protectKey: step.protectKey } : {}) };
     if (step.effect.condition && !checkCondition(g, me, step.effect.condition, opts)) {
       log(g, step.depth + 1, `条件「${CONDITIONS[step.effect.condition].label}」を満たさないため発動しない`);

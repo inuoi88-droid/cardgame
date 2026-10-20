@@ -5,10 +5,17 @@ import { drawbackValueSpec, type ParamSpec } from './define.ts';
 import { CARD_TYPE_LABEL, RARITY_LABEL } from './labels.ts';
 import { isIntInRange } from './math.ts';
 import { effectPoints, modifierFits, rarityCap } from './points.ts';
-import { CONDITIONS, TIMINGS, conditionsFor, targetLabel, targetsForEffect } from './options.ts';
+import { CONDITIONS, TIMINGS, conditionsFor, costConditions, hasAnyAbility, targetLabel, targetsForEffect } from './options.ts';
 import { getAbility, getDrawback, getEffect, getKeyword, getModifier } from './registry.ts';
 import { growHits } from './defs/abilities/grow.ts';
-import { RARITIES, type CardDef, type PointSummary, type Violation } from './types.ts';
+import { RARITIES, type CardDef, type PointSummary, type TimingId, type Violation } from './types.ts';
+
+/** 能力が要るタイミング（MTG 要素 ○ バッチC1）の違反コード：能力が無いのにそのタイミングの効果がある／能力があるのに効果が無い */
+const ABILITY_TIMING_CODE: Partial<Record<TimingId, string>> = {
+  fromDiscard: 'FROM_DISCARD_WITHOUT_ABILITY',
+  activated: 'ACTIVATE_MISMATCH',
+  channel: 'CHANNEL_MISMATCH',
+};
 
 function checkParam(
   out: Violation[],
@@ -120,6 +127,15 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
       const ok = def.timings.map((t) => `「${TIMINGS[t].label}」`).join('・');
       out.push({ code: 'EFFECT_TIMING', path: `${path}.timing`, message: `${what}は${ok}でしか使えません` });
     }
+    // 能力が要るタイミング（起動・魂力・捨て札から使ったとき。MTG 要素 ○ バッチC1）
+    if (timing.requiresAbility && !hasAnyAbility(card.abilities, timing.requiresAbility)) {
+      const names = timing.requiresAbility.map((id) => `「${getAbility(id)?.name ?? id}」`).join('・');
+      out.push({
+        code: ABILITY_TIMING_CODE[e.timing] ?? 'EFFECT_TIMING',
+        path: `${path}.timing`,
+        message: `「${timing.label}」の効果は、カードの能力${names}があるカードにしか付けられません`,
+      });
+    }
     if (!targetsForEffect(def, e.timing, base).includes(e.target)) {
       const label = BALANCE.target[e.target] !== undefined ? targetLabel(e.target, def.targetRule, e.timing) : e.target;
       out.push({ code: 'EFFECT_TARGET', path: `${path}.target`, message: `${what}（${timing.label}）の対象に「${label}」は選べません` });
@@ -128,7 +144,10 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
       const cond = CONDITIONS[e.condition];
       if (!cond) {
         out.push({ code: 'EFFECT_CONDITION', path: `${path}.condition`, message: `${what}の条件が正しくありません` });
-      } else if (!conditionsFor(e.timing, base).includes(e.condition)) {
+      } else if (cond.requiresAbility && !hasAnyAbility(card.abilities, cond.requiresAbility)) {
+        // キッカーを払っていれば（MTG 要素 ○ バッチC1）：キッカーのあるカードだけ
+        out.push({ code: 'KICKER_MISMATCH', path: `${path}.condition`, message: `条件「${cond.label}」は、カードの能力「キッカー」があるカードにしか付けられません` });
+      } else if (!conditionsFor(e.timing, base, card.abilities).includes(e.condition)) {
         out.push({
           code: 'EFFECT_CONDITION',
           path: `${path}.condition`,
@@ -245,6 +264,9 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
       } else if (def.timings && !def.timings.includes(d.timing!)) {
         const ok = def.timings.map((t) => `「${TIMINGS[t].label}」`).join('・');
         out.push({ code: 'DRAWBACK_TIMING', path: `${path}.timing`, message: `${what}は${ok}でしか使えません` });
+      } else if (timing.noDrawbacks) {
+        // 起動・魂力・捨て札から使ったとき（MTG 要素 ○ バッチC1）は使うかどうかを自分で決めるので、デメリットには使えない
+        out.push({ code: 'DRAWBACK_TIMING', path: `${path}.timing`, message: `「${timing.label}」はデメリットには使えません` });
       }
     }
   });
@@ -293,6 +315,35 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     // 成長は使用時のダメージ効果が要る
     if (def.battle.grow && growHits(card.effects) === 0) {
       out.push({ code: 'GROW_WITHOUT_DAMAGE', path, message: `${what}は、使用時のダメージ・連撃の効果があるカードにしか付けられません` });
+    }
+    // ---- MTG 要素 ○ バッチC1
+    // 起動・魂力は、そのタイミングの効果が要る
+    if (def.requiresTiming && !card.effects.some((e) => e.timing === def.requiresTiming)) {
+      out.push({
+        code: ABILITY_TIMING_CODE[def.requiresTiming] ?? 'ABILITY_TIMING',
+        path,
+        message: `${what}は、「${TIMINGS[def.requiresTiming].label}」の効果があるカードにしか付けられません`,
+      });
+    }
+    // キッカーは「キッカーを払っていれば」の効果が要る
+    if (def.battle.kickerCost && !card.effects.some((e) => e.condition === 'kicked')) {
+      out.push({ code: 'KICKER_MISMATCH', path, message: `${what}は、条件「${CONDITIONS.kicked.label}」の効果があるカードにしか付けられません` });
+    }
+    // 親和は印刷コスト2以上のカードだけ（コスト1では軽減できない）
+    if (a.id === 'affinity' && card.cost < BALANCE.abilities.affinity.minCost + 1) {
+      out.push({ code: 'AFFINITY_LOW_COST', path, message: `${what}は、コスト${BALANCE.abilities.affinity.minCost + 1}以上のカードにしか付けられません` });
+    }
+    // 条件付き軽減は、コストの計算に使える条件が要る。それ以外の能力に条件は付けない
+    if (def.takesCondition) {
+      if (!a.condition || !costConditions().includes(a.condition)) {
+        out.push({
+          code: 'COST_CUT_CONDITION',
+          path: `${path}.condition`,
+          message: a.condition ? `条件「${CONDITIONS[a.condition]?.label ?? a.condition}」はコストの軽減には使えません` : `${what}の条件を選んでください`,
+        });
+      }
+    } else if (a.condition !== undefined) {
+      out.push({ code: 'ABILITY_CONDITION', path: `${path}.condition`, message: `${what}には条件を付けられません` });
     }
   });
 

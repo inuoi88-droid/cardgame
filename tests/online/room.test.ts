@@ -454,6 +454,97 @@ describe('MTG 要素 ○ バッチB（サーバー越し）', () => {
   });
 });
 
+describe('MTG 要素 ○ バッチC1（新しい行動のサーバー越しの検証）', () => {
+  it('形を調べる：捨て札から使う・キッカー・起動・手札から使う能力。知らない項目は捨てる', () => {
+    expect(
+      parseAction({ type: 'playCard', player: 0, cardUid: 'c1', from: 'discard', discardUid: 'h1', exileUids: ['d1', 'd2'], kick: true, chosen: { ally: 'm1' }, junk: 1 }),
+    ).toEqual({ type: 'playCard', player: 0, cardUid: 'c1', chosen: { ally: 'm1' }, from: 'discard', discardUid: 'h1', exileUids: ['d1', 'd2'], kick: true });
+    expect(parseAction({ type: 'playCard', player: 0, cardUid: 'c1', kick: false })).toEqual({ type: 'playCard', player: 0, cardUid: 'c1' });
+    expect(parseAction({ type: 'activate', player: 1, sourceUid: 'm1', chosen: { enemy: { kind: 'player', player: 0 } }, x: 2 })).toEqual({
+      type: 'activate',
+      player: 1,
+      sourceUid: 'm1',
+      chosen: { enemy: { kind: 'player', player: 0 } },
+    });
+    expect(parseAction({ type: 'handAbility', player: 0, cardUid: 'c1', ability: 'cycling' })).toEqual({ type: 'handAbility', player: 0, cardUid: 'c1', ability: 'cycling' });
+  });
+
+  it('壊れた形は受け付けない', () => {
+    expect(parseAction({ type: 'playCard', player: 0, cardUid: 'c1', from: 'deck' })).toBeNull();
+    expect(parseAction({ type: 'playCard', player: 0, cardUid: 'c1', from: 'hand' })).toBeNull();
+    expect(parseAction({ type: 'playCard', player: 0, cardUid: 'c1', discardUid: 5 })).toBeNull();
+    expect(parseAction({ type: 'playCard', player: 0, cardUid: 'c1', exileUids: 'd1' })).toBeNull();
+    expect(parseAction({ type: 'playCard', player: 0, cardUid: 'c1', exileUids: [''] })).toBeNull();
+    expect(parseAction({ type: 'playCard', player: 0, cardUid: 'c1', kick: 'yes' })).toBeNull();
+    expect(parseAction({ type: 'activate', player: 0 })).toBeNull();
+    expect(parseAction({ type: 'activate', player: 0, sourceUid: 'm1', chosen: { enemy: { kind: 'monster' } } })).toBeNull();
+    expect(parseAction({ type: 'handAbility', player: 0, cardUid: 'c1', ability: 'flashback' })).toBeNull();
+    expect(parseAction({ type: 'handAbility', player: 0, cardUid: 'c1' })).toBeNull();
+    expect(parseAction({ type: 'handAbility', player: 0, cardUid: 'c1', ability: 'channel', chosen: 'x' })).toBeNull();
+  });
+
+  it('往復：捨て札から使う（フラッシュバック）・キッカー・起動（2回目は拒否）・サイクリング', () => {
+    const { s, now } = playing(BEASTS, BEASTS);
+    const g = s.room!.state!;
+    const p = g.active;
+    const opp = battle.other(p);
+    const tk = tokenOf(p);
+    g.players[p].energy = 10;
+    // 捨て札から
+    const fb = card({ id: 'fbo', name: '火の雨', cost: 1, effects: [{ id: 'damage', value: 2, timing: 'play', target: 'chosen', condition: null }], abilities: [{ id: 'flashback', value: 1 }] });
+    g.cards[`p${p}:fbo`] = fb;
+    g.players[p].discard.push({ uid: 'fbo1', cardId: `p${p}:fbo`, owner: p });
+    const hp = g.players[opp].hp;
+    let t = now;
+    ok(s.send(actionReq(tk, s.room!.version, { type: 'playCard', player: p, cardUid: 'fbo1', from: 'discard', chosen: { enemy: { kind: 'player', player: opp } } }), { tokenHash: tk, now: t++ }));
+    expect(s.room!.state!.players[opp].hp).toBe(hp - 2 * BALANCE.amountScale);
+    expect(s.room!.state!.players[p].exile.some((c) => c.uid === 'fbo1')).toBe(true);
+    // 同じカードをもう一度捨て札から → 拒否
+    const again = s.send(actionReq(tk, s.room!.version, { type: 'playCard', player: p, cardUid: 'fbo1', from: 'discard' }), { tokenHash: tk, now: t++ });
+    expect(again.ok).toBe(false);
+    // キッカー
+    const kick = card({
+      id: 'kko',
+      name: '槍',
+      cost: 1,
+      effects: [
+        { id: 'damage', value: 1, timing: 'play', target: 'chosen', condition: null },
+        { id: 'damage', value: 1, timing: 'play', target: 'chosen', condition: 'kicked' },
+      ],
+      abilities: [{ id: 'kicker', value: 1 }],
+    });
+    const st = s.room!.state!;
+    const ku = giveCard(st, p, kick);
+    const hp2 = st.players[opp].hp;
+    ok(s.send(actionReq(tk, s.room!.version, { type: 'playCard', player: p, cardUid: ku, kick: true, chosen: { enemy: { kind: 'player', player: opp } } }), { tokenHash: tk, now: t++ }));
+    expect(s.room!.state!.players[opp].hp).toBe(hp2 - 2 * BALANCE.amountScale);
+    // 起動
+    const turret: CardDef = card({
+      id: 'tur',
+      name: '砲台',
+      cost: 1,
+      stats: { attack: 1, hp: 3, defense: 0 },
+      effects: [{ id: 'heal', value: 1, timing: 'activated', target: 'self', condition: null }],
+      abilities: [{ id: 'activate', value: 1 }],
+    });
+    const tu = giveCard(s.room!.state!, p, turret);
+    ok(s.send(actionReq(tk, s.room!.version, { type: 'playCard', player: p, cardUid: tu }), { tokenHash: tk, now: t++ }));
+    ok(s.send(actionReq(tk, s.room!.version, { type: 'activate', player: p, sourceUid: tu }), { tokenHash: tk, now: t++ }));
+    const twice = s.send(actionReq(tk, s.room!.version, { type: 'activate', player: p, sourceUid: tu }), { tokenHash: tk, now: t++ });
+    expect(twice.ok).toBe(false);
+    if (!twice.ok) expect(twice.error).toContain('1ターン1回');
+    // 相手は自分の手番でないので起動できない
+    const theirs = s.send(actionReq(tokenOf(opp), s.room!.version, { type: 'activate', player: opp, sourceUid: tu }), { tokenHash: tokenOf(opp), now: t++ });
+    expect(theirs.ok).toBe(false);
+    // サイクリング
+    const cyc = giveCard(s.room!.state!, p, card({ id: 'cyo', name: '流星', cost: 5, effects: [{ id: 'damage', value: 9, timing: 'play', target: 'chosen', condition: null }], abilities: [{ id: 'cycling' }] }));
+    const energy = s.room!.state!.players[p].energy;
+    ok(s.send(actionReq(tk, s.room!.version, { type: 'handAbility', player: p, cardUid: cyc, ability: 'cycling' }), { tokenHash: tk, now: t++ }));
+    expect(s.room!.state!.players[p].energy).toBe(energy - 1);
+    expect(s.room!.state!.players[p].discard.some((c) => c.uid === cyc)).toBe(true);
+  });
+});
+
 describe('接続状態と再接続', () => {
   it('相手から30秒以上通信がなければ「切断中」', () => {
     const { s, now } = playing();

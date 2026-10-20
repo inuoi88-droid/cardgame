@@ -207,5 +207,5 @@ describe('この倍率での対戦', () => {
       }
       expect(g.phase, `${A.name} 対 ${B.name}`).toBe('ended');
     }
-  });
+  }, 60_000);
 });

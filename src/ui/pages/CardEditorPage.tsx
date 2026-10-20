@@ -17,10 +17,12 @@ import {
   availableDrawbacks,
   cardBase,
   createAbility,
+  setAbilities as setCardAbilities,
   getAbility,
   createDrawback,
   createEffect,
   descriptionLength,
+  describeAbility,
   getDrawback,
   getKeyword,
   isNameTaken,
@@ -28,6 +30,7 @@ import {
   normalizeDescription,
   setMonster,
   type CardDef,
+  type ConditionId,
   type DrawbackInstance,
   type EffectInstance,
   type Violation,
@@ -46,6 +49,8 @@ import { useToast } from '../components/Toast.tsx';
 import { budgetOf } from '../editor/budget.ts';
 import { EffectPicker, type PickerMode } from '../editor/EffectPicker.tsx';
 import { MiniPreview } from '../editor/MiniPreview.tsx';
+import { OptionPicker } from '../editor/OptionPicker.tsx';
+import { abilityConditionOptions, abilityOptionOptions } from '../editor/pickOptions.ts';
 import { TEMPLATES, type CardTemplate } from '../editor/templates.ts';
 import { effectRowViolations, effectSectionViolations, fieldId, findFieldElement, violationsAt, violationsExactly } from '../editor/validation.ts';
 import { navigate, setNavigationGuard } from '../router.ts';
@@ -302,7 +307,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
   };
   const addEffect = (id: string) => {
     const key = genKey();
-    setEffects([...card.effects, createEffect(id, base)], [...eKeys, key]);
+    setEffects([...card.effects, createEffect(id, base, card.abilities)], [...eKeys, key]);
     setExpanded(new Set([key])); // 追加・複製した行だけを開き、ほかは要約にたたむ
     setFocusKey(key);
   };
@@ -368,12 +373,8 @@ function Editor({ saved }: { saved: CardDef | null }) {
 
   // ---------------------------------------------------------------- カードの能力（MTG 要素 ○ バッチB）
   const abilities = card.abilities ?? [];
-  const setAbilities = (next: typeof abilities) =>
-    setCard((c) => {
-      const out: CardDef = { ...c, abilities: next };
-      if (next.length === 0) delete out.abilities;
-      return out;
-    });
+  // 能力が変わったら、能力が要るタイミング・条件（起動・魂力・捨て札から使ったとき・キッカー）の効果を合わせ直す（MTG 要素 ○ バッチC1）
+  const setAbilities = (next: typeof abilities) => setCard((c) => setCardAbilities(c, next));
   const addAbility = (id: string) => setAbilities([...abilities, createAbility(id)]);
   const removeAbility = (i: number) => {
     const name = getAbility(abilities[i]!.id)?.name ?? '能力';
@@ -706,7 +707,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
           </section>
 
           {/* ---------------------------------------------------------------- カードの能力（MTG 要素 ○ バッチB） */}
-          {(base === 'spell' || abilities.length > 0) && (
+          {(base === 'spell' || abilities.length > 0 || abilityAddable) && (
             <section className="panel ed-section" id={fieldId('abilities')}>
               <div className="ed-section__head">
                 <span className="ed-step" aria-hidden="true">
@@ -719,7 +720,9 @@ function Editor({ saved }: { saved: CardDef | null }) {
                   </small>
                 </h2>
               </div>
-              <p className="hint">循環・再利用・反復・成長など、カード1枚に付く性質です（アタック・スキルのカード向け）。</p>
+              <p className="hint">
+                カード1枚に付く性質です。循環・再利用・反復・成長（アタック・スキル向け）、捨て札から使う（フラッシュバック・再活・脱出）、起動、サイクリング・魂力、コストを変える（親和・条件付き軽減・キッカー）。
+              </p>
               {abilities.map((a, i) => {
                 const def = getAbility(a.id);
                 const line = analysis.points.lines.find((l) => l.kind === 'ability' && l.index === i);
@@ -733,19 +736,47 @@ function Editor({ saved }: { saved: CardDef | null }) {
                       </button>
                     </div>
                     {def && <p className="ed-row__summary">{def.summary}</p>}
-                    {def?.value && (
+                    {(def?.value || def?.option || def?.takesCondition) && (
                       <div className="ed-row__params">
-                        <Stepper
-                          label={def.value.label}
-                          value={a.value}
-                          min={def.value.min}
-                          max={def.value.max}
-                          step={stepOf(def.value)}
-                          snap={stepOf(def.value) > 1}
-                          onChange={(v) => setAbilities(abilities.map((x, j) => (j === i ? { ...x, value: v } : x)))}
-                        />
+                        {def.value && (
+                          <Stepper
+                            label={def.value.label}
+                            value={a.value}
+                            min={def.value.min}
+                            max={def.value.max}
+                            step={stepOf(def.value)}
+                            snap={stepOf(def.value) > 1}
+                            onChange={(v) => setAbilities(abilities.map((x, j) => (j === i ? { ...x, value: v } : x)))}
+                          />
+                        )}
+                        {def.option && (
+                          <OptionPicker
+                            className="ed-row__option"
+                            label={def.option.label}
+                            title={`${def.name}の${def.option.label}`}
+                            value={a.option ?? def.option.default}
+                            options={abilityOptionOptions(a, card)}
+                            onChange={(option) => setAbilities(abilities.map((x, j) => (j === i ? { ...x, option } : x)))}
+                            id={fieldId(`abilities.${i}.option`)}
+                          />
+                        )}
+                        {def.takesCondition && (
+                          // 条件付き軽減（MTG 要素 ○ バッチC1）：条件の選択パネル（OptionPicker）を再利用
+                          <OptionPicker
+                            className="ed-row__option"
+                            label="条件（満たすとコストが下がる）"
+                            title={`${def.name}の条件`}
+                            value={a.condition ?? ''}
+                            options={abilityConditionOptions(a, card)}
+                            onChange={(c) => setAbilities(abilities.map((x, j) => (j === i ? { ...x, condition: c as ConditionId } : x)))}
+                            id={fieldId(`abilities.${i}.condition`)}
+                            invalid={violationsAt(analysis.violations, `abilities.${i}.condition`).length > 0}
+                            note="怒濤＝「このターン2枚目以降」、罠＝「前の相手のターンに相手が3枚以上使った」"
+                          />
+                        )}
                       </div>
                     )}
+                    <p className="ed-row__text">{describeAbility(a)}</p>
                     <Violations items={violationsAt(analysis.violations, `abilities.${i}`)} />
                   </div>
                 );

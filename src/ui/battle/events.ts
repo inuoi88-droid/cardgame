@@ -27,6 +27,8 @@ export type Show =
   | { t: 'summon'; uid: string }
   | { t: 'destroy'; uid: string }
   | { t: 'attack'; source: FxKey; target: FxKey; retaliate: boolean }
+  /** 起動（MTG 要素 ○ バッチC1）：起動したモンスター・パワー（key）を光らせ、短い見出しを出す */
+  | { t: 'activate'; key: FxKey; player: PlayerId; cardId: string }
   /** 中央の小さな通知（不発など） */
   | { t: 'notice'; text: string; tone: 'mine' | 'enemy' | 'neutral' }
   /** ティッカーの更新だけ */
@@ -51,6 +53,7 @@ export const DURATION = {
   summon: 400,
   destroy: 500,
   attack: 350,
+  activate: 650,
   notice: 700,
   tick: 120,
 } as const;
@@ -129,6 +132,21 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
         if (ev.player === me) push(e.text, ev.player, { t: 'played', player: ev.player, cardId: ev.cardId }, DURATION.played);
         else push(e.text, ev.player, { t: 'reveal', player: ev.player, cardId: ev.cardId }, DURATION.reveal);
         break;
+      // MTG 要素 ○ バッチC1：起動（モンスターはそのタイル、パワーはプレイヤーの枠を光らせる）・サイクリング・魂力
+      case 'activate': {
+        if (ev.player === undefined || !ev.cardId || !ev.uid) break;
+        const key = battle.findMonster(view, ev.uid) ? ev.uid : `p${ev.player}`;
+        push(e.text, ev.player, { t: 'activate', key, player: ev.player, cardId: ev.cardId }, DURATION.activate);
+        break;
+      }
+      case 'handAbility': {
+        if (ev.player === undefined || !ev.cardId) break;
+        const label = ev.status === 'cycling' ? '♻ サイクリング' : '🌀 魂力';
+        // 相手の魂力はカードを見せる（効果が出る）。サイクリングと自分の分は見出しだけ
+        if (ev.player !== me && ev.status === 'channel') push(e.text, ev.player, { t: 'reveal', player: ev.player, cardId: ev.cardId }, DURATION.reveal);
+        else push(e.text, ev.player, { t: 'notice', text: label, tone: ev.player === me ? 'mine' : 'enemy' }, DURATION.notice);
+        break;
+      }
       case 'damage':
       case 'retaliate': {
         if (!ev.target) break;

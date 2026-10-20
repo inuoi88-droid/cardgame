@@ -110,9 +110,78 @@ interface PlayerPanelProps {
   dropHover?: boolean;
   /** パワーを押したとき（詳細を開く） */
   onPower?: (pw: battle.PowerInst) => void;
+  // ---- MTG 要素 ○ バッチC1
+  /** パワーの起動の ⚡ ボタン（起動の能力があるパワーだけ） */
+  powerActivate?: (pw: battle.PowerInst) => ActivateButton | null;
+  /** 捨て札から使えるカードの数（捨て札の山にバッジ） */
+  discardUsable?: number;
+  /** ドラッグ中、捨て札の山に落とせる（サイクリング・魂力） */
+  pileLit?: boolean;
+  /** ドラッグ中、捨て札の山の上で離すと決まる */
+  pileHover?: boolean;
 }
 
-export function PlayerPanel({ ps, isMe, active, targetable, onClick, onPile, floats, flash, hpShown, roleLabel, dropKey, dropHover, onPower }: PlayerPanelProps) {
+/** 起動の ⚡ ボタン（モンスター・パワー）。使えないときは灰色で、押すと理由を出す */
+export interface ActivateButton {
+  cost: number;
+  blocked: string | null;
+  /** 押したとき（対象が要らなければ起動、要るなら対象選びへ） */
+  onTap: () => void;
+  /** つかんだとき（対象へドラッグ） */
+  onPointerDown?: (e: PointerEvent<HTMLElement>) => void;
+  /** ドラッグ中（元のボタンを強調） */
+  dragging?: boolean;
+}
+
+/** 起動の ⚡ ボタン（MTG 要素 ○ バッチC1） */
+export function ActivateBtn({ a, name, className }: { a: ActivateButton; name: string; className?: string }) {
+  const btn = (
+    <button
+      type="button"
+      className={cx('act-btn', a.blocked && 'is-blocked', a.dragging && 'is-dragging', className)}
+      aria-label={`「${name}」を起動（エナジー${a.cost}）${a.blocked ? `：${a.blocked}` : ''}`}
+      aria-disabled={a.blocked ? true : undefined}
+      data-activate={name}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!a.blocked) a.onTap();
+      }}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        a.onPointerDown?.(e);
+      }}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      ⚡{a.cost}
+    </button>
+  );
+  if (!a.blocked) return btn;
+  return (
+    <Popover content={{ title: `⚡ 起動（エナジー${a.cost}）`, description: a.blocked }} placement="top" hover={false}>
+      {btn}
+    </Popover>
+  );
+}
+
+export function PlayerPanel({
+  ps,
+  isMe,
+  active,
+  targetable,
+  onClick,
+  onPile,
+  floats,
+  flash,
+  hpShown,
+  roleLabel,
+  dropKey,
+  dropHover,
+  onPower,
+  powerActivate,
+  discardUsable = 0,
+  pileLit,
+  pileHover,
+}: PlayerPanelProps) {
   const hp = hpShown ?? ps.hp;
   const pct = Math.max(0, Math.min(100, (hp / ps.maxHp) * 100));
   const next = [
@@ -160,8 +229,16 @@ export function PlayerPanel({ ps, isMe, active, targetable, onClick, onPile, flo
         <Popover content={{ title: `📚 山札 ${ps.deck.length}枚`, description: '引く順番は非公開。尽きたら捨て札をシャッフルして山札にする' }} placement="top">
           <span className="pile">📚{ps.deck.length}</span>
         </Popover>
-        <button type="button" className="pile pile--btn" onClick={(e) => (e.stopPropagation(), onPile('discard'))} aria-label={`捨て札${ps.discard.length}枚を見る`}>
+        <button
+          type="button"
+          className={cx('pile pile--btn', isMe && 'pile--drop', pileLit && 'is-lit', pileHover && 'is-drop-hover')}
+          onClick={(e) => (e.stopPropagation(), onPile('discard'))}
+          aria-label={`捨て札${ps.discard.length}枚を見る${discardUsable > 0 ? `（捨て札から使えるカード${discardUsable}枚）` : ''}`}
+          data-drop={isMe ? 'pile' : undefined}
+          data-fx={isMe ? 'pile' : undefined}
+        >
           🗑{ps.discard.length}
+          {discardUsable > 0 && <span className="pile__usable">使える{discardUsable}</span>}
         </button>
         <button type="button" className="pile pile--btn" onClick={(e) => (e.stopPropagation(), onPile('exile'))} aria-label={`除外${ps.exile.length}枚を見る`}>
           ⛔{ps.exile.length}
@@ -226,21 +303,26 @@ export function PlayerPanel({ ps, isMe, active, targetable, onClick, onPile, flo
           </Popover>
         )}
         <Chips chips={statusChips(ps.status, true)} />
-        {ps.powers.map((pw) => (
-          <button
-            key={pw.uid}
-            type="button"
-            className="st st--power st--btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onPower?.(pw);
-            }}
-            aria-label={`パワー「${pw.name}」の詳細`}
-          >
-            ✦{pw.name}
-            {pw.life !== undefined && <span className="st__life">{` ${mechanicGlossary.lifespan!.icon}${pw.life}`}</span>}
-          </button>
-        ))}
+        {ps.powers.map((pw) => {
+          const act = powerActivate?.(pw) ?? null;
+          return (
+            <span key={pw.uid} className={cx('pw-chip', act && 'pw-chip--act')} data-fx={pw.uid}>
+              <button
+                type="button"
+                className="st st--power st--btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPower?.(pw);
+                }}
+                aria-label={`パワー「${pw.name}」の詳細`}
+              >
+                ✦{pw.name}
+                {pw.life !== undefined && <span className="st__life">{` ${mechanicGlossary.lifespan!.icon}${pw.life}`}</span>}
+              </button>
+              {act && <ActivateBtn a={act} name={pw.name} />}
+            </span>
+          );
+        })}
       </div>
       <Floats items={floats} />
     </div>
@@ -285,6 +367,8 @@ interface MonsterTileProps {
   ownerTurns?: number;
   /** 実効攻撃力（激励を含む。battle.effectiveAttack(view, m)。省略すると攻撃力＋一時強化） */
   attackNow?: number;
+  /** 起動の ⚡ ボタン（自分のモンスターで起動の能力があるとき。MTG 要素 ○ バッチC1） */
+  activate?: ActivateButton | null;
 }
 
 /** 実効攻撃力（激励は盤面が要るので、呼び出し側が渡す。無ければ攻撃力＋一時強化） */
@@ -384,7 +468,28 @@ export function monsterChips(
   return [...(m.sealed ? [] : kws), ...extra, ...statusChips(m.status, false)];
 }
 
-export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, flags, onClick, onDetail, onPointerDown, floats, flash, hidden, dying, isMine, dropHover, dragging, ownerTurns, attackNow }: MonsterTileProps) {
+export function MonsterTile({
+  m,
+  def,
+  ready,
+  blockLabel,
+  selected,
+  targetable,
+  flags,
+  onClick,
+  onDetail,
+  onPointerDown,
+  floats,
+  flash,
+  hidden,
+  dying,
+  isMine,
+  dropHover,
+  dragging,
+  ownerTurns,
+  attackNow,
+  activate,
+}: MonsterTileProps) {
   const press = useLongPress(onDetail);
   const chips = monsterChips(def, m, flags, ownerTurns, attackNow);
   const label = def?.name ?? '？';
@@ -444,6 +549,7 @@ export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, f
         </span>
       </span>
       <Chips chips={chips} className="mt__chips" passive />
+      {activate && !dying && <ActivateBtn a={activate} name={label} className="mt__act" />}
       <Floats items={floats} />
     </div>
   );
@@ -512,12 +618,23 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
   const short = cost > energy;
   const warn = info.warnings[0];
   const badge = warn ? (battle.isPowerCapWarning(warn) ? 'パワー入替' : warn.startsWith('条件') ? '条件未達' : '対象なし') : null;
+  // コストの内訳（MTG 要素 ○ バッチC1：親和・条件付き軽減・凍結・軽減効果）とキッカー
+  const steps = info.breakdown?.steps ?? [];
   const costNotes = [
     short ? `エナジーが足りません（必要${cost}・残り${energy}）` : `必要なエナジー ${cost}（残り${energy}）`,
-    discounted ? `軽減で元のコスト${def.cost}より安い` : '',
-    taxed ? `凍結で元のコスト${def.cost}より+${cost - def.cost}` : '',
+    steps.length > 0 ? `元のコスト${def.cost}：${steps.map((x) => `${x.label}${x.delta > 0 ? '+' : '−'}${Math.abs(x.delta)}`).join('、')}` : '',
+    info.kicker ? `キッカー：追加でエナジー${info.kicker.extra}（${info.kicker.payable ? '払える' : '今は払えない'}）` : '',
+    ...handAbilityNotes(def),
   ].filter(Boolean);
-  const costEl = <span className={cx('hc__cost', discounted && 'is-down', taxed && 'is-up', short && 'is-short')}>{cost}</span>;
+  // サイクリング・魂力の印（捨て札の山へドラッグで使える）
+  const kinds = battle.handAbilityKinds(def);
+  const abil = kinds.length > 0 ? { icon: kinds.map((k) => (k === 'cycling' ? '♻' : '🌀')).join(''), title: kinds.map((k) => battle.handAbilityOf(def, k)!.name).join('・') } : null;
+  const costEl = (
+    <span className={cx('hc__cost', discounted && 'is-down', taxed && 'is-up', short && 'is-short')}>
+      {cost}
+      {info.kicker && <small className="hc__kick">(+{info.kicker.extra})</small>}
+    </span>
+  );
   return (
     <div
       ref={ref}
@@ -538,6 +655,11 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
         </Popover>
       )}
       {badge && <span className="hc__badge">{badge}</span>}
+      {abil && (
+        <span className="hc__abil" aria-hidden="true" title={abil.title}>
+          {abil.icon}
+        </span>
+      )}
       <span className="hc__icon" aria-hidden="true">
         {def.icon}
       </span>
@@ -556,6 +678,14 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
       )}
     </div>
   );
+}
+
+/** 手札から使う能力（サイクリング・魂力。MTG 要素 ○ バッチC1）の案内 */
+function handAbilityNotes(def: CardDef): string[] {
+  return battle.handAbilityKinds(def).map((k) => {
+    const h = battle.handAbilityOf(def, k)!;
+    return `${h.name}：エナジー${h.cost}で捨てて${k === 'cycling' ? '1枚引く' : '魂力の効果'}（捨て札の山へドラッグ）`;
+  });
 }
 
 // ---------------------------------------------------------------- 入力の小道具

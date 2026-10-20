@@ -74,6 +74,11 @@ export interface CardInst {
   grow?: number;
   /** 再利用で手札に戻った通算ターン（1ターン1回） */
   buybackTurn?: number;
+  /**
+   * 捨て札から使った（フラッシュバック・再活。MTG 要素 ○ バッチC1）：使い終えたら除外、モンスターなら場を離れるとき除外
+   * （捨て札・手札へ行く代わりに除外へ。装備していたら外れるとき除外）
+   */
+  exileOnLeave?: boolean;
 }
 
 export const NOISE_CARD_ID = '__noise__';
@@ -137,6 +142,8 @@ export interface PowerInst {
   repeats?: Partial<Record<TimingId, { turnIndex: number; count: number }>>;
   /** 寿命（デメリット）の残り：持ち主のターン終了時に1減り、0で消える。無ければ寿命なし */
   life?: number;
+  /** 起動（MTG 要素 ○ バッチC1）した通算ターン（1ターン1回。モンスターは counters.activatedTurn） */
+  activatedTurn?: number;
 }
 
 /** 1ターンの上限を数える（安全装置：決定事項 #64）。turnIndex が変わったら数え直す */
@@ -253,8 +260,8 @@ export type Step =
   | { t: 'discardChoice'; player: PlayerId; count: number; depth: number; picks?: string[]; then?: 'recruit' }
   /** 濫用：自分のモンスター1体を生け贄にしてよい（選んだら PlayRecord.exploited。MTG 要素 ○ バッチA） */
   | { t: 'exploitChoice'; player: PlayerId; protectKey: string; depth: number; picks?: string[] }
-  /** from：手札から使った（省略）か、無料で使った（続唱）か。反復は手札から使ったときだけ */
-  | { t: 'cardDone'; player: PlayerId; card: CardInst; protectKey: string; depth: number; from?: 'hand' | 'free' }
+  /** from：手札から使った（省略）か、無料で使った（続唱）か、捨て札から使った（MTG 要素 ○ バッチC1）か。反復は手札から使ったときだけ */
+  | { t: 'cardDone'; player: PlayerId; card: CardInst; protectKey: string; depth: number; from?: PlayFrom }
   /**
    * 無料で使う（続唱。MTG 要素 ○ バッチB）。「選んだ1体」が要れば、相手側 → 自分側の順に選ぶ（stage）。
    * freeDepth は無料で使う連鎖の段（battle.maxFreePlayDepth まで）
@@ -268,6 +275,9 @@ export type Step =
   | { t: 'turnEndEffects'; player: PlayerId }
   | { t: 'retain'; player: PlayerId; picks?: string[] }
   | { t: 'turnEndFinish'; player: PlayerId; kept: string[] };
+
+/** カードをどこから使ったか（手札・無料で使う・捨て札） */
+export type PlayFrom = 'hand' | 'free' | 'discard';
 
 export interface ChoiceOption {
   id: string;
@@ -310,7 +320,10 @@ export interface LogEvent {
     | 'turnEnd'
     | 'energy'
     | 'discard'
-    | 'result';
+    | 'result'
+    // MTG 要素 ○ バッチC1：起動（uid は起動したモンスター・パワー）、手札から使う能力（status は cycling / channel）
+    | 'activate'
+    | 'handAbility';
   player?: PlayerId;
   target?: TargetRef;
   source?: TargetRef;
@@ -321,6 +334,8 @@ export interface LogEvent {
   status?: string;
   /** damage のとき、ダメージの種類（毒・やけど・自傷などの区別） */
   damageKind?: DamageKind;
+  /** play のとき、捨て札から使った（MTG 要素 ○ バッチC1） */
+  from?: 'discard';
 }
 
 export interface LogEntry {
@@ -355,6 +370,8 @@ export interface PlayRecord {
   equipTo?: string;
   /** 無料で使ったカード（続唱）の段。このカードの続唱はこの次の段になる */
   freeDepth?: number;
+  /** キッカーを払った（条件「キッカーを払っていれば」。MTG 要素 ○ バッチC1） */
+  kicked?: boolean;
 }
 
 export interface GameResult {
@@ -390,9 +407,20 @@ export interface GameState {
 
 export type MulliganMode = 'keep' | 'all' | 'partial';
 
+/** 手札から使う能力の種類（MTG 要素 ○ バッチC1） */
+export type HandAbilityKind = 'cycling' | 'channel';
+
 export type Action =
   | { type: 'mulligan'; player: PlayerId; mode: MulliganMode; cardUids?: string[] }
-  | { type: 'playCard'; player: PlayerId; cardUid: string; chosen?: Chosen }
+  /**
+   * カードを使う。MTG 要素 ○ バッチC1：from 'discard' なら捨て札から（フラッシュバック・再活・脱出）。discardUid は再活で捨てる手札、
+   * exileUids は脱出で除外する捨て札、kick はキッカーを払う
+   */
+  | { type: 'playCard'; player: PlayerId; cardUid: string; chosen?: Chosen; from?: 'discard'; discardUid?: string; exileUids?: string[]; kick?: boolean }
+  /** 起動（MTG 要素 ○ バッチC1）：場のモンスター・パワー（sourceUid）の「起動」の効果を使う */
+  | { type: 'activate'; player: PlayerId; sourceUid: string; chosen?: Chosen }
+  /** 手札から使う能力（MTG 要素 ○ バッチC1）：サイクリング・魂力 */
+  | { type: 'handAbility'; player: PlayerId; cardUid: string; ability: HandAbilityKind; chosen?: Chosen }
   | { type: 'attack'; player: PlayerId; attackerUid: string; target: TargetRef }
   | { type: 'removeNoise'; player: PlayerId; cardUid: string }
   | { type: 'choose'; player: PlayerId; picks: string[] }

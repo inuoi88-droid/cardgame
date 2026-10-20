@@ -14,7 +14,7 @@ const ZONE_LABEL: Record<ZoneRole, string> = {
 };
 
 /** 案内の中心を画面の端から離す（横にはみ出さないように） */
-const clampX = (x: number) => Math.max(96, Math.min(window.innerWidth - 96, x));
+const clampX = (x: number) => Math.max(112, Math.min(window.innerWidth - 112, x));
 
 export function DragLayer({
   drag,
@@ -32,16 +32,17 @@ export function DragLayer({
   const pos = useSyncExternalStore(subscribe, getPos, getPos);
   const { plan, origin, hover, phase, zone } = drag;
   const validKeys = new Set(plan.targets.map(targetKey));
-  const hoverValid = hover !== null && (validKeys.has(hover) || (hover === 'zone' && plan.zone !== null));
+  const hoverValid = hover !== null && (validKeys.has(hover) || (hover === 'zone' && plan.zone !== null) || (hover === 'pile' && plan.pile));
   const ow = origin.right - origin.left;
   const oh = origin.bottom - origin.top;
 
   // 矢印：つかんだ要素の上（手札）／中心（モンスター）から、指（吸い付いた対象があればその中心）へ
   let arrow: { d: string; angle: number; to: { x: number; y: number } } | null = null;
   if (plan.mode === 'arrow' && phase === 'drag') {
+    // 手札のカードは上の辺から、モンスター・起動の ⚡ ボタンは中心から
     const from = drag.src.kind === 'card' ? { x: origin.left + ow / 2, y: origin.top + 8 } : { x: origin.left + ow / 2, y: origin.top + oh / 2 };
     let to = pos;
-    if (hoverValid && hover !== 'zone') {
+    if (hoverValid && hover !== 'zone' && hover !== 'pile') {
       const el = rootRef.current?.querySelector<HTMLElement>(`[data-drop="${CSS.escape(hover!)}"]`);
       if (el) {
         const r = el.getBoundingClientRect();
@@ -64,7 +65,7 @@ export function DragLayer({
           data-drop="zone"
           style={{ left: zone.left, top: zone.top, width: zone.right - zone.left, height: zone.bottom - zone.top }}
         >
-          <span className="play-zone__label">{ZONE_LABEL[plan.zone]}</span>
+          <span className="play-zone__label">{drag.src.kind === 'activate' ? 'ここに離して起動' : ZONE_LABEL[plan.zone]}</span>
         </div>
       )}
       {plan.mode === 'ghost' && (
@@ -84,7 +85,7 @@ export function DragLayer({
       )}
       {phase === 'drag' && (
         <div
-          className={cx('drag-hint', hoverValid && 'is-ok', drag.src.kind === 'attacker' && 'drag-hint--below')}
+          className={cx('drag-hint', hoverValid && 'is-ok', drag.src.kind === 'attacker' && 'drag-hint--below', plan.hint.length > 14 && 'is-long')}
           style={
             // ゴーストはカードの上、手札からの矢印はそのカードの上、攻撃はモンスターの下（対象の名前を隠さない）
             (plan.mode === 'ghost'

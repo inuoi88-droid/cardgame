@@ -130,6 +130,12 @@ export function onLeaveBoard(g: GameState, m: Monster, depth: number, destroyed:
   const equipment = m.equipment ?? [];
   delete m.equipment;
   for (const card of equipment) {
+    // 捨て札から使ったフラッシュバック・再活の装備（MTG 要素 ○ バッチC1）は除外へ
+    if (card.exileOnLeave) {
+      g.players[card.owner].exile.push(card);
+      log(g, depth, `装備していた「${cardName(g, card.cardId)}」は除外された（捨て札から使ったため）`);
+      continue;
+    }
     g.players[card.owner].hand.push(card);
     log(g, depth, `装備していた「${cardName(g, card.cardId)}」は${g.players[card.owner].name}の手札に戻った`);
   }
@@ -346,7 +352,7 @@ export function destroyMonster(g: GameState, m: Monster, depth: number): void {
   // トークンはどこにも行かずに消える
   if (m.card.token) {
     // 何もしない
-  } else if (m.card.copy === 'temp') owner.exile.push(m.card);
+  } else if (m.card.copy === 'temp' || m.card.exileOnLeave) owner.exile.push(m.card);
   else owner.discard.push(m.card);
   log(g, depth, `${g.players[m.controller].name}の「${cardName(g, m.card.cardId)}」が破壊された${m.card.token ? '（トークンは消える）' : ''}`, 'effect', undefined, {
     kind: 'destroy',

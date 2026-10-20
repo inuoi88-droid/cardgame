@@ -18,8 +18,12 @@ export interface ConditionOpts {
   src?: SourceRef;
   /** カード1回の使用の記録のキー（濫用の記録） */
   protectKey?: string;
-  /** コストの計算（これから使う1枚を「使ったカード」に数える。バッチC1の条件付き軽減） */
+  /**
+   * コストの計算（MTG 要素 ○ バッチC1 の条件付き軽減）：これから使う1枚を「使ったカード」に数え、
+   * 手札の条件ではその1枚（selfUid）を数えない
+   */
   forCost?: boolean;
+  selfUid?: string;
 }
 
 /** 捨て札のカードの種類の数（昂揚）：モンスター・アタック・スキル・パワー（パワーアタックを含む）と、呪い。ノイズは数えない */
@@ -52,6 +56,10 @@ function sourceMonster(g: GameState, src: SourceRef) {
 export function checkCondition(g: GameState, me: PlayerId, condition: ConditionId, opts: ConditionOpts = {}): boolean {
   const mine = g.players[me];
   const theirs = g.players[other(me)];
+  /** 手札（コストの計算なら、これから使う1枚を除く） */
+  const hand = opts.selfUid ? mine.hand.filter((c) => c.uid !== opts.selfUid) : mine.hand;
+  /** このターン使ったカードの数（コストの計算なら、これから使う1枚を足す） */
+  const played = mine.turn.cardsPlayed + (opts.forCost ? 1 : 0);
   /** 「このターン」の記録は自分のターン中だけ数える */
   const myTurn = g.active === me && g.phase === 'main';
   switch (condition) {
@@ -64,11 +72,11 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
     case 'lowHp':
       return mine.hp <= Math.floor(mine.maxHp / 2);
     case 'smallHand':
-      return mine.hand.length <= C.smallHandMax;
+      return hand.length <= C.smallHandMax;
     case 'enemyPoisonBurn':
       return theirs.status.poison > 0 && theirs.status.burn > 0;
     case 'nthCard':
-      return mine.turn.cardsPlayed >= C.nthCardOrLater;
+      return played >= C.nthCardOrLater;
     case 'manyMonsters':
       return mine.board.length >= C.manyMonstersMin;
     case 'enemyDamagedThisTurn':
@@ -96,13 +104,13 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
     case 'secondPlayer':
       return g.first !== me;
     case 'emptyHand':
-      return mine.hand.length === 0;
+      return hand.length === 0;
     case 'bigMonster':
       return mine.board.some((m) => effectiveAttack(g, m) >= C.bigMonsterAttack);
     case 'bigDiscard':
       return mine.discard.length >= C.discardMin;
     case 'monsterInHand':
-      return mine.hand.some((c) => g.cards[c.cardId]?.stats);
+      return hand.some((c) => g.cards[c.cardId]?.stats);
     case 'twoSummonsThisTurn':
       return myTurn && (mine.turn.summoned ?? 0) >= C.summonsMin;
     // ---- MTG 要素 ○ バッチA
@@ -140,7 +148,7 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
     case 'enemyPoisonHigh':
       return theirs.status.poison >= C.enemyPoisonMin;
     case 'notFirstCard':
-      return mine.turn.cardsPlayed + (opts.forCost ? 1 : 0) >= C.notFirstCardFrom;
+      return played >= C.notFirstCardFrom;
     case 'clash': {
       if (!opts.roll) return true;
       const a = topCost(g, me);
@@ -157,5 +165,8 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
     }
     case 'exploit':
       return opts.protectKey !== undefined && g.protect[opts.protectKey]?.exploited === true;
+    // ---- MTG 要素 ○ バッチC1
+    case 'kicked':
+      return opts.protectKey !== undefined && g.protect[opts.protectKey]?.kicked === true;
   }
 }

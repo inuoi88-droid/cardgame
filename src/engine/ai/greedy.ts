@@ -6,8 +6,9 @@
  * - 難易度：やさしい＝貪欲法に評価のゆらぎ、リーサル探索なし／ふつう＝リーサル探索＋貪欲法／
  *   つよい＝リーサル探索＋ターン内のビーム探索。
  */
-import { legalActions } from '../battle/legal.ts';
+import { legalActions, playInfo } from '../battle/legal.ts';
 import { quashMatches, usesX } from '../battle/play.ts';
+import { isCurseCard } from '../classify.ts';
 import type { Action, GameState, PlayerId } from '../battle/types.ts';
 import { beamSearch, type BeamOptions } from './beam.ts';
 import type { Strategy } from './cpu.ts';
@@ -15,7 +16,7 @@ import { evaluate, raceFrame, WEIGHTS } from './evaluate.ts';
 import { findLethal, type LethalOptions } from './lethal.ts';
 import { decideMulligan } from './mulligan.ts';
 import { gaussian } from './noise.ts';
-import { better, chooseFor, dedupeActions, leanView, scoreAction, simulate, type Candidate } from './sim.ts';
+import { actionCard, better, chooseFor, dedupeActions, leanView, scoreAction, simulate, type Candidate } from './sim.ts';
 
 export interface GreedyOptions {
   /** 評価のゆらぎ（標準偏差）。0 ならなし */
@@ -55,11 +56,10 @@ export function quashBait(view: GameState, me: PlayerId, seed: number, frame: Re
   if (!q || view.turnIndex > q.until || view.pending || view.active !== me) return null;
   const hit = (a: Action) => {
     if (a.type !== 'playCard') return false;
-    const card = view.players[me].hand.find((c) => c.uid === a.cardUid);
-    const def = card ? view.cards[card.cardId] : undefined;
+    const def = actionCard(view, a)?.def;
     return def ? quashMatches(view, me, def) : false;
   };
-  const actions = dedupeActions(view, legalActions(view, me)).filter(hit);
+  const actions = dedupeActions(view, legalActions(view, me)).filter((a) => a.type === 'playCard' && hit(a));
   if (actions.length === 0) return null;
   const base = evaluate(view, me, frame);
   // 封殺が無いとしたときの、封殺に当たるカードの一番の得
@@ -109,9 +109,29 @@ function decideGreedy(view: GameState, me: PlayerId, seed: number, noiseSigma: n
 /** X（全力）のカードを使う行動か */
 function isXPlay(view: GameState, action: Action): boolean {
   if (action.type !== 'playCard') return false;
-  const card = view.players[action.player].hand.find((c) => c.uid === action.cardUid);
-  const def = card ? view.cards[card.cardId] : undefined;
-  return def ? usesX(def) : false;
+  const ac = actionCard(view, action);
+  return ac ? usesX(ac.def, ac.timing) : false;
+}
+
+/**
+ * サイクリング（MTG 要素 ○ バッチC1）の小規則：ほかにやることが無いとき（ターン終了の直前）、今のターンに使えないカード
+ * （コストがエナジーを超える・使えない・ノイズ以外の呪い）を回す。仮の実行では引くカードが隠れていて価値が出ないため
+ */
+export function cyclingFallback(view: GameState, me: PlayerId): Action | null {
+  const cycles = legalActions(view, me).filter((a): a is Extract<Action, { type: 'handAbility' }> => a.type === 'handAbility' && a.ability === 'cycling');
+  let best: { action: Action; key: number } | null = null;
+  for (const a of cycles) {
+    const card = view.players[me].hand.find((c) => c.uid === a.cardUid);
+    const def = card ? view.cards[card.cardId] : undefined;
+    if (!card || !def) continue;
+    const curse = isCurseCard(def);
+    const unusable = playInfo(view, me, card).blocked !== null;
+    if (!curse && !unusable) continue;
+    // 呪いを先に、次にコストの重いもの
+    const key = (curse ? 100 : 0) + def.cost;
+    if (!best || key > best.key) best = { action: a, key };
+  }
+  return best?.action ?? null;
 }
 
 export function makeStrategy(name: string, opts: GreedyOptions): Strategy {
@@ -127,8 +147,10 @@ export function makeStrategy(name: string, opts: GreedyOptions): Strategy {
       }
       const bait = quashBait(v, me, seed, raceFrame(v, me));
       if (bait) return bait;
-      if (opts.beam) return beamSearch(v, me, seed, opts.beamOptions);
-      return decideGreedy(v, me, seed, opts.noiseSigma);
+      const action = opts.beam ? beamSearch(v, me, seed, opts.beamOptions) : decideGreedy(v, me, seed, opts.noiseSigma);
+      // ターンを終える前に、使えないカードをサイクリングで回す（MTG 要素 ○ バッチC1）
+      if (action.type === 'endTurn') return cyclingFallback(v, me) ?? action;
+      return action;
     },
   };
 }

@@ -141,6 +141,11 @@ export function RulesPage() {
         <ul>
           <li>エナジーの範囲で何枚でもカードを使えます。モンスターは1ターンに1回攻撃できます（二回攻撃なら2回）。</li>
           <li>ノイズ（相手に入れられた札）は、エナジー{B.noiseRemoveCost}で除外できます。</li>
+          {(['playFromDiscard', 'activated', 'handAbility', 'dynamicCost', 'kicker'] as const).map((id) => (
+            <li key={id}>
+              <b>{mechanicGlossary[id]!.name}</b>：{mechanicGlossary[id]!.short}。
+            </li>
+          ))}
         </ul>
         <h3>ターン終了時（この順）</h3>
         <ol>

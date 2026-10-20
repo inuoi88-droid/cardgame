@@ -36,7 +36,7 @@ export function enqueueCardTiming(
   const protectKey = opts.protectKey ?? newUid(g, 'pk');
   for (const drawback of drawbacks) enqueue(g, { t: 'drawback', src, drawback, protectKey, depth });
   // 濫用（MTG 要素 ○ バッチA）：使用時・召喚時の効果に条件「生け贄にしたなら」があれば、デメリットのあと・効果の前に選ぶ
-  if ((timing === 'play' || timing === 'summon') && effects.some((e) => e.condition === 'exploit')) {
+  if ((timing === 'play' || timing === 'summon' || timing === 'fromDiscard') && effects.some((e) => e.condition === 'exploit')) {
     enqueue(g, { t: 'exploitChoice', player: src.controller, protectKey, depth });
   }
   for (const effect of effects) {

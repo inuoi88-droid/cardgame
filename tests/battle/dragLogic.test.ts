@@ -159,3 +159,65 @@ describe('arrowPath', () => {
     expect(Number.isFinite(a.angle)).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------- MTG 要素 ○ バッチC1：捨て札から使う・起動・捨て札の山（サイクリング・魂力）
+describe('新しい出どころ（捨て札・起動）と捨て札の山', () => {
+  const act = (over: Partial<Extract<DragSource, { kind: 'activate' }>> = {}): DragSource => ({ kind: 'activate', uid: 'a1', blocked: null, enemyTargets: [], allyTargets: [], ...over });
+
+  it('pile の鍵も行き来できる', () => {
+    expect(spotKey(parseSpot('pile'))).toBe('pile');
+  });
+
+  it('サイクリング・魂力のカードは捨て札の山も光り、山に落とすと手札から使う能力', () => {
+    const p = planDrag(card({ handAbilities: ['cycling'] }));
+    expect(p.pile).toBe(true);
+    expect(p.zone).toBe('play');
+    expect(p.hint).toContain('サイクリング');
+    expect(resolveDrop(card({ handAbilities: ['cycling'] }), { kind: 'pile' })).toEqual({ t: 'pile', abilities: ['cycling'] });
+    // 使えない（エナジー不足）カードでも、山には落とせる
+    const blocked = card({ blocked: 'エナジーが足りません', handAbilities: ['channel'] });
+    expect(planDrag(blocked)).toMatchObject({ pile: true, targets: [], zone: null });
+    expect(resolveDrop(blocked, { kind: 'pile' })).toEqual({ t: 'pile', abilities: ['channel'] });
+    expect(resolveDrop(blocked, { kind: 'zone' })).toMatchObject({ t: 'invalid' });
+    // 能力の無いカードは山を光らせない（山はプレイヤーの枠と同じ扱い）
+    expect(planDrag(card()).pile).toBe(false);
+    expect(resolveDrop(card(), { kind: 'pile' })).toEqual({ t: 'play', chosen: {} });
+  });
+
+  it('捨て札から持ってきたカードは手札と同じように使い、山に落としても何もしない', () => {
+    const src = card({ from: 'discard', enemyTargets: [opp, m('e1')], handAbilities: ['cycling'] });
+    expect(planDrag(src)).toMatchObject({ mode: 'arrow', pile: false, targets: [opp, m('e1')] });
+    expect(resolveDrop(src, { kind: 'monster', uid: 'e1' })).toEqual({ t: 'play', chosen: { enemy: m('e1') } });
+    expect(resolveDrop(src, { kind: 'pile' })).toEqual({ t: 'cancel' });
+  });
+
+  it('起動：対象が要らなければ場で離す。要るなら候補が光り、自分のモンスター（起動するモンスター自身も）を選べる', () => {
+    expect(planDrag(act())).toMatchObject({ mode: 'ghost', zone: 'play', pile: false, hint: '場で離すと起動' });
+    expect(resolveDrop(act(), { kind: 'zone' })).toEqual({ t: 'play', chosen: {} });
+    expect(resolveDrop(act(), { kind: 'none' })).toMatchObject({ t: 'invalid' });
+    const ally = act({ allyTargets: ['a1', 'a2'] });
+    expect(planDrag(ally)).toMatchObject({ mode: 'arrow', targets: [m('a1'), m('a2')], zone: null });
+    expect(resolveDrop(ally, { kind: 'monster', uid: 'a1' })).toEqual({ t: 'play', chosen: { ally: 'a1' } });
+    const enemy = act({ enemyTargets: [opp] });
+    expect(resolveDrop(enemy, { kind: 'player', player: 1 })).toEqual({ t: 'play', chosen: { enemy: opp } });
+    expect(resolveDrop(act({ blocked: 'このターンはもう起動しました' }), { kind: 'zone' })).toEqual({ t: 'invalid', reason: 'このターンはもう起動しました' });
+  });
+
+  it('当たり判定：落とせる捨て札の山は、それを含むプレイヤーの枠より優先。落とせないなら枠', () => {
+    const boxes = [
+      { key: 'p:0', box: { left: 0, top: 0, right: 300, bottom: 100 } },
+      { key: 'pile', box: { left: 10, top: 60, right: 50, bottom: 90 } },
+    ];
+    expect(pickSpot(20, 70, boxes, new Set(['pile']))).toBe('pile');
+    expect(pickSpot(20, 70, boxes, new Set())).toBe('p:0');
+    // 山の少し外でも吸い付く
+    expect(pickSpot(55, 95, boxes, new Set(['pile']))).toBe('pile');
+  });
+
+  it('縦の一覧（捨て札）からは、タッチなら横の動きでつかむ（縦は一覧のスクロール）', () => {
+    expect(gestureOf(3, 2, 'touch', 'list')).toBe('wait');
+    expect(gestureOf(20, 4, 'touch', 'list')).toBe('drag');
+    expect(gestureOf(3, 20, 'touch', 'list')).toBe('scroll');
+    expect(gestureOf(0, -20, 'mouse', 'list')).toBe('drag');
+  });
+});

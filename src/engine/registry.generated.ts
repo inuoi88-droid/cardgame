@@ -120,8 +120,17 @@ import drawbacks_selfBurn from './defs/drawbacks/selfBurn.ts';
 import drawbacks_selfDamage from './defs/drawbacks/selfDamage.ts';
 import drawbacks_selfPoison from './defs/drawbacks/selfPoison.ts';
 import drawbacks_upkeep from './defs/drawbacks/upkeep.ts';
+import abilities_activate from './defs/abilities/activate.ts';
+import abilities_affinity from './defs/abilities/affinity.ts';
 import abilities_buyback from './defs/abilities/buyback.ts';
+import abilities_channel from './defs/abilities/channel.ts';
+import abilities_costCut from './defs/abilities/costCut.ts';
+import abilities_cycling from './defs/abilities/cycling.ts';
+import abilities_escape from './defs/abilities/escape.ts';
+import abilities_flashback from './defs/abilities/flashback.ts';
 import abilities_grow from './defs/abilities/grow.ts';
+import abilities_jumpStart from './defs/abilities/jumpStart.ts';
+import abilities_kicker from './defs/abilities/kicker.ts';
 import abilities_rebound from './defs/abilities/rebound.ts';
 import abilities_shuffleBack from './defs/abilities/shuffleBack.ts';
 
@@ -254,8 +263,17 @@ export const DRAWBACK_DEFS: readonly DrawbackDef[] = [
   drawbacks_upkeep,
 ];
 export const ABILITY_DEFS: readonly AbilityDef[] = [
+  abilities_activate,
+  abilities_affinity,
   abilities_buyback,
+  abilities_channel,
+  abilities_costCut,
+  abilities_cycling,
+  abilities_escape,
+  abilities_flashback,
   abilities_grow,
+  abilities_jumpStart,
+  abilities_kicker,
   abilities_rebound,
   abilities_shuffleBack,
 ];

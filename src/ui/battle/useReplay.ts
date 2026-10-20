@@ -75,6 +75,9 @@ export function useReplay(view: GameState, me: PlayerId, onDone?: () => void): U
   const speed = useRef(1);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
+  /** 演出の見出しにカード名を出すための最新の状態 */
+  const viewRef = useRef(view);
+  viewRef.current = view;
 
   const clearTimer = () => {
     if (timer.current) clearTimeout(timer.current);
@@ -178,6 +181,12 @@ export function useReplay(view: GameState, me: PlayerId, onDone?: () => void): U
         }
         case 'attack':
           n.flash = { [e.show.source]: 'is-lunge', [e.show.target]: 'is-hit' };
+          n.ticker = e.text;
+          break;
+        case 'activate':
+          // 起動（MTG 要素 ○ バッチC1）：起動したものを光らせ、見出しを出す
+          n.flash = { [e.show.key]: 'is-activate' };
+          n.banner = { text: `⚡ 起動：${viewRef.current.cards[e.show.cardId]?.name ?? ''}`, tone: e.show.player === me ? 'mine' : 'enemy', big: false };
           n.ticker = e.text;
           break;
         case 'tick':

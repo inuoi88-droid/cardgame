@@ -12,6 +12,7 @@ import type {
   CardBase,
   CardDef,
   CardType,
+  ConditionId,
   DrawbackInstance,
   EffectInstance,
   KeywordInstance,
@@ -22,8 +23,11 @@ import type {
   TimingId,
 } from './types.ts';
 
-/** ポイント計算に要るカードの情報（土台はステータスの有無で決まる。キーワードは「攻撃するたび」の倍率に使う） */
-export type PointCard = Pick<CardDef, 'stats' | 'keywords'>;
+/**
+ * ポイント計算に要るカードの情報（土台はステータスの有無で決まる。キーワードは「攻撃するたび」の倍率に使う。
+ * カードの能力は起動のエナジー・キッカーの追加エナジーの倍率に使う：MTG 要素 ○ バッチC1）
+ */
+export type PointCard = Pick<CardDef, 'stats' | 'keywords'> & { abilities?: CardDef['abilities'] };
 
 export interface ParamSpec {
   /** 入力欄の名前 */
@@ -244,11 +248,38 @@ export interface DrawbackDef {
 
 /** カードの能力のポイント計算に渡す情報 */
 export interface AbilityPointContext {
-  card: Pick<CardDef, 'stats' | 'keywords' | 'effects'>;
+  card: Pick<CardDef, 'stats' | 'keywords' | 'effects'> & { abilities?: CardDef['abilities']; cost?: number };
   /** このカードのすべての効果のポイントの合計 */
   effectPoints: number;
   /** このカードの使用時（モンスターなら召喚時）の効果のポイントの合計 */
   playEffectPoints: number;
+  /** ステータスとキーワードのポイントの合計（MTG 要素 ○ バッチC1：捨て札から使う能力） */
+  bodyPoints: number;
+  /** 魂力の効果のポイントの合計 */
+  channelEffectPoints: number;
+  /** 「捨て札から使ったとき」の効果があるか */
+  hasFromDiscard: boolean;
+}
+
+/** 動的コスト（親和・条件付き軽減。MTG 要素 ○ バッチC1）の計算に渡す道具。条件の判定は battle 側が作る */
+export interface CostContext {
+  g: GameState;
+  p: PlayerId;
+  card: CardInst;
+  /** 条件を満たしているか（これから使う1枚を「使ったカード」に数え、手札の自分自身は数えない） */
+  check(condition: ConditionId): boolean;
+}
+
+/** 捨て札から使う能力の決まり（フラッシュバック・再活・脱出） */
+export interface FromDiscardRule {
+  /** 使ったあと除外する（モンスターなら場を離れるとき除外：CardInst.exileOnLeave） */
+  exileAfter: boolean;
+  /** 実コストに足すエナジー（フラッシュバック） */
+  extraCost?(a: AbilityInstance): number;
+  /** 手札を1枚捨てる（再活） */
+  needsHandDiscard?: boolean;
+  /** 他の捨て札をこの枚数だけ除外する（脱出） */
+  exileOthers?(a: AbilityInstance): number;
 }
 
 /**
@@ -279,7 +310,22 @@ export interface AbilityDef {
     afterUse?: 'shuffle' | 'hand' | 'rebound';
     /** 成長：使うたび、このカード（個体）のダメージ・連撃の数値に足す量 */
     grow?(a: AbilityInstance): number;
+    // ---- MTG 要素 ○ バッチC1
+    /** 捨て札から使える（フラッシュバック・再活・脱出） */
+    fromDiscard?: FromDiscardRule;
+    /** 起動：場のモンスター・パワーの「起動」の効果を使うときのエナジー */
+    activateCost?(a: AbilityInstance): number;
+    /** 手札から使う能力（サイクリング・魂力）と、そのエナジー */
+    handAbility?: { kind: 'cycling' | 'channel'; cost(a: AbilityInstance): number };
+    /** コストの軽減（親和・条件付き軽減）。amount は軽減の量、min は軽減してもこれより下げない値 */
+    reduce?(a: AbilityInstance, ctx: CostContext): { amount: number; min: number } | null;
+    /** キッカー：払ってもよい追加エナジー */
+    kickerCost?(a: AbilityInstance): number;
   };
+  /** この能力に条件を付ける（条件付き軽減。エディターに条件の選択パネルを出す） */
+  takesCondition?: boolean;
+  /** このタイミングの効果が要る（起動・魂力。無ければ違反） */
+  requiresTiming?: TimingId;
 }
 
 export const defineEffect = (def: Omit<EffectDef, 'kind'>): EffectDef => ({ kind: 'effect', ...def });

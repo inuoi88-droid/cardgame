@@ -249,3 +249,106 @@ export function ResultDialog({ view, me, onHide, children }: { view: GameState; 
     </Modal>
   );
 }
+
+// ---------------------------------------------------------------- 追加の支払い（MTG 要素 ○ バッチC1）
+
+/**
+ * カードを選んで払う小さなダイアログ（再活で捨てる手札・脱出で除外する捨て札）。
+ * defaults を選んだ状態で開く。count 枚ちょうど選ぶと決定できる
+ */
+export function PayDialog({
+  view,
+  title,
+  prompt,
+  cards,
+  count,
+  defaults,
+  mark,
+  onDone,
+  onCancel,
+}: {
+  view: GameState;
+  title: string;
+  prompt: string;
+  cards: battle.CardInst[];
+  count: number;
+  defaults: string[];
+  /** 選んだ行に出す言葉（「捨てる」「除外」） */
+  mark: string;
+  onDone: (uids: string[]) => void;
+  onCancel: () => void;
+}) {
+  const [picked, setPicked] = useState<string[]>(defaults.slice(0, count));
+  const [zoom, setZoom] = useState<CardDef | null>(null);
+  const toggle = (uid: string) => setPicked((s) => (s.includes(uid) ? s.filter((x) => x !== uid) : count === 1 ? [uid] : s.length < count ? [...s, uid] : s));
+  return (
+    <>
+      <Modal title={title} onClose={onCancel}>
+        <div className="dlg__top">
+          <span className="badge">
+            {picked.length}/{count}枚
+          </span>
+        </div>
+        <p>{prompt}</p>
+        <div className="crow-list">
+          {cards.map((c) => (
+            <CardRow key={c.uid} def={view.cards[c.cardId]} label={battle.cardName(view, c.cardId)} picked={picked.includes(c.uid)} mark={mark} onToggle={() => toggle(c.uid)} onZoom={setZoom} />
+          ))}
+        </div>
+        <div className="btn-row modal__foot dlg__foot">
+          <button type="button" className="btn btn--primary" disabled={picked.length !== count} onClick={() => onDone(picked)}>
+            {picked.length === count ? `決定して使う` : `あと${count - picked.length}枚選んでください`}
+          </button>
+          <button type="button" className="btn" onClick={onCancel}>
+            やめる
+          </button>
+        </div>
+      </Modal>
+      <ZoomModal def={zoom} onClose={() => setZoom(null)} />
+    </>
+  );
+}
+
+/** キッカーを払うかどうか（払えるときだけ出す） */
+export function KickerDialog({
+  name,
+  cost,
+  extra,
+  energy,
+  kickedText,
+  onPick,
+  onCancel,
+}: {
+  name: string;
+  cost: number;
+  extra: number;
+  energy: number;
+  /** 払ったときに出る効果のテキスト */
+  kickedText: string[];
+  onPick: (kick: boolean) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal title={`「${name}」のキッカー`} onClose={onCancel}>
+      <p>
+        エナジーを追加で{extra}払うと、次の効果も出ます（残りのエナジー {energy}）。
+      </p>
+      <ul className="warn-list kick-list">
+        {kickedText.map((t) => (
+          <li key={t}>{t}</li>
+        ))}
+      </ul>
+      <div className="btn-row modal__foot dlg__foot">
+        <button type="button" className="btn btn--primary" onClick={() => onPick(true)}>
+          キッカーを払う（⚡{cost + extra}）
+        </button>
+        <button type="button" className="btn" onClick={() => onPick(false)}>
+          払わない（⚡{cost}）
+        </button>
+        <button type="button" className="btn btn--ghost" onClick={onCancel}>
+          やめる
+        </button>
+      </div>
+    </Modal>
+  );
+}

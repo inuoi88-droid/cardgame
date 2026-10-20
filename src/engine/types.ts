@@ -27,6 +27,10 @@ export const TIMING_IDS = [
   'drawn',
   'targeted',
   'bigCardPlayed',
+  // MTG 要素 ○ バッチC1（カードの能力があるときだけ選べる）
+  'fromDiscard',
+  'activated',
+  'channel',
 ] as const;
 export type TimingId = (typeof TIMING_IDS)[number];
 
@@ -85,6 +89,8 @@ export const CONDITION_IDS = [
   'notFirstCard',
   'clash',
   'exploit',
+  // MTG 要素 ○ バッチC1
+  'kicked',
 ] as const;
 export type ConditionId = (typeof CONDITION_IDS)[number];
 
@@ -139,7 +145,7 @@ export interface AbilityInstance {
   id: string;
   value?: number;
   option?: string;
-  /** 能力に付ける条件（バッチC1 の条件付き軽減で使う。今は使わない） */
+  /** 能力に付ける条件（MTG 要素 ○ バッチC1：条件付き軽減の「〜なら」） */
   condition?: ConditionId;
 }
 

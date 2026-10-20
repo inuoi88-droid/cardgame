@@ -7,7 +7,7 @@
  * 指の位置は頻繁に変わるので React の state にせず、小さな購読（subscribe / getPos）で DragLayer だけを描き直す。
  */
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { gestureOf, pickSpot, planDrag, targetKey, type Box, type DragPlan, type DragSource } from './dragLogic.ts';
+import { gestureOf, pickSpot, planDrag, targetKey, type Box, type DragOrigin, type DragPlan, type DragSource } from './dragLogic.ts';
 
 export interface DragInfo {
   src: DragSource;
@@ -30,7 +30,7 @@ interface Pending {
   x0: number;
   y0: number;
   el: HTMLElement;
-  origin: 'hand' | 'board';
+  origin: DragOrigin;
   getSrc: () => DragSource | null;
 }
 
@@ -45,6 +45,8 @@ export function useBattleDrag(opts: {
   /** 「ここに離して使う」の場所を出す要素のセレクター（その矩形をまとめた範囲に出す） */
   zoneSelector: string;
   reduceMotion: boolean;
+  /** ドラッグが始まったとき（捨て札の一覧からつかんだら一覧を閉じる。MTG 要素 ○ バッチC1） */
+  onStart?: (src: DragSource) => void;
 }) {
   const [drag, setDrag] = useState<DragInfo | null>(null);
   const dragRef = useRef<DragInfo | null>(null);
@@ -72,6 +74,7 @@ export function useBattleDrag(opts: {
     });
     const valid = new Set(plan.targets.map(targetKey));
     if (plan.zone) valid.add('zone');
+    if (plan.pile) valid.add('pile');
     return { boxes, valid };
   };
 
@@ -136,6 +139,7 @@ export function useBattleDrag(opts: {
       /* 取れなくても window で受ける */
     }
     set({ src, plan, origin: toBox(p.el.getBoundingClientRect()), hover: null, phase: 'drag', zone });
+    optsRef.current.onStart?.(src);
     return true;
   };
 
@@ -162,7 +166,7 @@ export function useBattleDrag(opts: {
     notify();
   };
 
-  const begin = (e: ReactPointerEvent<HTMLElement>, origin: 'hand' | 'board', getSrc: () => DragSource | null) => {
+  const begin = (e: ReactPointerEvent<HTMLElement>, origin: DragOrigin, getSrc: () => DragSource | null) => {
     if (e.button !== 0 || !e.isPrimary) return;
     if (dragRef.current?.phase === 'drag') return;
     cleanup.current?.();
@@ -238,5 +242,7 @@ export function useBattleDrag(opts: {
     getPos,
     /** ドラッグの直後のクリックなら true（そのクリックは無視する） */
     consumeClick: () => Date.now() < clickBlock.current,
+    /** いまドラッグ中か（長押しの詳細など、古い描画の関数から呼んでも最新を返す） */
+    isActive: () => dragRef.current?.phase === 'drag',
   };
 }

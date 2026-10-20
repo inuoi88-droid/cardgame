@@ -20,7 +20,7 @@ import {
   type AttackProfile,
 } from './options.ts';
 import { getAbility, getDrawback, getEffect, getKeyword, getModifier } from './registry.ts';
-import type { AbilityInstance, CardBase, CardDef, DrawbackInstance, EffectInstance, KeywordInstance, PointLine, PointSummary } from './types.ts';
+import type { AbilityInstance, CardBase, CardDef, DrawbackInstance, EffectInstance, KeywordInstance, PointLine, PointSummary, TimingId } from './types.ts';
 import type { AbilityPointContext } from './define.ts';
 
 export interface Factor {
@@ -83,6 +83,10 @@ function timingFactor(timing: keyof typeof TIMINGS, base: CardBase, card: PointC
     const name = getKeyword('doubleAttack')?.name ?? '二回攻撃';
     return { label: `${t.label}・${name}`, value, text: `${formatMultiplier(BALANCE.timing.hitEnemyPlayer)}×${profile.attacks}` };
   }
+  if (timing === 'activated' || timing === 'channel') {
+    // 起動・魂力（MTG 要素 ○ バッチC1）：起動のエナジーで倍率が変わる。表示はエナジーつき
+    return { label: timingLabelFor(timing, card.abilities), value: timingMultiplier(timing, base, undefined, card) };
+  }
   if (timing !== 'attack' || base !== 'monster') return { label: t.label, value: timingMultiplier(timing, base) };
   const profile = attackProfile(card.keywords);
   const value = timingMultiplier(timing, base, profile);
@@ -141,7 +145,7 @@ export function effectPoints(e: EffectInstance, card: PointCard): EffectPoints {
     factors.push({ label: targetLabel(e.target, def.targetRule, e.timing), value: targetMultiplier(e.target, def.targetRule) });
   }
   if (e.condition && CONDITIONS[e.condition]) {
-    factors.push({ label: CONDITIONS[e.condition].label, value: conditionMultiplier(e.condition) });
+    factors.push({ label: CONDITIONS[e.condition].label, value: conditionMultiplier(e.condition, card) });
   }
 
   const raw = factors.reduce((x, f) => x * f.value, b);
@@ -179,17 +183,62 @@ export function drawbackLabel(d: DrawbackInstance, base: CardBase): string {
   return `${timing}${def.name}${def.value ? (d.value ?? 0) : ''}`;
 }
 
+/** ステータスとキーワードのポイントの合計（MTG 要素 ○ バッチC1：捨て札から使う能力・魂力の二者択一） */
+export function bodyPoints(card: Pick<CardDef, 'stats' | 'keywords'>): number {
+  if (!card.stats) return 0;
+  const S = BALANCE.stats;
+  const { attack, hp, defense } = card.stats;
+  let v = attack * S.attackPoints + hp * S.hpPoints + defense * S.defensePoints;
+  for (const k of card.keywords) {
+    const def = getKeyword(k.id);
+    if (def) v += def.points(k, card.stats);
+  }
+  return v;
+}
+
 /** カードの能力のポイント計算に渡す情報（効果のポイントの合計など） */
-export function abilityContext(card: Pick<CardDef, 'stats' | 'keywords' | 'effects'>): AbilityPointContext {
+export function abilityContext(card: Pick<CardDef, 'stats' | 'keywords' | 'effects'> & { abilities?: CardDef['abilities']; cost?: number }): AbilityPointContext {
   const timing = card.stats ? 'summon' : 'play';
   let all = 0;
   let play = 0;
+  let channel = 0;
   for (const e of card.effects) {
     const v = effectPoints(e, card).value;
     all += v;
     if (e.timing === timing) play += v;
+    if (e.timing === 'channel') channel += v;
   }
-  return { card, effectPoints: all, playEffectPoints: play };
+  return {
+    card,
+    effectPoints: all,
+    playEffectPoints: play,
+    bodyPoints: bodyPoints(card),
+    channelEffectPoints: channel,
+    hasFromDiscard: card.effects.some((e) => e.timing === 'fromDiscard'),
+  };
+}
+
+/** 起動・魂力のタイミングの表示名（エナジーつき。MTG 要素 ○ バッチC1） */
+export function timingLabelFor(timing: TimingId, abilities: CardDef['abilities']): string {
+  const id = timing === 'activated' ? 'activate' : timing === 'channel' ? 'channel' : null;
+  const v = id ? (abilities ?? []).find((a) => a.id === id)?.value : undefined;
+  return v === undefined ? TIMINGS[timing].label : `${TIMINGS[timing].label}（エナジー${v}）`;
+}
+
+/**
+ * 魂力（MTG 要素 ○ バッチC1）の二者択一の割引：本体（ステータス・キーワード・魂力以外の効果）A と魂力の効果 B は
+ * どちらか一方しか使えないので、合計を「高い方＋低い方×choice.otherRate」にする。割り引く量（正の数）。魂力が無ければ0
+ */
+export function choiceDiscount(card: CardDef): { value: number; formula: string } | null {
+  if (!(card.abilities ?? []).some((a) => a.id === 'channel')) return null;
+  const ctx = abilityContext(card);
+  const b = ctx.channelEffectPoints;
+  const a = ctx.bodyPoints + ctx.effectPoints - b;
+  const low = Math.min(a, b);
+  if (low <= 0) return null;
+  const rate = BALANCE.choice.otherRate;
+  const value = floorPoints(low * (1 - rate));
+  return { value, formula: `本体${round2(a)}と魂力${round2(b)}：低い方${round2(low)}×${round2(1 - rate)} → 切り捨て` };
 }
 
 /** カードの能力1つのポイント（切り上げ） */
@@ -244,6 +293,12 @@ export function calculatePoints(card: CardDef): PointSummary {
     const p = abilityPoints(a, ctx);
     lines.push({ kind: 'ability', index, label: abilityLabel(a), formula: p.formula, value: p.value });
   });
+
+  // 魂力の二者択一の割引（MTG 要素 ○ バッチC1）
+  const choice = choiceDiscount(card);
+  if (choice && choice.value > 0) {
+    lines.push({ kind: 'limit', label: '二者択一の割引（魂力）', formula: choice.formula, value: -choice.value });
+  }
 
   const costPt = costPoints(card.cost);
   if (costPt !== 0) {

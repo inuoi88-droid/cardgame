@@ -2,10 +2,21 @@
 import { findMonster } from './core.ts';
 import { attackBlockReason, attackTargets, performAttack } from './combat.ts';
 import { mulligan, validateMulligan } from './mulligan.ts';
-import { playCard, removeNoise, validatePlay, validateRemoveNoise } from './play.ts';
+import { activate, useHandAbility, validateActivate, validateHandAbility } from './abilities.ts';
+import { playCard, removeNoise, validatePlay, validateRemoveNoise, type PlayOpts } from './play.ts';
 import { runQueue } from './queue.ts';
 import { beginEndTurn, concede } from './turn.ts';
 import type { Action, ApplyResult, GameState, TargetRef } from './types.ts';
+
+/** playCard の追加の指定（MTG 要素 ○ バッチC1：捨て札から使う・キッカー） */
+function playOpts(a: Extract<Action, { type: 'playCard' }>): PlayOpts {
+  const o: PlayOpts = {};
+  if (a.from === 'discard') o.from = 'discard';
+  if (a.discardUid !== undefined) o.discardUid = a.discardUid;
+  if (a.exileUids !== undefined) o.exileUids = a.exileUids;
+  if (a.kick === true) o.kick = true;
+  return o;
+}
 
 const sameRef = (a: TargetRef, b: TargetRef) =>
   a.kind === 'player' ? b.kind === 'player' && a.player === b.player : b.kind === 'monster' && a.uid === b.uid;
@@ -33,7 +44,11 @@ export function validateAction(g: GameState, a: Action): string | null {
   if (a.player !== g.active) return '自分のターンではありません';
   switch (a.type) {
     case 'playCard':
-      return validatePlay(g, a.player, a.cardUid, a.chosen);
+      return validatePlay(g, a.player, a.cardUid, a.chosen, playOpts(a));
+    case 'activate':
+      return validateActivate(g, a.player, a.sourceUid, a.chosen);
+    case 'handAbility':
+      return validateHandAbility(g, a.player, a.cardUid, a.ability, a.chosen);
     case 'removeNoise':
       return validateRemoveNoise(g, a.player, a.cardUid);
     case 'attack': {
@@ -68,7 +83,13 @@ export function applyAction(state: GameState, a: Action): ApplyResult {
       break;
     }
     case 'playCard':
-      playCard(g, a.player, a.cardUid, a.chosen ?? {});
+      playCard(g, a.player, a.cardUid, a.chosen ?? {}, playOpts(a));
+      break;
+    case 'activate':
+      activate(g, a.player, a.sourceUid, a.chosen ?? {});
+      break;
+    case 'handAbility':
+      useHandAbility(g, a.player, a.cardUid, a.ability, a.chosen ?? {});
       break;
     case 'removeNoise':
       removeNoise(g, a.player, a.cardUid);

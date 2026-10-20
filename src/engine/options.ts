@@ -1,6 +1,19 @@
 /** 発動タイミング・対象・条件の定義。倍率は balance.ts から読む。 */
 import { BALANCE } from './balance.ts';
-import type { CardBase, ConditionId, TargetId, TimingId } from './types.ts';
+import type { AbilityInstance, CardBase, ConditionId, TargetId, TimingId } from './types.ts';
+
+/** カードの能力の一覧（エディター・ポイント計算が渡す。省略は「能力を見ない」） */
+type Abilities = readonly Pick<AbilityInstance, 'id' | 'value'>[] | undefined;
+
+/** 能力 ids のどれかを持っているか */
+export function hasAnyAbility(abilities: Abilities, ids: readonly string[]): boolean {
+  return (abilities ?? []).some((a) => ids.includes(a.id));
+}
+
+/** 能力 id の数値（無ければ undefined） */
+export function abilityValue(abilities: Abilities, id: string): number | undefined {
+  return (abilities ?? []).find((a) => a.id === id)?.value;
+}
 
 // ---------------------------------------------------------------- タイミング
 
@@ -13,7 +26,7 @@ import type { CardBase, ConditionId, TargetId, TimingId } from './types.ts';
 export type ChosenMode = 'manual' | 'attackTarget' | 'damageSource' | 'triggerAlly' | 'none';
 
 /** エディターの選択パネルの見出し（並び順） */
-export const TIMING_GROUPS = ['基本', 'このモンスター', 'ターン', '自分が使ったカード', '味方の出入り', '手札・捨て札'] as const;
+export const TIMING_GROUPS = ['基本', 'このモンスター', 'ターン', '自分が使ったカード', '味方の出入り', '手札・捨て札', '起動'] as const;
 export type TimingGroup = (typeof TIMING_GROUPS)[number];
 
 export interface TimingDef {
@@ -30,7 +43,17 @@ export interface TimingDef {
   group: TimingGroup;
   /** エディターに出す1行の説明 */
   description: string;
+  /**
+   * このカードの能力のどれかがあるときだけ選べる（MTG 要素 ○ バッチC1：起動・魂力・捨て札から使ったとき）。
+   * 無ければ違反（ACTIVATE_MISMATCH など）
+   */
+  requiresAbility?: readonly string[];
+  /** デメリットには使えない（使うかどうかを自分で決めるタイミング。払えば得をするだけになる） */
+  noDrawbacks?: boolean;
 }
+
+/** 捨て札から使える能力（MTG 要素 ○ バッチC1。defs/abilities の fromDiscard を持つもの） */
+export const FROM_DISCARD_ABILITIES = ['flashback', 'jumpStart', 'escape'] as const;
 
 const maxRepeat = BALANCE.battle.maxRepeatTriggersPerTurn;
 
@@ -196,6 +219,45 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     group: '手札・捨て札',
     description: 'このカードを山札から引いたとき（ターン開始のドローも。対戦開始の手札・マリガンでは出ない）。カード自身は手札に残る。引いたことは相手にも分かる',
   },
+  // ---- MTG 要素 ○ バッチC1
+  fromDiscard: {
+    id: 'fromDiscard',
+    label: '捨て札から使ったとき',
+    textPrefix: '捨て札から使ったとき、',
+    bases: ['monster', 'spell'],
+    powerTiming: false,
+    chosen: 'manual',
+    group: '手札・捨て札',
+    description:
+      'このカードを捨て札から使ったとき（使用時・召喚時の効果の代わりに出る。余波）。フラッシュバック・再活・脱出のどれかがあるカードだけ',
+    requiresAbility: FROM_DISCARD_ABILITIES,
+    noDrawbacks: true,
+  },
+  channel: {
+    id: 'channel',
+    label: '魂力',
+    textPrefix: '魂力：',
+    bases: ['monster', 'spell'],
+    powerTiming: false,
+    chosen: 'manual',
+    group: '手札・捨て札',
+    description: '手札からエナジーを払ってこのカードを捨て、代わりにこの効果を使う（本体と二者択一）。カードの能力「魂力」があるカードだけ',
+    requiresAbility: ['channel'],
+    noDrawbacks: true,
+  },
+  activated: {
+    id: 'activated',
+    label: '起動',
+    textPrefix: '起動：',
+    bases: ['monster', 'spell'],
+    powerTiming: true,
+    chosen: 'manual',
+    group: '起動',
+    description:
+      '場のモンスター・パワーの「起動」の効果を、自分のターンにエナジーを払って使う（1つにつき1ターン1回）。カードの能力「起動」があるカードだけ。モンスター以外ならパワーになる',
+    requiresAbility: ['activate'],
+    noDrawbacks: true,
+  },
 };
 
 /** 1つのカード（パワー・モンスター）につき1ターン maxRepeatTriggersPerTurn 回までのタイミング（安全装置） */
@@ -215,7 +277,12 @@ export const DEFAULT_ATTACK_PROFILE: AttackProfile = { attacks: 1, haste: false 
  * タイミングの倍率。「攻撃するたび」は攻撃回数を掛け、速攻なら足す（決定事項 #68）。
  * attack を省略すると攻撃1回・速攻なしとして計算する
  */
-export function timingMultiplier(timing: TimingId, base: CardBase, attack: AttackProfile = DEFAULT_ATTACK_PROFILE): number {
+export function timingMultiplier(
+  timing: TimingId,
+  base: CardBase,
+  attack: AttackProfile = DEFAULT_ATTACK_PROFILE,
+  card: { abilities?: Abilities } = {},
+): number {
   const t = BALANCE.timing;
   const monster = base === 'monster';
   switch (timing) {
@@ -252,12 +319,28 @@ export function timingMultiplier(timing: TimingId, base: CardBase, attack: Attac
       return t.targeted;
     case 'bigCardPlayed':
       return monster ? t.bigCardPlayedMonster : t.bigCardPlayedPower;
+    case 'fromDiscard':
+      return t.fromDiscard;
+    case 'channel':
+      return t.channel;
+    case 'activated': {
+      // 起動のエナジーが多いほど安い（能力が無ければエナジー1として計算）
+      const table = monster ? t.activatedMonster : t.activatedPower;
+      const n = abilityValue(card.abilities, 'activate') ?? BALANCE.abilities.activate.minCost;
+      const i = Math.min(Math.max(n - BALANCE.abilities.activate.minCost, 0), table.length - 1);
+      return table[i]!;
+    }
   }
 }
 
-/** この土台で選べるタイミング（TIMING_GROUPS の順） */
-export function timingsFor(base: CardBase): TimingId[] {
-  const ids = (Object.keys(TIMINGS) as TimingId[]).filter((id) => TIMINGS[id].bases.includes(base));
+/**
+ * この土台で選べるタイミング（TIMING_GROUPS の順）。abilities を渡すと、能力が要るタイミング（起動・魂力・捨て札から使ったとき）は
+ * その能力があるときだけ。省略すると能力が要るタイミングは出さない
+ */
+export function timingsFor(base: CardBase, abilities?: Abilities): TimingId[] {
+  const ids = (Object.keys(TIMINGS) as TimingId[]).filter(
+    (id) => TIMINGS[id].bases.includes(base) && (TIMINGS[id].requiresAbility === undefined || hasAnyAbility(abilities, TIMINGS[id].requiresAbility!)),
+  );
   return ids.sort((a, b) => TIMING_GROUPS.indexOf(TIMINGS[a].group) - TIMING_GROUPS.indexOf(TIMINGS[b].group));
 }
 
@@ -326,8 +409,8 @@ export function allowedTargets(rule: TargetRule, timing: TimingId, base?: CardBa
     case 'allyMonsterOne': {
       // 自分のモンスターを選べるのは、使うときに選ぶ場面があるタイミングと「出たモンスター」だけ
       const monsterCard = base === 'monster' || (base === undefined && TIMINGS[timing].bases.every((b) => b === 'monster'));
-      // 引いたときは、カード自身がまだ手札にある
-      const onBoard = monsterCard && timing !== 'drawn';
+      // 引いたとき・魂力は、カード自身がまだ手札にある
+      const onBoard = monsterCard && timing !== 'drawn' && timing !== 'channel';
       return [
         ...(chosen === 'manual' || chosen === 'triggerAlly' ? (['chosen'] as const) : []),
         'random',
@@ -485,6 +568,13 @@ export interface ConditionDef {
   group: ConditionGroup;
   /** エディターに出す1行の説明 */
   description: string;
+  /** このカードの能力があるときだけ選べる（キッカーを払っていれば。MTG 要素 ○ バッチC1） */
+  requiresAbility?: readonly string[];
+  /**
+   * 条件付き軽減（カードの能力。MTG 要素 ○ バッチC1）には使えない：乱数・選択・出どころ・支払いが要る条件
+   * （コストは使う前に決まるので、判定できない）
+   */
+  notForCost?: boolean;
 }
 
 const cp = BALANCE.conditionParams;
@@ -669,6 +759,7 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     timings: null,
     group: '運・先後',
     description: '効果が出るたびにコインを投げ、表なら発動（50%）',
+    notForCost: true,
   },
   secondPlayer: {
     id: 'secondPlayer',
@@ -698,6 +789,7 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     // 出たばかり（召喚時）・もう場にいない（破壊されたとき）・手札（引いたとき）では満たせない
     excludeTimings: ['summon', 'destroyed', 'drawn'],
     bases: ['monster'],
+    notForCost: true,
     group: 'このモンスター',
     description: `このモンスターが場に出てから合計${cp.veteranAttacks}回以上攻撃していれば発動（探索カウンター。場を離れると0から。「攻撃するたび」なら今回の攻撃も数える）`,
   },
@@ -709,6 +801,7 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     timings: null,
     excludeTimings: ['destroyed', 'drawn'],
     bases: ['monster'],
+    notForCost: true,
     group: 'このモンスター',
     description: 'このモンスターより攻撃力（今の値）の高い自分のモンスターが場にいれば発動（訓練）',
   },
@@ -810,6 +903,7 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     label: '自分のモンスター1体を生け贄にしたなら',
     textPrefix: '自分のモンスター1体を生け贄にしたなら、',
     timings: ['play', 'summon'],
+    notForCost: true,
     group: 'コスト・追加の支払い',
     description: '使ったとき（召喚時）に自分のモンスター1体を生け贄にしてよく、そうしたら発動（濫用。選ばなくてもよい。召喚時は出たモンスター自身も選べる）',
   },
@@ -821,20 +915,53 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     timings: null,
     group: '運・先後',
     description: '効果が出るたびに、お互いの山札の一番上のカードを公開してコストを比べ、自分の方が大きければ発動（同じなら負け。山札の順は変わらない）',
+    notForCost: true,
+  },
+  // ---- MTG 要素 ○ バッチC1
+  kicked: {
+    id: 'kicked',
+    tier: 'normal',
+    label: 'キッカーを払っていれば',
+    textPrefix: 'キッカーを払っていれば、',
+    timings: ['play', 'summon', 'fromDiscard'],
+    requiresAbility: ['kicker'],
+    notForCost: true,
+    group: 'コスト・追加の支払い',
+    description: '使うときにキッカー（追加のエナジー）を払っていれば発動。カードの能力「キッカー」があるカードだけ（新生＝新生の効果＋この条件）',
   },
 };
 
-/** 条件の倍率（条件ごとの値。決定事項 #68） */
-export function conditionMultiplier(condition: ConditionId | null): number {
+/**
+ * 条件の倍率（条件ごとの値。決定事項 #68）。「キッカーを払っていれば」はカードのキッカーの追加エナジーで決まる
+ * （card を省略すると condition.kicked）
+ */
+export function conditionMultiplier(condition: ConditionId | null, card: { abilities?: Abilities } = {}): number {
   if (condition === null) return 1;
+  if (condition === 'kicked') {
+    const k = abilityValue(card.abilities, 'kicker');
+    if (k !== undefined) {
+      const table = BALANCE.conditionByKicker;
+      return table[Math.min(Math.max(k - 1, 0), table.length - 1)]!;
+    }
+  }
   return BALANCE.condition[condition];
 }
 
-/** このタイミング（と土台）で選べる条件（CONDITION_GROUPS の順） */
-export function conditionsFor(timing: TimingId, base: CardBase): ConditionId[] {
+/** 条件付き軽減（カードの能力）に使える条件（CONDITION_GROUPS の順） */
+export function costConditions(): ConditionId[] {
+  const ids = (Object.keys(CONDITIONS) as ConditionId[]).filter((id) => !CONDITIONS[id].notForCost && !CONDITIONS[id].requiresAbility);
+  return ids.sort((a, b) => CONDITION_GROUPS.indexOf(CONDITIONS[a].group) - CONDITION_GROUPS.indexOf(CONDITIONS[b].group));
+}
+
+/**
+ * このタイミング（と土台）で選べる条件（CONDITION_GROUPS の順）。abilities を渡すと、能力が要る条件（キッカーを払っていれば）は
+ * その能力があるときだけ。省略すると能力が要る条件は出さない
+ */
+export function conditionsFor(timing: TimingId, base: CardBase, abilities?: Abilities): ConditionId[] {
   const power = isPowerTiming(timing, base);
   const ids = (Object.keys(CONDITIONS) as ConditionId[]).filter((id) => {
     const c = CONDITIONS[id];
+    if (c.requiresAbility && !hasAnyAbility(abilities, c.requiresAbility)) return false;
     if (power && c.notForPower) return false;
     if (c.bases && !c.bases.includes(base)) return false;
     if (c.excludeTimings?.includes(timing)) return false;

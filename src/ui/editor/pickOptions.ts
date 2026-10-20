@@ -20,6 +20,11 @@ import {
   cardBase,
   conditionMultiplier,
   conditionsFor,
+  costConditions,
+  abilityContext,
+  abilityPoints,
+  getAbility,
+  type AbilityInstance,
   drawbackPoints,
   effectPoints,
   fitDrawback,
@@ -95,12 +100,17 @@ function timingAutoDescription(def: TimingDef, base: CardBase): string {
   return parts.join('・');
 }
 
-function timingReason(def: TimingDef, base: CardBase): string {
+function timingReason(def: TimingDef, base: CardBase, card: CardDef): string {
   const bases = def.bases ?? [];
   if (!bases.includes(base)) {
     if (bases.length === 1 && bases[0] === 'monster') return 'モンスター専用';
     if (bases.length === 1 && bases[0] === 'spell') return 'モンスター以外のカード専用';
     return 'このカードでは使えません';
+  }
+  // 能力が要るタイミング（起動・魂力・捨て札から使ったとき。MTG 要素 ○ バッチC1）
+  const req = def.requiresAbility;
+  if (req && !(card.abilities ?? []).some((a) => req.includes(a.id))) {
+    return `カードの能力「${req.map((id) => getAbility(id)?.name ?? id).join('」「')}」を付けると選べます`;
   }
   return 'この効果では使えません';
 }
@@ -119,9 +129,9 @@ function timingOptions(card: CardDef, usableList: readonly TimingId[], points: (
       label: def.label,
       group: x.group,
       description: x.description ?? timingAutoDescription(def, base),
-      hint: mult(() => timingMultiplier(t, base, attack)),
+      hint: mult(() => timingMultiplier(t, base, attack, card)),
       points: ok ? points(t) : undefined,
-      disabled: ok ? undefined : timingReason(def, base),
+      disabled: ok ? undefined : timingReason(def, base, card),
     };
   });
   return byGroup(list, TIMING_GROUPS);
@@ -130,8 +140,8 @@ function timingOptions(card: CardDef, usableList: readonly TimingId[], points: (
 export function effectTimingOptions(effect: EffectInstance, card: CardDef): PickOption[] {
   const base = cardBase(card);
   const def = getEffect(effect.id);
-  const usable = def ? effectTimings(def, base) : [];
-  return timingOptions(card, usable, (t) => `${effectPoints(fitEffect({ ...effect, timing: t }, base), card).value}pt`);
+  const usable = def ? effectTimings(def, base, card.abilities) : [];
+  return timingOptions(card, usable, (t) => `${effectPoints(fitEffect({ ...effect, timing: t }, base, card.abilities), card).value}pt`);
 }
 
 export function drawbackTimingOptions(drawback: DrawbackInstance, card: CardDef): PickOption[] {
@@ -163,6 +173,7 @@ export function targetOptions(effect: EffectInstance, card: CardDef): PickOption
 
 function conditionReason(id: ConditionId, timing: TimingId, base: CardBase): string {
   const c = CONDITIONS[id];
+  if (c.requiresAbility) return `カードの能力「${c.requiresAbility.map((x) => getAbility(x)?.name ?? x).join('」「')}」を付けると選べます`;
   if (c.excludeTimings?.includes(timing)) return `${TIMINGS[timing]?.label ?? timing}では使えません`;
   if (c.timings && !c.timings.includes(timing)) return `${c.timings.map((t) => TIMINGS[t]?.label ?? t).join('・')}のときだけ`;
   if (isPowerTiming(timing, base) && c.notForPower) return 'パワーになるタイミングでは使えません';
@@ -171,7 +182,7 @@ function conditionReason(id: ConditionId, timing: TimingId, base: CardBase): str
 
 export function conditionOptions(effect: EffectInstance, card: CardDef): PickOption[] {
   const base = cardBase(card);
-  const usable = new Set<ConditionId>(conditionsFor(effect.timing, base));
+  const usable = new Set<ConditionId>(conditionsFor(effect.timing, base, card.abilities));
   const none: PickOption = {
     id: NONE,
     label: 'なし',
@@ -189,7 +200,7 @@ export function conditionOptions(effect: EffectInstance, card: CardDef): PickOpt
       label: def.label,
       group: x.group ?? (def.tier ? CONDITION_TIER_LABEL[def.tier] : undefined),
       description: x.description,
-      hint: mult(() => conditionMultiplier(c)),
+      hint: mult(() => conditionMultiplier(c, card)),
       points: ok ? `${effectPoints({ ...effect, condition: c }, card).value}pt` : undefined,
       disabled: ok ? undefined : conditionReason(c, effect.timing, base),
     };
@@ -227,4 +238,35 @@ export function drawbackOptionOptions(drawback: DrawbackInstance, card: CardDef)
     label: c.label,
     points: `−${drawbackPoints(changeDrawbackOption(drawback, c.id), card).value}pt`,
   }));
+}
+
+// ---------------------------------------------------------------- カードの能力（MTG 要素 ○ バッチC1）
+
+/** カードの能力の追加指定（親和の「数えるもの」） */
+export function abilityOptionOptions(a: AbilityInstance, card: CardDef): PickOption[] {
+  const def = getAbility(a.id);
+  if (!def?.option) return [];
+  const ctx = abilityContext(card);
+  return def.option.choices.map((c) => ({ id: c.id, label: c.label, points: `${abilityPoints({ ...a, option: c.id }, ctx).value}pt` }));
+}
+
+/** 条件付き軽減の条件（コストの計算に使える条件だけ。CONDITION_GROUPS の見出しで並べる） */
+export function abilityConditionOptions(a: AbilityInstance, card: CardDef): PickOption[] {
+  const ok = new Set(costConditions());
+  const ctx = abilityContext(card);
+  const list = (Object.keys(CONDITIONS) as ConditionId[]).map((c): PickOption => {
+    const def = CONDITIONS[c];
+    const x = extra(def);
+    const usable = ok.has(c);
+    return {
+      id: c,
+      label: def.label,
+      group: x.group,
+      description: x.description,
+      hint: mult(() => conditionMultiplier(c)),
+      points: usable ? `${abilityPoints({ ...a, condition: c }, ctx).value}pt` : undefined,
+      disabled: usable ? undefined : 'コストを決める前に判定できない条件です（乱数・選択・このモンスター・支払いを使うもの）',
+    };
+  });
+  return byGroup(list, CONDITION_GROUPS);
 }

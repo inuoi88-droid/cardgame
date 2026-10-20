@@ -7,7 +7,7 @@ import { CARD_TYPE_LABEL } from './labels.ts';
 import { cardBase, classifyCard, rarityRank } from './classify.ts';
 import { drawbackValueSpec, type AbilityDef, type DrawbackDef, type EffectDef, type ModifierDef } from './define.ts';
 import { modifierFits } from './points.ts';
-import { allowedTargets, conditionsFor, defaultTiming, targetsForEffect, TIMINGS, timingsFor } from './options.ts';
+import { allowedTargets, conditionsFor, costConditions, defaultTiming, targetsForEffect, TIMINGS, timingsFor } from './options.ts';
 import { getAbility, getDrawback, getEffect, getModifier, listAbilities, listDrawbacks, listEffects, listModifiers } from './registry.ts';
 import { stampScale } from './scaling.ts';
 import type { AbilityInstance, CardBase, CardDef, DrawbackInstance, EffectInstance, Rarity, Stats, TimingId } from './types.ts';
@@ -83,27 +83,46 @@ export function abilityChoices(card: CardDef): { def: AbilityDef; blocked: strin
   return listAbilities().map((def) => ({ def, blocked: abilityBlockReason(card, def) }));
 }
 
+/** 条件付き軽減（MTG 要素 ○ バッチC1）の最初の条件：怒濤（このターン2枚目以降） */
+const DEFAULT_COST_CONDITION = 'notFirstCard';
+
 export function createAbility(abilityId: string): AbilityInstance {
   const def = getAbility(abilityId);
   const a: AbilityInstance = { id: abilityId };
   if (def?.value) a.value = def.value.default;
   if (def?.option) a.option = def.option.default;
+  if (def?.takesCondition) {
+    const list = costConditions();
+    a.condition = list.includes(DEFAULT_COST_CONDITION) ? DEFAULT_COST_CONDITION : list[0];
+  }
   return a;
 }
 
-/** このデメリットをこの土台のカードに付けるとき選べるタイミング（デメリットごとの制限 timings を含む） */
+/** カードの能力の一覧（タイミング・条件の「能力が要るもの」を見るため） */
+type Abilities = CardDef['abilities'];
+
+/**
+ * このデメリットをこの土台のカードに付けるとき選べるタイミング（デメリットごとの制限 timings を含む。
+ * 起動・魂力・捨て札から使ったときはデメリットには使えない）
+ */
 export function drawbackTimings(def: Pick<DrawbackDef, 'timings'>, base: CardBase): TimingId[] {
-  return timingsFor(base).filter((t) => !def.timings || def.timings.includes(t));
+  return timingsFor(base).filter((t) => (!def.timings || def.timings.includes(t)) && !TIMINGS[t].noDrawbacks);
 }
 
-/** 土台に合わないタイミングは、その土台の基本タイミング（使用時／召喚時）に読み替える */
-function mapTiming(timing: TimingId, base: CardBase): TimingId {
-  return TIMINGS[timing]?.bases.includes(base) ? timing : defaultTiming(base);
+/** 土台（と能力）に合わないタイミングは、その土台の基本タイミング（使用時／召喚時）に読み替える */
+function mapTiming(timing: TimingId, base: CardBase, abilities?: Abilities): TimingId {
+  const def = TIMINGS[timing];
+  if (!def?.bases.includes(base)) return defaultTiming(base);
+  if (def.requiresAbility && !(abilities ?? []).some((a) => def.requiresAbility!.includes(a.id))) return defaultTiming(base);
+  return timing;
 }
 
-/** この効果をこの土台のカードに付けるとき選べるタイミング（効果ごとの制限 timings を含む） */
-export function effectTimings(def: Pick<EffectDef, 'timings'>, base: CardBase): TimingId[] {
-  return timingsFor(base).filter((t) => !def.timings || def.timings.includes(t));
+/**
+ * この効果をこの土台のカードに付けるとき選べるタイミング（効果ごとの制限 timings を含む）。
+ * abilities を渡すと、能力が要るタイミング（起動・魂力・捨て札から使ったとき）も出る（MTG 要素 ○ バッチC1）
+ */
+export function effectTimings(def: Pick<EffectDef, 'timings'>, base: CardBase, abilities?: Abilities): TimingId[] {
+  return timingsFor(base, abilities).filter((t) => !def.timings || def.timings.includes(t));
 }
 
 /** この効果に、このタイミングで付けられるオプション（防御無視・吸収と、数値の倍数と、遅延） */
@@ -114,16 +133,16 @@ export function modifiersFor(def: Pick<EffectDef, 'allowsMods' | 'scalable' | 'n
   });
 }
 
-/** 効果を、カードの土台に合わせて選べる値へ直す */
-export function fitEffect(e: EffectInstance, base: CardBase): EffectInstance {
+/** 効果を、カードの土台（と能力）に合わせて選べる値へ直す */
+export function fitEffect(e: EffectInstance, base: CardBase, abilities?: Abilities): EffectInstance {
   const def = getEffect(e.id);
   if (!def) return e;
-  const timings = effectTimings(def, base);
-  const mapped = mapTiming(e.timing, base);
+  const timings = effectTimings(def, base, abilities);
+  const mapped = mapTiming(e.timing, base, abilities);
   const timing = timings.includes(mapped) ? mapped : (timings[0] ?? defaultTiming(base));
   const targets = targetsForEffect(def, timing, base);
   const target = targets.includes(e.target) ? e.target : targets[0]!;
-  const condition = e.condition !== null && conditionsFor(timing, base).includes(e.condition) ? e.condition : null;
+  const condition = e.condition !== null && conditionsFor(timing, base, abilities).includes(e.condition) ? e.condition : null;
   const next: EffectInstance = { ...e, timing, target, condition };
   // 付けられないオプションを外す。数値の倍数は1つまで（後から付けたものを残す）
   const allowed = new Set(modifiersFor(def, timing).map((m) => m.id));
@@ -139,7 +158,7 @@ export function fitEffect(e: EffectInstance, base: CardBase): EffectInstance {
   return next;
 }
 
-export function createEffect(effectId: string, base: CardBase): EffectInstance {
+export function createEffect(effectId: string, base: CardBase, abilities?: Abilities): EffectInstance {
   const def = getEffect(effectId);
   const timing = defaultTiming(base);
   const e: EffectInstance = { id: effectId, timing, target: 'self', condition: null };
@@ -147,13 +166,25 @@ export function createEffect(effectId: string, base: CardBase): EffectInstance {
   if (def.value) e.value = def.value.default;
   if (def.hits) e.hits = def.hits.default;
   if (def.option) e.option = def.option.default;
-  return fitEffect(e, base);
+  return fitEffect(e, base, abilities);
 }
 
 /** 効果の種類を変える。タイミング・条件はなるべく引き継ぐ */
-export function changeEffectType(e: EffectInstance, effectId: string, base: CardBase): EffectInstance {
-  const fresh = createEffect(effectId, base);
-  return fitEffect({ ...fresh, timing: e.timing, condition: e.condition, target: e.target }, base);
+export function changeEffectType(e: EffectInstance, effectId: string, base: CardBase, abilities?: Abilities): EffectInstance {
+  const fresh = createEffect(effectId, base, abilities);
+  return fitEffect({ ...fresh, timing: e.timing, condition: e.condition, target: e.target }, base, abilities);
+}
+
+/**
+ * カードの能力を変えたあと、効果を合わせ直す（MTG 要素 ○ バッチC1）：能力が無くなった「起動」「魂力」「捨て札から使ったとき」の効果は
+ * 使用時／召喚時に、「キッカーを払っていれば」の条件は外す
+ */
+export function setAbilities(card: CardDef, abilities: AbilityInstance[]): CardDef {
+  const base = cardBase(card);
+  const next: CardDef = { ...card, effects: card.effects.map((e) => fitEffect(e, base, abilities)) };
+  if (abilities.length > 0) next.abilities = abilities;
+  else delete next.abilities;
+  return next;
 }
 
 export function fitDrawback(d: DrawbackInstance, base: CardBase): DrawbackInstance {
@@ -190,7 +221,7 @@ export function setMonster(card: CardDef, monster: boolean): CardDef {
     ...card,
     stats: monster ? (card.stats ?? { ...DEFAULT_STATS }) : null,
     keywords: monster ? card.keywords : [],
-    effects: card.effects.map((e) => fitEffect(e, base)),
+    effects: card.effects.map((e) => fitEffect(e, base, card.abilities)),
     drawbacks: card.drawbacks
       .filter((d) => {
         const def = getDrawback(d.id);
@@ -200,7 +231,9 @@ export function setMonster(card: CardDef, monster: boolean): CardDef {
     // カードの能力はモンスターには付かない（付けられる種類にモンスターがあるものだけ残す）
     ...(monster && card.abilities ? { abilities: card.abilities.filter((x) => getAbility(x.id)?.cardTypes?.includes('monster') ?? true) } : {}),
     // 新生などモンスターだけの効果は、モンスターでなくなったら外す
-    ...(monster ? {} : { effects: card.effects.filter((e) => !getEffect(e.id)?.bases || getEffect(e.id)!.bases!.includes(base)).map((e) => fitEffect(e, base)) }),
+    ...(monster
+      ? {}
+      : { effects: card.effects.filter((e) => !getEffect(e.id)?.bases || getEffect(e.id)!.bases!.includes(base)).map((e) => fitEffect(e, base, card.abilities)) }),
   };
 }
 

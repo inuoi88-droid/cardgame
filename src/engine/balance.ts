@@ -104,6 +104,14 @@ export const BALANCE = {
     targeted: 1.5,
     bigCardPlayedMonster: 1.2,
     bigCardPlayedPower: 3.5,
+    /**
+     * MTG 要素 ○ バッチC1（決定事項ログ）。捨て札から使ったとき（余波）・魂力・起動（起動のエナジー1・2・3 の順。
+     * モンスターと、パワー（モンスター以外）で違う）
+     */
+    fromDiscard: 0.8,
+    channel: 1.0,
+    activatedMonster: [2.2, 1.6, 1.1],
+    activatedPower: [5.0, 3.6, 2.4],
   },
   /** タイミングに出てくる数（MTG 要素 ○ バッチA） */
   timingParams: {
@@ -179,7 +187,13 @@ export const BALANCE = {
     notFirstCard: 0.8,
     clash: 0.45,
     exploit: 0.6,
+    /** MTG 要素 ○ バッチC1：キッカーを払っていれば（キッカーの追加エナジーで conditionByKicker を使う。これはカードが無いとき） */
+    kicked: 0.6,
   },
+  /** 「キッカーを払っていれば」の倍率（キッカーの追加エナジー1・2 の順。MTG 要素 ○ バッチC1） */
+  conditionByKicker: [0.6, 0.45],
+  /** 二者択一（魂力。バッチC2 のモード選択も）：高い方＋低い方×otherRate */
+  choice: { otherRate: 0.3 },
 
   /** 条件に出てくる数 */
   conditionParams: {
@@ -432,6 +446,26 @@ export const BALANCE = {
     buyback: { rate: 0.5 },
     rebound: { rate: 0.7 },
     grow: { perValue: 4.5, maxValue: x(3), maxGrow: x(10) },
+    /**
+     * MTG 要素 ○ バッチC1（決定事項ログ）。捨て札から使う能力の基礎＝このカードの効果（魂力を除く）・ステータス・キーワードの
+     * ポイントの合計。「捨て札から使ったとき」の効果があるカードは、ステータス・キーワードだけ×率＋fromDiscardFlat
+     * フラッシュバック：追加コスト0・1・2 の順の率。脱出：除外する枚数 minCount〜maxCount の順の率
+     */
+    flashback: { rateByExtra: [0.5, 0.4, 0.3], fromDiscardFlat: x(1), maxExtra: 2 },
+    jumpStart: { rate: 0.4, fromDiscardFlat: x(1) },
+    escape: { rateByCount: [0.9, 0.8, 0.7, 0.6], minCount: 2, maxCount: 5, fromDiscardFlat: x(1) },
+    /** 起動：エナジー minCost〜maxCost（ポイントはタイミングの倍率 timing.activatedMonster / activatedPower） */
+    activate: { minCost: 1, maxCost: 3, flat: x(0) },
+    /** サイクリング：固定のポイントと、払うエナジー */
+    cycling: { flat: x(2), cost: 1 },
+    /** 魂力：払うエナジーは0〜maxCost（ポイントはタイミングの倍率 timing.channel と二者択一の割引） */
+    channel: { maxCost: 2, flat: x(0) },
+    /** 親和：perStep×min(maxReduction, 印刷コスト−minCost)。軽減してもコストは minCost まで */
+    affinity: { perStep: x(4), maxReduction: 3, minCost: 1 },
+    /** 条件付き軽減：perStep×K×条件の倍率（K は印刷コストまで）。軽減してもコストは minCost まで */
+    costCut: { perStep: x(10), maxReduction: 2, minCost: 0 },
+    /** キッカー：追加エナジー1〜maxExtra（ポイントは条件「キッカーを払っていれば」の倍率） */
+    kicker: { maxExtra: 2, flat: x(0) },
   },
 
   /**

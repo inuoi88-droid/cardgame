@@ -64,6 +64,23 @@ function parseTarget(x: unknown): TargetRef | null {
   return null;
 }
 
+/** 「選んだ1体」（使う・起動・魂力で共通）。無ければ undefined、形が壊れていれば null */
+function parseChosen(x: unknown): Chosen | undefined | null {
+  if (x === undefined) return undefined;
+  if (!isObj(x)) return null;
+  const chosen: Chosen = {};
+  if (x.enemy !== undefined) {
+    const t = parseTarget(x.enemy);
+    if (!t) return null;
+    chosen.enemy = t;
+  }
+  if (x.ally !== undefined) {
+    if (!isId(x.ally)) return null;
+    chosen.ally = x.ally;
+  }
+  return chosen;
+}
+
 /** 行動の形を調べ、知っている項目だけで作り直す（ブラウザからの行動に理由付きの降参は認めない） */
 export function parseAction(x: unknown): Action | null {
   if (!isObj(x) || !isPlayer(x.player)) return null;
@@ -77,21 +94,36 @@ export function parseAction(x: unknown): Action | null {
     }
     case 'playCard': {
       if (!isId(x.cardUid)) return null;
-      let chosen: Chosen | undefined;
-      if (x.chosen !== undefined) {
-        if (!isObj(x.chosen)) return null;
-        chosen = {};
-        if (x.chosen.enemy !== undefined) {
-          const t = parseTarget(x.chosen.enemy);
-          if (!t) return null;
-          chosen.enemy = t;
-        }
-        if (x.chosen.ally !== undefined) {
-          if (!isId(x.chosen.ally)) return null;
-          chosen.ally = x.chosen.ally;
-        }
-      }
-      return { type: 'playCard', player, cardUid: x.cardUid, ...(chosen ? { chosen } : {}) };
+      const chosen = parseChosen(x.chosen);
+      if (chosen === null) return null;
+      // MTG 要素 ○ バッチC1：捨て札から使う（from は 'discard' だけ）・再活で捨てる手札・脱出で除外する捨て札・キッカー
+      if (x.from !== undefined && x.from !== 'discard') return null;
+      if (x.discardUid !== undefined && !isId(x.discardUid)) return null;
+      if (x.exileUids !== undefined && !isIdList(x.exileUids)) return null;
+      if (x.kick !== undefined && typeof x.kick !== 'boolean') return null;
+      return {
+        type: 'playCard',
+        player,
+        cardUid: x.cardUid,
+        ...(chosen ? { chosen } : {}),
+        ...(x.from === 'discard' ? { from: 'discard' as const } : {}),
+        ...(x.discardUid !== undefined ? { discardUid: x.discardUid } : {}),
+        ...(x.exileUids !== undefined ? { exileUids: [...x.exileUids] } : {}),
+        ...(x.kick === true ? { kick: true } : {}),
+      };
+    }
+    case 'activate': {
+      if (!isId(x.sourceUid)) return null;
+      const chosen = parseChosen(x.chosen);
+      if (chosen === null) return null;
+      return { type: 'activate', player, sourceUid: x.sourceUid, ...(chosen ? { chosen } : {}) };
+    }
+    case 'handAbility': {
+      if (!isId(x.cardUid)) return null;
+      if (x.ability !== 'cycling' && x.ability !== 'channel') return null;
+      const chosen = parseChosen(x.chosen);
+      if (chosen === null) return null;
+      return { type: 'handAbility', player, cardUid: x.cardUid, ability: x.ability, ...(chosen ? { chosen } : {}) };
     }
     case 'attack': {
       const target = parseTarget(x.target);

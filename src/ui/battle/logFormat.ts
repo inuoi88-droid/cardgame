@@ -149,6 +149,9 @@ export function logIcon(evKind: battle.LogEvent['kind'] | undefined, rowKind?: b
   if (status === 'drawn') return '✋';
   if (status === 'divineShield') return '✴';
   if (status === 'doom') return '⏳'; // 呪縛を与えた・呪縛のダメージ（damageKind）
+  // MTG 要素 ○ バッチC1：サイクリング・魂力
+  if (status === 'cycling') return '♻';
+  if (status === 'channel') return '🌀';
   switch (evKind) {
     case 'damage':
       return '💥';
@@ -180,6 +183,10 @@ export function logIcon(evKind: battle.LogEvent['kind'] | undefined, rowKind?: b
       return '🗑';
     case 'result':
       return '🏁';
+    case 'activate':
+      return '⚡';
+    case 'handAbility':
+      return '♻';
     default:
       return rowKind === 'result' ? '🏁' : rowKind === 'damage' ? '💥' : '';
   }

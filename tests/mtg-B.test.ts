@@ -191,9 +191,10 @@ describe('カードの能力（○ バッチB）：ポイント・テキスト�
     expect(byId.rebound).toBe('もう付いています');
     expect(byId.buyback).toContain('同時に付けられません');
     expect(byId.grow).toBeNull();
-    expect(abilityChoices(MON(1, 1)).every((x) => x.blocked !== null)).toBe(true);
+    const batchB = ['shuffleBack', 'buyback', 'rebound', 'grow'];
+    expect(abilityChoices(MON(1, 1)).filter((x) => batchB.includes(x.def.id)).every((x) => x.blocked !== null)).toBe(true);
     expect(createAbility('grow')).toEqual({ id: 'grow', value: 1 });
-    expect(listAbilities().map((d) => d.id)).toEqual(['shuffleBack', 'buyback', 'rebound', 'grow']);
+    expect(listAbilities().map((d) => d.id).slice(0, 4)).toEqual(batchB);
   });
 
   it('取り込み：能力は残り、知らない能力は違反になる。能力の無いカードは形を変えない', () => {

@@ -7,7 +7,7 @@ import { keywordFlags, onLeaveBoard } from './damage.ts';
 import { pick, randInt, shuffle } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
-import type { CardDef } from '../types.ts';
+import type { CardDef, TimingId } from '../types.ts';
 import {
   ARMY_CARD_ID,
   NOISE_CARD_ID,
@@ -148,13 +148,24 @@ export function placeMonster(g: GameState, p: PlayerId, card: CardInst, depth: n
   return m;
 }
 
-/** 召喚：場に出して、召喚時のデメリットと効果を積む */
-export function summon(g: GameState, p: PlayerId, card: CardInst, chosen: Chosen, depth: number, protectKey?: string): Monster | undefined {
+/**
+ * 召喚：場に出して、召喚時のデメリットと効果を積む。timing は「捨て札から使ったとき」の効果があるカードを捨て札から使ったとき
+ * （MTG 要素 ○ バッチC1。召喚時の効果の代わりに出る）
+ */
+export function summon(
+  g: GameState,
+  p: PlayerId,
+  card: CardInst,
+  chosen: Chosen,
+  depth: number,
+  protectKey?: string,
+  timing: 'summon' | 'fromDiscard' | TimingId = 'summon',
+): Monster | undefined {
   const m = placeMonster(g, p, card, depth);
   if (!m) return undefined;
   const def = g.cards[card.cardId]!;
   const src: SourceRef = { kind: 'monster', uid: m.uid, cardId: card.cardId, name: def.name, controller: p, ...(card.token ? { token: true } : {}) };
-  enqueueCardTiming(g, src, def, 'summon', chosen, depth + 1, protectKey ? { protectKey } : {});
+  enqueueCardTiming(g, src, def, timing, chosen, depth + 1, protectKey ? { protectKey } : {});
   onMonsterEntered(g, m, depth + 1);
   return m;
 }
@@ -201,11 +212,14 @@ export function discardRandom(g: GameState, p: PlayerId, count: number, depth: n
   }
 }
 
-/** 捨て札に置く（残らないコピーは除外。トークンはどこにも行かない）。元の持ち主の捨て札へ */
+/**
+ * 捨て札に置く（残らないコピー・捨て札から使ったフラッシュバック／再活のカードは除外。トークンはどこにも行かない）。
+ * 元の持ち主の捨て札へ
+ */
 export function discardCard(g: GameState, card: CardInst): void {
   if (card.token) return;
   const owner = g.players[card.owner];
-  if (card.copy === 'temp') owner.exile.push(card);
+  if (card.copy === 'temp' || card.exileOnLeave) owner.exile.push(card);
   else owner.discard.push(card);
 }
 
@@ -223,6 +237,13 @@ export function bounce(g: GameState, uid: string, depth: number): void {
   // トークンは手札に戻らず消える
   if (m.card.token) {
     log(g, depth, `${label}は場を離れて消えた（トークン）`, 'effect', undefined, { kind: 'destroy', player: m.controller, cardId: m.card.cardId, uid: m.uid });
+    onLeaveBoard(g, m, depth + 1, false);
+    return;
+  }
+  // 捨て札から使ったフラッシュバック・再活のモンスター（MTG 要素 ○ バッチC1）は、手札ではなく除外へ
+  if (m.card.exileOnLeave) {
+    g.players[m.card.owner].exile.push(m.card);
+    log(g, depth, `${label}は場を離れて除外された（捨て札から使ったため）`);
     onLeaveBoard(g, m, depth + 1, false);
     return;
   }

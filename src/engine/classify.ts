@@ -20,9 +20,9 @@ export function hasPlayerPermanent(card: CardDef): boolean {
   );
 }
 
-/** 相手へのダメージ効果があるか（使用時のダメージ・連撃だけで判定する） */
+/** 相手へのダメージ効果があるか（使用時・捨て札から使ったときのダメージ・連撃だけで判定する） */
 export function hasOpponentDamage(card: CardDef): boolean {
-  return card.effects.some((e) => getEffect(e.id)?.isDamage === true && e.timing === 'play');
+  return card.effects.some((e) => getEffect(e.id)?.isDamage === true && (e.timing === 'play' || e.timing === 'fromDiscard'));
 }
 
 /** 仕様の順に判定：モンスター → パワー・アタック → パワー → アタック → スキル */

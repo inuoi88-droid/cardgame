@@ -5,8 +5,10 @@
 import { BALANCE } from '../balance.ts';
 import { applyAction } from '../battle/apply.ts';
 import { findMonster, other } from '../battle/core.ts';
-import { effectiveCost } from '../battle/play.ts';
-import { NOISE_CARD_ID, type Action, type GameState, type PendingChoice, type PlayerId } from '../battle/types.ts';
+import { activateSource } from '../battle/abilities.ts';
+import { effectiveCost, playTiming } from '../battle/play.ts';
+import { NOISE_CARD_ID, type Action, type CardInst, type GameState, type PendingChoice, type PlayerId } from '../battle/types.ts';
+import type { CardDef, EffectInstance, TimingId } from '../types.ts';
 import { getEffect } from '../registry.ts';
 import { classifyCard } from '../classify.ts';
 import { cardPickScore, evaluate, nextEnergy, raceFrame, WEIGHTS, type RaceFrame } from './evaluate.ts';
@@ -192,18 +194,42 @@ export function simulate(view: GameState, action: Action, seed: number, me: Play
   return s;
 }
 
+/**
+ * 行動で使うカード（と出るタイミング）：手札・捨て札（MTG 要素 ○ バッチC1）から使うカード、手札から使う能力（魂力）、
+ * 起動するモンスター・パワー。当てはまらなければ null
+ */
+export function actionCard(view: GameState, action: Action): { card?: CardInst; def: CardDef; timing: TimingId; effects: EffectInstance[] } | null {
+  const ps = view.players[action.player];
+  if (action.type === 'playCard') {
+    const card = (action.from === 'discard' ? ps.discard : ps.hand).find((c) => c.uid === action.cardUid);
+    const def = card ? view.cards[card.cardId] : undefined;
+    if (!card || !def) return null;
+    const timing = playTiming(def, action.from === 'discard' ? 'discard' : 'hand');
+    return { card, def, timing, effects: def.effects.filter((e) => e.timing === timing) };
+  }
+  if (action.type === 'handAbility') {
+    const card = ps.hand.find((c) => c.uid === action.cardUid);
+    const def = card ? view.cards[card.cardId] : undefined;
+    if (!card || !def) return null;
+    return { card, def, timing: 'channel', effects: action.ability === 'channel' ? def.effects.filter((e) => e.timing === 'channel') : [] };
+  }
+  if (action.type === 'activate') {
+    const src = activateSource(view, action.player, action.sourceUid);
+    if (!src) return null;
+    return { def: src.def, timing: 'activated', effects: src.def.effects.filter((e) => e.timing === 'activated') };
+  }
+  return null;
+}
+
 /** この行動の結果がランダムに変わるか（使用時・召喚時にランダムな対象の効果や、ランダムに捨てるデメリットがある） */
 export function usesRandom(view: GameState, action: Action): boolean {
-  if (action.type !== 'playCard') return false;
-  const card = view.players[action.player].hand.find((c) => c.uid === action.cardUid);
-  const def = card ? view.cards[card.cardId] : undefined;
-  if (!def) return false;
-  const timing = def.stats ? 'summon' : 'play';
+  const ac = actionCard(view, action);
+  if (!ac) return false;
+  const { def, timing } = ac;
   const opp = other(action.player);
   const oppBoard = view.players[opp].board.length;
   const myBoard = view.players[action.player].board.length;
-  for (const e of def.effects) {
-    if (e.timing !== timing) continue;
+  for (const e of ac.effects) {
     // コイン投げ・激突の条件：仮の実行で結果を先読みしないよう、複数のシードの平均で評価する
     if (e.condition === 'coinFlip' || e.condition === 'clash') return true;
     if (e.target !== 'random') continue;
@@ -248,14 +274,10 @@ export function scoreAction(view: GameState, action: Action, seed: number, me: P
  * 続唱（コストN以下のカードを無料で使う）と抽出（山札から1枚）。使用時・召喚時の効果だけ（条件は見ない）
  */
 export function hiddenDeckBonus(view: GameState, action: Action): number {
-  if (action.type !== 'playCard') return 0;
-  const card = view.players[action.player].hand.find((c) => c.uid === action.cardUid);
-  const def = card ? view.cards[card.cardId] : undefined;
-  if (!def) return 0;
-  const timing = def.stats ? 'summon' : 'play';
+  const ac = actionCard(view, action);
+  if (!ac) return 0;
   let bonus = 0;
-  for (const e of def.effects) {
-    if (e.timing !== timing) continue;
+  for (const e of ac.effects) {
     if (e.id === 'cascade') bonus += (e.value ?? 0) * WEIGHTS.cascadePerCost;
     if (e.id === 'seek') bonus += WEIGHTS.seekCard;
   }
@@ -272,8 +294,8 @@ export function outcome(before: GameState, after: GameState, action: Action, me:
   }
   let cost = 0;
   if (action.type === 'playCard') {
-    const card = before.players[me].hand.find((c) => c.uid === action.cardUid);
-    if (card) cost = effectiveCost(before, me, card, { chosen: action.chosen ?? {} });
+    const card = actionCard(before, action)?.card;
+    if (card) cost = effectiveCost(before, me, card, { chosen: action.chosen ?? {}, from: action.from === 'discard' ? 'discard' : 'hand', kick: action.kick === true });
   }
   const face = Math.max(0, before.players[opp].hp - after.players[opp].hp);
   return { kills, cost, face };
@@ -316,9 +338,16 @@ export function signature(g: GameState): string {
  */
 export function actionKey(g: GameState, a: Action): string {
   if (a.type === 'playCard') {
+    const card = actionCard(g, a)?.card;
+    const t = a.chosen?.enemy;
+    // 捨て札から使う・キッカー（MTG 要素 ○ バッチC1）も区別する（捨て札のカードは手札に無いので、見つからなければ uid）
+    const extra = `${a.from ?? ''}:${a.kick ? 'k' : ''}:${a.discardUid ?? ''}:${(a.exileUids ?? []).join('+')}`;
+    return `c:${card?.cardId ?? a.cardUid}:${card?.copy ?? ''}:${card?.grow ?? 0}:${card?.buybackTurn ?? ''}:${extra}|${t ? (t.kind === 'player' ? 'p' : t.uid) : ''}|${a.chosen?.ally ?? ''}`;
+  }
+  if (a.type === 'handAbility') {
     const card = g.players[a.player].hand.find((c) => c.uid === a.cardUid);
     const t = a.chosen?.enemy;
-    return `c:${card?.cardId}:${card?.copy ?? ''}:${card?.grow ?? 0}:${card?.buybackTurn ?? ''}|${t ? (t.kind === 'player' ? 'p' : t.uid) : ''}|${a.chosen?.ally ?? ''}`;
+    return `h:${a.ability}:${card?.cardId ?? a.cardUid}:${card?.copy ?? ''}|${t ? (t.kind === 'player' ? 'p' : t.uid) : ''}|${a.chosen?.ally ?? ''}`;
   }
   if (a.type === 'attack') {
     const m = g.players[a.player].board.find((x) => x.uid === a.attackerUid);
@@ -346,7 +375,7 @@ export function dedupeActions(g: GameState, actions: Action[]): Action[] {
 export function orderForSearch(g: GameState, actions: Action[]): Action[] {
   const rank = (a: Action): number => {
     if (a.type === 'attack') return a.target.kind === 'player' ? 3 : 1;
-    if (a.type === 'playCard') return a.chosen?.enemy?.kind === 'player' ? 2.5 : 2;
+    if (a.type === 'playCard' || a.type === 'activate' || a.type === 'handAbility') return a.chosen?.enemy?.kind === 'player' ? 2.5 : 2;
     return 0;
   };
   return dedupeActions(g, actions.filter((a) => a.type !== 'endTurn' && a.type !== 'concede')).sort((a, b) => rank(b) - rank(a));

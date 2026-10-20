@@ -1,0 +1,13 @@
+/* エディターの追加分：カードの説明の入力欄 */
+.ed-desc textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  line-height: 1.5;
+}
+.ed-desc.field--invalid textarea {
+  border-color: var(--ng);
+}
+.ed-desc .field__count {
+  font-variant-numeric: tabular-nums;
+}

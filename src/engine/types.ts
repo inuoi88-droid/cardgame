@@ -95,7 +95,15 @@ export interface CardDef {
   keywords: KeywordInstance[];
   effects: EffectInstance[];
   drawbacks: DrawbackInstance[];
+  /**
+   * プレイヤーが書く短い説明（フレーバーや使い方のメモ）。任意。ポイントやルールには関係しない。
+   * 読み込み時に前後の空白・制御文字を除き、CARD_DESCRIPTION_MAX 文字を超えた分は切り詰める（io.ts の normalizeDescription）
+   */
+  description?: string;
 }
+
+/** カードの説明の最大文字数（見た目の都合の上限で、バランスの数値ではない） */
+export const CARD_DESCRIPTION_MAX = 80;
 
 export interface DeckEntry {
   cardId: string;

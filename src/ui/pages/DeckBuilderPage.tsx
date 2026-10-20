@@ -12,9 +12,10 @@ import {
   type CardDef,
   type Deck,
   type Rarity,
+  type RarityRow,
 } from '../../engine/index.ts';
-import { CardView } from '../components/CardView.tsx';
-import { Modal, Stepper, Violations } from '../components/controls.tsx';
+import { CardDetail } from '../components/CardDetail.tsx';
+import { Stepper, Violations } from '../components/controls.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { navigate } from '../router.ts';
 import { NEW_DRAFT, actions, deckDrafts, useStore } from '../store.ts';
@@ -54,7 +55,7 @@ function Builder({ saved }: { saved: Deck | null }) {
   const [tab, setTab] = useState<'pool' | 'deck'>('pool');
   const [filter, setFilter] = useState<PoolFilter>('all');
   const [query, setQuery] = useState('');
-  const [preview, setPreview] = useState<CardDef | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
 
   useEffect(() => {
     const pristine = saved ? sameJson(deck, saved) : sameJson(deck, emptyDeck(deck.id));
@@ -80,12 +81,12 @@ function Builder({ saved }: { saved: Deck | null }) {
       return { ...d, entries };
     });
 
-  // 同名の枚数（呪いを除く）
+  // 同名の枚数（呪いカードも元のレアリティの制限に従う。決定事項 #64）
   const nameCounts = useMemo(() => {
     const m = new Map<string, number>();
     for (const e of deck.entries) {
       const c = cardsById.get(e.cardId);
-      if (!c || analyses.get(c.id)?.isCurse) continue;
+      if (!c) continue;
       const k = normalizeName(c.name);
       m.set(k, (m.get(k) ?? 0) + e.count);
     }
@@ -103,6 +104,20 @@ function Builder({ saved }: { saved: Deck | null }) {
   const deckRows = deck.entries
     .map((e) => ({ entry: e, card: cardsById.get(e.cardId) }))
     .sort((x, y) => (x.card?.cost ?? 99) - (y.card?.cost ?? 99) || (x.card?.name ?? '').localeCompare(y.card?.name ?? '', 'ja'));
+
+  /** 1枚足せないなら、その理由（デッキの枚数・同名・レアリティの上限、要修正） */
+  const addBlock = (card: CardDef): string | null => {
+    const ca = analyses.get(card.id);
+    if (ca && !ca.valid) return '要修正のカードはデッキに入れられません（先にカードを直してください）';
+    if (a.total >= a.size) return `デッキは${a.size}枚ちょうどです（もう${a.total}枚入っています）`;
+    const perName = BALANCE.rarity[card.rarity].perNameLimit;
+    const nameCount = nameCounts.get(normalizeName(card.name)) ?? 0;
+    if (perName !== null && nameCount >= perName) return `同じ名前のカードは${RARITY_LABEL[card.rarity]}なら${perName}枚までです（いま${nameCount}枚）`;
+    const row = a.rarityRows.find((r) => r.rarity === card.rarity);
+    if (row && row.limit !== null && row.count >= row.limit) return `${RARITY_LABEL[card.rarity]}はデッキ全体で${row.limit}枚までです（いま${row.count}枚）`;
+    return null;
+  };
+  const preview = previewId ? (cardsById.get(previewId) ?? null) : null;
 
   const save = () => {
     if (!a.valid) return;
@@ -188,11 +203,11 @@ function Builder({ saved }: { saved: Deck | null }) {
             {pool.map((c) => {
               const ca = analyses.get(c.id)!;
               const count = countOf(c.id);
-              const perName = ca.isCurse ? null : BALANCE.rarity[c.rarity].perNameLimit;
+              const perName = BALANCE.rarity[c.rarity].perNameLimit;
               const nameCount = nameCounts.get(normalizeName(c.name)) ?? 0;
               return (
                 <li key={c.id} className={cx('card-row', !ca.valid && 'is-invalid', count > 0 && 'is-in')}>
-                  <CardRowInfo card={c} a={ca} onPreview={() => setPreview(c)} />
+                  <CardRowInfo card={c} a={ca} onPreview={() => setPreviewId(c.id)} />
                   <span className={cx('card-row__limit', perName !== null && nameCount > perName && 'text-ng')}>
                     {!ca.valid ? '要修正' : perName !== null ? `同名 ${nameCount}/${perName}` : ''}
                   </span>
@@ -210,7 +225,7 @@ function Builder({ saved }: { saved: Deck | null }) {
             {deckRows.map(({ entry, card }) =>
               card ? (
                 <li key={entry.cardId} className={cx('card-row', !analyses.get(card.id)?.valid && 'is-invalid')}>
-                  <CardRowInfo card={card} a={analyses.get(card.id)!} onPreview={() => setPreview(card)} />
+                  <CardRowInfo card={card} a={analyses.get(card.id)!} onPreview={() => setPreviewId(card.id)} />
                   <span />
                   <CountControl count={entry.count} onChange={(n) => setCount(card.id, n)} />
                 </li>
@@ -243,20 +258,14 @@ function Builder({ saved }: { saved: Deck | null }) {
         </button>
       </div>
 
-      {preview && (
-        <Modal title={preview.name} onClose={() => setPreview(null)}>
-          <div className="preview-modal">
-            <CardView card={preview} />
-          </div>
-        </Modal>
-      )}
+      {preview && <PoolDetail card={preview} analysis={analyses.get(preview.id)!} count={countOf(preview.id)} block={addBlock(preview)} nameCount={nameCounts.get(normalizeName(preview.name)) ?? 0} rarityRow={a.rarityRows.find((r) => r.rarity === preview.rarity)} onCount={(n) => setCount(preview.id, n)} onClose={() => setPreviewId(null)} />}
     </>
   );
 }
 
 function CardRowInfo({ card, a, onPreview }: { card: CardDef; a: CardAnalysis; onPreview: () => void }) {
   return (
-    <button type="button" className="card-row__info" onClick={onPreview} title="カードを見る">
+    <button type="button" className="card-row__info" onClick={onPreview} title="詳細を見る" aria-label={`${card.name || '（名前なし）'}の詳細を見る`}>
       <span className={cx('card-row__icon', `frame--${card.rarity}`, a.isCurse && 'frame--curse')}>{card.icon}</span>
       <span className="card-row__text">
         <b>{card.name}</b>
@@ -278,4 +287,52 @@ function CountControl({ count, onChange, disabled }: { count: number; onChange: 
     );
   }
   return <Stepper label="枚数" value={count} min={0} max={BALANCE.deck.size} onChange={onChange} />;
+}
+
+interface PoolDetailProps {
+  card: CardDef;
+  analysis: CardAnalysis;
+  count: number;
+  /** 1枚足せない理由（足せるなら null） */
+  block: string | null;
+  nameCount: number;
+  rarityRow: RarityRow | undefined;
+  onCount: (n: number) => void;
+  onClose: () => void;
+}
+
+/** デッキ構築でカードを押したときの詳細：枚数と上限、「デッキに追加」「1枚減らす」 */
+function PoolDetail({ card, analysis, count, block, nameCount, rarityRow, onCount, onClose }: PoolDetailProps) {
+  const perName = BALANCE.rarity[card.rarity].perNameLimit;
+  return (
+    <CardDetail
+      card={card}
+      analysis={analysis}
+      onClose={onClose}
+      status={
+        <>
+          <span>
+            デッキに <b>{count}枚</b>
+            {perName !== null && `・同名 ${nameCount}/${perName}`}
+            {rarityRow && rarityRow.limit !== null && `・${RARITY_LABEL[card.rarity]} ${rarityRow.count}/${rarityRow.limit}`}
+          </span>
+          {block && (
+            <span className="text-warn" role="status">
+              {block}
+            </span>
+          )}
+        </>
+      }
+      actions={
+        <>
+          <button type="button" className="btn btn--primary" disabled={block !== null} onClick={() => onCount(count + 1)}>
+            ＋ デッキに追加
+          </button>
+          <button type="button" className="btn" disabled={count === 0} onClick={() => onCount(count - 1)}>
+            − 1枚減らす
+          </button>
+        </>
+      }
+    />
+  );
 }

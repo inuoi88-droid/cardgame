@@ -23,9 +23,9 @@ describe('レジストリ', () => {
     expect(readFileSync(OUTPUT_PATH, 'utf8')).toBe(generateRegistrySource());
   });
 
-  it('仕様の数だけ登録されている（効果39・オプション2・キーワード8・デメリット10）', () => {
+  it('仕様の数だけ登録されている（効果39・オプション5（MTG 要素バッチ1で数値の倍数3つ）・キーワード8・デメリット10）', () => {
     expect(listEffects()).toHaveLength(39);
-    expect(listModifiers()).toHaveLength(2);
+    expect(listModifiers()).toHaveLength(5);
     expect(listKeywords()).toHaveLength(8);
     expect(listDrawbacks()).toHaveLength(10);
   });

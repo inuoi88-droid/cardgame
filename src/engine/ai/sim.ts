@@ -73,7 +73,10 @@ export function usesRandom(view: GameState, action: Action): boolean {
   const oppBoard = view.players[opp].board.length;
   const myBoard = view.players[action.player].board.length;
   for (const e of def.effects) {
-    if (e.timing !== timing || e.target !== 'random') continue;
+    if (e.timing !== timing) continue;
+    // コイン投げの条件：仮の実行で結果を先読みしないよう、複数のシードの平均で評価する
+    if (e.condition === 'coinFlip') return true;
+    if (e.target !== 'random') continue;
     if (oppBoard > 0 || myBoard > 1) return true;
   }
   return def.drawbacks.some((d) => d.id === 'discardRandom' && d.timing === timing && view.players[action.player].hand.length > 1);

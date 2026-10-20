@@ -101,6 +101,9 @@ export function statusOf(g: GameState, t: TargetRef): Statuses | undefined {
 }
 
 export const playerRef = (p: PlayerId): TargetRef => ({ kind: 'player', player: p });
+
+/** 実効攻撃力（攻撃力＋このターンだけの上乗せ） */
+export const effectiveAttack = (m: Monster): number => m.attack + (m.tempAttack ?? 0);
 export const monsterRef = (m: Monster): TargetRef => ({ kind: 'monster', uid: m.uid });
 
 export function sourceOfPlayer(g: GameState, p: PlayerId): SourceRef {

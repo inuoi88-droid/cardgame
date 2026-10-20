@@ -18,7 +18,7 @@ import {
   targetLabel,
   isEnded,
 } from './core.ts';
-import { enqueueCardTiming } from './triggers.ts';
+import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
 import type { DamageKind, GameState, Monster, PlayerId, StatusKey, TargetRef } from './types.ts';
 
 export type { DamageKind } from './types.ts';
@@ -162,6 +162,8 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
       ev(amount),
     );
     const result: DamageResult = { hpLost: before - ps.hp, overflow: 0, destroyed: false };
+    // このターンの記録：手番のプレイヤーが相手のHPを減らした（出どころは問わない。条件「このターン相手にダメージを与えた」）
+    if (result.hpLost > 0 && g.phase === 'main' && target.player !== g.active) g.players[g.active].turn.enemyDamaged = true;
     if (checkGameEnd(g)) return result;
     // 反撃（状態）：攻撃を受けたら、攻撃してきた相手に返す。1枚のカード（1回の攻撃）につき1回
     if (hit && ps.status.counter > 0 && opts.source && targetExists(g, opts.source) && onceFor(g, opts.playKey, 'counterHit', target)) {
@@ -217,10 +219,18 @@ export function destroyMonster(g: GameState, m: Monster, depth: number): void {
     cardId: m.card.cardId,
     uid: m.uid,
   });
+  // このターンの記録（手番のプレイヤーの記録に、敵味方どちらのモンスターも数える）
+  if (g.phase === 'main') {
+    const turn = g.players[g.active].turn;
+    turn.monstersDestroyed = (turn.monstersDestroyed ?? 0) + 1;
+  }
   if (!m.sealed) {
     const def = g.cards[m.card.cardId];
     if (def) enqueueCardTiming(g, sourceOfMonster(g, m), def, 'destroyed', {}, depth + 1, {});
   }
+  // 自分の他のモンスターが破壊されるたび：破壊されたときの持ち主のパワー → 場に残っているモンスター（左から）
+  enqueuePowers(g, m.controller, 'allyDestroyed', depth + 1);
+  enqueueMonsters(g, m.controller, 'allyDestroyed', depth + 1);
 }
 
 export function heal(g: GameState, target: TargetRef, amount: number, depth: number): number {

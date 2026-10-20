@@ -2,7 +2,7 @@
  * 用語集：状態異常・持続効果・モンスターの状態の「名前」「短い説明」「アイコン」。
  * 対戦画面のポップオーバーとルールページが同じ文を使う。数字は balance.ts から読む。
  */
-import { BALANCE, listKeywords } from '../engine/index.ts';
+import { BALANCE, CONDITIONS, TIMINGS, listKeywords, listModifiers } from '../engine/index.ts';
 
 const B = BALANCE.battle;
 const pct = (rate: number) => `${Math.round(rate * 100)}%`;
@@ -117,7 +117,51 @@ export const keywordGlossary: Record<string, GlossaryEntry> = Object.fromEntries
   }),
 );
 
-/** 状態異常・キーワードどちらの ID でも引ける */
+const MODIFIER_ICON: Record<string, string> = {
+  pierce: '🗡',
+  drain: '🩸',
+  xEnergy: 'Ⓧ',
+  perEnemyMonster: '👥',
+  perCardPlayed: '🃏',
+};
+
+/** 効果のオプション（防御無視・吸収・X など。レジストリから作る） */
+export const modifierGlossary: Record<string, GlossaryEntry> = Object.fromEntries(
+  listModifiers().map((def) => [def.id, { name: def.name, short: def.summary, icon: MODIFIER_ICON[def.id] ?? '◇', tone: 'info' as const }]),
+);
+
+/** 発動タイミング（options.ts の説明そのもの）。ID は `timing:<id>` */
+export const timingGlossary: Record<string, GlossaryEntry> = Object.fromEntries(
+  Object.values(TIMINGS).map((t) => [`timing:${t.id}`, { name: t.label, short: t.description, icon: '⏱', tone: 'info' as const }]),
+);
+
+/** 条件（options.ts の説明そのもの）。ID は `condition:<id>` */
+export const conditionGlossary: Record<string, GlossaryEntry> = Object.fromEntries(
+  Object.values(CONDITIONS).map((c) => [`condition:${c.id}`, { name: c.label, short: c.description, icon: '❓', tone: 'info' as const }]),
+);
+
+/** 対戦のしくみの用語（ログの出来事・対象の名前など） */
+export const mechanicGlossary: Record<string, GlossaryEntry> = {
+  coin: { name: 'コイン投げ', icon: '🪙', tone: 'info', short: '条件「コインを投げて表なら」の効果は、出るたびにコインを投げ、表（50%）のときだけ発動する' },
+  thisMonster: { name: 'このモンスター', icon: '🎯', tone: 'info', short: '効果を持つモンスター自身。場にいなければ不発' },
+  allyMonsters: { name: '自分のモンスター全体', icon: '👥', tone: 'info', short: '自分の場のモンスターすべて（効果を持つモンスター自身も含む）' },
+  triggerAlly: { name: '出たモンスター', icon: '✨', tone: 'info', short: '「自分のモンスターが出るたび」で、いま場に出た自分のモンスター' },
+  repeatCap: {
+    name: '繰り返し誘発の上限',
+    icon: '🔁',
+    tone: 'info',
+    short: `「自分のモンスターが出るたび」「自分の他のモンスターが破壊されるたび」「パワー・スキルを使うたび」は、1つのカードにつき1ターン${B.maxRepeatTriggersPerTurn}回まで`,
+  },
+};
+
+/** 状態異常・キーワード・オプション・しくみ・タイミング（timing:…）・条件（condition:…）のどの ID でも引ける */
 export function glossaryOf(id: string): GlossaryEntry | undefined {
-  return (glossary as Record<string, GlossaryEntry>)[id] ?? keywordGlossary[id];
+  return (
+    (glossary as Record<string, GlossaryEntry>)[id] ??
+    keywordGlossary[id] ??
+    modifierGlossary[id] ??
+    mechanicGlossary[id] ??
+    timingGlossary[id] ??
+    conditionGlossary[id]
+  );
 }

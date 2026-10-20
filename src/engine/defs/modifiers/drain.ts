@@ -5,6 +5,7 @@ export default defineModifier({
   id: 'drain',
   name: '吸収',
   order: 2,
+  scope: 'damage',
   summary: '与えたダメージの半分（切り捨て）だけ回復する',
   rate: BALANCE.modifiers.drain,
   textPrefix: '',

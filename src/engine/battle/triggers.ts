@@ -1,5 +1,6 @@
 /** 発動タイミングごとに、効果・デメリットを解決キューに積む */
 import { BALANCE } from '../balance.ts';
+import { REPEAT_CAPPED_TIMINGS, TIMINGS } from '../options.ts';
 import type { CardDef, TimingId } from '../types.ts';
 import { enqueue, log, newUid } from './core.ts';
 import type { Chosen, GameState, PlayerId, PowerInst, SourceRef } from './types.ts';
@@ -39,39 +40,88 @@ export function powerSource(power: PowerInst, controller: PlayerId): SourceRef {
   return { kind: 'power', uid: power.uid, cardId: power.cardId, name: power.name, controller };
 }
 
+export interface EnqueueOpts {
+  /** 発動させないパワー・モンスター（いま置いたパワー、いま出たモンスター） */
+  excludeUid?: string;
+  /** 「選んだ1体」（「出たモンスター」など） */
+  chosen?: Chosen;
+}
+
+/**
+ * 繰り返し誘発の安全装置：1つのパワー・モンスターにつき、通算ターン1つあたり上限の回数まで。
+ * 数えて、まだ発動できれば true（上限を超えた最初の1回だけログを出す）
+ */
+function allowRepeat(
+  g: GameState,
+  timing: TimingId,
+  name: string,
+  depth: number,
+  read: () => { turnIndex: number; count: number } | undefined,
+  write: (t: { turnIndex: number; count: number }) => void,
+): boolean {
+  const capped = timing === 'cardPlayed' || REPEAT_CAPPED_TIMINGS.includes(timing);
+  if (!capped) return true;
+  const max = timing === 'cardPlayed' ? BALANCE.battle.maxCardPlayedTriggersPerTurn : BALANCE.battle.maxRepeatTriggersPerTurn;
+  const prev = read();
+  const t = prev && prev.turnIndex === g.turnIndex ? { ...prev } : { turnIndex: g.turnIndex, count: 0 };
+  t.count += 1;
+  write(t);
+  if (t.count <= max) return true;
+  if (t.count === max + 1) log(g, depth, `「${name}」の「${TIMINGS[timing].label}」はこのターンもう発動しない（1ターン${max}回まで）`, 'info');
+  return false;
+}
+
 /** パワーの、あるタイミングの効果を積む（使った順） */
-export function enqueuePowers(g: GameState, p: PlayerId, timing: TimingId, depth: number, excludeUid?: string): void {
+export function enqueuePowers(g: GameState, p: PlayerId, timing: TimingId, depth: number, opts: EnqueueOpts = {}): void {
   for (const power of g.players[p].powers) {
-    if (power.uid === excludeUid) continue;
+    if (power.uid === opts.excludeUid) continue;
     const effects = power.effects.filter((x) => !x.removed && x.effect.timing === timing).map((x) => x.effect);
     const drawbacks = power.drawbacks.filter((d) => d.timing === timing);
     if (effects.length === 0 && drawbacks.length === 0) continue;
-    // 「カードを使うたび」はパワー1つにつき1ターンに規定回数まで（安全装置：決定事項 #64）
-    if (timing === 'cardPlayed') {
-      const max = BALANCE.battle.maxCardPlayedTriggersPerTurn;
-      const t = power.triggers?.turnIndex === g.turnIndex ? power.triggers : { turnIndex: g.turnIndex, count: 0 };
-      power.triggers = t;
-      t.count += 1;
-      if (t.count > max) {
-        if (t.count === max + 1) log(g, depth, `「${power.name}」の「カードを使うたび」はこのターンもう発動しない（1ターン${max}回まで）`, 'info');
-        continue;
-      }
-    }
+    // 「カードを使うたび」などはパワー1つにつき1ターンに規定回数まで（安全装置：決定事項 #64）
+    const ok = allowRepeat(
+      g,
+      timing,
+      power.name,
+      depth,
+      () => (timing === 'cardPlayed' ? power.triggers : power.repeats?.[timing]),
+      (t) => {
+        if (timing === 'cardPlayed') power.triggers = t;
+        else power.repeats = { ...power.repeats, [timing]: t };
+      },
+    );
+    if (!ok) continue;
     const src = powerSource(power, p);
     const protectKey = newUid(g, 'pk');
     for (const drawback of drawbacks) enqueue(g, { t: 'drawback', src, drawback, protectKey, depth });
     for (const effect of effects) {
-      enqueue(g, { t: 'effect', src, effect, timing, chosen: {}, attackCard: false, protectKey, depth });
+      enqueue(g, { t: 'effect', src, effect, timing, chosen: opts.chosen ?? {}, attackCard: false, protectKey, depth });
     }
   }
 }
 
 /** 場のモンスターの、あるタイミングの効果を積む（左から） */
-export function enqueueMonsters(g: GameState, p: PlayerId, timing: TimingId, depth: number): void {
+export function enqueueMonsters(g: GameState, p: PlayerId, timing: TimingId, depth: number, opts: EnqueueOpts = {}): void {
   for (const m of g.players[p].board) {
+    if (m.uid === opts.excludeUid) continue;
     const def = g.cards[m.card.cardId];
     if (!def) continue;
+    const hasAny = (!m.sealed && def.effects.some((e) => e.timing === timing)) || def.drawbacks.some((d) => d.timing === timing);
+    if (!hasAny) continue;
+    const key = `rt:${timing}`;
+    const ok = allowRepeat(
+      g,
+      timing,
+      def.name,
+      depth,
+      () => (m.counters[`${key}:turn`] === undefined ? undefined : { turnIndex: m.counters[`${key}:turn`]!, count: m.counters[`${key}:count`] ?? 0 }),
+      (t) => {
+        m.counters[`${key}:turn`] = t.turnIndex;
+        m.counters[`${key}:count`] = t.count;
+      },
+    );
+    if (!ok) continue;
     const src: SourceRef = { kind: 'monster', uid: m.uid, cardId: m.card.cardId, name: def.name, controller: m.controller };
-    enqueueCardTiming(g, src, def, timing, {}, depth, { sealed: m.sealed });
+    enqueueCardTiming(g, src, def, timing, opts.chosen ?? {}, depth, { sealed: m.sealed });
   }
 }

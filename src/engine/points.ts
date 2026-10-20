@@ -5,7 +5,7 @@
  */
 import { BALANCE } from './balance.ts';
 import { cardBase } from './classify.ts';
-import type { PointCard } from './define.ts';
+import type { ModifierDef, PointCard } from './define.ts';
 import { formatMultiplier } from './labels.ts';
 import { ceilPoints, floorPoints, round2 } from './math.ts';
 import {
@@ -74,6 +74,14 @@ export function attackProfile(keywords: readonly KeywordInstance[]): AttackProfi
 /** タイミングの倍率の項（「攻撃するたび」は攻撃回数と速攻を式と理由に出す） */
 function timingFactor(timing: keyof typeof TIMINGS, base: CardBase, card: PointCard): Factor {
   const t = TIMINGS[timing];
+  if (timing === 'hitEnemyPlayer') {
+    // 二回攻撃なら発動の機会も2倍
+    const profile = attackProfile(card.keywords);
+    const value = timingMultiplier(timing, base, profile);
+    if (profile.attacks === 1) return { label: t.label, value };
+    const name = getKeyword('doubleAttack')?.name ?? '二回攻撃';
+    return { label: `${t.label}・${name}`, value, text: `${formatMultiplier(BALANCE.timing.hitEnemyPlayer)}×${profile.attacks}` };
+  }
   if (timing !== 'attack' || base !== 'monster') return { label: t.label, value: timingMultiplier(timing, base) };
   const profile = attackProfile(card.keywords);
   const value = timingMultiplier(timing, base, profile);
@@ -91,6 +99,18 @@ function timingFactor(timing: keyof typeof TIMINGS, base: CardBase, card: PointC
   return { label: names.join('・'), value, text: profile.attacks === 1 && !profile.haste ? undefined : text };
 }
 
+/**
+ * 効果に付いていて、その効果に付けられるオプション（防御無視・吸収は allowsMods、数値の倍数は scalable の効果だけ）。
+ * 付けられないものは無視する（validate が違反として出す）
+ */
+export function effectModifiers(e: EffectInstance): ModifierDef[] {
+  const def = getEffect(e.id);
+  if (!def) return [];
+  return [...new Set(e.mods ?? [])]
+    .map((m) => getModifier(m))
+    .filter((m): m is ModifierDef => m !== undefined && (m.scope === 'damage' ? def.allowsMods === true : def.scalable === true));
+}
+
 /** 効果1つのポイント：基礎ポイント ×（1 + オプション）× タイミング × 対象 × 条件 → 切り上げ */
 export function effectPoints(e: EffectInstance, card: PointCard): EffectPoints {
   const def = getEffect(e.id);
@@ -99,8 +119,7 @@ export function effectPoints(e: EffectInstance, card: PointCard): EffectPoints {
   const b = def.basePoints(e);
   const factors: Factor[] = [];
 
-  const mods = def.allowsMods ? [...new Set(e.mods ?? [])] : [];
-  const modDefs = mods.map((m) => getModifier(m)).filter((m) => m !== undefined);
+  const modDefs = effectModifiers(e);
   if (modDefs.length > 0) {
     factors.push({ label: modDefs.map((m) => m.name).join('・'), value: 1 + modDefs.reduce((s, m) => s + m.rate, 0) });
   }

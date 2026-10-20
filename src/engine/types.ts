@@ -18,6 +18,11 @@ export const TIMING_IDS = [
   'turnStart',
   'turnEnd',
   'cardPlayed',
+  'allySummoned',
+  'allyDestroyed',
+  'powerPlayed',
+  'skillPlayed',
+  'hitEnemyPlayer',
 ] as const;
 export type TimingId = (typeof TIMING_IDS)[number];
 
@@ -30,6 +35,8 @@ export const TARGET_IDS = [
   'self',
   'enemyPlayer',
   'board',
+  'thisMonster',
+  'allyMonsters',
 ] as const;
 export type TargetId = (typeof TARGET_IDS)[number];
 
@@ -42,10 +49,24 @@ export const CONDITION_IDS = [
   'enemyPoisonBurn',
   'nthCard',
   'manyMonsters',
+  'enemyDamagedThisTurn',
+  'monsterDestroyedThisTurn',
+  'allyAttackedThisTurn',
+  'loneMonster',
+  'twoPowers',
+  'coinFlip',
+  'secondPlayer',
+  'emptyHand',
+  'bigMonster',
+  'bigDiscard',
+  'monsterInHand',
+  'twoSummonsThisTurn',
 ] as const;
 export type ConditionId = (typeof CONDITION_IDS)[number];
 
-export type ModifierId = 'pierce' | 'drain';
+/** 効果のオプション。pierce・drain はダメージ系（allowsMods）、それ以外は数値に掛ける倍数（scalable な効果） */
+export const MODIFIER_IDS = ['pierce', 'drain', 'xEnergy', 'perEnemyMonster', 'perCardPlayed'] as const;
+export type ModifierId = (typeof MODIFIER_IDS)[number];
 
 export interface Stats {
   attack: number;
@@ -68,7 +89,7 @@ export interface EffectInstance {
   target: TargetId;
   /** 条件は1つまで */
   condition: ConditionId | null;
-  /** 防御無視・吸収（ダメージと連撃のみ） */
+  /** オプション：防御無視・吸収（ダメージと連撃のみ）と、数値の倍数（X・相手モンスター1体につき など。1効果に1つまで） */
   mods?: ModifierId[];
   /** 効果ごとの追加指定（サーチするカードの種類など） */
   option?: string;

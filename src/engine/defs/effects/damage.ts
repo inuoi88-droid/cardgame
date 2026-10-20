@@ -11,6 +11,7 @@ export default defineEffect({
   summary: 'N点ダメージを与える',
   value: valueParam('ダメージ', { default: 2 }),
   targetRule: 'enemyAny',
+  scalable: true,
   isDamage: true,
   allowsMods: true,
   basePoints: (e) => B.perValue * n(e),

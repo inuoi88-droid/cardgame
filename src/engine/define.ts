@@ -15,6 +15,8 @@ import type {
   ModifierId,
   Rarity,
   Stats,
+  TargetId,
+  TimingId,
 } from './types.ts';
 
 /** ポイント計算に要るカードの情報（土台はステータスの有無で決まる。キーワードは「攻撃するたび」の倍率に使う） */
@@ -81,8 +83,14 @@ export interface EffectDef {
   isDamage?: boolean;
   /** 種類判定の「プレイヤーに永続的に残る効果」 */
   isPlayerPermanent?: boolean;
-  /** 防御無視・吸収を付けられる */
+  /** 防御無視・吸収（scope "damage" のオプション）を付けられる */
   allowsMods?: boolean;
+  /** 数値に掛ける倍数（scope "scale" のオプション：X・相手モンスター1体につき など）を付けられる */
+  scalable?: boolean;
+  /** 使えるタイミングの制限（省略ならすべて） */
+  timings?: readonly TimingId[];
+  /** 作用先から選べても外す対象（例：再行動の「このモンスター」） */
+  excludeTargets?: readonly TargetId[];
   /** 倍率を掛ける前の基礎ポイント */
   basePoints(e: EffectInstance): number;
   /** 基礎ポイントの式（内訳表示用。例：「2×2」） */
@@ -106,6 +114,13 @@ export interface ModifierDef {
   name: string;
   order: number;
   summary: string;
+  /**
+   * damage：ダメージ系の効果（allowsMods）に付けるもの（防御無視・吸収）。テキストは効果の文の中に入る。
+   * scale：数値に倍数を掛けるもの（scalable な効果に1つまで）。テキストは効果の文の前後に付く
+   */
+  scope: 'damage' | 'scale';
+  /** 使えるタイミングの制限（省略ならすべて） */
+  timings?: readonly TimingId[];
   /** 基礎ポイントへの上乗せ率 */
   rate: number;
   textPrefix: string;

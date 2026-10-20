@@ -14,6 +14,7 @@ export default defineEffect({
   value: valueParam('ダメージ', { default: 1 }),
   hits: { label: '回数', min: P.hitsMin, max: P.hitsMax, default: P.hitsMin },
   targetRule: 'enemyAny',
+  scalable: true,
   isDamage: true,
   allowsMods: true,
   basePoints: (e) => B.perValueHit * n(e) * hits(e),

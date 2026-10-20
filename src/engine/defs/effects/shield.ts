@@ -11,6 +11,7 @@ export default defineEffect({
   summary: 'シールドNを得る（受けるダメージを先に肩代わりし、次の自分のターン開始時に消える）',
   value: valueParam('シールド', { default: 3 }),
   targetRule: 'self',
+  scalable: true,
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e) => `シールド${n(e)}を得る`,

@@ -35,6 +35,11 @@ export function attackTargets(g: GameState, m: Monster): TargetRef[] {
 /** 攻撃を1回行う（手動・自動共通） */
 export function performAttack(g: GameState, m: Monster, target: TargetRef, depth: number, note = ''): void {
   m.attacksUsed += 1;
+  // このターンの記録：手番のプレイヤーのモンスターが攻撃した（自動攻撃も数える）
+  if (m.controller === g.active) {
+    const turn = g.players[g.active].turn;
+    turn.allyAttacks = (turn.allyAttacks ?? 0) + 1;
+  }
   const attackerRef: TargetRef = { kind: 'monster', uid: m.uid };
   log(g, depth, `${monsterLabel(g, m)}が${targetLabel(g, target)}を攻撃${note}`, 'action', undefined, { kind: 'attack', source: attackerRef, target });
   const defender = target.kind === 'monster' ? findMonster(g, target.uid) : undefined;
@@ -47,10 +52,14 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
       : null;
   const r = dealDamage(g, target, m.attack, { kind: 'attack', source: attackerRef, playKey, depth: depth + 1 });
   if (isEnded(g)) return;
+  const enemy = other(m.controller);
+  /** 相手プレイヤーのHPを減らしたか（「相手プレイヤーにダメージを与えたとき」。裏切り・混乱で自分を殴ったときは数えない） */
+  let hitEnemy = target.kind === 'player' && target.player === enemy && r.hpLost > 0;
   // 貫通：モンスターを倒して余ったダメージは、そのモンスターの持ち主のプレイヤーへ
   if (defender && r.destroyed && r.overflow > 0 && findMonster(g, m.uid) && keywordFlags(g, m).trample) {
     log(g, depth + 1, `貫通：余った${r.overflow}ダメージが${g.players[defender.controller].name}に通る`);
-    dealDamage(g, playerRef(defender.controller), r.overflow, { kind: 'trample', source: attackerRef, depth: depth + 2 });
+    const t = dealDamage(g, playerRef(defender.controller), r.overflow, { kind: 'trample', source: attackerRef, depth: depth + 2 });
+    if (defender.controller === enemy && t.hpLost > 0) hitEnemy = true;
     if (isEnded(g)) return;
   }
   // 反撃：守備側が倒れていても、封印・凍結・隠密でも返す。守備側の「攻撃するたび」は発動しない
@@ -70,6 +79,8 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
     const def = g.cards[attacker.card.cardId];
     const chosen = targetExists(g, target) ? { enemy: target } : {};
     if (def) enqueueCardTiming(g, sourceOfMonster(g, attacker), def, 'attack', chosen, depth + 1, { protectKey: playKey });
+    // 相手プレイヤーにダメージを与えたとき（1回の攻撃で最大1回）
+    if (def && hitEnemy) enqueueCardTiming(g, sourceOfMonster(g, attacker), def, 'hitEnemyPlayer', {}, depth + 1, { protectKey: playKey });
   }
 }
 

@@ -1,13 +1,17 @@
 /** 効果テキストの自動生成（例：「攻撃するたび、相手に毒1を与える。」） */
 import { cardBase } from './classify.ts';
 import { CONDITIONS, TIMINGS, targetNoun } from './options.ts';
-import { getDrawback, getEffect, getKeyword, getModifier } from './registry.ts';
+import { effectModifiers } from './points.ts';
+import { getDrawback, getEffect, getKeyword } from './registry.ts';
 import type { CardDef, CardText, DrawbackInstance, EffectInstance } from './types.ts';
 
 export function describeEffect(e: EffectInstance): string {
   const def = getEffect(e.id);
   if (!def) return `（不明な効果：${e.id}）`;
-  const mods = def.allowsMods ? [...new Set(e.mods ?? [])].map((m) => getModifier(m)).filter((m) => m !== undefined) : [];
+  const all = effectModifiers(e);
+  // 防御無視・吸収は効果の文の中、数値の倍数（X など）は効果の文の前後に付ける
+  const mods = all.filter((m) => m.scope === 'damage');
+  const scale = all.filter((m) => m.scope === 'scale');
   const body = def.describe(e, {
     target: TIMINGS[e.timing] ? targetNoun(e.target, def.targetRule, e.timing) : '相手',
     modPrefix: mods.map((m) => m.textPrefix).join(''),
@@ -15,7 +19,9 @@ export function describeEffect(e: EffectInstance): string {
   });
   const timing = TIMINGS[e.timing]?.textPrefix ?? '';
   const condition = e.condition ? (CONDITIONS[e.condition]?.textPrefix ?? '') : '';
-  return `${timing}${condition}${body}。`;
+  const before = scale.map((m) => m.textPrefix).join('');
+  const after = scale.map((m) => m.textSuffix).join('');
+  return `${timing}${condition}${before}${body}${after}。`;
 }
 
 export function describeDrawback(d: DrawbackInstance): string {

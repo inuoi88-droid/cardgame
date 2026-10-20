@@ -4,7 +4,7 @@ import { cardBase, isCurseCard, rarityRank } from './classify.ts';
 import type { ParamSpec } from './define.ts';
 import { RARITY_LABEL } from './labels.ts';
 import { isIntInRange } from './math.ts';
-import { CONDITIONS, TIMINGS, allowedTargets, conditionsFor, targetLabel } from './options.ts';
+import { CONDITIONS, TIMINGS, conditionsFor, targetLabel, targetsForEffect } from './options.ts';
 import { getDrawback, getEffect, getKeyword, getModifier } from './registry.ts';
 import { RARITIES, type CardDef, type PointSummary, type Violation } from './types.ts';
 
@@ -110,8 +110,11 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     if (!timing.bases.includes(base)) {
       const who = base === 'monster' ? 'モンスター以外' : 'モンスター';
       out.push({ code: 'EFFECT_TIMING', path: `${path}.timing`, message: `「${timing.label}」は${who}専用のタイミングです` });
+    } else if (def.timings && !def.timings.includes(e.timing)) {
+      const ok = def.timings.map((t) => `「${TIMINGS[t].label}」`).join('・');
+      out.push({ code: 'EFFECT_TIMING', path: `${path}.timing`, message: `${what}は${ok}でしか使えません` });
     }
-    if (!allowedTargets(def.targetRule, e.timing).includes(e.target)) {
+    if (!targetsForEffect(def, e.timing, base).includes(e.target)) {
       const label = BALANCE.target[e.target] !== undefined ? targetLabel(e.target, def.targetRule, e.timing) : e.target;
       out.push({ code: 'EFFECT_TARGET', path: `${path}.target`, message: `${what}（${timing.label}）の対象に「${label}」は選べません` });
     }
@@ -129,10 +132,27 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     }
     const mods = e.mods ?? [];
     if (mods.length > 0) {
-      if (!def.allowsMods) {
-        out.push({ code: 'EFFECT_MODS', path: `${path}.mods`, message: '防御無視・吸収はダメージと連撃にしか付けられません' });
-      } else if (new Set(mods).size !== mods.length || mods.some((m) => !getModifier(m))) {
+      const modDefs = mods.map((m) => getModifier(m));
+      if (new Set(mods).size !== mods.length || modDefs.some((m) => !m)) {
         out.push({ code: 'EFFECT_MODS', path: `${path}.mods`, message: `${what}のオプションが正しくありません` });
+      } else {
+        const known = modDefs.filter((m) => m !== undefined);
+        if (known.some((m) => m.scope === 'damage') && !def.allowsMods) {
+          out.push({ code: 'EFFECT_MODS', path: `${path}.mods`, message: '防御無視・吸収はダメージと連撃にしか付けられません' });
+        }
+        const scale = known.filter((m) => m.scope === 'scale');
+        if (scale.length > 0 && !def.scalable) {
+          out.push({ code: 'EFFECT_MODS_SCALE', path: `${path}.mods`, message: `${what}には「${scale[0]!.name}」を付けられません（数値に掛けられない効果です）` });
+        }
+        if (scale.length > 1) {
+          out.push({ code: 'EFFECT_MODS_SCALE_MULTI', path: `${path}.mods`, message: `数値の倍数（${scale.map((m) => m.name).join('・')}）は1つの効果に1つまでです` });
+        }
+        for (const m of known) {
+          if (m.timings && !m.timings.includes(e.timing)) {
+            const ok = m.timings.map((t) => `「${TIMINGS[t].label}」`).join('・');
+            out.push({ code: 'EFFECT_MODS_TIMING', path: `${path}.mods`, message: `「${m.name}」は${ok}でしか使えません` });
+          }
+        }
       }
     }
   });

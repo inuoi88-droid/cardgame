@@ -11,6 +11,7 @@ export default defineEffect({
   summary: 'カードをN枚引く',
   value: countParam('枚数', { default: 1 }),
   targetRule: 'self',
+  scalable: true,
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e) => `カードを${n(e)}枚引く`,

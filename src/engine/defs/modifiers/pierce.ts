@@ -5,6 +5,7 @@ export default defineModifier({
   id: 'pierce',
   name: '防御無視',
   order: 1,
+  scope: 'damage',
   summary: 'このダメージが守備力とシールドを無視する',
   rate: BALANCE.modifiers.pierce,
   textPrefix: '防御無視の',

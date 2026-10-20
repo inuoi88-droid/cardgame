@@ -124,7 +124,7 @@ describe('効果のポイント', () => {
     expect(v('enemyHpHigher')).toBe(9);
     expect(v('lowHp')).toBe(8); // 7.5 → 8
     expect(v('enemyPoisonBurn')).toBe(6); // 5.25 → 6
-    expect(Object.values(BALANCE.condition)).toEqual([0.9, 0.8, 0.45, 0.7, 0.6, 0.6, 0.5, 0.35]);
+    expect(Object.values(BALANCE.condition).slice(0, 8)).toEqual([0.9, 0.8, 0.45, 0.7, 0.6, 0.6, 0.5, 0.35]);
   });
 
   it('条件「手札が3枚以下」はパワーのターン開始時・終了時では選べない（モンスターや使用時では選べる）', () => {

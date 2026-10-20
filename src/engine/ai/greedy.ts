@@ -7,6 +7,7 @@
  *   つよい＝リーサル探索＋ターン内のビーム探索。
  */
 import { legalActions } from '../battle/legal.ts';
+import { usesX } from '../battle/play.ts';
 import type { Action, GameState, PlayerId } from '../battle/types.ts';
 import { beamSearch, type BeamOptions } from './beam.ts';
 import type { Strategy } from './cpu.ts';
@@ -50,6 +51,8 @@ function decideGreedy(view: GameState, me: PlayerId, seed: number, noiseSigma: n
   const frame = raceFrame(view, me);
   const base = evaluate(view, me, frame);
   let best: Candidate | null = null;
+  /** X（全力）を使わない行動のうち一番よいもの */
+  let bestNoX: Candidate | null = null;
   let index = 0;
   for (const action of dedupeActions(view, legalActions(view, me))) {
     if (action.type === 'endTurn' || action.type === 'concede') continue;
@@ -58,9 +61,21 @@ function decideGreedy(view: GameState, me: PlayerId, seed: number, noiseSigma: n
     if (!c) continue;
     if (noiseSigma > 0) c.score += gaussian(seed, index, noiseSigma);
     if (!best || better(c, best)) best = c;
+    if (!isXPlay(view, action) && (!bestNoX || better(c, bestNoX))) bestNoX = c;
   }
-  if (best && best.score > base + WEIGHTS.tieEpsilon * 0.1) return best.action;
+  const threshold = base + WEIGHTS.tieEpsilon * 0.1;
+  // X のカードは残りのエナジーをすべて使うので、ほかに得になる行動があれば先にそちらを選ぶ（X は最後に使う）
+  if (best && isXPlay(view, best.action) && bestNoX && bestNoX.score > threshold) return bestNoX.action;
+  if (best && best.score > threshold) return best.action;
   return { type: 'endTurn', player: me };
+}
+
+/** X（全力）のカードを使う行動か */
+function isXPlay(view: GameState, action: Action): boolean {
+  if (action.type !== 'playCard') return false;
+  const card = view.players[action.player].hand.find((c) => c.uid === action.cardUid);
+  const def = card ? view.cards[card.cardId] : undefined;
+  return def ? usesX(def) : false;
 }
 
 export function makeStrategy(name: string, opts: GreedyOptions): Strategy {

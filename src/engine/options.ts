@@ -7,9 +7,14 @@ import type { CardBase, ConditionId, TargetId, TimingId } from './types.ts';
 /**
  * 「選んだ1体」が何を指すか。
  * manual: 使うときにプレイヤーが選ぶ / attackTarget: その攻撃の相手 /
- * damageSource: ダメージを与えてきた相手 / none: 選ぶ場面がない（「選んだ1体」は出さない）
+ * damageSource: ダメージを与えてきた相手 / triggerAlly: いま場に出た自分のモンスター（「自分のモンスターが出るたび」） /
+ * none: 選ぶ場面がない（「選んだ1体」は出さない）
  */
-export type ChosenMode = 'manual' | 'attackTarget' | 'damageSource' | 'none';
+export type ChosenMode = 'manual' | 'attackTarget' | 'damageSource' | 'triggerAlly' | 'none';
+
+/** エディターの選択パネルの見出し（並び順） */
+export const TIMING_GROUPS = ['基本', 'このモンスター', 'ターン', '自分が使ったカード', '味方の出入り'] as const;
+export type TimingGroup = (typeof TIMING_GROUPS)[number];
 
 export interface TimingDef {
   id: TimingId;
@@ -21,11 +26,35 @@ export interface TimingDef {
   /** モンスター以外で使うとパワーになるタイミング */
   powerTiming: boolean;
   chosen: ChosenMode;
+  /** エディターの選択パネルの見出し */
+  group: TimingGroup;
+  /** エディターに出す1行の説明 */
+  description: string;
 }
 
+const maxRepeat = BALANCE.battle.maxRepeatTriggersPerTurn;
+
 export const TIMINGS: Record<TimingId, TimingDef> = {
-  play: { id: 'play', label: '使用時', textPrefix: '', bases: ['spell'], powerTiming: false, chosen: 'manual' },
-  summon: { id: 'summon', label: '召喚時', textPrefix: '召喚時、', bases: ['monster'], powerTiming: false, chosen: 'manual' },
+  play: {
+    id: 'play',
+    label: '使用時',
+    textPrefix: '',
+    bases: ['spell'],
+    powerTiming: false,
+    chosen: 'manual',
+    group: '基本',
+    description: 'カードを使ったとき（モンスター以外）',
+  },
+  summon: {
+    id: 'summon',
+    label: '召喚時',
+    textPrefix: '召喚時、',
+    bases: ['monster'],
+    powerTiming: false,
+    chosen: 'manual',
+    group: '基本',
+    description: 'このモンスターが場に出たとき',
+  },
   destroyed: {
     id: 'destroyed',
     label: '破壊されたとき',
@@ -33,6 +62,8 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     bases: ['monster'],
     powerTiming: false,
     chosen: 'none',
+    group: 'このモンスター',
+    description: 'このモンスターが破壊されたとき（選んだ1体は使えない）',
   },
   damaged: {
     id: 'damaged',
@@ -41,6 +72,8 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     bases: ['monster'],
     powerTiming: false,
     chosen: 'damageSource',
+    group: 'このモンスター',
+    description: 'ダメージを受けて生き残ったとき（毒・やけどでは発動しない）',
   },
   attack: {
     id: 'attack',
@@ -49,6 +82,18 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     bases: ['monster'],
     powerTiming: false,
     chosen: 'attackTarget',
+    group: 'このモンスター',
+    description: 'このモンスターが攻撃するたび（攻撃した相手を対象にできる）',
+  },
+  hitEnemyPlayer: {
+    id: 'hitEnemyPlayer',
+    label: '相手プレイヤーにダメージを与えたとき',
+    textPrefix: '相手プレイヤーにダメージを与えるたび、',
+    bases: ['monster'],
+    powerTiming: false,
+    chosen: 'none',
+    group: 'このモンスター',
+    description: 'このモンスターの攻撃（または貫通の余り）で相手プレイヤーのHPが1以上減るたび',
   },
   turnStart: {
     id: 'turnStart',
@@ -57,6 +102,8 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     bases: ['monster', 'spell'],
     powerTiming: true,
     chosen: 'none',
+    group: 'ターン',
+    description: '自分のターンの始め（引いた後）。モンスター以外ならパワーとして場に残る',
   },
   turnEnd: {
     id: 'turnEnd',
@@ -65,6 +112,8 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     bases: ['monster', 'spell'],
     powerTiming: true,
     chosen: 'none',
+    group: 'ターン',
+    description: '自分のターンの終わり（手札を捨てる前）。モンスター以外ならパワーとして場に残る',
   },
   cardPlayed: {
     id: 'cardPlayed',
@@ -73,8 +122,53 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     bases: ['spell'],
     powerTiming: true,
     chosen: 'none',
+    group: '自分が使ったカード',
+    description: `自分がカードを使い終えるたび（パワー専用。1つにつき1ターン${BALANCE.battle.maxCardPlayedTriggersPerTurn}回まで）`,
+  },
+  powerPlayed: {
+    id: 'powerPlayed',
+    label: '自分がパワーを使うたび',
+    textPrefix: '自分がパワーを使うたび、',
+    bases: ['monster', 'spell'],
+    powerTiming: true,
+    chosen: 'none',
+    group: '自分が使ったカード',
+    description: `自分が種類「パワー」「パワーアタック」のカードを使い終えるたび（そのパワー自身は除く）。1つにつき1ターン${maxRepeat}回まで`,
+  },
+  skillPlayed: {
+    id: 'skillPlayed',
+    label: '自分がスキルを使うたび',
+    textPrefix: '自分がスキルを使うたび、',
+    bases: ['monster', 'spell'],
+    powerTiming: true,
+    chosen: 'none',
+    group: '自分が使ったカード',
+    description: `自分が種類「スキル」のカードを使い終えるたび。1つにつき1ターン${maxRepeat}回まで`,
+  },
+  allySummoned: {
+    id: 'allySummoned',
+    label: '自分のモンスターが出るたび',
+    textPrefix: '自分のモンスターが出るたび、',
+    bases: ['monster', 'spell'],
+    powerTiming: true,
+    chosen: 'triggerAlly',
+    group: '味方の出入り',
+    description: `このカード以外の自分のモンスターが場に出るたび（召喚・蘇生）。1つにつき1ターン${maxRepeat}回まで`,
+  },
+  allyDestroyed: {
+    id: 'allyDestroyed',
+    label: '自分の他のモンスターが破壊されるたび',
+    textPrefix: '自分の他のモンスターが破壊されるたび、',
+    bases: ['monster', 'spell'],
+    powerTiming: true,
+    chosen: 'none',
+    group: '味方の出入り',
+    description: `このカード以外の自分のモンスターが破壊されるたび（どちらのターンでも）。1つにつき1ターン${maxRepeat}回まで`,
   },
 };
+
+/** 1つのカード（パワー・モンスター）につき1ターン maxRepeatTriggersPerTurn 回までのタイミング（安全装置） */
+export const REPEAT_CAPPED_TIMINGS: readonly TimingId[] = ['allySummoned', 'allyDestroyed', 'powerPlayed', 'skillPlayed'];
 
 /** 「攻撃するたび」の倍率に要る、モンスターの攻撃のしかた（キーワードから決まる。points.ts の attackProfile） */
 export interface AttackProfile {
@@ -92,6 +186,7 @@ export const DEFAULT_ATTACK_PROFILE: AttackProfile = { attacks: 1, haste: false 
  */
 export function timingMultiplier(timing: TimingId, base: CardBase, attack: AttackProfile = DEFAULT_ATTACK_PROFILE): number {
   const t = BALANCE.timing;
+  const monster = base === 'monster';
   switch (timing) {
     case 'play':
       return t.play;
@@ -109,11 +204,24 @@ export function timingMultiplier(timing: TimingId, base: CardBase, attack: Attac
       return base === 'monster' ? t.turnEndMonster : t.turnEndPower;
     case 'cardPlayed':
       return t.cardPlayed;
+    case 'allySummoned':
+      return monster ? t.allySummonedMonster : t.allySummonedPower;
+    case 'allyDestroyed':
+      return monster ? t.allyDestroyedMonster : t.allyDestroyedPower;
+    case 'powerPlayed':
+      return monster ? t.powerPlayedMonster : t.powerPlayedPower;
+    case 'skillPlayed':
+      return monster ? t.skillPlayedMonster : t.skillPlayedPower;
+    case 'hitEnemyPlayer':
+      // 二回攻撃なら発動の機会も2倍
+      return t.hitEnemyPlayer * attack.attacks;
   }
 }
 
+/** この土台で選べるタイミング（TIMING_GROUPS の順） */
 export function timingsFor(base: CardBase): TimingId[] {
-  return (Object.keys(TIMINGS) as TimingId[]).filter((id) => TIMINGS[id].bases.includes(base));
+  const ids = (Object.keys(TIMINGS) as TimingId[]).filter((id) => TIMINGS[id].bases.includes(base));
+  return ids.sort((a, b) => TIMING_GROUPS.indexOf(TIMINGS[a].group) - TIMING_GROUPS.indexOf(TIMINGS[b].group));
 }
 
 export function defaultTiming(base: CardBase): TimingId {
@@ -153,10 +261,14 @@ export function targetMultiplier(target: TargetId, rule?: TargetRule): number {
   return BALANCE.target[target];
 }
 
-/** 効果の作用先とタイミングから、選べる対象の一覧を返す */
-export function allowedTargets(rule: TargetRule, timing: TimingId): TargetId[] {
+/**
+ * 効果の作用先とタイミング（と土台）から、選べる対象の一覧を返す。
+ * base を省略すると、モンスター専用のタイミングならモンスター、それ以外は土台が分からないものとして「このモンスター」を出さない
+ */
+export function allowedTargets(rule: TargetRule, timing: TimingId, base?: CardBase): TargetId[] {
   const chosen = TIMINGS[timing].chosen;
-  const hasChosen = chosen !== 'none';
+  // 相手側の「選んだ1体」：攻撃した相手・ダメージを与えてきた相手・使うときに選ぶ1体
+  const hasChosen = chosen !== 'none' && chosen !== 'triggerAlly';
   switch (rule) {
     case 'enemyAny':
       return [
@@ -172,9 +284,17 @@ export function allowedTargets(rule: TargetRule, timing: TimingId): TargetId[] {
       return [...(hasChosen ? (['chosen'] as const) : []), 'random'];
     case 'enemyPlayer':
       return ['enemyPlayer'];
-    case 'allyMonsterOne':
-      // 自分のモンスターを選べるのは、使うときに選ぶ場面があるタイミングだけ
-      return [...(chosen === 'manual' ? (['chosen'] as const) : []), 'random'];
+    case 'allyMonsterOne': {
+      // 自分のモンスターを選べるのは、使うときに選ぶ場面があるタイミングと「出たモンスター」だけ
+      const monsterCard = base === 'monster' || (base === undefined && TIMINGS[timing].bases.every((b) => b === 'monster'));
+      return [
+        ...(chosen === 'manual' || chosen === 'triggerAlly' ? (['chosen'] as const) : []),
+        'random',
+        // 「このモンスター」はモンスターのカードだけ。破壊されたときはもう場にいない
+        ...(monsterCard && timing !== 'destroyed' ? (['thisMonster'] as const) : []),
+        'allyMonsters',
+      ];
+    }
     case 'self':
       return ['self'];
     case 'board':
@@ -182,12 +302,22 @@ export function allowedTargets(rule: TargetRule, timing: TimingId): TargetId[] {
   }
 }
 
+/** 効果の定義（作用先と、外す対象）とタイミング・土台から、選べる対象の一覧 */
+export function targetsForEffect(
+  def: { targetRule: TargetRule; excludeTargets?: readonly TargetId[] },
+  timing: TimingId,
+  base?: CardBase,
+): TargetId[] {
+  const all = allowedTargets(def.targetRule, timing, base);
+  return def.excludeTargets ? all.filter((t) => !def.excludeTargets!.includes(t)) : all;
+}
+
 /** エディターの選択肢に出す名前 */
 export function targetLabel(target: TargetId, rule: TargetRule, timing: TimingId): string {
   const chosen = TIMINGS[timing].chosen;
   switch (target) {
     case 'chosen':
-      if (rule === 'allyMonsterOne') return '選んだ自分のモンスター1体';
+      if (rule === 'allyMonsterOne') return chosen === 'triggerAlly' ? '出たモンスター' : '選んだ自分のモンスター1体';
       if (chosen === 'attackTarget') return '攻撃した相手';
       if (chosen === 'damageSource') return 'ダメージを与えてきた相手';
       return '選んだ1体';
@@ -205,6 +335,10 @@ export function targetLabel(target: TargetId, rule: TargetRule, timing: TimingId
       return '相手プレイヤー';
     case 'board':
       return '場のすべて';
+    case 'thisMonster':
+      return 'このモンスター';
+    case 'allyMonsters':
+      return '自分のモンスター全体';
   }
 }
 
@@ -214,7 +348,7 @@ export function targetNoun(target: TargetId, rule: TargetRule, timing: TimingId)
   const monsterOnly = isMonsterOnlyRule(rule);
   switch (target) {
     case 'chosen':
-      if (rule === 'allyMonsterOne') return '自分のモンスター1体';
+      if (rule === 'allyMonsterOne') return chosen === 'triggerAlly' ? '出たモンスター' : '自分のモンスター1体';
       if (chosen === 'attackTarget') return monsterOnly ? '攻撃したモンスター' : '相手';
       if (chosen === 'damageSource') return monsterOnly ? 'ダメージを与えてきたモンスター' : 'ダメージを与えてきた相手';
       return monsterOnly ? '相手モンスター1体' : '相手1体';
@@ -233,6 +367,10 @@ export function targetNoun(target: TargetId, rule: TargetRule, timing: TimingId)
       return '相手プレイヤー';
     case 'board':
       return '場のモンスターすべて';
+    case 'thisMonster':
+      return 'このモンスター';
+    case 'allyMonsters':
+      return '自分のモンスター全体';
   }
 }
 
@@ -247,6 +385,10 @@ export const CONDITION_TIER_LABEL: Record<ConditionTier, string> = {
   strict: 'きびしい',
 };
 
+/** エディターの選択パネルの見出し（並び順） */
+export const CONDITION_GROUPS = ['場', '手札', 'HP', '状態', 'このターン', '捨て札', '運・先後'] as const;
+export type ConditionGroup = (typeof CONDITION_GROUPS)[number];
+
 export interface ConditionDef {
   id: ConditionId;
   tier: ConditionTier;
@@ -255,8 +397,14 @@ export interface ConditionDef {
   textPrefix: string;
   /** 選べるタイミング（null ならすべて） */
   timings: readonly TimingId[] | null;
+  /** 選べないタイミング（満たせない・常に満たすもの） */
+  excludeTimings?: readonly TimingId[];
   /** パワー（モンスター以外のターン開始時／終了時）では選べない（決定事項 #68 R11） */
   notForPower?: boolean;
+  /** エディターの選択パネルの見出し */
+  group: ConditionGroup;
+  /** エディターに出す1行の説明 */
+  description: string;
 }
 
 const cp = BALANCE.conditionParams;
@@ -268,6 +416,44 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     label: '自分の場にモンスターがいる',
     textPrefix: '自分の場にモンスターがいれば、',
     timings: null,
+    group: '場',
+    description: '自分の場にモンスターが1体でもいれば発動',
+  },
+  manyMonsters: {
+    id: 'manyMonsters',
+    tier: 'normal',
+    label: `自分の場にモンスターが${cp.manyMonstersMin}体以上`,
+    textPrefix: `自分の場にモンスターが${cp.manyMonstersMin}体以上いれば、`,
+    timings: null,
+    group: '場',
+    description: `自分の場にモンスターが${cp.manyMonstersMin}体以上いれば発動`,
+  },
+  loneMonster: {
+    id: 'loneMonster',
+    tier: 'normal',
+    label: '自分の場のモンスターが1体だけ',
+    textPrefix: '自分の場のモンスターが1体だけなら、',
+    timings: null,
+    group: '場',
+    description: '自分の場のモンスターがちょうど1体なら発動（召喚時なら、そのモンスター自身だけ）',
+  },
+  bigMonster: {
+    id: 'bigMonster',
+    tier: 'normal',
+    label: `攻撃力${cp.bigMonsterAttack}以上の自分のモンスターがいる`,
+    textPrefix: `攻撃力${cp.bigMonsterAttack}以上の自分のモンスターがいれば、`,
+    timings: null,
+    group: '場',
+    description: `自分の場に攻撃力${cp.bigMonsterAttack}以上のモンスターがいれば発動`,
+  },
+  twoPowers: {
+    id: 'twoPowers',
+    tier: 'normal',
+    label: `自分のパワーが${cp.powersMin}つ以上`,
+    textPrefix: `自分のパワーが${cp.powersMin}つ以上あれば、`,
+    timings: null,
+    group: '場',
+    description: `自分の場にパワーが${cp.powersMin}つ以上あれば発動（パワーは${BALANCE.battle.maxPowers}つまで。使ったパワー自身は使用時にはまだ数えない）`,
   },
   smallHand: {
     id: 'smallHand',
@@ -277,27 +463,28 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     timings: null,
     // ターン開始時は引いた直後なので満たせず、終了時のパワーも実質満たせない
     notForPower: true,
+    group: '手札',
+    description: `効果が出る時点で手札が${cp.smallHandMax}枚以下なら発動（ターン開始時・終了時のパワーには付けられない）`,
   },
-  enemyPoisoned: {
-    id: 'enemyPoisoned',
-    tier: 'normal',
-    label: '相手が毒状態',
-    textPrefix: '相手が毒状態なら、',
+  emptyHand: {
+    id: 'emptyHand',
+    tier: 'strict',
+    label: '手札が0枚',
+    textPrefix: '手札がなければ、',
     timings: null,
+    // ターン開始時は引いた直後なので満たせない
+    excludeTimings: ['turnStart'],
+    group: '手札',
+    description: '効果が出る時点で手札が1枚もなければ発動（使ったカード自身は数えない）',
   },
-  nthCard: {
-    id: 'nthCard',
-    tier: 'normal',
-    label: `このターン${cp.nthCardOrLater}枚目以降に使う`,
-    textPrefix: `このターン${cp.nthCardOrLater}枚目以降なら、`,
-    timings: ['play', 'summon', 'cardPlayed'],
-  },
-  manyMonsters: {
-    id: 'manyMonsters',
-    tier: 'normal',
-    label: `自分の場にモンスターが${cp.manyMonstersMin}体以上`,
-    textPrefix: `自分の場にモンスターが${cp.manyMonstersMin}体以上いれば、`,
+  monsterInHand: {
+    id: 'monsterInHand',
+    tier: 'loose',
+    label: '手札にモンスターカードがある',
+    textPrefix: '手札にモンスターカードがあれば、',
     timings: null,
+    group: '手札',
+    description: '手札にモンスターのカードが1枚以上あれば発動（使ったカード自身は数えない）',
   },
   enemyHpHigher: {
     id: 'enemyHpHigher',
@@ -305,6 +492,8 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     label: '相手のHPが自分より多い',
     textPrefix: '相手のHPが自分より多ければ、',
     timings: null,
+    group: 'HP',
+    description: '相手プレイヤーのHPが自分より多ければ発動',
   },
   lowHp: {
     id: 'lowHp',
@@ -312,6 +501,17 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     label: '自分のHPが半分以下',
     textPrefix: '自分のHPが半分以下なら、',
     timings: null,
+    group: 'HP',
+    description: '自分のHPが最大の半分以下なら発動',
+  },
+  enemyPoisoned: {
+    id: 'enemyPoisoned',
+    tier: 'normal',
+    label: '相手が毒状態',
+    textPrefix: '相手が毒状態なら、',
+    timings: null,
+    group: '状態',
+    description: '相手プレイヤーに毒が残っていれば発動',
   },
   enemyPoisonBurn: {
     id: 'enemyPoisonBurn',
@@ -319,6 +519,85 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     label: '相手が毒とやけどの両方',
     textPrefix: '相手が毒とやけどの両方の状態なら、',
     timings: null,
+    group: '状態',
+    description: '相手プレイヤーが毒とやけどの両方の状態なら発動',
+  },
+  nthCard: {
+    id: 'nthCard',
+    tier: 'normal',
+    label: `このターン${cp.nthCardOrLater}枚目以降に使う`,
+    textPrefix: `このターン${cp.nthCardOrLater}枚目以降なら、`,
+    timings: ['play', 'summon', 'cardPlayed'],
+    group: 'このターン',
+    description: `このターン${cp.nthCardOrLater}枚目以降に使ったカード（またはそのときの誘発）なら発動`,
+  },
+  enemyDamagedThisTurn: {
+    id: 'enemyDamagedThisTurn',
+    tier: 'normal',
+    label: 'このターン相手にダメージを与えた',
+    textPrefix: 'このターン相手にダメージを与えていれば、',
+    timings: null,
+    // ターン開始時はまだ与えていない。「相手プレイヤーにダメージを与えたとき」は常に満たす
+    excludeTimings: ['turnStart', 'hitEnemyPlayer'],
+    group: 'このターン',
+    description: '自分のターン中に、相手プレイヤーのHPを1以上減らしていれば発動（攻撃・効果どちらでも）',
+  },
+  allyAttackedThisTurn: {
+    id: 'allyAttackedThisTurn',
+    tier: 'normal',
+    label: 'このターン自分のモンスターが攻撃した',
+    textPrefix: 'このターン自分のモンスターが攻撃していれば、',
+    timings: null,
+    excludeTimings: ['turnStart', 'attack', 'hitEnemyPlayer'],
+    group: 'このターン',
+    description: '自分のターン中に、自分のモンスターが1回でも攻撃していれば発動（混乱などの自動攻撃も数える）',
+  },
+  monsterDestroyedThisTurn: {
+    id: 'monsterDestroyedThisTurn',
+    tier: 'normal',
+    label: 'このターンにモンスターが破壊された',
+    textPrefix: 'このターンにモンスターが破壊されていれば、',
+    timings: null,
+    excludeTimings: ['turnStart', 'destroyed', 'allyDestroyed'],
+    group: 'このターン',
+    description: 'このターン中に、敵味方どちらかのモンスターが1体でも破壊されていれば発動',
+  },
+  twoSummonsThisTurn: {
+    id: 'twoSummonsThisTurn',
+    tier: 'strict',
+    label: `このターンにモンスターを${cp.summonsMin}体以上出した`,
+    textPrefix: `このターンにモンスターを${cp.summonsMin}体以上出していれば、`,
+    timings: null,
+    excludeTimings: ['turnStart'],
+    group: 'このターン',
+    description: `自分のターン中に、モンスターを${cp.summonsMin}体以上場に出していれば発動（召喚・蘇生。いま出たものも数える）`,
+  },
+  bigDiscard: {
+    id: 'bigDiscard',
+    tier: 'normal',
+    label: `捨て札が${cp.discardMin}枚以上`,
+    textPrefix: `捨て札が${cp.discardMin}枚以上あれば、`,
+    timings: null,
+    group: '捨て札',
+    description: `自分の捨て札が${cp.discardMin}枚以上あれば発動（山札を切り直すと0に戻る）`,
+  },
+  coinFlip: {
+    id: 'coinFlip',
+    tier: 'strict',
+    label: 'コイン投げで表（50%）',
+    textPrefix: 'コインを投げて表なら、',
+    timings: null,
+    group: '運・先後',
+    description: '効果が出るたびにコインを投げ、表なら発動（50%）',
+  },
+  secondPlayer: {
+    id: 'secondPlayer',
+    tier: 'strict',
+    label: '後攻',
+    textPrefix: '後攻なら、',
+    timings: null,
+    group: '運・先後',
+    description: '自分が後攻の対戦でだけ発動（先攻なら発動しない）',
   },
 };
 
@@ -328,12 +607,14 @@ export function conditionMultiplier(condition: ConditionId | null): number {
   return BALANCE.condition[condition];
 }
 
-/** このタイミング（と土台）で選べる条件 */
+/** このタイミング（と土台）で選べる条件（CONDITION_GROUPS の順） */
 export function conditionsFor(timing: TimingId, base: CardBase): ConditionId[] {
   const power = isPowerTiming(timing, base);
-  return (Object.keys(CONDITIONS) as ConditionId[]).filter((id) => {
+  const ids = (Object.keys(CONDITIONS) as ConditionId[]).filter((id) => {
     const c = CONDITIONS[id];
     if (power && c.notForPower) return false;
+    if (c.excludeTimings?.includes(timing)) return false;
     return c.timings === null || c.timings.includes(timing);
   });
+  return ids.sort((a, b) => CONDITION_GROUPS.indexOf(CONDITIONS[a].group) - CONDITION_GROUPS.indexOf(CONDITIONS[b].group));
 }

@@ -11,6 +11,7 @@ export default defineEffect({
   summary: '相手モンスター1体の攻撃力−N（永続、最低0）',
   value: valueParam('低下量', { default: 1, max: B.maxValue }),
   targetRule: 'enemyMonsterOne',
+  scalable: true,
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e, c) => `${c.target}の攻撃力を−${n(e)}する`,

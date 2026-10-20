@@ -6,6 +6,7 @@ import { normalizeName, uniqueName } from './deck.ts';
 import { toCurrentScale } from './scaling.ts';
 import {
   CONDITION_IDS,
+  MODIFIER_IDS,
   RARITIES,
   TARGET_IDS,
   TIMING_IDS,
@@ -73,7 +74,7 @@ function parseEffect(x: unknown): EffectInstance | null {
   if (value !== undefined) e.value = value;
   if (hits !== undefined) e.hits = hits;
   if (x.mods !== undefined) {
-    if (!Array.isArray(x.mods) || !x.mods.every((m) => m === 'pierce' || m === 'drain')) return null;
+    if (!Array.isArray(x.mods) || !x.mods.every((m) => oneOf<ModifierId>(MODIFIER_IDS, m))) return null;
     if (x.mods.length > 0) e.mods = [...(x.mods as ModifierId[])];
   }
   if (x.option !== undefined) {

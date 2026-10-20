@@ -80,6 +80,20 @@ export const BALANCE = {
     turnStartPower: 6.0,
     turnEndPower: 6.5,
     cardPlayed: 8.0,
+    /**
+     * MTG 要素の採用：バッチ1（決定事項ログ）。モンスターに付けたときと、モンスター以外（パワーになる）で倍率が違う。
+     * 「出るたび」「破壊されるたび」「パワー・スキルを使うたび」は1つにつき1ターン battle.maxRepeatTriggersPerTurn 回まで
+     */
+    allySummonedMonster: 1.5,
+    allySummonedPower: 5.0,
+    allyDestroyedMonster: 1.2,
+    allyDestroyedPower: 4.0,
+    powerPlayedMonster: 1.0,
+    powerPlayedPower: 3.0,
+    skillPlayedMonster: 1.5,
+    skillPlayedPower: 4.5,
+    /** 「相手プレイヤーにダメージを与えたとき」（モンスター専用。二回攻撃なら攻撃回数を掛ける） */
+    hitEnemyPlayer: 1.5,
   },
 
   /** 対象の倍率。self / enemyPlayer / board は選択肢のない固定対象（#73 で相手全体 2.5→3.5） */
@@ -92,6 +106,10 @@ export const BALANCE = {
     self: 1.0,
     enemyPlayer: 1.0,
     board: 1.0,
+    /** このモンスター（効果を持つモンスター自身。MTG 要素バッチ1） */
+    thisMonster: 1.0,
+    /** 自分のモンスター全体（MTG 要素バッチ1） */
+    allyMonsters: 2.0,
   },
   /** モンスターにしか作用しない効果（処刑・封印など）の「敵味方すべて」はプレイヤーに当たらないぶん高い（決定事項 #68） */
   targetMonsterOnly: {
@@ -112,6 +130,19 @@ export const BALANCE = {
     enemyHpHigher: 0.6,
     lowHp: 0.5,
     enemyPoisonBurn: 0.35,
+    /** MTG 要素の採用：バッチ1（決定事項ログ） */
+    enemyDamagedThisTurn: 0.6,
+    monsterDestroyedThisTurn: 0.6,
+    allyAttackedThisTurn: 0.7,
+    loneMonster: 0.7,
+    twoPowers: 0.6,
+    coinFlip: 0.5,
+    secondPlayer: 0.5,
+    emptyHand: 0.5,
+    bigMonster: 0.7,
+    bigDiscard: 0.7,
+    monsterInHand: 0.8,
+    twoSummonsThisTurn: 0.5,
   },
 
   /** 条件に出てくる数 */
@@ -122,12 +153,30 @@ export const BALANCE = {
     nthCardOrLater: 3,
     /** 「自分の場にモンスターが3体以上」 */
     manyMonstersMin: 3,
+    /** 「攻撃力4以上の自分のモンスターがいる」（量なので倍率を掛ける） */
+    bigMonsterAttack: x(4),
+    /** 「捨て札が10枚以上」 */
+    discardMin: 10,
+    /** 「自分のパワーが2つ以上」 */
+    powersMin: 2,
+    /** 「このターンにモンスターを2体以上出した」 */
+    summonsMin: 2,
   },
 
-  /** ダメージ効果に付けるオプション（基礎ポイントへの上乗せ率） */
+  /**
+   * 効果に付けるオプション（基礎ポイントへの上乗せ率）。pierce・drain はダメージ系、
+   * xEnergy・perEnemyMonster・perCardPlayed は数値に掛ける倍数（MTG 要素バッチ1。1効果に1つまで）
+   */
   modifiers: {
     pierce: 0.4,
     drain: 0.4,
+    xEnergy: 0.2,
+    perEnemyMonster: 0.5,
+    perCardPlayed: 0.8,
+  },
+  modifierParams: {
+    /** 「相手モンスター1体につき」「このターン使ったカード1枚につき」の数の上限 */
+    scaleCountCap: 3,
   },
 
   /** 効果の数値 N の入力範囲（効果ごとの上書きは effects 側の maxValue）。value は量、count は枚数・ターン数・エナジー */
@@ -298,6 +347,11 @@ export const BALANCE = {
     maxEnergyGainPerTurn: 3,
     /** 「カードを使うたび」が発動するのは、パワー1つにつき1ターンにこの回数まで（決定事項 #70 R10） */
     maxCardPlayedTriggersPerTurn: 2,
+    /**
+     * 「自分のモンスターが出るたび」「自分の他のモンスターが破壊されるたび」「パワー・スキルを使うたび」が発動するのは、
+     * 1つ（パワー・モンスター）につき通算ターン1つあたりこの回数まで（MTG 要素バッチ1）
+     */
+    maxRepeatTriggersPerTurn: 2,
     /** 場に残せるパワーは1人この数まで。超えるときはいちばん古いものが消える（決定事項 #80。数なので倍率は掛けない） */
     maxPowers: 3,
     /** 相手の効果で減らされる、次のターンのエナジーの上限 */

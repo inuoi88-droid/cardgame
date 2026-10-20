@@ -6,14 +6,19 @@ import type { MouseEvent, ReactNode } from 'react';
 import {
   BALANCE,
   CARD_TYPE_LABEL,
+  CONDITION_GROUPS,
+  CONDITIONS,
   EFFECT_GROUPS,
   RARITIES,
   RARITY_LABEL,
+  TIMING_GROUPS,
+  TIMINGS,
   listDrawbacks,
   listEffects,
   listKeywords,
+  listModifiers,
 } from '../../engine/index.ts';
-import { glossary, keywordGlossary, type StatusId } from '../glossary.ts';
+import { glossary, keywordGlossary, mechanicGlossary, modifierGlossary, type StatusId } from '../glossary.ts';
 import { cx } from '../util.ts';
 
 const B = BALANCE.battle;
@@ -59,6 +64,7 @@ const SECTIONS: { id: string; icon: string; title: string }[] = [
   { id: 'status', icon: '☠', title: '状態異常・持続効果' },
   { id: 'keywords', icon: '⚡', title: 'キーワード一覧' },
   { id: 'effects', icon: '✨', title: '効果一覧' },
+  { id: 'options', icon: '⏱', title: 'タイミング・対象・条件・オプション' },
   { id: 'drawbacks', icon: '😈', title: 'デメリット一覧' },
   { id: 'create', icon: '✏️', title: 'カード作成のルール' },
   { id: 'limits', icon: '🔧', title: '安全装置（1ターンの上限）' },
@@ -247,6 +253,58 @@ export function RulesPage() {
         })}
       </Section>
 
+      <Section {...sec('options')}>
+        <p className="hint">効果ごとに「いつ（タイミング）」「だれに（対象）」「どんなときに（条件）」を選び、数値に掛けるオプションを1つまで付けられます。</p>
+        {TIMING_GROUPS.map((group) => (
+          <div key={`t-${group}`} className="rules__group">
+            <h3>タイミング：{group}</h3>
+            <dl className="terms">
+              {Object.values(TIMINGS)
+                .filter((t) => t.group === group)
+                .map((t) => (
+                  <Term key={t.id} name={t.label}>
+                    {t.description}
+                  </Term>
+                ))}
+            </dl>
+          </div>
+        ))}
+        <h3>対象（自分のモンスター）</h3>
+        <dl className="terms">
+          {(['thisMonster', 'allyMonsters', 'triggerAlly'] as const).map((id) => (
+            <Term key={id} name={mechanicGlossary[id]!.name} icon={mechanicGlossary[id]!.icon}>
+              {mechanicGlossary[id]!.short}
+            </Term>
+          ))}
+        </dl>
+        {CONDITION_GROUPS.map((group) => (
+          <div key={`c-${group}`} className="rules__group">
+            <h3>条件：{group}</h3>
+            <dl className="terms">
+              {Object.values(CONDITIONS)
+                .filter((c) => c.group === group)
+                .map((c) => (
+                  <Term key={c.id} name={c.label}>
+                    {c.description}
+                  </Term>
+                ))}
+            </dl>
+          </div>
+        ))}
+        <h3>オプション</h3>
+        <dl className="terms">
+          {listModifiers().map((m) => (
+            <Term key={m.id} name={m.name} icon={modifierGlossary[m.id]?.icon}>
+              {m.summary}（ポイント+{Math.round(m.rate * 100)}%）
+            </Term>
+          ))}
+        </dl>
+        <ul>
+          <li>防御無視・吸収はダメージと連撃だけに付けられます。数値の倍数（X・相手モンスター1体につき・このターン使ったカード1枚につき）は1つの効果に1つまで。掛けた数値は、その効果の入力欄の上限（ダメージは1枚の合計{BALANCE.params.damagePerCardMax}）で頭打ちです。</li>
+          <li>X のカードは、使うと残りのエナジーをすべて使います。カードの X の効果はすべて同じ X を使います。</li>
+        </ul>
+      </Section>
+
       <Section {...sec('drawbacks')}>
         <p className="hint">
           デメリットを1つでも付けると呪いカードになり、ポイントが差し引かれます（差し引けるのはレアリティ上限まで。コスト{BALANCE.curse.minCostForOffset}未満のカードは差し引けません）。
@@ -304,7 +362,7 @@ export function RulesPage() {
             ステータス：攻撃力1につき{BALANCE.stats.attackPoints}pt、体力1につき{BALANCE.stats.hpPoints}pt、守備力1につき{BALANCE.stats.defensePoints}pt（守備力は{BALANCE.stats.defenseMax}
             まで）。
           </li>
-          <li>効果1つのポイント＝基礎ポイント × タイミング倍率 × 対象倍率 × 条件倍率（切り上げ）。条件は1つの効果につき1つまで。</li>
+          <li>効果1つのポイント＝基礎ポイント ×（1＋オプションの上乗せ率）× タイミング倍率 × 対象倍率 × 条件倍率（切り上げ）。条件は1つの効果につき1つまで。</li>
         </ul>
         <h3>呪いカード</h3>
         <ul>
@@ -332,6 +390,7 @@ export function RulesPage() {
           <li>1ターンに引けるのは合計{B.maxDrawPerTurn}枚まで（ターン開始の{B.drawPerTurn}枚を含む）。</li>
           <li>1ターンに増やせるエナジーは合計+{B.maxEnergyGainPerTurn}まで（エナジー効果と貯金）。</li>
           <li>「カードを使うたび」の効果は、パワー1つにつき1ターン{B.maxCardPlayedTriggersPerTurn}回まで。</li>
+          <li>{mechanicGlossary.repeatCap!.short}（相手のターンも1ターンとして数えます）。</li>
           <li>場に残せるパワーは1人{B.maxPowers}つまで。{B.maxPowers + 1}つ目を使うと、いちばん古いパワーが消えます（消えるときに効果は発動しません）。</li>
           <li>
             相手の妨害で減らされるのは、次のターンのエナジー−{B.maxEnergyJamPerTurn}・引く枚数−{B.maxDrawJamPerTurn}まで。ノイズは1ターンに{B.maxNoiseReceivedPerTurn}枚まで。

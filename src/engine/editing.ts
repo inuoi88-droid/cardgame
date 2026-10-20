@@ -4,9 +4,9 @@
  */
 import { BALANCE } from './balance.ts';
 import { cardBase, rarityRank } from './classify.ts';
-import type { DrawbackDef, EffectDef } from './define.ts';
-import { allowedTargets, conditionsFor, defaultTiming, TIMINGS, timingsFor } from './options.ts';
-import { getDrawback, getEffect, listDrawbacks, listEffects } from './registry.ts';
+import type { DrawbackDef, EffectDef, ModifierDef } from './define.ts';
+import { allowedTargets, conditionsFor, defaultTiming, targetsForEffect, TIMINGS, timingsFor } from './options.ts';
+import { getDrawback, getEffect, getModifier, listDrawbacks, listEffects, listModifiers } from './registry.ts';
 import { stampScale } from './scaling.ts';
 import type { CardBase, CardDef, DrawbackInstance, EffectInstance, Rarity, Stats, TimingId } from './types.ts';
 
@@ -44,16 +44,37 @@ function mapTiming(timing: TimingId, base: CardBase): TimingId {
   return TIMINGS[timing]?.bases.includes(base) ? timing : defaultTiming(base);
 }
 
+/** この効果をこの土台のカードに付けるとき選べるタイミング（効果ごとの制限 timings を含む） */
+export function effectTimings(def: Pick<EffectDef, 'timings'>, base: CardBase): TimingId[] {
+  return timingsFor(base).filter((t) => !def.timings || def.timings.includes(t));
+}
+
+/** この効果に、このタイミングで付けられるオプション（防御無視・吸収と、数値の倍数） */
+export function modifiersFor(def: Pick<EffectDef, 'allowsMods' | 'scalable'>, timing: TimingId): ModifierDef[] {
+  return listModifiers().filter((m) => {
+    if (m.scope === 'damage' ? !def.allowsMods : !def.scalable) return false;
+    return !m.timings || m.timings.includes(timing);
+  });
+}
+
 /** 効果を、カードの土台に合わせて選べる値へ直す */
 export function fitEffect(e: EffectInstance, base: CardBase): EffectInstance {
   const def = getEffect(e.id);
   if (!def) return e;
-  const timing = mapTiming(e.timing, base);
-  const targets = allowedTargets(def.targetRule, timing);
+  const timings = effectTimings(def, base);
+  const mapped = mapTiming(e.timing, base);
+  const timing = timings.includes(mapped) ? mapped : (timings[0] ?? defaultTiming(base));
+  const targets = targetsForEffect(def, timing, base);
   const target = targets.includes(e.target) ? e.target : targets[0]!;
   const condition = e.condition !== null && conditionsFor(timing, base).includes(e.condition) ? e.condition : null;
   const next: EffectInstance = { ...e, timing, target, condition };
-  if (!def.allowsMods) delete next.mods;
+  // 付けられないオプションを外す。数値の倍数は1つまで（後から付けたものを残す）
+  const allowed = new Set(modifiersFor(def, timing).map((m) => m.id));
+  let mods = [...new Set(e.mods ?? [])].filter((m) => allowed.has(m));
+  const scale = mods.filter((m) => getModifier(m)?.scope === 'scale');
+  if (scale.length > 1) mods = mods.filter((m) => getModifier(m)?.scope !== 'scale' || m === scale[scale.length - 1]);
+  if (mods.length > 0) next.mods = mods;
+  else delete next.mods;
   return next;
 }
 
@@ -102,4 +123,4 @@ export function setMonster(card: CardDef, monster: boolean): CardDef {
   };
 }
 
-export { timingsFor, allowedTargets, conditionsFor };
+export { timingsFor, allowedTargets, targetsForEffect, conditionsFor };

@@ -80,6 +80,9 @@ export function playWarnings(g: GameState, p: PlayerId, def: CardDef, allyTarget
       case 'board':
         if (oppMonsters === 0 && myMonsters === 0) add(WARN_NO_MONSTER);
         break;
+      case 'allyMonsters':
+        if (myMonsters === 0) add(WARN_NO_TARGET);
+        break;
       default:
         break;
     }

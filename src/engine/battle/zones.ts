@@ -6,7 +6,7 @@ import { cardName, emptyStatuses, findMonster, isEnded, log, monsterLabel, newUi
 import { keywordFlags } from './damage.ts';
 import { pick, randInt, shuffle } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
-import { enqueueCardTiming } from './triggers.ts';
+import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
 import {
   NOISE_CARD_ID,
   type CardInst,
@@ -105,7 +105,23 @@ export function summon(g: GameState, p: PlayerId, card: CardInst, chosen: Chosen
   const def = g.cards[card.cardId]!;
   const src: SourceRef = { kind: 'monster', uid: m.uid, cardId: card.cardId, name: def.name, controller: p };
   enqueueCardTiming(g, src, def, 'summon', chosen, depth + 1, protectKey ? { protectKey } : {});
+  onMonsterEntered(g, m, depth + 1);
   return m;
+}
+
+/**
+ * モンスターが場に出たときの共通処理（召喚・蘇生。奪取は入場に数えない）。召喚時の効果を積んだあとに呼ぶ。
+ * 手番のプレイヤーの場に出たら「このターンに出した数」を数え、持ち主のパワー → 場のモンスター（左から、出たモンスター自身を除く）の
+ * 「自分のモンスターが出るたび」を積む（「出たモンスター」はそのモンスター）
+ */
+export function onMonsterEntered(g: GameState, m: Monster, depth: number): void {
+  if (g.phase === 'main' && m.controller === g.active) {
+    const turn = g.players[g.active].turn;
+    turn.summoned = (turn.summoned ?? 0) + 1;
+  }
+  const chosen: Chosen = { ally: m.uid };
+  enqueuePowers(g, m.controller, 'allySummoned', depth, { chosen });
+  enqueueMonsters(g, m.controller, 'allySummoned', depth, { chosen, excludeUid: m.uid });
 }
 
 /** ノイズを山札のランダムな位置に混ぜる */

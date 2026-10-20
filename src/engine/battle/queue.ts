@@ -1,12 +1,16 @@
 /** 解決キュー：積まれた処理を先頭から順に実行し、選択が要れば止まる */
+import { BALANCE } from '../balance.ts';
+import type { EffectDef } from '../define.ts';
+import { effectModifiers } from '../points.ts';
 import { getDrawback, getEffect } from '../registry.ts';
 import { describeDrawback, describeEffect } from '../text.ts';
+import type { EffectInstance } from '../types.ts';
 import { checkCondition } from './conditions.ts';
-import { checkGameEnd, enqueue, log, playRecord } from './core.ts';
+import { checkGameEnd, enqueue, findMonster, log, other, playRecord } from './core.ts';
 import { finishCard } from './play.ts';
 import { makeRuntime, resolveTargets } from './runtime.ts';
 import { retainOptions, runAutoAttacks, turnEndEffects, turnEndFinish } from './turn.ts';
-import { CONDITIONS } from '../options.ts';
+import { CONDITIONS, REPEAT_CAPPED_TIMINGS } from '../options.ts';
 import type { GameState, Step } from './types.ts';
 
 /** 1回の行動で処理する上限（効果の無限ループを防ぐ） */
@@ -46,18 +50,73 @@ function executeStep(g: GameState, step: Step): void {
   }
 }
 
+/**
+ * 数値の倍数（X・相手モンスター1体につき・このターン使ったカード1枚につき）。付いていなければ null。
+ * 掛けた値は効果の入力欄の上限まで（ダメージ系で回数のあるものは、値×回数が1枚のダメージの上限まで）
+ */
+function scaledEffect(g: GameState, step: Extract<Step, { t: 'effect' }>, def: EffectDef): { effect: EffectInstance; factor: number; why: string } | null {
+  const scale = effectModifiers(step.effect).find((m) => m.scope === 'scale');
+  if (!scale) return null;
+  const me = step.src.controller;
+  const cap = BALANCE.modifierParams.scaleCountCap;
+  let factor = 0;
+  let why = '';
+  switch (scale.id) {
+    case 'xEnergy':
+      factor = step.protectKey ? (g.protect[step.protectKey]?.x ?? 0) : 0;
+      why = `X＝${factor}`;
+      break;
+    case 'perEnemyMonster': {
+      const count = g.players[other(me)].board.length;
+      factor = Math.min(count, cap);
+      why = `相手モンスター${count}体${count > cap ? `（最大${cap}）` : ''}`;
+      break;
+    }
+    case 'perCardPlayed': {
+      const count = g.active === me ? g.players[me].turn.cardsPlayed : 0;
+      factor = Math.min(count, cap);
+      why = g.active === me ? `このターン使ったカード${count}枚${count > cap ? `（最大${cap}）` : ''}` : '相手のターン';
+      break;
+    }
+    default:
+      return null;
+  }
+  const base = step.effect.value ?? 0;
+  let max = def.value?.max ?? Infinity;
+  if (def.isDamage && def.hits) max = Math.min(max, Math.floor(BALANCE.params.damagePerCardMax / Math.max(1, step.effect.hits ?? 1)));
+  const value = Math.min(base * factor, max);
+  return { effect: { ...step.effect, value }, factor, why };
+}
+
+/** 場を離れたモンスター（全体破壊でいっしょに消えたものなど）の、繰り返し誘発の効果は発動しない */
+function sourceGone(g: GameState, step: Extract<Step, { t: 'effect' }>): boolean {
+  return step.src.kind === 'monster' && REPEAT_CAPPED_TIMINGS.includes(step.timing) && !findMonster(g, step.src.uid);
+}
+
 function executeEffect(g: GameState, step: Extract<Step, { t: 'effect' }>): void {
   const def = getEffect(step.effect.id);
   if (!def) return;
   const me = step.src.controller;
   if (!step.picks) {
+    if (sourceGone(g, step)) return;
     log(g, step.depth, `${step.src.name}：${describeEffect(step.effect)}`, 'effect');
-    if (step.effect.condition && !checkCondition(g, me, step.effect.condition)) {
+    if (step.effect.condition && !checkCondition(g, me, step.effect.condition, { roll: { depth: step.depth + 1 } })) {
       log(g, step.depth + 1, `条件「${CONDITIONS[step.effect.condition].label}」を満たさないため発動しない`);
       return;
     }
   }
-  const targets = resolveTargets(g, step.src, step.effect, step.timing, def.targetRule, step.chosen);
+  // 数値の倍数：効果ファイルには掛けたあとの値の写しを渡す
+  const scaled = scaledEffect(g, step, def);
+  if (scaled && !step.picks) {
+    if (scaled.factor <= 0) {
+      log(g, step.depth + 1, `${scaled.why}：数値が0のため不発`);
+      return;
+    }
+    log(g, step.depth + 1, `${scaled.why}：数値 ${step.effect.value ?? 0}×${scaled.factor} → ${scaled.effect.value ?? 0}`);
+  }
+  if (scaled && scaled.factor <= 0) return;
+  const effect = scaled?.effect ?? step.effect;
+  const targets = resolveTargets(g, step.src, effect, step.timing, def.targetRule, step.chosen);
   const rt = makeRuntime(g, step.src, targets, {
     depth: step.depth + 1,
     attackCard: step.attackCard,
@@ -69,7 +128,7 @@ function executeEffect(g: GameState, step: Extract<Step, { t: 'effect' }>): void
   }
   let picks = step.picks;
   if (!picks && def.battle.choose) {
-    const spec = def.battle.choose(rt, step.effect);
+    const spec = def.battle.choose(rt, effect);
     if (spec) {
       if (spec.options.length === 0) {
         log(g, step.depth + 1, '選べるものがないため何も起きない');
@@ -86,7 +145,7 @@ function executeEffect(g: GameState, step: Extract<Step, { t: 'effect' }>): void
   // 効果1つを処理し終えてから勝敗を判定する（全体ダメージで両者が同時にHP0なら引き分け）
   g.holdEnd += 1;
   try {
-    def.battle.resolve(rt, step.effect, picks);
+    def.battle.resolve(rt, effect, picks);
   } finally {
     g.holdEnd -= 1;
   }

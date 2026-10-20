@@ -63,6 +63,13 @@ export function resolveTargets(
       return [playerRef(opp), ...mons(opp)];
     case 'everyone':
       return monsterOnly ? [...mons(opp), ...mons(me)] : [playerRef(opp), ...mons(opp), playerRef(me), ...mons(me)];
+    case 'thisMonster': {
+      // 効果を持つモンスター自身。場にいなければ不発
+      const m = src.kind === 'monster' ? findMonster(g, src.uid) : undefined;
+      return m && m.controller === me ? [{ kind: 'monster', uid: m.uid }] : [];
+    }
+    case 'allyMonsters':
+      return mons(me);
   }
 }
 

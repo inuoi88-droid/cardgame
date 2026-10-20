@@ -11,6 +11,7 @@ export default defineEffect({
   summary: '次の自分のターン開始時までに攻撃を受けたら、攻撃してきた相手にN点ダメージを返す',
   value: valueParam('ダメージ', { default: 2 }),
   targetRule: 'self',
+  scalable: true,
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e) => `反撃${n(e)}を得る`,

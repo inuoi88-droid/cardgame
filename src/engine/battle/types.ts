@@ -68,9 +68,14 @@ export interface Monster {
   stealth: boolean;
   /** 裏切りが始まった */
   betraying: boolean;
-  /** デメリットなどが使う数え（裏切りまでの経過ターンなど） */
+  /**
+   * デメリットなどが使う数え（裏切りまでの経過ターンなど）。
+   * `rt:<タイミング>:turn`・`rt:<タイミング>:count` は繰り返し誘発の回数（1ターンの上限の安全装置）
+   */
   counters: Record<string, number>;
   status: Statuses;
+  /** このターンだけの攻撃力の上乗せ（一時強化。無ければ0。実効攻撃力は core.ts の effectiveAttack） */
+  tempAttack?: number;
 }
 
 /** 場に残っているパワー */
@@ -84,6 +89,8 @@ export interface PowerInst {
   drawbacks: DrawbackInstance[];
   /** 「カードを使うたび」が発動した回数（通算ターンごと。安全装置） */
   triggers?: { turnIndex: number; count: number };
+  /** 「出るたび」「破壊されるたび」「パワー・スキルを使うたび」が発動した回数（タイミングごと・通算ターンごと。安全装置） */
+  repeats?: Partial<Record<TimingId, { turnIndex: number; count: number }>>;
 }
 
 /** 1ターンの上限を数える（安全装置：決定事項 #64）。turnIndex が変わったら数え直す */
@@ -111,8 +118,20 @@ export interface PlayerState {
   next: { draw: number; energy: number; jamDraw?: number; jamEnergy?: number };
   /** 1ターンの上限の数え（無ければ0から） */
   limits?: TurnLimits;
-  /** このターンの記録 */
-  turn: { cardsPlayed: number; retain: number; freezeTax: boolean };
+  /**
+   * このターンの記録（自分のターンの開始時に作り直す）。省略可能な項目は無ければ 0 / false。
+   * enemyDamaged：相手プレイヤーのHPを減らした / allyAttacks：自分のモンスターが攻撃した回数 /
+   * summoned：自分の場にモンスターを出した数 / monstersDestroyed：このターンに破壊されたモンスターの数（敵味方とも）
+   */
+  turn: {
+    cardsPlayed: number;
+    retain: number;
+    freezeTax: boolean;
+    enemyDamaged?: boolean;
+    allyAttacks?: number;
+    summoned?: number;
+    monstersDestroyed?: number;
+  };
   /** 次に使うカードのコスト軽減（使うまで残る） */
   discount: number;
   /** 自分のターンを迎えた回数 */
@@ -235,6 +254,8 @@ export interface PlayRecord {
   bonusUsed?: boolean;
   bleedHit?: string[];
   counterHit?: string[];
+  /** X（全力）で使ったエナジー（このカードの X の効果がすべて使う） */
+  x?: number;
 }
 
 export interface GameResult {

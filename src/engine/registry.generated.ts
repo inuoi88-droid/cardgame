@@ -40,7 +40,10 @@ import effects_weak from './defs/effects/weak.ts';
 import effects_weaken from './defs/effects/weaken.ts';
 import effects_wipe from './defs/effects/wipe.ts';
 import modifiers_drain from './defs/modifiers/drain.ts';
+import modifiers_perCardPlayed from './defs/modifiers/perCardPlayed.ts';
+import modifiers_perEnemyMonster from './defs/modifiers/perEnemyMonster.ts';
 import modifiers_pierce from './defs/modifiers/pierce.ts';
+import modifiers_xEnergy from './defs/modifiers/xEnergy.ts';
 import keywords_doubleAttack from './defs/keywords/doubleAttack.ts';
 import keywords_flying from './defs/keywords/flying.ts';
 import keywords_haste from './defs/keywords/haste.ts';
@@ -103,7 +106,10 @@ export const EFFECT_DEFS: readonly EffectDef[] = [
 ];
 export const MODIFIER_DEFS: readonly ModifierDef[] = [
   modifiers_drain,
+  modifiers_perCardPlayed,
+  modifiers_perEnemyMonster,
   modifiers_pierce,
+  modifiers_xEnergy,
 ];
 export const KEYWORD_DEFS: readonly KeywordDef[] = [
   keywords_doubleAttack,

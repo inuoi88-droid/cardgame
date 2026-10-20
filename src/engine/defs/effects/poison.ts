@@ -11,6 +11,7 @@ export default defineEffect({
   summary: '毒Nを与える（ターン開始時に毒の数だけダメージ。その後半分（切り捨て）になる）',
   value: valueParam('毒', { default: 1, max: B.maxValue }),
   targetRule: 'enemyAny',
+  scalable: true,
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e, c) => `${c.target}に毒${n(e)}を与える`,

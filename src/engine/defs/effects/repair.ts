@@ -11,6 +11,7 @@ export default defineEffect({
   summary: '自分のモンスター1体の体力をN回復する（最大値まで）',
   value: valueParam('回復量', { default: 3 }),
   targetRule: 'allyMonsterOne',
+  scalable: true,
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e, c) => `${c.target}の体力を${n(e)}回復する`,

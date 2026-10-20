@@ -5,7 +5,7 @@ import { TIMINGS, isPowerTiming, type TargetRule } from '../options.ts';
 import { getEffect } from '../registry.ts';
 import type { CardDef } from '../types.ts';
 import { enqueue, log, newUid, other, playerRef, playRecord } from './core.ts';
-import { enqueueCardTiming, enqueuePowers } from './triggers.ts';
+import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
 import { targetableTaunts } from './damage.ts';
 import { discardCard, summon } from './zones.ts';
 import { NOISE_CARD_ID, type CardInst, type Chosen, type GameState, type PlayerId, type PowerInst, type TargetRef } from './types.ts';
@@ -108,6 +108,13 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
   );
 
   const protectKey = newUid(g, 'pk');
+  // X（全力）：使用時・召喚時の効果に X があれば、残りのエナジーをすべて使う（このカードの X の効果はすべて同じ X）
+  if (usesX(def)) {
+    const x = ps.energy;
+    ps.energy = 0;
+    playRecord(g, protectKey).x = x;
+    log(g, 1, `X＝${x}（エナジーをすべて使った）`, 'info', undefined, { kind: 'energy', player: p, amount: 0 });
+  }
   if (def.stats) {
     summon(g, p, card, chosen, 1, protectKey);
   } else {
@@ -119,6 +126,12 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
     enqueueCardTiming(g, src, def, 'play', chosen, 1, { attackCard, protectKey });
   }
   enqueue(g, { t: 'cardDone', player: p, card, protectKey, depth: 1 });
+}
+
+/** 使用時・召喚時の効果に X（全力）があるか */
+export function usesX(def: CardDef): boolean {
+  const timing = def.stats ? 'summon' : 'play';
+  return def.effects.some((e) => e.timing === timing && (e.mods ?? []).includes('xEnergy') && getEffect(e.id)?.scalable === true);
 }
 
 /** このカードを使うと場にパワーが残るか（パワー用タイミングの効果かデメリットがある、パワー・パワー攻撃のカード） */
@@ -175,7 +188,14 @@ export function finishCard(g: GameState, p: PlayerId, card: CardInst, protectKey
       discardCard(g, card);
     }
   }
-  enqueuePowers(g, p, 'cardPlayed', depth, newPower?.uid);
+  enqueuePowers(g, p, 'cardPlayed', depth, { excludeUid: newPower?.uid });
+  // 自分がパワー／スキルを使うたび：パワー（いま置いたものを除く）→ 場のモンスター（左から）
+  const type = def ? classifyCard(def) : null;
+  const timing = type === 'power' || type === 'powerAttack' ? 'powerPlayed' : type === 'skill' ? 'skillPlayed' : null;
+  if (timing) {
+    enqueuePowers(g, p, timing, depth, { excludeUid: newPower?.uid });
+    enqueueMonsters(g, p, timing, depth);
+  }
 }
 
 /** ノイズの除外（カードを使ったことには数えない：決定事項 #45） */

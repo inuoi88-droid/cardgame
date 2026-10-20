@@ -408,7 +408,7 @@ describe('修飾（数値の倍数。バッチ1）', () => {
     expect(describeEffect(fx({ id: 'draw', value: 1, target: 'self', mods: ['perCardPlayed'] }))).toBe('カードを1枚引く（数値はこのターン使ったカード1枚につき、最大3枚）。');
     expect(describeEffect(fx({ id: 'damage', value: 5, mods: ['pierce', 'xEnergy'] }))).toBe('残りのエナジーをすべて使い、相手1体に防御無視の5ダメージを与える（数値は使ったエナジー1につき）。');
     expect(value(fx({ id: 'damage', value: 5, mods: ['xEnergy'] }))).toBe(18);
-    expect(value(fx({ id: 'damage', value: 5, mods: ['perEnemyMonster'] }))).toBe(23); // 22.5 → 23
+    expect(value(fx({ id: 'damage', value: 5, mods: ['perEnemyMonster'] }))).toBe(30); // 15×2（#89 で 0.5→1.0）
     expect(value(fx({ id: 'damage', value: 5, mods: ['perCardPlayed'] }))).toBe(27);
     expect(value(fx({ id: 'damage', value: 5, mods: ['pierce', 'xEnergy'] }))).toBe(24); // 15×1.6
   });

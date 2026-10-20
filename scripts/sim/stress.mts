@@ -56,11 +56,40 @@
  * | selfRepair   | 自己修復 N 1/3 ×30                               | |
  * | powerBurn    | パワー「ターン開始時に相手にダメージ N」×30      | |
  * | attackPoison | 1/2「攻撃するたび毒 N」×30                       | |
+ *
+ * MTG 要素（決定事項 #85・#86）の極端なデッキ（キーの頭に m）
+ *
+ * | キー            | 中身                                                          | 備考 |
+ * |-----------------|---------------------------------------------------------------|------|
+ * | mTokenSwarm     | 小鬼 N/N を3体 ×22 ＋ パワー「自分のモンスターが出るたび、出たモンスターの攻撃力+N」（レア）×8 | トークン＋出るたび |
+ * | mXBurn          | X：相手1体に N ダメージ（使ったエナジー1につき）×30          | X＋エナジー |
+ * | mDoom           | 呪縛 N ×30                                                    | 呪縛の重ね掛け |
+ * | mDeathTaunt     | 接死・挑発 1/N（コスト3）×30                                  | 接死＋挑発の壁 |
+ * | mDeathTauntBurn | 接死・挑発 1/N（コスト3）×15 ＋ ダメージ N ×15               | 接死の壁＋バーン |
+ * | mTauntBurnCtl   | 挑発 1/N（コスト3）×15 ＋ ダメージ N ×15                       | mDeathTauntBurn の比較用（接死なし） |
+ * | mDefenderWall   | 防衛・挑発 3/N ×15 ＋ ダメージ N ×15                          | 攻撃しない壁＋バーン（防衛は呪いの下限を満たすため攻撃力3） |
+ * | mLifelink       | 絆魂 N/3 ×30                                                  | |
+ * | mDivineShield   | 聖盾 2/N ×30                                                  | |
+ * | mFirstStrike    | 先制攻撃 N/3 ×30                                              | |
+ * | mBushido        | 武士道N 2/3 ×30                                               | |
+ * | mHexproof       | 呪禁 2/N ×30                                                  | |
+ * | mFight          | 格闘 ×15 ＋ 兵士 3/3 ×15                                      | |
+ * | mWither         | 衰弱 N ×30                                                    | |
+ * | mTrain          | 鍛錬 N ×15 ＋ 兵士 3/3 ×15                                    | |
+ * | mPump           | 一時強化 N（自分のモンスター全体）×15 ＋ 兵士 3/3 ×15        | |
+ * | mReady          | 再行動 ×15 ＋ 戦士 5/5（コスト2）×15                          | |
+ * | mPerEnemy       | 相手1体に N ダメージ（相手モンスター1体につき）×30          | |
+ * | mPerCard        | 相手1体に N ダメージ（このターン使ったカード1枚につき）×30  | |
+ * | mDamagedBurn    | このターン相手にダメージを与えていれば、相手1体に N ダメージ ×15 ＋ ダメージ N ×15 | 条件付きの安いバーン |
+ * | mCoinBurn       | コインを投げて表なら、相手1体に N ダメージ ×30               | |
+ * | mLifespanHaste  | 速攻 N/2・寿命1 ×30                                           | 使い捨て召喚 |
+ * | mSacrifice      | 小鬼 N/N を2体 ×15 ＋ 生け贄の大型 N/N（コスト1）×15          | |
  */
 import {
   B0,
   B1,
   burnCard,
+  monsterAtCap,
   BALANCE,
   argN,
   buildDeck,
@@ -77,7 +106,7 @@ import {
   type DeckSpec,
   type SeriesResult,
 } from './lib.mts';
-import { createEffect, type CardDef, type EffectInstance, type KeywordInstance, type Rarity, type Stats } from '../../src/engine/index.ts';
+import { createEffect, type CardDef, type DrawbackInstance, type EffectInstance, type KeywordInstance, type Rarity, type Stats } from '../../src/engine/index.ts';
 
 /** 効果の既定（タイミング・対象・option）を createEffect からもらい、上書きする */
 const eff = (id: string, over: Partial<EffectInstance> = {}, monster = false): EffectInstance => ({ ...createEffect(id, monster ? 'monster' : 'spell'), ...over });
@@ -86,6 +115,7 @@ const SOLDIER = (): CardDef => cardAtCap('common', 1, [], { attack: 3, hp: 3, de
 const FIREBALL = (): CardDef => burnCard(7, '火球');
 
 interface Parts {
+  drawbacks?: DrawbackInstance[];
   effects?: EffectInstance[];
   stats?: Stats | null;
   keywords?: KeywordInstance[];
@@ -113,6 +143,12 @@ const rareLimited = (key: string, rarity: Rarity, cost: number, build: (v: numbe
   const parts = build(value);
   const limit = BALANCE.rarity[rarity].deckLimit ?? 30;
   return buildDeck(key, [...fill(parts.name ?? key, rarity, cost, parts, limit), [SOLDIER(), 30 - limit]]);
+};
+/** 数値 N を最大にしたカードを count 枚（同名の枚数制限を守って、同じ中身を別名で複製） */
+const fitFill = (rarity: Rarity, cost: number, build: (v: number) => Parts, count: number): [CardDef, number][] => {
+  const { value } = fitValue(rarity, cost, build);
+  const parts = build(value);
+  return fill(parts.name ?? 'card', rarity, cost, parts, count);
 };
 /** モンスター（キーワード付き）。fit は体力か攻撃力 */
 const mon = (key: string, build: (v: number) => Parts): DeckSpec => single(key, build);
@@ -165,6 +201,68 @@ export const EXTREME: Record<string, () => DeckSpec> = {
   undying: () => mon('undying', (v) => ({ stats: { attack: 2, hp: v, defense: 0 }, keywords: [{ id: 'undying' }], name: `不屈2/${v}` })),
   selfRepair: () => mon('selfRepair', (v) => ({ stats: { attack: 1, hp: 3, defense: 0 }, keywords: [{ id: 'selfRepair', value: v }], name: `自己修復${v}` })),
   powerBurn: () => single('powerBurn', (v) => ({ effects: [eff('damage', { value: v, timing: 'turnStart', target: 'enemyPlayer' })], name: `燃える大地${v}` })),
+  // ---------------------------------------------------------------- MTG 要素（#85・#86）
+  mTokenSwarm: () => {
+    return buildDeck('mTokenSwarm', [
+      ...fitFill('common', 1, (v) => ({ effects: [eff('token', { value: v, hits: 3 })], name: `小鬼${v}x3` }), 22),
+      ...fitFill('rare', 1, (v) => ({ effects: [eff('attackUp', { value: v, timing: 'allySummoned', target: 'chosen' })], name: `号令${v}` }), BALANCE.rarity.rare.deckLimit ?? 8),
+    ]);
+  },
+  mXBurn: () => single('mXBurn', (v) => ({ effects: [eff('damage', { value: v, mods: ['xEnergy'] })], name: `X火球${v}` })),
+  mDoom: () => single('mDoom', (v) => ({ effects: [eff('doom', { value: v })], name: `呪縛${v}` })),
+  mDeathTaunt: () =>
+    single('mDeathTaunt', (v) => ({ stats: { attack: 1, hp: v, defense: 0 }, keywords: [{ id: 'deathtouch' }, { id: 'taunt' }], name: `接死の壁1/${v}` }), 'common', 3),
+  mDeathTauntBurn: () => {
+    const wall = fitValue('common', 3, (v) => ({ stats: { attack: 1, hp: v, defense: 0 }, keywords: [{ id: 'deathtouch' }, { id: 'taunt' }], name: `接死の壁1/${v}` })).card;
+    return buildDeck('mDeathTauntBurn', [
+      [wall, 15],
+      [burnCard(undefined, '火球'), 15],
+    ]);
+  },
+  mTauntBurnCtl: () => {
+    const wall = fitValue('common', 3, (v) => ({ stats: { attack: 1, hp: v, defense: 0 }, keywords: [{ id: 'taunt' }], name: `挑発の壁1/${v}` })).card;
+    return buildDeck('mTauntBurnCtl', [
+      [wall, 15],
+      [burnCard(undefined, '火球'), 15],
+    ]);
+  },
+  mDefenderWall: () => {
+    const wall = fitValue('common', 1, (v) => ({ stats: { attack: 3, hp: v, defense: 0 }, keywords: [{ id: 'taunt' }], drawbacks: [{ id: 'defender', timing: null }], name: `防壁3/${v}` })).card;
+    return buildDeck('mDefenderWall', [
+      [wall, 15],
+      [burnCard(undefined, '火球'), 15],
+    ]);
+  },
+  mLifelink: () => mon('mLifelink', (v) => ({ stats: { attack: v, hp: 3, defense: 0 }, keywords: [{ id: 'lifelink' }], name: `絆魂${v}/3` })),
+  mDivineShield: () => mon('mDivineShield', (v) => ({ stats: { attack: 2, hp: v, defense: 0 }, keywords: [{ id: 'divineShield' }], name: `聖盾2/${v}` })),
+  mFirstStrike: () => mon('mFirstStrike', (v) => ({ stats: { attack: v, hp: 3, defense: 0 }, keywords: [{ id: 'firstStrike' }], name: `先制${v}/3` })),
+  mBushido: () => mon('mBushido', (v) => ({ stats: { attack: 2, hp: 3, defense: 0 }, keywords: [{ id: 'bushido', value: v }], name: `武士道${v}` })),
+  mHexproof: () => mon('mHexproof', (v) => ({ stats: { attack: 2, hp: v, defense: 0 }, keywords: [{ id: 'hexproof' }], name: `呪禁2/${v}` })),
+  mFight: () => buildDeck('mFight', [
+    [cardAtCap('common', 1, [eff('fight')], null, [], { name: '格闘' }), 15],
+    [SOLDIER(), 15],
+  ]),
+  mWither: () => single('mWither', (v) => ({ effects: [eff('wither', { value: v })], name: `衰弱${v}` })),
+  mTrain: () => half('mTrain', SOLDIER(), (v) => ({ effects: [eff('train', { value: v })], name: `鍛錬${v}` })),
+  mPump: () => half('mPump', SOLDIER(), (v) => ({ effects: [eff('pump', { value: v, target: 'allyMonsters' })], name: `鼓舞${v}` })),
+  mReady: () => buildDeck('mReady', [
+    [cardAtCap('common', 1, [eff('ready')], null, [], { name: '再行動' }), 15],
+    [monsterAtCap('戦士', 2, 5, 5), 15],
+  ]),
+  mPerEnemy: () => single('mPerEnemy', (v) => ({ effects: [eff('damage', { value: v, mods: ['perEnemyMonster'] })], name: `群れ撃ち${v}` })),
+  mPerCard: () => single('mPerCard', (v) => ({ effects: [eff('damage', { value: v, mods: ['perCardPlayed'] })], name: `連鎖${v}` })),
+  mDamagedBurn: () => half('mDamagedBurn', burnCard(undefined, '火球'), (v) => ({ effects: [eff('damage', { value: v, condition: 'enemyDamagedThisTurn' })], name: `追撃${v}` })),
+  mCoinBurn: () => single('mCoinBurn', (v) => ({ effects: [eff('damage', { value: v, condition: 'coinFlip' })], name: `賭け${v}` })),
+  mLifespanHaste: () =>
+    single('mLifespanHaste', (v) => ({ stats: { attack: v, hp: 2, defense: 0 }, keywords: [{ id: 'haste' }], drawbacks: [{ id: 'lifespan', timing: null, value: 1 }], name: `突撃${v}/2` })),
+  mSacrifice: () => {
+    const tok = fitValue('common', 1, (v) => ({ effects: [eff('token', { value: v, hits: 2 })], name: `小鬼${v}x2` })).card;
+    const big = fitValue('common', 1, (v) => ({ stats: { attack: v, hp: v, defense: 0 }, drawbacks: [{ id: 'sacrifice', timing: 'summon' }], name: `生け贄の巨人${v}` })).card;
+    return buildDeck('mSacrifice', [
+      [tok, 15],
+      [big, 15],
+    ]);
+  },
   attackPoison: () => mon('attackPoison', (v) => ({ stats: { attack: 1, hp: 2, defense: 0 }, effects: [eff('poison', { value: v, timing: 'attack' }, true)], name: `毒牙${v}` })),
 };
 

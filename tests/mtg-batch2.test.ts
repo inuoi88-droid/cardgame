@@ -51,6 +51,8 @@ function arena(): G {
 describe('キーワード（バッチ2）', () => {
   it('ポイントと説明', () => {
     expect(kwPoints({ id: 'deathtouch' })).toBe(6);
+    // 体力が高いと max(6, 体力×1)（決定事項 #89）
+    expect(analyzeCard(card({ rarity: 'legend', stats: { attack: 1, hp: 10, defense: 0 }, keywords: [{ id: 'deathtouch' }] })).points.lines.find((l) => l.kind === 'keyword')!.value).toBe(10);
     expect(kwPoints({ id: 'firstStrike' }, 2)).toBe(2); // max(2, 1)
     expect(kwPoints({ id: 'firstStrike' }, 6)).toBe(3);
     expect(kwPoints({ id: 'hexproof' })).toBe(4);

@@ -28,22 +28,23 @@
 ## ファイル構成（Phase 3 時点）
 
 - `src/engine/` … ルールエンジン（純粋関数）
-  - `balance.ts` バランス数値 / `types.ts` 保存する型 / `options.ts` タイミング・対象・条件
+  - `balance.ts` バランス数値 / `types.ts` 保存する型（CardDef の任意の `description` は80文字まで：#87）/ `options.ts` タイミング・対象・条件（各定義の `group`・`description` と見出しの並び `TIMING_GROUPS`・`CONDITION_GROUPS` はエディターの選択パネルが使う。`targetsForEffect(def, timing, base)` は土台を渡す）
   - `define.ts` 定義の型 / `registry.ts` 定義の検索 / `registry.generated.ts` 自動生成の索引（手で編集しない）
   - `defs/effects|modifiers|keywords|drawbacks/*.ts` … 効果などを1ファイル1つで定義
   - `points.ts` ポイント計算 / `classify.ts` 種類・呪い判定 / `validate.ts` ルール検証 / `text.ts` 効果テキスト
-  - `analyze.ts` カード解析の入口 / `deck.ts` デッキ検証 / `io.ts` 書き出し・取り込み / `editing.ts` エディター用の補助
+  - `analyze.ts` カード解析の入口 / `deck.ts` デッキ検証 / `io.ts` 書き出し・取り込み（説明文の正規化 `normalizeDescription`）/ `editing.ts` エディター用の補助（効果ごとのタイミング `effectTimings`・デメリットの `drawbackTimings`・付けられる修飾 `modifiersFor`・`availableDrawbacks`）
   - `index.ts` 公開窓口（UI はここから読む）
   - `battle/` … 対戦エンジン。入口は `applyAction(state, action)`（apply.ts）。setup・turn・play・combat・damage・queue（解決キューと選択待ち）・runtime（効果ファイルに渡す道具）・legal（今できる行動）・view（相手の非公開情報を隠す）。主なルール（#69・#70）：HP 120（倍率1）、エナジーは自分のターン数で 3→4（4ターン目）→5（7ターン目）と成長（`battle.energySchedule`）、モンスターが相手モンスターを攻撃すると守備側がその攻撃力を返す「反撃」（combat。攻撃と同時に解決、`battle.retaliation`）、毒・再生は毎ターン半減、筋力・気合は1枚につき最初の1発だけ、ログの各行に構造化イベント `ev`（#71）、パワーは1人 `battle.maxPowers`（3）つまでで超えたらいちばん古いものが消える（play.ts の `addPower`。#80）、挑発はモンスターの攻撃とカードの「選んだ1体」の両方を挑発モンスターに限る（damage.ts の `targetableTaunts`。#83）
+  - MTG 要素（#85・#86）：条件12（このターンの記録 `PlayerState.turn` の enemyDamaged・allyAttacks・summoned・monstersDestroyed、コイン投げは state のシード乱数）、タイミング5（allySummoned・allyDestroyed・powerPlayed・skillPlayed・hitEnemyPlayer。場に出る共通処理は zones.ts の `onMonsterEntered`、繰り返し誘発は1枚につき1ターン `battle.maxRepeatTriggersPerTurn`（2）回まで）、対象3（thisMonster・allyMonsters・「出たモンスター」＝ChosenMode triggerAlly）、数値の倍数（ModifierDef の scope 'scale'：X・相手モンスター1体につき・使ったカード1枚につき。queue.ts が解決の直前に value を掛けた写しを渡す。scalable な効果に1つまで）、キーワード6（接死・先制攻撃・呪禁・絆魂・武士道・聖盾）、効果12（トークン `TOKEN_CARD_ID`・`CardInst.token`、鍛錬・衰弱・キーワード付与 `Monster.granted`・格闘 TargetRule 'fight'（chosen は ally と enemy の両方）・再行動・占術・手札整理 Step 'discardChoice'・処分・倍化・呪縛 `Statuses.doom`・一時強化 `Monster.tempAttack`＝実効攻撃力は core.ts の `effectiveAttack`）、デメリット5（防衛・寿命 `counters.life`/`PowerInst.life`・腐乱・廃棄・生け贄＝DrawbackDef の `canPlay`・`choose`）
   - `ai/` … CPU。強さは よわい／ふつう／つよい（`CpuLevel`。cpu.ts の `cpuAction(state, player, seed, level)`。#72・#82）。貪欲法（greedy.ts）、つよいの先読み（beam.ts）、リーサル探索（lethal.ts）、評価関数（evaluate.ts。重みは balance.ts ではなくここ。レースの判定は1回の判断の前に `RaceFrame` として固定：#81）、マリガン（mulligan.ts）。sim.ts はシミュレーション用
 - `src/online/` … オンライン対戦のサーバー処理（純粋関数。engine と同じ決まり：DOM・Date・Math.random を使わない）
   - `codes.ts` 部屋コード・名前 / `protocol.ts` 送受信の形と検証 / `room.ts` 部屋の作成・入室・行動・時間切れ・各席への見え方
   - `server.ts` 1回の送信の処理 / `http.ts` 受付（DB・時刻・乱数・ハッシュ・通知は外から渡す）/ `index.ts` 公開窓口
 - `supabase/` … `migrations/`（専用スキーマ `cardgame` の rooms）と `functions/cardgame/`（Deno の Edge Function。`engine.js` は `npm run build:server` の生成物）
 - `src/ui/` … React の画面。`store.ts` が localStorage を扱う。`router.ts` はハッシュのルーティング（未保存の編集があるときの離脱確認 `setNavigationGuard`）。`glossary.ts` は用語の説明（ルールページ・ポップオーバーで共用）
-  - `components/` … 共通部品：`ConfirmDialog`（`useConfirm()`）・`Toast`（`useToast()`）・`Sheet`（スマホは下から出るシート）・`Popover`・`controls.tsx`（`Modal` など）・`dialogUtil.ts`（フォーカス・`useIsPhone`）・`CardView`・`EffectRow`・`PointPanel`・`EmojiPicker`・`ImportExport`
-  - `editor/` … カードエディターの部品（`pages/CardEditorPage.tsx` から使う）：予算メーター・効果の選択・ミニプレビュー・ヒント・検証の表示、`templates.ts` のテンプレート6つ（`tests/templates*.test.ts` で作れることを固定。#79）
-  - `battle/` … `BattleBoard.tsx` が対戦画面の本体（CPU 戦とオンラインで共用。#78）。`useReplay.ts` と `events.ts` がイベント再生層（新しいログ行の `ev` を演出にして順に再生。タップで早送り、「動きを減らす」設定なら即反映。CPU 戦は再生が終わってから次の手を打つ）。`parts.tsx`（パネル・モンスター・手札・ログ）・`dialogs.tsx`（マリガン・選択・結果）・`session.ts`（CPU 戦の途中保存と準備画面の選択。強さが無い古い保存は「ふつう」）
+  - `components/` … 共通部品：`ConfirmDialog`（`useConfirm()`）・`Toast`（`useToast()`）・`Sheet`（スマホは下から出るシート）・`Popover`・`controls.tsx`（`Modal` など）・`dialogUtil.ts`（フォーカス・`useIsPhone`）・`CardView`・`EffectRow`・`PointPanel`・`EmojiPicker`・`ImportExport`・`CardDetail`（一覧・デッキ構築でカードを押したときの詳細。#87）。`dialogUtil.ts` のフォーカストラップは積み重ね式（いちばん上のダイアログだけが扱う）
+  - `editor/` … カードエディターの部品（`pages/CardEditorPage.tsx` から使う）：予算メーター・効果の選択・ミニプレビュー・ヒント・検証の表示、`templates.ts` のテンプレート6つ（`tests/templates*.test.ts` で作れることを固定。#79）。`OptionPicker.tsx` はプルダウンの代わりの選択パネル（検索・見出し・1行の説明・ポイント・選べない理由。スマホはシート）、選択肢は `pickOptions.ts` がエンジンの一覧から作る（ID を書かない。`tests/pickOptions.test.ts`。#87）
+  - `battle/` … `BattleBoard.tsx` が対戦画面の本体（CPU 戦とオンラインで共用。#78）。`useReplay.ts` と `events.ts` がイベント再生層（新しいログ行の `ev` を演出にして順に再生。タップで早送り、「動きを減らす」設定なら即反映。CPU 戦は再生が終わってから次の手を打つ）。`parts.tsx`（パネル・モンスター・手札・ログ）・`dialogs.tsx`（マリガン・選択・結果）・`session.ts`（CPU 戦の途中保存と準備画面の選択。強さが無い古い保存は「ふつう」）。ドラッグ＆ドロップ（#88）は `useDrag.ts`（Pointer Events）・`DragLayer.tsx`（ゴースト・矢印）・`dragLogic.ts`（純粋な判断：光らせる候補・落とし先・足りない選択。候補はエンジンの `playInfo`・`attackTargets` だけを使う。`tests/battle/dragLogic.test.ts`）。タップ（左クリック）で `CardDetail.tsx`（今の攻撃力・付与キーワード・寿命などの状態。トークンは出たときの強さで表示）。ログの色分けは `logFormat.ts`（カード名は黄色 `--card-name`、ダメージ赤・回復緑。`tests/battle/logFormat.test.ts`）
   - `pages/` … 各画面。`Battle*` が CPU 戦（準備画面で強さを選ぶ）、`Online*` と `online/`（通信・Realtime・再接続）がオンライン対戦、`RulesPage.tsx` はルール説明（数字は BALANCE から読む）、`UiKitPage.tsx` は部品の見本（#/ui-kit）
 - `src/samples.ts` … 作成例4枚（テストで固定）＋今の予算の見本4枚
 - `src/presets.ts` … CPU 用プリセットデッキ5つ（毒・モンスター・呪い・守り・コンボ。どれも選ぶ効果のカードを含む。決定事項 #76）

@@ -396,7 +396,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     if (t.kind === 'player') return t.player === me ? 'あなた' : `相手プレイヤー ❤${theirs.hp}`;
     const m = battle.findMonster(view, t.uid);
     const def = m ? view.cards[m.card.cardId] : undefined;
-    return m ? `${def?.icon ?? ''}${def?.name ?? '？'} ⚔${m.attack} ❤${m.hp}` : '？';
+    return m ? `${def?.icon ?? ''}${def?.name ?? '？'} ⚔${battle.effectiveAttack(m)} ❤${m.hp}` : '？';
   };
 
   /** 場の並び：今のモンスターに、消える途中のモンスター（幽霊）を元の位置へ差し込む */

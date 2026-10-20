@@ -157,9 +157,9 @@ function Editor({ saved }: { saved: CardDef | null }) {
   const shownViolations = showProblems ? allViolations : [];
   const maxEffects = BALANCE.rarity[card.rarity].maxEffects;
 
-  // 未保存のまま他の画面へ移ろうとしたら確認する
+  // 未保存のまま他の画面へ移ろうとしたら確認する（何も触っていない新しいカードは確認しない）
   useEffect(() => {
-    if (!dirty) {
+    if (!dirty || pristine) {
       setNavigationGuard(null);
       return;
     }
@@ -172,7 +172,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
       }),
     );
     return () => setNavigationGuard(null);
-  }, [dirty, confirm]);
+  }, [dirty, pristine, confirm]);
 
   // 追加した行・違反の欄へスクロールしてフォーカス
   useEffect(() => {

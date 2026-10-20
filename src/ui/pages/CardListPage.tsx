@@ -16,6 +16,7 @@ import {
   type Rarity,
 } from '../../engine/index.ts';
 import { CardDetail } from '../components/CardDetail.tsx';
+import { budgetOf } from '../editor/budget.ts';
 import { CardView } from '../components/CardView.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { ExportDialog, ImportDialog } from '../components/ImportExport.tsx';
@@ -143,7 +144,7 @@ export function CardListPage() {
               <CardView card={card} analysis={a} size="sm" onClick={() => setDetailId(card.id)} actionLabel={`${card.name || '（名前なし）'}の詳細を見る`} />
               <div className="card-grid__actions">
                 <span className="card-grid__pts">
-                  {formatPoints(a.points.total)}/{a.points.cap}pt
+                  {formatPoints(budgetOf(a, card).used)}/{budgetOf(a, card).budget}pt
                 </span>
                 <button type="button" className="btn btn--small" onClick={() => edit(card)} aria-label={`${card.name || '（名前なし）'}を編集`}>
                   編集

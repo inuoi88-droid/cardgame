@@ -98,12 +98,18 @@ export function cardAtCap(rarity: Rarity, cost: number, effects: EffectInstance[
  * 数値 v を上から順に試して、ルールを守る最大の v でカードを作る（価格表が変わっても追従するため）。
  * build は倍率1の数字で v を受け取り、カードの部品を返す。どの v でも作れなければ例外
  */
-export function fitValue(rarity: Rarity, cost: number, build: (v: number) => { effects?: EffectInstance[]; stats?: Stats | null; keywords?: KeywordInstance[]; name?: string }, max = 30, min = 1): { card: CardDef; value: number } {
+export function fitValue(
+  rarity: Rarity,
+  cost: number,
+  build: (v: number) => { effects?: EffectInstance[]; stats?: Stats | null; keywords?: KeywordInstance[]; drawbacks?: DrawbackInstance[]; name?: string },
+  max = 30,
+  min = 1,
+): { card: CardDef; value: number } {
   let lastError = '';
   for (let v = max; v >= min; v--) {
     const parts = build(v);
     try {
-      return { card: cardAtCap(rarity, cost, parts.effects ?? [], parts.stats, parts.keywords, { name: parts.name }), value: v };
+      return { card: cardAtCap(rarity, cost, parts.effects ?? [], parts.stats, parts.keywords, { name: parts.name, drawbacks: parts.drawbacks }), value: v };
     } catch (e) {
       lastError = (e as Error).message;
     }

@@ -171,7 +171,8 @@ export const BALANCE = {
     pierce: 0.4,
     drain: 0.4,
     xEnergy: 0.2,
-    perEnemyMonster: 0.5,
+    // 測定（決定事項 #89）：0.5 では相手モンスターの多いデッキ（B0）に 100% 勝つため、2体ぶんで元が取れる 1.0 に
+    perEnemyMonster: 1.0,
     perCardPlayed: 0.8,
   },
   modifierParams: {
@@ -299,7 +300,11 @@ export const BALANCE = {
     undying: { flat: x(3), perAttack: 1 },
     selfRepair: { perValue: 2 },
     /** MTG 要素の採用：バッチ2（決定事項ログ）。接死・先制攻撃・呪禁・絆魂・武士道・聖盾 */
-    deathtouch: { flat: x(6) },
+    /**
+     * 接死：max(flat, 体力×perHp)。反撃でも働くので、体力の高い接死（とくに挑発の壁）は何度も相手を破壊する。
+     * 測定（決定事項 #89）：flat だけだと コスト3 の「接死・挑発 1/13」＋火球のデッキが B0・B1 に 100%
+     */
+    deathtouch: { flat: x(6), perHp: 1 },
     /** 先制攻撃：max(min, 攻撃力×perAttack) */
     firstStrike: { min: x(2), perAttack: 0.5 },
     hexproof: { flat: x(4) },

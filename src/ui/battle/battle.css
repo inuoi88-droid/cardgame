@@ -60,6 +60,14 @@
 body:has(.battle) .toasts {
   bottom: calc(var(--bar-h, 112px) + 8px + env(safe-area-inset-bottom));
 }
+/* スマホではトーストが手札に重なるので、閉じるボタン以外は押しても下の手札に届くようにする（続けてドラッグできる） */
+body:has(.battle) .toast {
+  pointer-events: none;
+}
+body:has(.battle) .toast__close,
+body:has(.battle) .toast__action {
+  pointer-events: auto;
+}
 
 /* ------------------------------------------------------------ 見出し */
 .battle__head {

@@ -6,6 +6,7 @@
  */
 import { useMemo, type ReactNode } from 'react';
 import { CARD_TYPE_LABEL, CURSE_LABEL, RARITY_LABEL, analyzeCard, formatPoints, type CardAnalysis, type CardDef } from '../../engine/index.ts';
+import { budgetOf } from '../editor/budget.ts';
 import { cx } from '../util.ts';
 import { CardView } from './CardView.tsx';
 import { Sheet } from './Sheet.tsx';
@@ -24,8 +25,10 @@ interface Props {
 export function CardDetail({ card, analysis, onClose, actions, status }: Props) {
   const a = useMemo(() => analysis ?? analyzeCard(card), [analysis, card]);
   const p = a.points;
-  const over = p.total > p.cap;
-  const pct = p.cap > 0 ? Math.max(0, Math.min(100, (p.total / p.cap) * 100)) : 0;
+  // エディターと同じ「使用 / 予算」で見せる（予算＝レアリティ上限＋コストの分）
+  const b = budgetOf(a, card);
+  const over = b.over > 0;
+  const pct = b.budget > 0 ? Math.max(0, Math.min(100, (b.used / b.budget) * 100)) : 0;
   return (
     <Sheet open title={card.name.trim() || '（名前なし）'} onClose={onClose} desktop="modal">
       <div className="cd">
@@ -56,7 +59,7 @@ export function CardDetail({ card, analysis, onClose, actions, status }: Props) 
             <div className="cd__points-head">
               <span>ポイント</span>
               <b className={cx(over && 'text-ng')}>
-                {formatPoints(p.total)} / {p.cap}pt
+                使用 {formatPoints(b.used)} / 予算 {b.budget}pt
               </b>
             </div>
             <div className={cx('cd__bar', over && 'is-over')} aria-hidden="true">

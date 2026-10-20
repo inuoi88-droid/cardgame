@@ -1,5 +1,6 @@
 import { BALANCE } from '../../balance.ts';
 import { defineKeyword } from '../../define.ts';
+import { ceilPoints } from '../../math.ts';
 
 const B = BALANCE.keywords.deathtouch;
 
@@ -9,8 +10,9 @@ export default defineKeyword({
   name: '接死',
   order: 9,
   summary: 'このモンスターが攻撃・反撃・格闘でダメージを与えたモンスターは破壊される（不屈でも踏みとどまれない）',
-  points: () => B.flat,
-  formula: () => `${B.flat}`,
+  // 反撃でも働くので、体力が高いほど高い（決定事項 #89）
+  points: (_k, s) => Math.max(B.flat, ceilPoints(B.perHp * s.hp)),
+  formula: (_k, s) => `max(${B.flat}, 体力${s.hp}×${B.perHp})`,
   displayName: () => '接死',
   describe: () => 'このモンスターが攻撃・反撃・格闘でダメージを与えたモンスターは破壊される',
   battle: { deathtouch: true },

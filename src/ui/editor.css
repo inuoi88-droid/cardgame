@@ -606,7 +606,9 @@
   color: var(--muted);
   font-size: var(--fs-xs);
   line-height: 1.6;
-  white-space: nowrap;
+  /* 長い条件名（MTG 要素の条件など）は札の中で折り返す（行の幅を押し広げない） */
+  white-space: normal;
+  max-width: 100%;
 }
 .ed-chip--cond {
   color: var(--warn);

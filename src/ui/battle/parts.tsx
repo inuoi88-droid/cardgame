@@ -49,8 +49,20 @@ export function statusChips(s: Statuses, isPlayer: boolean): Chip[] {
   return out;
 }
 
-export function Chips({ chips, className }: { chips: Chip[]; className?: string }) {
+/** passive：札を押せない飾りにする（モンスターの札。押すとタイルの詳細が開き、説明はそこにまとめて出る） */
+export function Chips({ chips, className, passive }: { chips: Chip[]; className?: string; passive?: boolean }) {
   if (chips.length === 0) return null;
+  if (passive) {
+    return (
+      <div className={cx('chips-row', className)}>
+        {chips.map((c) => (
+          <span key={c.id} className={`st st--${c.tone}`} title={typeof c.card.title === 'string' ? c.card.title : undefined}>
+            {c.label}
+          </span>
+        ))}
+      </div>
+    );
+  }
   return (
     <div className={cx('chips-row', className)}>
       {chips.map((c) => (
@@ -344,7 +356,7 @@ export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, f
           {m.defense}
         </span>
       </span>
-      <Chips chips={chips} className="mt__chips" />
+      <Chips chips={chips} className="mt__chips" passive />
       <Floats items={floats} />
     </div>
   );
@@ -621,7 +633,7 @@ export function LogPanel({ log, me, names, onCard, compact = false }: { log: bat
             )}
             {isOpen &&
               g.rows.map(({ e, i }) => {
-                const icon = logIcon(e.ev?.kind, e.kind, e.ev?.status);
+                const icon = logIcon(e.ev?.kind, e.kind, e.ev?.status ?? e.ev?.damageKind);
                 const depth = Math.min(e.depth, 4);
                 return (
                   <div

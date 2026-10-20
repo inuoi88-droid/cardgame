@@ -19,8 +19,23 @@ export {
   type PlayInfo,
   type ActivateInfo,
   type HandAbilityInfo,
+  type ModeInfo,
 } from './legal.ts';
-export { costBreakdown, costNotes, effectiveCost, fromDiscardAbility, kickerCost, playTiming, type CostBreakdown, type CostStep } from './play.ts';
+export {
+  costBreakdown,
+  costNotes,
+  effectiveCost,
+  fromDiscardAbility,
+  kickerCost,
+  playTiming,
+  playableModes,
+  modeName,
+  validateMode,
+  type CostBreakdown,
+  type CostStep,
+} from './play.ts';
+export { cardModes, entwineCost } from './modes.ts';
+export { lastChapter } from './powers.ts';
 export { activateSource, handAbilityOf, handAbilityKinds } from './abilities.ts';
 export { viewFor, HIDDEN_CARD_ID } from './view.ts';
 export { attackBlockReason, attackTargets, attacksPerTurn, cannotAttack } from './combat.ts';

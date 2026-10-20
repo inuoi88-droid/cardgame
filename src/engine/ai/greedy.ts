@@ -110,7 +110,7 @@ function decideGreedy(view: GameState, me: PlayerId, seed: number, noiseSigma: n
 function isXPlay(view: GameState, action: Action): boolean {
   if (action.type !== 'playCard') return false;
   const ac = actionCard(view, action);
-  return ac ? usesX(ac.def, ac.timing) : false;
+  return ac ? usesX(ac.def, ac.timing, action.mode) : false;
 }
 
 /**

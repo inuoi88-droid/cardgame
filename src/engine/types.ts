@@ -31,6 +31,11 @@ export const TIMING_IDS = [
   'fromDiscard',
   'activated',
   'channel',
+  // MTG 要素 ○ バッチC2：英雄譚の章（パワーになる）と、蓄積がたまったとき（能力「蓄積」があるときだけ）
+  'chapter1',
+  'chapter2',
+  'chapter3',
+  'charged',
 ] as const;
 export type TimingId = (typeof TIMING_IDS)[number];
 
@@ -49,6 +54,8 @@ export const TARGET_IDS = [
   'otherAllies',
   'weakestAlly',
   'bothPlayers',
+  // MTG 要素 ○ バッチC2（種族のあるカードだけ）
+  'tribeAllies',
 ] as const;
 export type TargetId = (typeof TARGET_IDS)[number];
 
@@ -91,6 +98,10 @@ export const CONDITION_IDS = [
   'exploit',
   // MTG 要素 ○ バッチC1
   'kicked',
+  // MTG 要素 ○ バッチC2
+  'tribeAlly',
+  'maxSpeed',
+  'hasCrown',
 ] as const;
 export type ConditionId = (typeof CONDITION_IDS)[number];
 
@@ -98,8 +109,28 @@ export type ConditionId = (typeof CONDITION_IDS)[number];
  * 効果のオプション。pierce・drain はダメージ系（allowsMods）、nextTurn は遅延（予約）、
  * それ以外は数値に掛ける倍数（scalable な効果）
  */
-export const MODIFIER_IDS = ['pierce', 'drain', 'xEnergy', 'perEnemyMonster', 'perCardPlayed', 'nextTurn', 'perDiscardMonster'] as const;
+export const MODIFIER_IDS = ['pierce', 'drain', 'xEnergy', 'perEnemyMonster', 'perCardPlayed', 'nextTurn', 'perDiscardMonster', 'perTribeAlly'] as const;
 export type ModifierId = (typeof MODIFIER_IDS)[number];
+
+/**
+ * 種族（MTG 要素 ○ バッチC2：クリーチャー・タイプ／部族シナジー）。カードに1つまで付けられる。
+ * ID と名前はバランスの数値ではないので、ここに置く
+ */
+export const TRIBE_IDS = ['beast', 'dragon', 'undead', 'machine', 'spirit', 'human'] as const;
+export type TribeId = (typeof TRIBE_IDS)[number];
+export const TRIBE_LABEL: Record<TribeId, string> = {
+  beast: '獣',
+  dragon: '竜',
+  undead: '不死',
+  machine: '機械',
+  spirit: '精霊',
+  human: '人',
+};
+
+/** モード選択（MTG 要素 ○ バッチC2）のモードの番号（1＝A、2＝B、3＝C）。使うときの 0 は双呪（すべてのモード） */
+export const MODE_IDS = [1, 2, 3] as const;
+export type ModeId = (typeof MODE_IDS)[number];
+export const MODE_LABEL: Record<ModeId, string> = { 1: 'A', 2: 'B', 3: 'C' };
 
 export interface Stats {
   attack: number;
@@ -126,6 +157,11 @@ export interface EffectInstance {
   mods?: ModifierId[];
   /** 効果ごとの追加指定（サーチするカードの種類など） */
   option?: string;
+  /**
+   * モード（MTG 要素 ○ バッチC2）。使用時・召喚時・捨て札から使ったときの効果だけに付けられ、使うときに1つを選ぶ
+   * （省略は「いつも」出る）
+   */
+  mode?: ModeId;
 }
 
 export interface DrawbackInstance {
@@ -165,6 +201,8 @@ export interface CardDef {
   drawbacks: DrawbackInstance[];
   /** カードの能力（MTG 要素 ○ バッチB）。省略は無し */
   abilities?: AbilityInstance[];
+  /** 種族（MTG 要素 ○ バッチC2）。省略は種族なし。ポイントは0 */
+  tribe?: TribeId;
   /**
    * プレイヤーが書く短い説明（フレーバーや使い方のメモ）。任意。ポイントやルールには関係しない。
    * 読み込み時に前後の空白・制御文字を除き、CARD_DESCRIPTION_MAX 文字を超えた分は切り詰める（io.ts の normalizeDescription）

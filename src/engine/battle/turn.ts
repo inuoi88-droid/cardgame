@@ -8,6 +8,7 @@ import { lifespanOf } from './play.ts';
 import { randInt } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
 import { enqueueDelayed, enqueueMonsters, enqueuePowers } from './triggers.ts';
+import { advanceSagas, chargePowers } from './powers.ts';
 import { discardCard, drawCards, returnBorrowed, vanish } from './zones.ts';
 import type { GameState, PlayerId, Statuses } from './types.ts';
 
@@ -118,7 +119,10 @@ export function startTurn(g: GameState, p: PlayerId): void {
 
   // ドロー（1ターン目は対戦開始時に配った手札を使う：決定事項 #47。後攻の1ターン目の追加ドローは調整つまみ、既定0）
   const extraDraw = secondFirstTurn ? B.secondPlayerFirstTurnExtraDraw : 0;
-  const drawCount = ps.turnsTaken === 1 ? Math.max(0, ps.next.draw + extraDraw) : Math.max(0, B.drawPerTurn + ps.next.draw);
+  // 王冠（MTG 要素 ○ バッチC2）：持っていれば1枚多く引く（1ターン目も。上限は1ターンに引ける枚数）
+  const crownDraw = g.crown === p ? BALANCE.crown.extraDraw : 0;
+  if (crownDraw > 0) log(g, 1, `👑${ps.name}は王冠を持っているので${crownDraw}枚多く引く`, 'info');
+  const drawCount = (ps.turnsTaken === 1 ? Math.max(0, ps.next.draw + extraDraw) : Math.max(0, B.drawPerTurn + ps.next.draw)) + crownDraw;
   ps.next = { draw: 0, energy: 0 };
   drawCards(g, p, drawCount, 1);
   if (isEnded(g)) return;
@@ -128,6 +132,9 @@ export function startTurn(g: GameState, p: PlayerId): void {
   if (delayed > 0) log(g, 1, `${ps.name}の予約していた効果が発動する（${delayed}件）`, 'info');
   enqueueDelayed(g, p);
 
+  // 英雄譚（MTG 要素 ○ バッチC2）：1章ずつ進む。蓄積「自分のターン開始時」
+  advanceSagas(g, p);
+  chargePowers(g, p, 'turnStart', 1);
   // 「自分のターン開始時」：パワー → 場のモンスター（左から）。その後、混乱・裏切りの自動攻撃
   enqueuePowers(g, p, 'turnStart', 1);
   enqueueMonsters(g, p, 'turnStart', 1);

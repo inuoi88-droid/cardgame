@@ -6,7 +6,7 @@
  */
 import { BALANCE } from './balance.ts';
 import type { CardInst, ChoiceSpec, EffectRuntime, GameState, Monster, PlayerId, TargetRef } from './battle/types.ts';
-import type { TargetRule } from './options.ts';
+import type { ChargeEvent, TargetRule } from './options.ts';
 import type {
   AbilityInstance,
   CardBase,
@@ -259,6 +259,8 @@ export interface AbilityPointContext {
   channelEffectPoints: number;
   /** 「捨て札から使ったとき」の効果があるか */
   hasFromDiscard: boolean;
+  /** モード選択（MTG 要素 ○ バッチC2）：いちばん高いモード以外のモードのポイントの合計（双呪が使う。モードが無ければ0） */
+  modeOtherPoints: number;
 }
 
 /** 動的コスト（親和・条件付き軽減。MTG 要素 ○ バッチC1）の計算に渡す道具。条件の判定は battle 側が作る */
@@ -321,6 +323,11 @@ export interface AbilityDef {
     reduce?(a: AbilityInstance, ctx: CostContext): { amount: number; min: number } | null;
     /** キッカー：払ってもよい追加エナジー */
     kickerCost?(a: AbilityInstance): number;
+    // ---- MTG 要素 ○ バッチC2
+    /** 双呪：すべてのモードを選ぶときの追加エナジー */
+    entwineCost?(a: AbilityInstance): number;
+    /** 蓄積：必要数と、たまるイベント */
+    charge?(a: AbilityInstance): { need: number; event: ChargeEvent };
   };
   /** この能力に条件を付ける（条件付き軽減。エディターに条件の選択パネルを出す） */
   takesCondition?: boolean;

@@ -4,7 +4,7 @@ import { TIMINGS, type TargetRule } from '../options.ts';
 import type { EffectInstance, TimingId } from '../types.ts';
 import { getKeyword } from '../registry.ts';
 import { cardName, effectiveAttack, enqueue, findMonster, log, monsterLabel, newUid, other, playerRef, playRecord, targetExists, turnLimits } from './core.ts';
-import { addStatus, cleanse, combatBonus, combatSourceOf, dealDamage, destroyMonster, heal } from './damage.ts';
+import { addStatus, cleanse, combatBonus, combatSourceOf, dealDamage, destroyMonster, heal, setCrown } from './damage.ts';
 import { attacksPerTurn } from './combat.ts';
 import { pick, randInt } from './rng.ts';
 import {
@@ -30,7 +30,17 @@ import {
   takeFromDeck,
   takeFromDiscard,
 } from './zones.ts';
-import type { Chosen, EffectRuntime, GameState, PlayerId, SourceRef, TargetRef } from './types.ts';
+import type { Chosen, EffectRuntime, GameState, Monster, PlayerId, SourceRef, TargetRef } from './types.ts';
+
+/**
+ * 出どころのカード（cardId）と同じ種族の、p の場のモンスター（MTG 要素 ○ バッチC2）。カードに種族が無ければ空。
+ * トークン（小鬼・軍団）は種族なし、複写トークンは元のカードの種族
+ */
+export function tribeAllies(g: GameState, p: PlayerId, cardId: string): Monster[] {
+  const tribe = g.cards[cardId]?.tribe;
+  if (!tribe) return [];
+  return g.players[p].board.filter((m) => g.cards[m.card.cardId]?.tribe === tribe);
+}
 
 /** 効果の対象を、解決する時点の盤面から決める */
 export function resolveTargets(
@@ -113,6 +123,9 @@ export function resolveTargets(
     case 'bothPlayers':
       // 使った人の分。相手の分は queue.ts が入れ替えてもう一度解決する
       return [playerRef(me)];
+    case 'tribeAllies':
+      // 同じ種族の自分のモンスター（自分自身を含む。MTG 要素 ○ バッチC2）
+      return tribeAllies(g, me, src.cardId).map((m) => ({ kind: 'monster', uid: m.uid }));
   }
 }
 
@@ -512,6 +525,23 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       const ps = g.players[p];
       for (let i = 0; i < count; i++) ps.hand.push({ uid: newUid(g, 'cj'), cardId: def.id, owner: p, copy: 'temp' });
       log(g, depth, `${ps.name}は手札に「${def.name}」（コスト${def.cost}・使い切り）を${count}枚加えた`);
+    },
+    // ---- MTG 要素 ○ バッチC2
+    startEngine(p) {
+      const ps = g.players[p];
+      if ((ps.speed ?? 0) > 0) {
+        log(g, depth, `${ps.name}のエンジンはもう動いている（速度${ps.speed}）`);
+        return;
+      }
+      ps.speed = BALANCE.speed.start;
+      log(g, depth, `${ps.name}はエンジン始動：速度${ps.speed}`, 'effect', undefined, { kind: 'speed', player: p, amount: ps.speed });
+    },
+    takeCrown(p) {
+      if (g.crown === p) {
+        log(g, depth, `${g.players[p].name}はもう王冠を持っている`);
+        return;
+      }
+      setCrown(g, p, depth, 'take');
     },
   };
 }

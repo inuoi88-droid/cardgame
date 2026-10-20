@@ -182,7 +182,7 @@ export function RulesPage() {
         <ul>
           <li>効果は書いてある順に解決します。</li>
           <li>条件付きの効果は、条件を満たしていないと発動しません（カード自体は使えます）。</li>
-          {(['quash', 'freePlay', 'conjure', 'boon', 'ramp', 'bounty'] as const).map((id) => (
+          {(['quash', 'freePlay', 'conjure', 'boon', 'ramp', 'bounty', 'modes', 'entwine', 'saga', 'charge', 'tribe', 'speed', 'crown'] as const).map((id) => (
             <li key={id}>
               <b>{mechanicGlossary[id]!.name}</b>：{mechanicGlossary[id]!.short}。
             </li>

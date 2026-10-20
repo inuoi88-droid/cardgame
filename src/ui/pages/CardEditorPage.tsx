@@ -29,6 +29,7 @@ import {
   newCard,
   normalizeDescription,
   setMonster,
+  setTribe,
   type CardDef,
   type ConditionId,
   type DrawbackInstance,
@@ -50,7 +51,7 @@ import { budgetOf } from '../editor/budget.ts';
 import { EffectPicker, type PickerMode } from '../editor/EffectPicker.tsx';
 import { MiniPreview } from '../editor/MiniPreview.tsx';
 import { OptionPicker } from '../editor/OptionPicker.tsx';
-import { abilityConditionOptions, abilityOptionOptions } from '../editor/pickOptions.ts';
+import { abilityConditionOptions, abilityOptionOptions, tribeFromValue, tribeOptions, tribeValue } from '../editor/pickOptions.ts';
 import { TEMPLATES, type CardTemplate } from '../editor/templates.ts';
 import { effectRowViolations, effectSectionViolations, fieldId, findFieldElement, violationsAt, violationsExactly } from '../editor/validation.ts';
 import { navigate, setNavigationGuard } from '../router.ts';
@@ -536,6 +537,18 @@ function Editor({ saved }: { saved: CardDef | null }) {
                 ))}
               </div>
             </div>
+            {/* 種族（MTG 要素 ○ バッチC2）：同じ種族を参照する条件・修飾・対象・サーチに使う。ポイントは0 */}
+            <OptionPicker
+              className="ed-tribe"
+              label="種族（任意）"
+              title="種族"
+              value={tribeValue(card.tribe)}
+              options={tribeOptions()}
+              onChange={(v) => setCard((c) => setTribe(c, tribeFromValue(v)))}
+              id={fieldId('tribe')}
+              invalid={violationsExactly(analysis.violations, 'tribe').length > 0}
+              note="同じ種族を参照する条件・修飾・対象・サーチ（部族シナジー）に使います。ポイントは0"
+            />
             <div className="ed-cost">
               <Stepper
                 id={fieldId('cost')}
@@ -721,7 +734,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
                 </h2>
               </div>
               <p className="hint">
-                カード1枚に付く性質です。循環・再利用・反復・成長（アタック・スキル向け）、捨て札から使う（フラッシュバック・再活・脱出）、起動、サイクリング・魂力、コストを変える（親和・条件付き軽減・キッカー）。
+                カード1枚に付く性質です。循環・再利用・反復・成長（アタック・スキル向け）、捨て札から使う（フラッシュバック・再活・脱出）、起動、サイクリング・魂力、コストを変える（親和・条件付き軽減・キッカー）、モード選択のカードの双呪、パワーの蓄積。
               </p>
               {abilities.map((a, i) => {
                 const def = getAbility(a.id);

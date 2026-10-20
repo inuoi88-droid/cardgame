@@ -121,4 +121,45 @@ export const TEMPLATES: readonly CardTemplate[] = [
         drawbacks: [{ id: 'selfDamage', value: 6, timing: 'play' }],
       }),
   },
+  // MTG 要素 ○ バッチC2：モード選択（製造・暴動）
+  {
+    id: 'fabricate',
+    title: '製造モンスター',
+    description: '出すときに「自分を鍛える」か「小鬼を出す」かを選ぶ（モード選択）',
+    build: (id) =>
+      make(id, {
+        name: '工房のからくり',
+        icon: '⚙️',
+        rarity: 'common',
+        cost: 1,
+        stats: { attack: 1, hp: 1, defense: 0 },
+        keywords: [],
+        effects: [
+          { id: 'train', value: 1, timing: 'summon', target: 'thisMonster', condition: null, mode: 1 },
+          { id: 'token', value: 1, hits: 1, timing: 'summon', target: 'self', condition: null, mode: 2 },
+        ],
+        drawbacks: [],
+        tribe: 'machine',
+      }),
+  },
+  {
+    id: 'riot',
+    title: '暴動モンスター',
+    description: '出すときに「速攻ですぐ殴る」か「鍛えて大きくなる」かを選ぶ（モード選択）',
+    build: (id) =>
+      make(id, {
+        name: '暴れ猪',
+        icon: '🐗',
+        rarity: 'common',
+        cost: 2,
+        stats: { attack: 2, hp: 2, defense: 0 },
+        keywords: [],
+        effects: [
+          { id: 'grantKeyword', option: 'haste', timing: 'summon', target: 'thisMonster', condition: null, mode: 1 },
+          { id: 'train', value: 1, timing: 'summon', target: 'thisMonster', condition: null, mode: 2 },
+        ],
+        drawbacks: [],
+        tribe: 'beast',
+      }),
+  },
 ];

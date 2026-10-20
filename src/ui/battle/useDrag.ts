@@ -36,6 +36,12 @@ interface Pending {
 
 const toBox = (r: DOMRect): Box => ({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
 
+/**
+ * ドラッグの直後に来るクリック（ポインターを捕まえた要素に届く）を捨てる時間（ms）。離したあとの描画（モードの選択シートなど）が
+ * 重くてクリックが遅れて届いても捨てられるよう長めにし、次に押したとき（begin）と1回捨てたときに解く
+ */
+const CLICK_BLOCK_MS = 700;
+
 /** 戻る演出の長さ（ms） */
 const BACK_MS = 220;
 
@@ -85,7 +91,7 @@ export function useBattleDrag(opts: {
     pending.current = null;
     if (!d || d.phase !== 'drag') return;
     // ドラッグの直後に来るクリック（同じ要素の上で離したとき）を捨てる
-    clickBlock.current = Date.now() + 80;
+    clickBlock.current = Date.now() + CLICK_BLOCK_MS;
     const result = optsRef.current.onDrop(d.src, spotFromPointer ? d.hover : 'hand');
     if (result === 'ok' || optsRef.current.reduceMotion) {
       set(null);
@@ -104,7 +110,7 @@ export function useBattleDrag(opts: {
     cleanup.current = null;
     pending.current = null;
     if (!d || d.phase !== 'drag') return;
-    clickBlock.current = Date.now() + 80;
+    clickBlock.current = Date.now() + CLICK_BLOCK_MS;
     if (optsRef.current.reduceMotion) {
       set(null);
       return;
@@ -170,6 +176,8 @@ export function useBattleDrag(opts: {
     if (e.button !== 0 || !e.isPrimary) return;
     if (dragRef.current?.phase === 'drag') return;
     cleanup.current?.();
+    // 新しく押したら、前のドラッグの後のクリックを捨てる待ちは解く
+    clickBlock.current = 0;
     pending.current = { pointerId: e.pointerId, pointerType: e.pointerType, x0: e.clientX, y0: e.clientY, el: e.currentTarget, origin, getSrc };
     const up = (ev: PointerEvent) => {
       if (pending.current && ev.pointerId !== pending.current.pointerId) return;
@@ -241,7 +249,12 @@ export function useBattleDrag(opts: {
     subscribe,
     getPos,
     /** ドラッグの直後のクリックなら true（そのクリックは無視する） */
-    consumeClick: () => Date.now() < clickBlock.current,
+    // ドラッグの直後のクリック1回だけを捨てる（離したあとの描画が重い端末でも、次に押すまでは捨てる）
+    consumeClick: () => {
+      const blocked = Date.now() < clickBlock.current;
+      clickBlock.current = 0;
+      return blocked;
+    },
     /** いまドラッグ中か（長押しの詳細など、古い描画の関数から呼んでも最新を返す） */
     isActive: () => dragRef.current?.phase === 'drag',
   };

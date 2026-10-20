@@ -7,6 +7,7 @@ import { keywordFlags, onLeaveBoard } from './damage.ts';
 import { pick, randInt, shuffle } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
+import { chargePowers } from './powers.ts';
 import type { CardDef, TimingId } from '../types.ts';
 import {
   ARMY_CARD_ID,
@@ -160,12 +161,14 @@ export function summon(
   depth: number,
   protectKey?: string,
   timing: 'summon' | 'fromDiscard' | TimingId = 'summon',
+  mode?: number,
 ): Monster | undefined {
   const m = placeMonster(g, p, card, depth);
   if (!m) return undefined;
   const def = g.cards[card.cardId]!;
   const src: SourceRef = { kind: 'monster', uid: m.uid, cardId: card.cardId, name: def.name, controller: p, ...(card.token ? { token: true } : {}) };
-  enqueueCardTiming(g, src, def, timing, chosen, depth + 1, protectKey ? { protectKey } : {});
+  // モード選択（MTG 要素 ○ バッチC2）：選ぶ場面のない召喚（蘇生・複写トークン）はモード A
+  enqueueCardTiming(g, src, def, timing, chosen, depth + 1, { ...(protectKey ? { protectKey } : {}), ...(mode !== undefined ? { mode } : {}) });
   onMonsterEntered(g, m, depth + 1);
   return m;
 }
@@ -182,6 +185,8 @@ export function onMonsterEntered(g: GameState, m: Monster, depth: number): void 
   }
   const chosen: Chosen = { ally: m.uid };
   enqueuePowers(g, m.controller, 'allySummoned', depth, { chosen });
+  // 蓄積（MTG 要素 ○ バッチC2）：自分のモンスターが出るたび
+  chargePowers(g, m.controller, 'allySummoned', depth);
   enqueueMonsters(g, m.controller, 'allySummoned', depth, { chosen, excludeUid: m.uid });
 }
 

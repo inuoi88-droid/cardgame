@@ -2,6 +2,7 @@
 import { BALANCE } from '../balance.ts';
 import { classifyCard } from '../classify.ts';
 import { TIMINGS, isPowerTiming, type TargetRule } from '../options.ts';
+import { describeEffect } from '../text.ts';
 import { getAbility, getDrawback, getEffect } from '../registry.ts';
 import type { CostContext, FromDiscardRule } from '../define.ts';
 import type { AbilityInstance, CardDef, EffectInstance, TimingId } from '../types.ts';
@@ -11,6 +12,9 @@ import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts
 import { cardTargetable, cardTargetableTaunts, wardTax } from './damage.ts';
 import { randInt } from './rng.ts';
 import { discardCard, summon } from './zones.ts';
+import { cardModes, effectsForMode, entwineCost, modeMatches, resolveMode } from './modes.ts';
+import { chargePowers, startSaga } from './powers.ts';
+import { MODE_LABEL, type ModeId } from '../types.ts';
 import {
   NOISE_CARD_ID,
   type CardInst,
@@ -38,6 +42,8 @@ export interface CostCtx {
   chosen?: Chosen;
   from?: 'hand' | 'discard';
   kick?: boolean;
+  /** 選んだモード（MTG 要素 ○ バッチC2）。0 は双呪（追加エナジー） */
+  mode?: number;
 }
 
 /** コストの内訳の1段（label は「親和」「凍結」など、delta は増減） */
@@ -122,6 +128,13 @@ export function costBreakdown(g: GameState, p: PlayerId, card: CardInst, ctx: Co
       total += k;
     }
   }
+  if (ctx.mode === 0) {
+    const k = entwineCost(def);
+    if (k > 0) {
+      steps.push({ label: '双呪', delta: k });
+      total += k;
+    }
+  }
   if (ctx.from === 'discard') {
     const fd = fromDiscardAbility(def);
     const extra = fd?.rule.extraCost?.(fd.a) ?? 0;
@@ -161,9 +174,37 @@ export function playTiming(def: CardDef, from: PlayFrom = 'hand'): TimingId {
   return def.stats ? 'summon' : 'play';
 }
 
-/** 「選んだ1体」が必要な効果の作用先（timing を省略すると使用時・召喚時） */
-export function chosenRules(def: CardDef, timing?: TimingId): { enemy: TargetRule[]; ally: boolean } {
-  return chosenRulesOf(def.effects, timing ?? (def.stats ? 'summon' : 'play'));
+/**
+ * 「選んだ1体」が必要な効果の作用先（timing を省略すると使用時・召喚時）。
+ * mode はモード選択のカードで選ぶモード（MTG 要素 ○ バッチC2。0 は双呪、省略はすべてのモードを合わせたもの）
+ */
+export function chosenRules(def: CardDef, timing?: TimingId, mode?: number): { enemy: TargetRule[]; ally: boolean } {
+  const t = timing ?? (def.stats ? 'summon' : 'play');
+  return chosenRulesOf(
+    def.effects.filter((e) => modeMatches(e, mode)),
+    t,
+  );
+}
+
+/** モード選択のカードで選べるモード（このタイミングのモードと、双呪があれば 0）。モード選択でなければ空 */
+export function playableModes(def: CardDef, timing: TimingId): number[] {
+  const modes: number[] = cardModes(def, timing);
+  if (modes.length > 0 && entwineCost(def) > 0) modes.push(0);
+  return modes;
+}
+
+/** モードの名前（「A」「B」、0 は「すべて（双呪）」） */
+export function modeName(mode: number): string {
+  return mode === 0 ? 'すべて（双呪）' : (MODE_LABEL[mode as ModeId] ?? String(mode));
+}
+
+/** 選んだモードが正しいか（モード選択のカードでは必須。0 は双呪のあるカードだけ）。正しければ null */
+export function validateMode(def: CardDef, timing: TimingId, mode: number | undefined): string | null {
+  const modes = cardModes(def, timing);
+  if (modes.length === 0) return mode === undefined ? null : 'このカードはモードを選べません';
+  if (mode === undefined) return 'モードを選んでください';
+  if (mode === 0) return entwineCost(def) > 0 ? null : 'このカードには双呪がありません';
+  return (modes as number[]).includes(mode) ? null : 'そのモードはありません';
 }
 
 /** 効果の一覧から、このタイミングの「選んだ1体」が必要な作用先（起動のパワーは解除されていない効果だけを渡す） */
@@ -235,6 +276,8 @@ export interface PlayOpts {
   discardUid?: string;
   exileUids?: string[];
   kick?: boolean;
+  /** モード選択のカードで選ぶモード（MTG 要素 ○ バッチC2。0 は双呪） */
+  mode?: number;
 }
 
 /** 捨て札から使うときの追加の支払いが正しいか（再活の捨てる手札・脱出の除外する捨て札）。正しければ null */
@@ -279,15 +322,17 @@ export function validatePlay(g: GameState, p: PlayerId, cardUid: string, chosen:
     return '手札から使うときは、追加の支払いはありません';
   }
   if (opts.kick && kickerCost(def) === 0) return 'このカードにはキッカーがありません';
-  const breakdown = costBreakdown(g, p, card, { chosen, from: fromDiscard ? 'discard' : 'hand', kick: opts.kick === true });
+  const timing = playTiming(def, fromDiscard ? 'discard' : 'hand');
+  const modeError = validateMode(def, timing, opts.mode);
+  if (modeError) return modeError;
+  const breakdown = costBreakdown(g, p, card, { chosen, from: fromDiscard ? 'discard' : 'hand', kick: opts.kick === true, mode: opts.mode });
   if (breakdown.total > ps.energy) {
     const notes = costNotes(breakdown);
     return `エナジーが足りません（必要${breakdown.total}${notes ? `：${notes}` : ''}、残り${ps.energy}）`;
   }
   const reason = drawbackBlock(g, p, card);
   if (reason) return reason;
-  const timing = playTiming(def, fromDiscard ? 'discard' : 'hand');
-  const rules = chosenRules(def, timing);
+  const rules = chosenRules(def, timing, opts.mode);
   return validateChosen(enemyCandidates(g, p, rules.enemy), rules.ally ? allyCandidates(g, p, card, timing) : [], chosen);
 }
 
@@ -317,7 +362,7 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
   const index = zone.findIndex((c) => c.uid === cardUid);
   const card = zone[index]!;
   const def = g.cards[card.cardId]!;
-  const breakdown = costBreakdown(g, p, card, { chosen, from: fromDiscard ? 'discard' : 'hand', kick: opts.kick === true });
+  const breakdown = costBreakdown(g, p, card, { chosen, from: fromDiscard ? 'discard' : 'hand', kick: opts.kick === true, mode: opts.mode });
   const cost = breakdown.total;
   const before = ps.energy;
   ps.energy -= cost;
@@ -327,16 +372,29 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
   ps.turn.cardsPlayed += 1;
   zone.splice(index, 1);
   const fd = fromDiscard ? fromDiscardAbility(def) : undefined;
+  const modeNote = opts.mode === undefined ? '' : opts.mode === 0 ? '双呪ですべてのモードで' : `モード${modeName(opts.mode)}で`;
   log(
     g,
     0,
-    `${ps.name}は${fd ? `捨て札から${fd.name}で` : ''}「${def.name}」を使った（コスト${cost}${notes ? `：${notes}` : ''}、エナジー ${before}→${ps.energy}）`,
+    `${ps.name}は${fd ? `捨て札から${fd.name}で` : ''}「${def.name}」を${modeNote}使った（コスト${cost}${notes ? `：${notes}` : ''}、エナジー ${before}→${ps.energy}）`,
     'action',
     undefined,
-    { kind: 'play', player: p, cardId: card.cardId, uid: card.uid, ...(fromDiscard ? { from: 'discard' as const } : {}) },
+    {
+      kind: 'play',
+      player: p,
+      cardId: card.cardId,
+      uid: card.uid,
+      ...(fromDiscard ? { from: 'discard' as const } : {}),
+      ...(opts.mode !== undefined ? { mode: opts.mode } : {}),
+    },
   );
   if (fd) payFromDiscard(g, p, card, fd, opts);
-  resolvePlay(g, p, card, chosen, { from: fromDiscard ? 'discard' : 'hand', depth: 1, kick: opts.kick === true && kickerCost(def) > 0 });
+  resolvePlay(g, p, card, chosen, {
+    from: fromDiscard ? 'discard' : 'hand',
+    depth: 1,
+    kick: opts.kick === true && kickerCost(def) > 0,
+    ...(opts.mode !== undefined ? { mode: opts.mode } : {}),
+  });
 }
 
 /** 捨て札から使うときの追加の支払い（再活：手札を1枚捨てる／脱出：他の捨て札を除外）と、使ったあと除外する印 */
@@ -374,11 +432,18 @@ export function quashMatches(g: GameState, p: PlayerId, def: CardDef): boolean {
  * 使ったカードの処理（手札から・無料で使う共通）：封殺 → X → 英雄的 → 召喚／効果 → 使い終わり。
  * コストの支払い・使った枚数・使ったログは呼び出し側で済ませておく
  */
-function resolvePlay(g: GameState, p: PlayerId, card: CardInst, chosen: Chosen, opts: { from: PlayFrom; depth: number; freeDepth?: number; kick?: boolean }): void {
+function resolvePlay(
+  g: GameState,
+  p: PlayerId,
+  card: CardInst,
+  chosen: Chosen,
+  opts: { from: PlayFrom; depth: number; freeDepth?: number; kick?: boolean; mode?: number },
+): void {
   const ps = g.players[p];
   const def = g.cards[card.cardId]!;
   const depth = opts.depth;
   const timing = playTiming(def, opts.from);
+  const mode = resolveMode(def, timing, opts.mode);
   // 封殺：コストは払い、使った枚数にも数えるが、カードは捨て札へ行き、何も起きない
   if (quashMatches(g, p, def)) {
     delete ps.quash;
@@ -388,31 +453,38 @@ function resolvePlay(g: GameState, p: PlayerId, card: CardInst, chosen: Chosen, 
   }
   const protectKey = newUid(g, 'pk');
   if (opts.freeDepth !== undefined) playRecord(g, protectKey).freeDepth = opts.freeDepth;
+  // モード選択（MTG 要素 ○ バッチC2）：選んだモードを記録（反復でも同じモード）
+  if (mode !== undefined) playRecord(g, protectKey).mode = mode;
   // キッカー（MTG 要素 ○ バッチC1）：払ったことを記録（条件「キッカーを払っていれば」）
   if (opts.kick) {
     playRecord(g, protectKey).kicked = true;
     log(g, depth, `キッカー：「${def.name}」のキッカーを払った`, 'info');
   }
   // X（全力）：使用時・召喚時の効果に X があれば、残りのエナジーをすべて使う（このカードの X の効果はすべて同じ X）。無料で使ったときは0
-  if (usesX(def, timing)) {
+  if (usesX(def, timing, mode)) {
     const x = opts.from === 'free' ? 0 : ps.energy;
     if (opts.from !== 'free') ps.energy = 0;
     playRecord(g, protectKey).x = x;
     log(g, depth, `X＝${x}${opts.from === 'free' ? '（無料で使ったので0）' : '（エナジーをすべて使った）'}`, 'info', undefined, { kind: 'energy', player: p, amount: ps.energy });
   }
   // 自分のカードの対象になるたび（英雄的。MTG 要素 ○ バッチA）：選んだ自分のモンスターの効果を、カードの効果より先に積む
-  if (chosen.ally && chosenRules(def, timing).ally && ps.board.some((m) => m.uid === chosen.ally)) {
+  if (chosen.ally && chosenRules(def, timing, mode).ally && ps.board.some((m) => m.uid === chosen.ally)) {
     enqueueMonsters(g, p, 'targeted', depth, { onlyUid: chosen.ally });
   }
   if (def.stats) {
-    summon(g, p, card, chosen, depth, protectKey, timing);
+    summon(g, p, card, chosen, depth, protectKey, timing, mode);
   } else {
     const type = classifyCard(def);
     const attackCard = type === 'attack' || type === 'powerAttack';
     // 筋力・気合（＋恩恵）は使った時点の値を記録し、このカードの最初の1発にだけ乗せる（このカード自身が付けた分は乗らない：決定事項 #70 R3）
     if (attackCard) playRecord(g, protectKey).bonus = ps.status.strength + ps.status.focus + useBoon(g, p, depth);
     const src = { kind: 'card' as const, uid: card.uid, cardId: card.cardId, name: def.name, controller: p };
-    enqueueCardTiming(g, src, def, timing, chosen, depth, { attackCard, protectKey, ...(card.grow ? { grow: card.grow } : {}) });
+    enqueueCardTiming(g, src, def, timing, chosen, depth, {
+      attackCard,
+      protectKey,
+      ...(card.grow ? { grow: card.grow } : {}),
+      ...(mode !== undefined ? { mode } : {}),
+    });
   }
   enqueue(g, { t: 'cardDone', player: p, card, protectKey, depth, ...(opts.from !== 'hand' ? { from: opts.from } : {}) });
 }
@@ -442,13 +514,26 @@ export function executeFreePlay(g: GameState, step: Extract<Step, { t: 'freePlay
   if (!def) return;
   const chosen: Chosen = { ...(step.chosen ?? {}) };
   const pick = step.picks?.[0];
+  let mode = step.mode;
+  if (step.stage === 'mode' && pick) mode = Number(pick);
   if (step.stage === 'enemy' && pick) chosen.enemy = parseTargetKey(pick);
   if (step.stage === 'ally' && pick) chosen.ally = pick;
-  const rules = chosenRules(def);
-  const ask = (stage: 'enemy' | 'ally', prompt: string, options: { id: string; label: string; cardId?: string }[]) => {
-    g.pending = { player: p, prompt, options, min: 1, max: 1, step: { ...step, chosen, stage, picks: undefined } as Step };
+  const timing = playTiming(def, 'free');
+  const ask = (stage: 'mode' | 'enemy' | 'ally', prompt: string, options: { id: string; label: string; cardId?: string }[]) => {
+    g.pending = { player: p, prompt, options, min: 1, max: 1, step: { ...step, chosen, stage, picks: undefined, ...(mode !== undefined ? { mode } : {}) } as Step };
   };
-  if (step.stage === undefined && rules.enemy.length > 0) {
+  // モード選択のカード（MTG 要素 ○ バッチC2）：対象より先にモードを選ぶ（無料なので双呪は選べない）
+  const modes = cardModes(def, timing);
+  if (step.stage === undefined && modes.length > 0 && mode === undefined) {
+    const texts = modeTextsOf(def, timing);
+    return ask(
+      'mode',
+      `無料で使う「${def.name}」のモードを選んでください`,
+      modes.map((m) => ({ id: String(m), label: `${MODE_LABEL[m]}：${texts.get(m) ?? ''}` })),
+    );
+  }
+  const rules = chosenRules(def, timing, mode);
+  if ((step.stage === undefined || step.stage === 'mode') && rules.enemy.length > 0) {
     const cands = enemyCandidates(g, p, rules.enemy);
     if (cands.length === 1) chosen.enemy = cands[0];
     else if (cands.length > 1) {
@@ -478,13 +563,29 @@ export function executeFreePlay(g: GameState, step: Extract<Step, { t: 'freePlay
     return;
   }
   ps.turn.cardsPlayed += 1;
-  log(g, step.depth, `${ps.name}は「${def.name}」を無料で使った`, 'action', undefined, { kind: 'play', player: p, cardId: card.cardId, uid: card.uid });
-  resolvePlay(g, p, card, chosen, { from: 'free', depth: step.depth, freeDepth: step.freeDepth });
+  log(g, step.depth, `${ps.name}は「${def.name}」を${mode !== undefined ? `モード${modeName(mode)}で` : ''}無料で使った`, 'action', undefined, {
+    kind: 'play',
+    player: p,
+    cardId: card.cardId,
+    uid: card.uid,
+    ...(mode !== undefined ? { mode } : {}),
+  });
+  resolvePlay(g, p, card, chosen, { from: 'free', depth: step.depth, freeDepth: step.freeDepth, ...(mode !== undefined ? { mode } : {}) });
 }
 
-/** 使用時・召喚時（timing）の効果に X（全力）があるか */
-export function usesX(def: CardDef, timing: TimingId = def.stats ? 'summon' : 'play'): boolean {
-  return def.effects.some((e) => e.timing === timing && (e.mods ?? []).includes('xEnergy') && getEffect(e.id)?.scalable === true);
+/** 使用時・召喚時（timing）の効果に X（全力）があるか（mode：モード選択のカードで選ぶモード。省略はすべて） */
+export function usesX(def: CardDef, timing: TimingId = def.stats ? 'summon' : 'play', mode?: number): boolean {
+  return def.effects.some((e) => e.timing === timing && modeMatches(e, mode) && (e.mods ?? []).includes('xEnergy') && getEffect(e.id)?.scalable === true);
+}
+
+/** モードの効果の文（モードの番号 → 文）。無料で使うときのモードの選択肢に使う */
+function modeTextsOf(def: CardDef, timing: TimingId): Map<number, string> {
+  const out = new Map<number, string>();
+  for (const e of def.effects) {
+    if (e.timing !== timing || e.mode === undefined) continue;
+    out.set(e.mode, (out.get(e.mode) ?? '') + describeEffect(e, def, { noTiming: true }));
+  }
+  return out;
 }
 
 /** このカードを使うと場にパワーが残るか（パワー用タイミングの効果かデメリットがある、パワー・パワー攻撃のカード） */
@@ -522,6 +623,7 @@ export function finishCard(g: GameState, p: PlayerId, card: CardInst, protectKey
   const ps = g.players[p];
   const def = g.cards[card.cardId];
   const equipTo = g.protect[protectKey]?.equipTo;
+  const playedMode = g.protect[protectKey]?.mode;
   delete g.protect[protectKey];
   // 成長：使うたび、このカード（個体）のダメージ・連撃の数値が増える（上限あり）
   if (def) growCard(g, card, def, depth);
@@ -541,15 +643,20 @@ export function finishCard(g: GameState, p: PlayerId, card: CardInst, protectKey
         if (life !== undefined) newPower.life = life;
         addPower(g, p, newPower, depth);
         log(g, depth, `「${def.name}」はパワーとして場に残り、カードは除外された${life !== undefined ? `（寿命${life}）` : ''}`);
+        // 蓄積（MTG 要素 ○ バッチC2）は0から。英雄譚は第1章が出る
+        if ((def.abilities ?? []).some((a) => a.id === 'charge')) newPower.charge = 0;
+        startSaga(g, p, newPower, depth);
       } else {
         log(g, depth, `「${def.name}」は除外された`);
       }
       ps.exile.push(card);
     } else {
-      spellDestination(g, p, card, def, depth, from, equipTo);
+      spellDestination(g, p, card, def, depth, from, equipTo, playedMode);
     }
   }
   enqueuePowers(g, p, 'cardPlayed', depth, { excludeUid: newPower?.uid });
+  // 蓄積（MTG 要素 ○ バッチC2）：カードを使うたび（いま置いたパワー自身は数えない）
+  chargePowers(g, p, 'cardPlayed', depth, newPower?.uid);
   // 自分がパワー／スキルを使うたび：パワー（いま置いたものを除く）→ 場のモンスター（左から）
   const type = def ? classifyCard(def) : null;
   const timing = type === 'power' || type === 'powerAttack' ? 'powerPlayed' : type === 'skill' ? 'skillPlayed' : null;
@@ -586,7 +693,16 @@ function growCard(g: GameState, card: CardInst, def: CardDef, depth: number): vo
 }
 
 /** モンスター・パワー以外のカードの行き先 */
-function spellDestination(g: GameState, p: PlayerId, card: CardInst, def: CardDef, depth: number, from: PlayFrom, equipTo: string | undefined): void {
+function spellDestination(
+  g: GameState,
+  p: PlayerId,
+  card: CardInst,
+  def: CardDef,
+  depth: number,
+  from: PlayFrom,
+  equipTo: string | undefined,
+  mode: number | undefined,
+): void {
   const ps = g.players[p];
   // 装備：そのモンスターがまだ場にいれば、カードはモンスターに付く（捨て札から使ったものは、外れるとき除外）
   const host = equipTo ? findMonster(g, equipTo) : undefined;
@@ -606,7 +722,8 @@ function spellDestination(g: GameState, p: PlayerId, card: CardInst, def: CardDe
   if (after === 'rebound' && from === 'hand') {
     const max = BALANCE.battle.maxDelayedPerPlayer;
     const list = ps.delayed ?? [];
-    const effects = def.effects.filter((e) => e.timing === 'play');
+    // モード選択のカード（MTG 要素 ○ バッチC2）は、選んだモードの効果だけもう一度
+    const effects = effectsForMode(def.effects, 'play', resolveMode(def, 'play', mode));
     if (effects.length > 0 && list.length < max) {
       const entry: DelayedEffect = {
         id: newUid(g, 'dl'),

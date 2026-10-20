@@ -3,7 +3,8 @@ import { BALANCE } from '../balance.ts';
 import { REPEAT_CAPPED_TIMINGS, TIMINGS } from '../options.ts';
 import type { CardDef, EffectInstance, TimingId } from '../types.ts';
 import { enqueue, log, newUid } from './core.ts';
-import { allyCandidates, chosenRules, enemyCandidates } from './play.ts';
+import { allyCandidates, chosenRulesOf, enemyCandidates } from './play.ts';
+import { effectsForMode, resolveMode } from './modes.ts';
 import { pick } from './rng.ts';
 import type { CardInst, Chosen, GameState, PlayerId, PowerInst, SourceRef } from './types.ts';
 
@@ -15,6 +16,8 @@ interface FireOpts {
   protectKey?: string;
   /** 成長（MTG 要素 ○ バッチB）：ダメージ・連撃の数値に足す量 */
   grow?: number;
+  /** モード選択のカードで選んだモード（MTG 要素 ○ バッチC2。0 は双呪。省略はモード A） */
+  mode?: number;
 }
 
 /**
@@ -30,7 +33,8 @@ export function enqueueCardTiming(
   depth: number,
   opts: FireOpts,
 ): void {
-  const effects = opts.sealed ? [] : def.effects.filter((e) => e.timing === timing);
+  // モード選択（MTG 要素 ○ バッチC2）：「いつも」の効果と、選んだモードの効果だけ
+  const effects = opts.sealed ? [] : effectsForMode(def.effects, timing, resolveMode(def, timing, opts.mode));
   const drawbacks = def.drawbacks.filter((d) => d.timing === timing);
   if (effects.length === 0 && drawbacks.length === 0) return;
   const protectKey = opts.protectKey ?? newUid(g, 'pk');
@@ -169,7 +173,7 @@ function enqueueRebound(g: GameState, p: PlayerId, src: SourceRef, card: CardIns
   const def = g.cards[card.cardId];
   const chosen: Chosen = {};
   if (def) {
-    const rules = chosenRules(def);
+    const rules = chosenRulesOf(effects, 'play');
     const enemy = pick(g, enemyCandidates(g, p, rules.enemy));
     if (enemy) chosen.enemy = enemy;
     if (rules.ally) {

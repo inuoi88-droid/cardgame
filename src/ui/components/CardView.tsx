@@ -1,6 +1,6 @@
 /** カード風の見た目。枠の色はレアリティごと、呪いカードは専用の見た目 */
 import { useMemo } from 'react';
-import { analyzeCard, CARD_TYPE_LABEL, CURSE_LABEL, RARITY_LABEL, type CardAnalysis, type CardDef } from '../../engine/index.ts';
+import { analyzeCard, CARD_TYPE_LABEL, CURSE_LABEL, RARITY_LABEL, TRIBE_LABEL, type CardAnalysis, type CardDef } from '../../engine/index.ts';
 import { cx } from '../util.ts';
 import './cards.css';
 
@@ -46,6 +46,7 @@ export function CardView({ card, analysis, size = 'lg', onClick, actionLabel }: 
       <div className="card__type">
         {CARD_TYPE_LABEL[a.cardType]}・{RARITY_LABEL[card.rarity]}
         {a.isCurse && `・${CURSE_LABEL}`}
+        {card.tribe && TRIBE_LABEL[card.tribe] && `・${TRIBE_LABEL[card.tribe]}`}
       </div>
       <div className="card__text">
         {a.text.keywords.length > 0 && (
@@ -58,7 +59,10 @@ export function CardView({ card, analysis, size = 'lg', onClick, actionLabel }: 
           </div>
         )}
         {a.text.effects.map((t, i) => (
-          <p key={i}>{t}</p>
+          // モード選択（MTG 要素 ○ バッチC2）の「A：…」の行は字下げ
+          <p key={i} className={/^[ABC]：/.test(t) ? 'card__mode' : undefined}>
+            {t}
+          </p>
         ))}
         {a.text.abilities.length > 0 && (
           <div className="card__keywords card__abilities">

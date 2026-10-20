@@ -3,7 +3,7 @@ import { BALANCE } from './balance.ts';
 import type { AbilityInstance, CardBase, ConditionId, TargetId, TimingId } from './types.ts';
 
 /** カードの能力の一覧（エディター・ポイント計算が渡す。省略は「能力を見ない」） */
-type Abilities = readonly Pick<AbilityInstance, 'id' | 'value'>[] | undefined;
+type Abilities = readonly Pick<AbilityInstance, 'id' | 'value' | 'option'>[] | undefined;
 
 /** 能力 ids のどれかを持っているか */
 export function hasAnyAbility(abilities: Abilities, ids: readonly string[]): boolean {
@@ -26,7 +26,7 @@ export function abilityValue(abilities: Abilities, id: string): number | undefin
 export type ChosenMode = 'manual' | 'attackTarget' | 'damageSource' | 'triggerAlly' | 'none';
 
 /** エディターの選択パネルの見出し（並び順） */
-export const TIMING_GROUPS = ['基本', 'このモンスター', 'ターン', '自分が使ったカード', '味方の出入り', '手札・捨て札', '起動'] as const;
+export const TIMING_GROUPS = ['基本', 'このモンスター', 'ターン', '自分が使ったカード', '味方の出入り', '手札・捨て札', '起動', '英雄譚', '蓄積'] as const;
 export type TimingGroup = (typeof TIMING_GROUPS)[number];
 
 export interface TimingDef {
@@ -56,6 +56,31 @@ export interface TimingDef {
 export const FROM_DISCARD_ABILITIES = ['flashback', 'jumpStart', 'escape'] as const;
 
 const maxRepeat = BALANCE.battle.maxRepeatTriggersPerTurn;
+
+/** モード（MTG 要素 ○ バッチC2）を付けられるタイミング：使用時・召喚時・捨て札から使ったとき */
+export const MODE_TIMINGS: readonly TimingId[] = ['play', 'summon', 'fromDiscard'];
+
+/** 英雄譚の章のタイミング（MTG 要素 ○ バッチC2。第1章から順に） */
+export const CHAPTER_TIMINGS = ['chapter1', 'chapter2', 'chapter3'] as const satisfies readonly TimingId[];
+
+/** 英雄譚の章の番号（章のタイミングでなければ 0） */
+export function chapterOf(timing: TimingId): number {
+  return (CHAPTER_TIMINGS as readonly TimingId[]).indexOf(timing) + 1;
+}
+
+const chapter = (n: 1 | 2 | 3): TimingDef => ({
+  id: CHAPTER_TIMINGS[n - 1],
+  label: `第${n}章`,
+  textPrefix: `第${n}章：`,
+  bases: ['spell'],
+  powerTiming: true,
+  chosen: 'none',
+  group: '英雄譚',
+  description:
+    n === 1
+      ? '英雄譚：使うとパワーとして残り、使ったときに第1章の効果が出る（第2章・第3章は次の自分のターン開始時から1章ずつ。最後の章のあと消える）'
+      : `英雄譚の第${n}章：第${n - 1}章の次の自分のターン開始時に出る（第1章から順に付ける）`,
+});
 
 export const TIMINGS: Record<TimingId, TimingDef> = {
   play: {
@@ -258,6 +283,23 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     requiresAbility: ['activate'],
     noDrawbacks: true,
   },
+  // ---- MTG 要素 ○ バッチC2
+  chapter1: chapter(1),
+  chapter2: chapter(2),
+  chapter3: chapter(3),
+  charged: {
+    id: 'charged',
+    label: '蓄積がたまったとき',
+    textPrefix: '蓄積がたまったとき、',
+    bases: ['spell'],
+    powerTiming: true,
+    chosen: 'none',
+    group: '蓄積',
+    description:
+      'パワーの蓄積カウンターが必要数たまったとき（たまったら0に戻る）。カードの能力「蓄積」があるカードだけ。パワーになる',
+    requiresAbility: ['charge'],
+    noDrawbacks: true,
+  },
 };
 
 /** 1つのカード（パワー・モンスター）につき1ターン maxRepeatTriggersPerTurn 回までのタイミング（安全装置） */
@@ -330,7 +372,44 @@ export function timingMultiplier(
       const i = Math.min(Math.max(n - BALANCE.abilities.activate.minCost, 0), table.length - 1);
       return table[i]!;
     }
+    case 'chapter1':
+      return t.chapter1;
+    case 'chapter2':
+      return t.chapter2;
+    case 'chapter3':
+      return t.chapter3;
+    case 'charged':
+      return chargedMultiplier(card.abilities);
   }
+}
+
+/** 蓄積（MTG 要素 ○ バッチC2）の能力の必要数とイベント（能力が無ければ既定値） */
+export function chargeSpec(abilities: Abilities): { need: number; event: ChargeEvent } {
+  const a = (abilities ?? []).find((x) => x.id === 'charge');
+  const C = BALANCE.abilities.charge;
+  const need = a?.value ?? CHARGE_DEFAULT_NEED;
+  const event = (CHARGE_EVENTS as readonly string[]).includes(a?.option ?? '') ? (a!.option as ChargeEvent) : CHARGE_EVENTS[0];
+  return { need: Math.min(Math.max(need, C.min), C.max), event };
+}
+
+/** 蓄積カウンターがたまるイベント（MTG 要素 ○ バッチC2） */
+export const CHARGE_EVENTS = ['turnStart', 'cardPlayed', 'allySummoned', 'enemyDamaged', 'allyDestroyed'] as const;
+export type ChargeEvent = (typeof CHARGE_EVENTS)[number];
+export const CHARGE_EVENT_LABEL: Record<ChargeEvent, string> = {
+  turnStart: '自分のターン開始時',
+  cardPlayed: 'カードを使うたび',
+  allySummoned: '自分のモンスターが出るたび',
+  enemyDamaged: '自分のターンに相手のHPを減らすたび',
+  allyDestroyed: '自分のモンスターが破壊されるたび',
+};
+/** 蓄積の必要数の初期値（エディターの初期値。バランスの範囲は balance.ts） */
+export const CHARGE_DEFAULT_NEED = 3;
+
+/** 「蓄積がたまったとき」の倍率：chargedPower × min(1, イベントの頻度 ÷ 必要数) */
+export function chargedMultiplier(abilities: Abilities): number {
+  const { need, event } = chargeSpec(abilities);
+  const rate = BALANCE.abilities.charge.rates[event];
+  return BALANCE.timing.chargedPower * Math.min(1, rate / need);
 }
 
 /**
@@ -420,6 +499,8 @@ export function allowedTargets(rule: TargetRule, timing: TimingId, base?: CardBa
         // 「自分の他のモンスター全体」もモンスターのカードだけ（破壊されたときは、もう場にいないので全体と同じ）
         ...(onBoard ? (['otherAllies'] as const) : []),
         'weakestAlly',
+        // 同じ種族の自分のモンスター全体（MTG 要素 ○ バッチC2。種族のあるカードだけ：validate の TRIBE_REQUIRED）
+        'tribeAllies',
       ];
     }
     case 'self':
@@ -481,6 +562,8 @@ export function targetLabel(target: TargetId, rule: TargetRule, timing: TimingId
       return 'いちばん体力の低い自分のモンスター';
     case 'bothPlayers':
       return 'お互い';
+    case 'tribeAllies':
+      return '同じ種族の自分のモンスター全体';
   }
 }
 
@@ -521,8 +604,13 @@ export function targetNoun(target: TargetId, rule: TargetRule, timing: TimingId)
       return 'いちばん体力の低い自分のモンスター';
     case 'bothPlayers':
       return '自分';
+    case 'tribeAllies':
+      return '同じ種族の自分のモンスター全体';
   }
 }
+
+/** 種族のあるカードでしか使えない対象（MTG 要素 ○ バッチC2） */
+export const TRIBE_TARGETS: readonly TargetId[] = ['tribeAllies'];
 
 // ---------------------------------------------------------------- 条件
 
@@ -546,6 +634,7 @@ export const CONDITION_GROUPS = [
   '相手の前のターン',
   '捨て札',
   'コスト・追加の支払い',
+  '種族・速度・王冠',
   '運・先後',
 ] as const;
 export type ConditionGroup = (typeof CONDITION_GROUPS)[number];
@@ -575,6 +664,8 @@ export interface ConditionDef {
    * （コストは使う前に決まるので、判定できない）
    */
   notForCost?: boolean;
+  /** 種族のあるカードだけ（MTG 要素 ○ バッチC2。無ければ違反 TRIBE_REQUIRED） */
+  requiresTribe?: boolean;
 }
 
 const cp = BALANCE.conditionParams;
@@ -928,6 +1019,36 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     notForCost: true,
     group: 'コスト・追加の支払い',
     description: '使うときにキッカー（追加のエナジー）を払っていれば発動。カードの能力「キッカー」があるカードだけ（新生＝新生の効果＋この条件）',
+  },
+  // ---- MTG 要素 ○ バッチC2
+  tribeAlly: {
+    id: 'tribeAlly',
+    tier: 'normal',
+    label: '同じ種族の自分のモンスターがいる',
+    textPrefix: '同じ種族の自分のモンスターがいれば、',
+    timings: null,
+    requiresTribe: true,
+    notForCost: true,
+    group: '種族・速度・王冠',
+    description: 'このカードと同じ種族の自分のモンスター（このモンスター自身を除く）が場にいれば発動（部族シナジー）。種族のあるカードだけ',
+  },
+  maxSpeed: {
+    id: 'maxSpeed',
+    tier: 'strict',
+    label: '速度が最大',
+    textPrefix: '速度が最大なら、',
+    timings: null,
+    group: '種族・速度・王冠',
+    description: `自分の速度が最大（${BALANCE.speed.max}）なら発動（最高速度。速度は「エンジン始動」で始まり、自分のターンに相手のHPを減らすと1ターン1回上がる）`,
+  },
+  hasCrown: {
+    id: 'hasCrown',
+    tier: 'normal',
+    label: '王冠を持っている',
+    textPrefix: '王冠を持っていれば、',
+    timings: null,
+    group: '種族・速度・王冠',
+    description: '自分が王冠を持っていれば発動（統治者。王冠は「王冠を得る」で得て、相手のモンスターの攻撃でHPが減ると奪われる）',
   },
 };
 

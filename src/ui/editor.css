@@ -1171,3 +1171,45 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* モード選択（MTG 要素 ○ バッチC2）：効果の行の「いつも／A／B／C」 */
+.ed-row__mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.ed-row__mode-label {
+  font-size: var(--fs-sm, 0.85rem);
+  color: var(--muted);
+  margin-right: 2px;
+}
+.mode-seg__btn {
+  font: inherit;
+  min-width: 44px;
+  min-height: 36px;
+  padding: 4px 10px;
+  color: var(--text);
+  background: var(--field);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.mode-seg__btn.is-on {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  font-weight: bold;
+}
+.ed-row__mode-note {
+  flex-basis: 100%;
+  font-size: var(--fs-xs, 0.75rem);
+  color: var(--muted);
+}
+.ed-chip--mode {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.ed-row__mods .check.is-disabled {
+  opacity: 0.5;
+}

@@ -4,7 +4,7 @@
  * 対戦画面ではシート（スマホは下から、PC は中央のモーダル）、ダイアログの中ではモーダルで出す。
  */
 import type { ReactNode } from 'react';
-import { analyzeCard, battle, CARD_TYPE_LABEL, CURSE_LABEL, RARITY_LABEL, type CardDef } from '../../engine/index.ts';
+import { analyzeCard, battle, CARD_TYPE_LABEL, CURSE_LABEL, RARITY_LABEL, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
 import { CardView } from '../components/CardView.tsx';
 import { Modal } from '../components/controls.tsx';
 import { Sheet } from '../components/Sheet.tsx';
@@ -62,6 +62,7 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
           <span className={cx('cdetail__tag', `cdetail__tag--${def.rarity}`)}>{RARITY_LABEL[def.rarity]}</span>
           <span className="cdetail__tag">{CARD_TYPE_LABEL[a.cardType]}</span>
           {a.isCurse && <span className="cdetail__tag cdetail__tag--curse">{CURSE_LABEL}</span>}
+          {def.tribe && <span className="cdetail__tag">種族：{TRIBE_LABEL[def.tribe]}</span>}
           <span className="cdetail__tag">
             コスト {cost ?? def.cost}
             {cost !== undefined && cost !== def.cost && <small>（元 {def.cost}）</small>}
@@ -145,7 +146,7 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
           <section className="cdetail__sec">
             <h3>パワーとして残っている効果</h3>
             <ul className="cdetail__plain">
-              {powerLines(power).map((l, i) => (
+              {powerLines(power, def).map((l, i) => (
                 <li key={i}>{l}</li>
               ))}
             </ul>

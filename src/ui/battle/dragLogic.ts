@@ -6,7 +6,9 @@
  * - gestureOf：押してから動いた量で、ドラッグを始めるか（手札は横スクロールと区別する）
  * 対象の候補はエンジンの playInfo・activateInfo・handAbilityInfo・attackTargets をそのまま使う（効果の種類はここでは見ない）。
  * つかめるもの（MTG 要素 ○ バッチC1 で追加）：手札のカード・捨て札のカード（捨て札から使う）・起動の ⚡（場のモンスター・パワー）・
- * 攻撃するモンスター。手札のサイクリング・魂力のカードは、自分の捨て札の山（pile）に落とすと使える
+ * 攻撃するモンスター。手札のサイクリング・魂力のカードは、自分の捨て札の山（pile）に落とすと使える。
+ * モード選択のカード（MTG 要素 ○ バッチC2）は、場に落とすとモードを選び（resolveDrop は 'modes'）、選んだモードで
+ * 落とした場所が合法な対象ならそれを使い、違えば対象選びに入る（resolveModeDrop）
  */
 import type { battle } from '../../engine/index.ts';
 
@@ -31,6 +33,11 @@ export type DragSource =
       from?: 'hand' | 'discard';
       /** 捨て札の山に落とせば使える、手札から使う能力（サイクリング・魂力。使えるものだけ） */
       handAbilities?: HandAbilityKind[];
+      /**
+       * モード選択のカード（MTG 要素 ○ バッチC2）。enemyTargets・allyTargets は使えるモードの候補を合わせたもの。
+       * 落とすとモードを選ぶ
+       */
+      modal?: boolean;
     }
   | { kind: 'attacker'; uid: string; blocked: string | null; targets: TargetRef[] }
   /** 起動の ⚡（MTG 要素 ○ バッチC1）。uid は起動するモンスター・パワー */
@@ -119,11 +126,19 @@ export function planDrag(src: DragSource): DragPlan {
     return { mode: 'ghost', targets: [], zone: 'noise', hint: '場で離すと除外', pile: false };
   }
   const kinds = src.from === 'discard' ? [] : (src.handAbilities ?? []);
-  const plan = planTargeted(cardTargeted(src), '場で離すと使う');
+  const plan = modalPlan(src) ?? planTargeted(cardTargeted(src), '場で離すと使う');
   if (kinds.length === 0) return { ...plan, pile: false };
   // サイクリング・魂力のカード：捨て札の山も光る。使えないカードでも、山に落とせばよい
   if (src.blocked) return { mode: 'ghost', targets: [], zone: null, hint: pileHint(kinds), pile: true };
   return { ...plan, hint: `${plan.hint}・${pileHint(kinds)}`, pile: true };
+}
+
+/** モード選択のカード：候補（どれかのモードの対象）は光らせ、場のどこでも落とせる（落とすとモードを選ぶ） */
+function modalPlan(src: Extract<DragSource, { kind: 'card' }>): Omit<DragPlan, 'pile'> | null {
+  if (!src.modal || src.blocked) return null;
+  const others = src.allyTargets.filter((u) => u !== src.uid).map((uid): TargetRef => ({ kind: 'monster', uid }));
+  const targets = [...src.enemyTargets, ...others];
+  return { mode: targets.length > 0 ? 'arrow' : 'ghost', targets, zone: 'play', hint: '離すとモードを選ぶ' };
 }
 
 export type DropDecision =
@@ -137,7 +152,9 @@ export type DropDecision =
   | { t: 'noise' }
   | { t: 'attack'; target: TargetRef }
   /** 捨て札の山に落とした：手札から使う能力（サイクリング・魂力）。複数あれば画面が選ばせる */
-  | { t: 'pile'; abilities: HandAbilityKind[] };
+  | { t: 'pile'; abilities: HandAbilityKind[] }
+  /** モード選択のカードを場に落とした：モードを選ばせる。chosen は落とした場所（どれかのモードの対象なら） */
+  | { t: 'modes'; chosen: Chosen };
 
 /** 残りの選択が1つしかなければ自動で埋める */
 function complete(src: Targeted, chosen: Chosen): DropDecision {
@@ -171,7 +188,37 @@ export function resolveDrop(src: DragSource, spot: Spot): DropDecision {
   const kinds = src.from === 'discard' ? [] : (src.handAbilities ?? []);
   if (spot.kind === 'pile' && kinds.length > 0) return { t: 'pile', abilities: [...kinds] };
   if (spot.kind === 'pile' && src.from === 'discard') return { t: 'cancel' };
+  if (src.modal) {
+    // モード選択（MTG 要素 ○ バッチC2）：場のどこかに落とせばモードを選ぶ。落とした対象は、選んだモードで使えれば使う
+    if (src.blocked) return { t: 'invalid', reason: src.blocked };
+    if (spot.kind === 'none' || spot.kind === 'pile') return { t: 'invalid', reason: '場の上で離すとモードを選べます' };
+    const t = spotTarget(spot);
+    if (t && src.enemyTargets.some((x) => sameRef(x, t))) return { t: 'modes', chosen: { enemy: t } };
+    if (t?.kind === 'monster' && src.allyTargets.includes(t.uid)) return { t: 'modes', chosen: { ally: t.uid } };
+    return { t: 'modes', chosen: {} };
+  }
   return resolveTargeted(cardTargeted(src), spot, '場の上で離すと使えます');
+}
+
+/** 選んだモードの候補と使えない理由（エンジンの PlayInfo.modes の1つ） */
+export interface ModeTargets {
+  blocked: string | null;
+  enemyTargets: TargetRef[];
+  allyTargets: string[];
+}
+
+/**
+ * モードを選んだあと（MTG 要素 ○ バッチC2）：落とした場所（chosen）がそのモードの合法な対象なら使い、違えば外して
+ * 対象選び（need）に入る。候補が1つなら自動で埋める。selfUid は召喚するモンスターのカード自身
+ */
+export function resolveModeDrop(mode: ModeTargets, chosen: Chosen, selfUid?: string): DropDecision {
+  if (mode.blocked) return { t: 'invalid', reason: mode.blocked };
+  const c: Chosen = {};
+  if (chosen.enemy && mode.enemyTargets.some((x) => sameRef(x, chosen.enemy!))) c.enemy = chosen.enemy;
+  if (chosen.ally && mode.allyTargets.includes(chosen.ally)) c.ally = chosen.ally;
+  // 召喚するモンスター自身しか選べないなら、それを選ぶ
+  if (!c.ally && selfUid !== undefined && mode.allyTargets.length === 1 && mode.allyTargets[0] === selfUid) c.ally = selfUid;
+  return complete({ uid: '', blocked: null, enemyTargets: mode.enemyTargets, allyTargets: mode.allyTargets }, c);
 }
 
 /** 対象を選ぶもの（カード・起動）を落とした場所から、使うか・足りない選択を決める */

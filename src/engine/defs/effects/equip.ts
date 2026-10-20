@@ -13,7 +13,7 @@ export default defineEffect({
   value: valueParam('攻撃力', { default: 1, max: B.maxValue }),
   targetRule: 'allyMonsterOne',
   timings: ['play'],
-  excludeTargets: ['allyMonsters', 'thisMonster', 'otherAllies'],
+  excludeTargets: ['allyMonsters', 'thisMonster', 'otherAllies', 'tribeAllies'],
   // 予約すると付けるカードが無くなるので、遅延は付けられない
   noDelay: true,
   basePoints: (e) => B.perValue * n(e) + B.flat,

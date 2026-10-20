@@ -24,12 +24,12 @@ describe('レジストリ', () => {
     expect(readFileSync(OUTPUT_PATH, 'utf8')).toBe(generateRegistrySource());
   });
 
-  it('仕様の数だけ登録されている（効果74・オプション7・キーワード20・デメリット19・カードの能力13。MTG 要素バッチ1で数値の倍数3つ、バッチ2で効果12・キーワード6・デメリット5、○ バッチAで修飾2・デメリット4、○ バッチBで効果23・キーワード6・能力4、○ バッチC1で能力9）', () => {
-    expect(listEffects()).toHaveLength(74);
-    expect(listModifiers()).toHaveLength(7);
+  it('仕様の数だけ登録されている（効果76・オプション8・キーワード20・デメリット19・カードの能力15。MTG 要素バッチ1で数値の倍数3つ、バッチ2で効果12・キーワード6・デメリット5、○ バッチAで修飾2・デメリット4、○ バッチBで効果23・キーワード6・能力4、○ バッチC1で能力9、○ バッチC2で効果2・修飾1・能力2）', () => {
+    expect(listEffects()).toHaveLength(76);
+    expect(listModifiers()).toHaveLength(8);
     expect(listKeywords()).toHaveLength(20);
     expect(listDrawbacks()).toHaveLength(19);
-    expect(listAbilities()).toHaveLength(13);
+    expect(listAbilities()).toHaveLength(15);
   });
 
   it('すべての効果に balance.ts の基礎ポイントがある', () => {

@@ -9,8 +9,10 @@ import type { EffectDef, ModifierDef, PointCard } from './define.ts';
 import { formatMultiplier } from './labels.ts';
 import { ceilPoints, floorPoints, round2 } from './math.ts';
 import {
+  CHARGE_EVENT_LABEL,
   CONDITIONS,
   DEFAULT_ATTACK_PROFILE,
+  chargeSpec,
   TIMINGS,
   conditionMultiplier,
   defaultTiming,
@@ -82,6 +84,11 @@ function timingFactor(timing: keyof typeof TIMINGS, base: CardBase, card: PointC
     if (profile.attacks === 1) return { label: t.label, value };
     const name = getKeyword('doubleAttack')?.name ?? '二回攻撃';
     return { label: `${t.label}・${name}`, value, text: `${formatMultiplier(BALANCE.timing.hitEnemyPlayer)}×${profile.attacks}` };
+  }
+  if (timing === 'charged') {
+    // 蓄積（MTG 要素 ○ バッチC2）：必要数とイベントで倍率が変わる
+    const c = chargeSpec(card.abilities);
+    return { label: `${t.label}（蓄積${c.need}・${CHARGE_EVENT_LABEL[c.event]}）`, value: timingMultiplier(timing, base, undefined, card) };
   }
   if (timing === 'activated' || timing === 'channel') {
     // 起動・魂力（MTG 要素 ○ バッチC1）：起動のエナジーで倍率が変わる。表示はエナジーつき
@@ -215,7 +222,46 @@ export function abilityContext(card: Pick<CardDef, 'stats' | 'keywords' | 'effec
     bodyPoints: bodyPoints(card),
     channelEffectPoints: channel,
     hasFromDiscard: card.effects.some((e) => e.timing === 'fromDiscard'),
+    modeOtherPoints: modeSummary(card)?.others ?? 0,
   };
+}
+
+/** モード選択（MTG 要素 ○ バッチC2）の、タイミングごとのモードのポイント（モードの付いた効果が無ければ null） */
+export interface ModeSummary {
+  /** タイミングごと：モードの番号 → そのモードの効果のポイントの合計 */
+  groups: { timing: TimingId; points: Map<number, number> }[];
+  /** いちばん高いモード以外の合計（すべてのタイミングの和） */
+  others: number;
+}
+
+export function modeSummary(card: PointCard & Pick<CardDef, 'effects'>): ModeSummary | null {
+  const byTiming = new Map<TimingId, Map<number, number>>();
+  for (const e of card.effects) {
+    if (e.mode === undefined) continue;
+    const m = byTiming.get(e.timing) ?? new Map<number, number>();
+    m.set(e.mode, (m.get(e.mode) ?? 0) + effectPoints(e, card).value);
+    byTiming.set(e.timing, m);
+  }
+  if (byTiming.size === 0) return null;
+  let others = 0;
+  const groups: ModeSummary['groups'] = [];
+  for (const [timing, points] of byTiming) {
+    const values = [...points.values()];
+    others += values.reduce((a, b) => a + b, 0) - Math.max(...values);
+    groups.push({ timing, points });
+  }
+  return { groups, others };
+}
+
+/**
+ * モード選択の割引（MTG 要素 ○ バッチC2）：使うときに1つしか選べないので、選ばれないモードは×modal.otherRate。
+ * 割り引く量（正の数）＝ 他のモードの合計×(1−otherRate)（切り捨て）。モードが無ければ null
+ */
+export function modeDiscount(card: PointCard & Pick<CardDef, 'effects'>): { value: number; formula: string } | null {
+  const sum = modeSummary(card);
+  if (!sum || sum.others <= 0) return null;
+  const rate = BALANCE.modal.otherRate;
+  return { value: floorPoints(sum.others * (1 - rate)), formula: `選ばれないモード${round2(sum.others)}×${round2(1 - rate)} → 切り捨て` };
 }
 
 /** 起動・魂力のタイミングの表示名（エナジーつき。MTG 要素 ○ バッチC1） */
@@ -293,6 +339,12 @@ export function calculatePoints(card: CardDef): PointSummary {
     const p = abilityPoints(a, ctx);
     lines.push({ kind: 'ability', index, label: abilityLabel(a), formula: p.formula, value: p.value });
   });
+
+  // モード選択の割引（MTG 要素 ○ バッチC2）
+  const modal = modeDiscount(card);
+  if (modal && modal.value > 0) {
+    lines.push({ kind: 'limit', label: 'モード選択の割引', formula: modal.formula, value: -modal.value });
+  }
 
   // 魂力の二者択一の割引（MTG 要素 ○ バッチC1）
   const choice = choiceDiscount(card);

@@ -75,5 +75,7 @@ describe('logNamesOf / logIcon', () => {
     expect(logIcon('heal')).toBe('✚');
     expect(logIcon(undefined, 'effect')).toBe('');
     expect(logIcon('status', 'info', 'coin')).toBe('🪙');
+    // MTG 要素 ○ バッチC2
+    expect([logIcon('speed'), logIcon('crown'), logIcon('saga'), logIcon('charge')]).toEqual(['🏁', '👑', '📖', '🔋']);
   });
 });

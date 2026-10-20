@@ -545,6 +545,77 @@ describe('MTG 要素 ○ バッチC1（新しい行動のサーバー越しの�
   });
 });
 
+describe('MTG 要素 ○ バッチC2（モード選択・種族のサーバー越しの検証）', () => {
+  it('形を調べる：mode は 0〜3 の整数だけ', () => {
+    expect(parseAction({ type: 'playCard', player: 0, cardUid: 'c1', mode: 2, junk: 1 })).toEqual({ type: 'playCard', player: 0, cardUid: 'c1', mode: 2 });
+    expect(parseAction({ type: 'playCard', player: 0, cardUid: 'c1', mode: 0 })).toEqual({ type: 'playCard', player: 0, cardUid: 'c1', mode: 0 });
+    for (const mode of [4, -1, 1.5, '1', null, true]) expect(parseAction({ type: 'playCard', player: 0, cardUid: 'c1', mode }), String(mode)).toBeNull();
+  });
+
+  /** モード選択（A 相手に1ダメージ／B 1枚引く）と双呪のある、種族「獣」のカードを混ぜたデッキ */
+  const modal = card({
+    id: 'mod',
+    name: '火か知恵か',
+    rarity: 'rare',
+    cost: 1,
+    tribe: 'beast',
+    effects: [
+      { id: 'damage', value: 1, timing: 'play', target: 'chosen', condition: null, mode: 1 },
+      { id: 'draw', value: 1, timing: 'play', target: 'self', condition: null, mode: 2 },
+    ],
+    abilities: [{ id: 'entwine', value: 1 }],
+  });
+  const withModal = (tribe: unknown) => ({
+    ...BEASTS,
+    cards: [...BEASTS.cards, { ...modal, tribe } as CardDef],
+    deck: {
+      ...BEASTS.deck,
+      entries: [
+        ...BEASTS.deck.entries.map((e, i) => (i === BEASTS.deck.entries.findIndex((x) => x.count >= 2) ? { ...e, count: e.count - 1 } : e)),
+        { cardId: 'mod', count: 1 },
+      ],
+    },
+  });
+
+  it('デッキの検証：種族とモードのあるカードは通る。知らない種族は「種族なし」、壊れたモードは拒否', () => {
+    const s = new FakeServer();
+    ok(s.send(createReq(withModal('beast') as typeof BEASTS), { tokenHash: HOST, now: T0 }));
+    expect(s.room!.hostDeck!.cards.find((c) => c.id === 'mod')!.tribe).toBe('beast');
+    const s2 = new FakeServer();
+    ok(s2.send(createReq(withModal('robot') as typeof BEASTS), { tokenHash: HOST, now: T0 }));
+    expect(s2.room!.hostDeck!.cards.find((c) => c.id === 'mod')!.tribe).toBeUndefined();
+    const broken = withModal('beast');
+    broken.cards = broken.cards.map((c) => (c.id === 'mod' ? { ...c, effects: [c.effects[0]!, { ...c.effects[1]!, mode: undefined }] } : c));
+    const s3 = new FakeServer();
+    const res = s3.send(createReq(broken as typeof BEASTS), { tokenHash: HOST, now: T0 });
+    expect(res.ok).toBe(false);
+  });
+
+  it('往復：モードを選んで使う（モード無し・双呪の不足は拒否）', () => {
+    const { s, now } = playing(BEASTS, BEASTS);
+    const g = s.room!.state!;
+    const p = g.active;
+    const opp = battle.other(p);
+    const tk = tokenOf(p);
+    g.players[p].energy = 2;
+    const uid = giveCard(g, p, modal);
+    let t = now;
+    const none = s.send(actionReq(tk, s.room!.version, { type: 'playCard', player: p, cardUid: uid, chosen: { enemy: { kind: 'player', player: opp } } }), { tokenHash: tk, now: t++ });
+    expect(none.ok).toBe(false);
+    if (!none.ok) expect(none.error).toBe('モードを選んでください');
+    const hand = s.room!.state!.players[p].hand.length;
+    ok(s.send(actionReq(tk, s.room!.version, { type: 'playCard', player: p, cardUid: uid, mode: 2 }), { tokenHash: tk, now: t++ }));
+    expect(s.room!.state!.players[p].hand.length).toBe(hand);
+    const u2 = giveCard(s.room!.state!, p, modal);
+    // 残りエナジー1：双呪（1＋1）は払えない
+    const ent = s.send(actionReq(tk, s.room!.version, { type: 'playCard', player: p, cardUid: u2, mode: 0, chosen: { enemy: { kind: 'player', player: opp } } }), { tokenHash: tk, now: t++ });
+    expect(ent.ok).toBe(false);
+    const hp = s.room!.state!.players[opp].hp;
+    ok(s.send(actionReq(tk, s.room!.version, { type: 'playCard', player: p, cardUid: u2, mode: 1, chosen: { enemy: { kind: 'player', player: opp } } }), { tokenHash: tk, now: t++ }));
+    expect(s.room!.state!.players[opp].hp).toBe(hp - BALANCE.amountScale);
+  });
+});
+
 describe('接続状態と再接続', () => {
   it('相手から30秒以上通信がなければ「切断中」', () => {
     const { s, now } = playing();

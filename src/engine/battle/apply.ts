@@ -15,6 +15,8 @@ function playOpts(a: Extract<Action, { type: 'playCard' }>): PlayOpts {
   if (a.discardUid !== undefined) o.discardUid = a.discardUid;
   if (a.exileUids !== undefined) o.exileUids = a.exileUids;
   if (a.kick === true) o.kick = true;
+  // MTG 要素 ○ バッチC2：モード選択
+  if (a.mode !== undefined) o.mode = a.mode;
   return o;
 }
 

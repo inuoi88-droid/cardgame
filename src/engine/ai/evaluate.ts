@@ -17,6 +17,7 @@ import { combatBonus, keywordFlags, playerBonus, wardTax } from '../battle/damag
 import { effectiveCost, lifespanOf } from '../battle/play.ts';
 import { energyForTurn } from '../battle/turn.ts';
 import { effectPoints } from '../points.ts';
+import { chapterOf } from '../options.ts';
 import { getKeyword } from '../registry.ts';
 import type { CardDef } from '../types.ts';
 import { NOISE_CARD_ID, type GameState, type Monster, type PlayerId } from '../battle/types.ts';
@@ -123,6 +124,11 @@ export const WEIGHTS = {
    */
   cascadePerCost: 2 * S,
   seekCard: 1.5 * S,
+  // ---- MTG 要素 ○ バッチC2
+  /** 速度1につき（最高速度の条件に近づく。小さく） */
+  speed: 0.5 * S,
+  /** 王冠：残りターンの見込み1につき（ターン開始時に1枚多く引く。相手が持っていれば相手が引く） */
+  crown: 2 * S,
 } as const;
 
 const W = WEIGHTS;
@@ -409,8 +415,14 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
 
   for (const pw of ps.powers) {
     const life = pw.life === undefined ? 1 : Math.min(1, W.lifespanBase + W.lifespanPerTurn * pw.life);
-    v += pw.effects.filter((x) => !x.removed).length * W.power * life;
+    // 英雄譚（MTG 要素 ○ バッチC2）：まだ出ていない章の効果だけ
+    const live = pw.effects.filter((x) => !x.removed && (pw.chapter === undefined || chapterOf(x.effect.timing) > pw.chapter));
+    v += live.length * W.power * life;
   }
+  // 速度・王冠（MTG 要素 ○ バッチC2）
+  v += (ps.speed ?? 0) * W.speed;
+  // 王冠は持っている間ずっと1枚多く引く（残りターンの見込みぶん）
+  if (g.crown === p) v += W.crown * Math.max(1, ctx.turnsLeft);
   v += ps.next.energy * W.nextEnergy + ps.next.draw * W.nextDraw + ps.discount * W.discount;
   // 予約した効果（次のターンに）：効果のポイントを HP に換算して足す（そうしないと、予約するカードを使う意味がないと判断してしまう）。
   // 反復はカードの使用時の効果すべて

@@ -112,6 +112,14 @@ export const BALANCE = {
     channel: 1.0,
     activatedMonster: [2.2, 1.6, 1.1],
     activatedPower: [5.0, 3.6, 2.4],
+    /**
+     * MTG 要素 ○ バッチC2（決定事項ログ）。英雄譚の章（第1章は使ったとき、第2章・第3章は次の自分のターン開始時から1章ずつ）と、
+     * 蓄積がたまったとき（chargedPower × min(1, イベントの頻度 ÷ 必要数)。頻度は abilities.charge.rates）
+     */
+    chapter1: 1.0,
+    chapter2: 0.9,
+    chapter3: 0.8,
+    chargedPower: 6.0,
   },
   /** タイミングに出てくる数（MTG 要素 ○ バッチA） */
   timingParams: {
@@ -137,6 +145,8 @@ export const BALANCE = {
     otherAllies: 1.8,
     weakestAlly: 0.9,
     bothPlayers: 0.4,
+    /** MTG 要素 ○ バッチC2：同じ種族の自分のモンスター全体（ロード） */
+    tribeAllies: 1.6,
   },
   /** モンスターにしか作用しない効果（処刑・封印など）の「敵味方すべて」はプレイヤーに当たらないぶん高い（決定事項 #68） */
   targetMonsterOnly: {
@@ -189,11 +199,20 @@ export const BALANCE = {
     exploit: 0.6,
     /** MTG 要素 ○ バッチC1：キッカーを払っていれば（キッカーの追加エナジーで conditionByKicker を使う。これはカードが無いとき） */
     kicked: 0.6,
+    /** MTG 要素 ○ バッチC2：同じ種族の自分のモンスターがいる・速度が最大・王冠を持っている */
+    tribeAlly: 0.7,
+    maxSpeed: 0.5,
+    hasCrown: 0.6,
   },
   /** 「キッカーを払っていれば」の倍率（キッカーの追加エナジー1・2 の順。MTG 要素 ○ バッチC1） */
   conditionByKicker: [0.6, 0.45],
   /** 二者択一（魂力。バッチC2 のモード選択も）：高い方＋低い方×otherRate */
   choice: { otherRate: 0.3 },
+  /**
+   * モード選択（MTG 要素 ○ バッチC2）：ポイント＝「いつも」の効果＋最も高いモード＋他のモードの合計×otherRate。
+   * モードは1枚に maxModes まで
+   */
+  modal: { otherRate: 0.3, maxModes: 3 },
 
   /** 条件に出てくる数 */
   conditionParams: {
@@ -249,6 +268,8 @@ export const BALANCE = {
     /** MTG 要素 ○ バッチA：次のターンに（遅延。×0.75）・捨て札のモンスター1枚につき（数値の倍数） */
     nextTurn: -0.25,
     perDiscardMonster: 1.2,
+    /** MTG 要素 ○ バッチC2：同じ種族の自分のモンスター1体につき（自分自身を含む。数の上限は scaleCountCap） */
+    perTribeAlly: 1.0,
   },
   modifierParams: {
     /** 「相手モンスター1体につき」「このターン使ったカード1枚につき」の数の上限 */
@@ -398,6 +419,9 @@ export const BALANCE = {
     boon: { perValueUse: 2.5, maxValue: x(5), maxUses: 3 },
     ramp: { flat: x(30) },
     cloneToken: { flat: x(25) },
+    /** MTG 要素 ○ バッチC2（決定事項ログ）：エンジン始動（速度ゲージを始める）・王冠を得る */
+    startEngine: { flat: x(2) },
+    crown: { flat: x(10) },
   },
 
   /** モンスター専用キーワードのポイント（A は攻撃力）。挑発は #83（カードの効果の対象も挑発に限る）のあと #84 で 6→8 */
@@ -466,6 +490,13 @@ export const BALANCE = {
     costCut: { perStep: x(10), maxReduction: 2, minCost: 0 },
     /** キッカー：追加エナジー1〜maxExtra（ポイントは条件「キッカーを払っていれば」の倍率） */
     kicker: { maxExtra: 2, flat: x(0) },
+    /** MTG 要素 ○ バッチC2（決定事項ログ）。双呪：他のモードの合計×rate を足す。追加エナジー1〜maxExtra */
+    entwine: { rate: 0.4, maxExtra: 2 },
+    /**
+     * 蓄積：必要数 min〜max。イベントごとの頻度（1ターンあたりの見込み。「蓄積がたまったとき」の倍率に使う）。
+     * たまるのは1つにつき1ターン battle.maxRepeatTriggersPerTurn 回まで
+     */
+    charge: { min: 2, max: 5, flat: x(0), rates: { turnStart: 1, cardPlayed: 2, allySummoned: 1, enemyDamaged: 1, allyDestroyed: 0.7 } },
   },
 
   /**
@@ -600,6 +631,11 @@ export const BALANCE = {
     /** 最大エナジー増加は1人この回数まで */
     rampCap: 1,
   },
+
+  /** 速度ゲージ（MTG 要素 ○ バッチC2）：エンジン始動で start、自分のターンに相手のHPを減らすと1ターン1回+1、max まで */
+  speed: { start: 1, max: 4 },
+  /** 王冠（MTG 要素 ○ バッチC2）：持っていると自分のターン開始時に extraDraw 枚多く引く */
+  crown: { extraDraw: 1 },
 } as const;
 
 export type Balance = typeof BALANCE;

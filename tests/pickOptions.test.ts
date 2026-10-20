@@ -14,7 +14,7 @@ import {
   type CardDef,
   type EffectInstance,
 } from '../src/engine/index.ts';
-import { conditionOptions, effectTimingOptions, targetOptions } from '../src/ui/editor/pickOptions.ts';
+import { conditionOptions, effectOptionOptions, effectTimingOptions, targetOptions, tribeFromValue, tribeOptions, tribeValue } from '../src/ui/editor/pickOptions.ts';
 
 const spell = (): CardDef => ({ ...newCard('t-spell'), name: '試し' });
 const monster = (): CardDef => setMonster({ ...newCard('t-mon'), name: '試し' }, true);
@@ -78,5 +78,32 @@ describe('選択パネルの選択肢', () => {
     expect(modifiersFor(dmg, 'turnEnd').map((m) => m.id)).not.toContain('xEnergy');
     // 格闘は数値がないので倍数は付かない（遅延「次のターンに」だけ。○ バッチA）
     expect(modifiersFor(getEffect('fight')!, 'play').map((m) => m.id)).toEqual(['nextTurn']);
+  });
+});
+
+describe('種族（MTG 要素 ○ バッチC2）', () => {
+  it('種族の無いカードでは「同じ種族」の条件・対象・サーチの指定が灰色（理由つき）、種族を選ぶと選べる', () => {
+    const card = spell();
+    const dmg = createEffect('damage', 'spell');
+    const cond = (c: CardDef) => conditionOptions(dmg, c).find((o) => o.id === 'tribeAlly')!;
+    expect(cond(card).disabled).toContain('種族');
+    expect(cond({ ...card, tribe: 'beast' }).disabled).toBeUndefined();
+    const train = createEffect('train', 'spell');
+    const target = (c: CardDef) => targetOptions(train, c).find((o) => o.id === 'tribeAllies')!;
+    expect(target(card).disabled).toContain('種族');
+    expect(target({ ...card, tribe: 'beast' }).disabled).toBeUndefined();
+    const search = createEffect('search', 'spell');
+    const opt = (c: CardDef) => effectOptionOptions(search, c).find((o) => o.id === 'tribe')!;
+    expect(opt(card).disabled).toContain('種族');
+    expect(opt({ ...card, tribe: 'dragon' }).disabled).toBeUndefined();
+    expect(tribeOptions().map((o) => o.label)).toEqual(['なし', '獣', '竜', '不死', '機械', '精霊', '人']);
+    expect(tribeFromValue(tribeValue('human'))).toBe('human');
+    expect(tribeFromValue(tribeValue(undefined))).toBeNull();
+  });
+
+  it('タイミングの見出し「英雄譚」「蓄積」：蓄積がたまったときは能力「蓄積」が無いと灰色', () => {
+    const opts = effectTimingOptions(createEffect('damage', 'spell'), spell());
+    expect(opts.find((o) => o.id === 'chapter1')).toMatchObject({ group: '英雄譚', disabled: undefined });
+    expect(opts.find((o) => o.id === 'charged')!.disabled).toContain('蓄積');
   });
 });

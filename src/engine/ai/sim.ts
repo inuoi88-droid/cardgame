@@ -2,6 +2,7 @@
  * 仮の実行（シミュレーション）の道具。見える情報（view）に対して applyAction を走らせ、結果の盤面を評価する。
  * 選択待ちになったら CPU 自身の選び方で進める。ランダムな対象を持つカードは複数のシードで平均する（決定事項 #72）。
  */
+import { effectsForMode, resolveMode } from '../battle/modes.ts';
 import { BALANCE } from '../balance.ts';
 import { applyAction } from '../battle/apply.ts';
 import { findMonster, other } from '../battle/core.ts';
@@ -205,7 +206,8 @@ export function actionCard(view: GameState, action: Action): { card?: CardInst; 
     const def = card ? view.cards[card.cardId] : undefined;
     if (!card || !def) return null;
     const timing = playTiming(def, action.from === 'discard' ? 'discard' : 'hand');
-    return { card, def, timing, effects: def.effects.filter((e) => e.timing === timing) };
+    // モード選択（MTG 要素 ○ バッチC2）：選んだモードの効果だけ
+    return { card, def, timing, effects: effectsForMode(def.effects, timing, resolveMode(def, timing, action.mode)) };
   }
   if (action.type === 'handAbility') {
     const card = ps.hand.find((c) => c.uid === action.cardUid);
@@ -341,7 +343,7 @@ export function actionKey(g: GameState, a: Action): string {
     const card = actionCard(g, a)?.card;
     const t = a.chosen?.enemy;
     // 捨て札から使う・キッカー（MTG 要素 ○ バッチC1）も区別する（捨て札のカードは手札に無いので、見つからなければ uid）
-    const extra = `${a.from ?? ''}:${a.kick ? 'k' : ''}:${a.discardUid ?? ''}:${(a.exileUids ?? []).join('+')}`;
+    const extra = `${a.from ?? ''}:${a.kick ? 'k' : ''}:${a.discardUid ?? ''}:${(a.exileUids ?? []).join('+')}:${a.mode ?? ''}`;
     return `c:${card?.cardId ?? a.cardUid}:${card?.copy ?? ''}:${card?.grow ?? 0}:${card?.buybackTurn ?? ''}:${extra}|${t ? (t.kind === 'player' ? 'p' : t.uid) : ''}|${a.chosen?.ally ?? ''}`;
   }
   if (a.type === 'handAbility') {

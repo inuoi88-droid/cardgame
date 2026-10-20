@@ -2,7 +2,7 @@
  * 用語集：状態異常・持続効果・モンスターの状態の「名前」「短い説明」「アイコン」。
  * 対戦画面のポップオーバーとルールページが同じ文を使う。数字は balance.ts から読む。
  */
-import { BALANCE, CONDITIONS, TIMINGS, listAbilities, listKeywords, listModifiers } from '../engine/index.ts';
+import { BALANCE, CONDITIONS, TIMINGS, TRIBE_IDS, TRIBE_LABEL, listAbilities, listKeywords, listModifiers } from '../engine/index.ts';
 
 const B = BALANCE.battle;
 const pct = (rate: number) => `${Math.round(rate * 100)}%`;
@@ -143,6 +143,8 @@ const MODIFIER_ICON: Record<string, string> = {
   xEnergy: 'Ⓧ',
   perEnemyMonster: '👥',
   perCardPlayed: '🃏',
+  perDiscardMonster: '🪦',
+  perTribeAlly: '🐾',
 };
 
 const ABILITY_ICON: Record<string, string> = {
@@ -160,6 +162,9 @@ const ABILITY_ICON: Record<string, string> = {
   affinity: '🧲',
   costCut: '✂',
   kicker: '🦶',
+  // MTG 要素 ○ バッチC2
+  entwine: '🔗',
+  charge: '🔋',
 };
 
 /** カードの能力（MTG 要素 ○ バッチB。レジストリから作る） */
@@ -342,6 +347,50 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     icon: '🦶',
     tone: 'info',
     short: '使うときにエナジーを追加で払ってもよい。払えば条件「キッカーを払っていれば」の効果も出る（払えるときだけ、使ったあとに聞かれる）',
+  },
+  // ---- MTG 要素 ○ バッチC2
+  modes: {
+    name: 'モード選択',
+    icon: '🔀',
+    tone: 'info',
+    short: `「次のうち1つを選ぶ」のカードは、使うときにモード（A・B・C）を1つ選び、「いつも」の効果とそのモードの効果だけが出る（分割カード・製造・暴動）。対戦画面では場に落とすとモードの選択が出る。無料で使う（続唱）ときも対象より先にモードを選ぶ。反復・予約は同じモードでもう一度。選ぶ場面のない召喚（蘇生・複写トークン）はモードA。ポイントは「いつも」＋いちばん高いモード＋他のモード×${BALANCE.modal.otherRate}`,
+  },
+  entwine: {
+    name: '双呪',
+    icon: '🔗',
+    tone: 'info',
+    short: 'モード選択のカードで、エナジーを追加で払うと、すべてのモードを A→B→C の順に実行する（モードの選択シートの「すべて」）',
+  },
+  tribe: {
+    name: '種族',
+    icon: '🐾',
+    tone: 'info',
+    short: `カードに付く種類（${TRIBE_IDS.map((t) => TRIBE_LABEL[t]).join('・')}）。条件「同じ種族の自分のモンスターがいる」・修飾「同じ種族1体につき」・対象「同じ種族の自分のモンスター全体」・サーチ／抽出の「同じ種族」が参照する。小鬼・軍団のトークンは種族なし、複写トークンは元のカードの種族`,
+  },
+  tribeAllies: { name: '同じ種族の自分のモンスター全体', icon: '🐾', tone: 'info', short: 'このカードと同じ種族の、自分の場のモンスターすべて（効果を持つモンスター自身も含む。ロード）' },
+  speed: {
+    name: '速度',
+    icon: '🏁',
+    tone: 'good',
+    short: `「エンジン始動」で速度${BALANCE.speed.start}から始まり、自分のターンに相手のHPを減らすと1ターン1回+1（最大${BALANCE.speed.max}。下がらない・浄化でも消えない）。最大なら条件「速度が最大」が満たされる`,
+  },
+  crown: {
+    name: '王冠',
+    icon: '👑',
+    tone: 'good',
+    short: `王冠は1つだけ。持っていると自分のターン開始時に${BALANCE.crown.extraDraw}枚多く引く。相手のモンスターの攻撃（貫通の余りを含む）でHPが減ると、王冠はそのモンスターの持ち主に移る（効果のダメージでは移らない）`,
+  },
+  saga: {
+    name: '英雄譚',
+    icon: '📖',
+    tone: 'info',
+    short: `章（第1章〜第3章）の効果のあるカード。使うとパワーとして残って第1章が出て、次の自分のターン開始時から1章ずつ進み、最後の章のあと消える。パワーの上限（${B.maxPowers}つ）に数え、古いものとして消えたらそこで終わる`,
+  },
+  charge: {
+    name: '蓄積',
+    icon: '🔋',
+    tone: 'info',
+    short: `蓄積のパワーは、決まった出来事のたびにカウンターが1つたまり（1ターン${B.maxRepeatTriggersPerTurn}つまで）、必要数たまると「蓄積がたまったとき」の効果が出て0に戻る`,
   },
 };
 

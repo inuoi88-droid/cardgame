@@ -1,6 +1,6 @@
 /** 対戦画面の部品：プレイヤー情報、モンスター、手札、ログ、状態異常の札（説明はポップオーバー） */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { BALANCE, battle, CARD_TYPE_LABEL, analyzeCard, getEffect, TIMINGS, type CardDef } from '../../engine/index.ts';
+import { BALANCE, battle, CARD_TYPE_LABEL, analyzeCard, describeEffect, getEffect, TIMINGS, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
 import { Popover, type PopoverCard } from '../components/Popover.tsx';
 import { glossary, keywordGlossary, mechanicGlossary, type GlossaryEntry } from '../glossary.ts';
 import { cx } from '../util.ts';
@@ -119,6 +119,11 @@ interface PlayerPanelProps {
   pileLit?: boolean;
   /** ドラッグ中、捨て札の山の上で離すと決まる */
   pileHover?: boolean;
+  // ---- MTG 要素 ○ バッチC2
+  /** 王冠を持っている（GameState.crown がこのプレイヤー） */
+  hasCrown?: boolean;
+  /** パワーのカード定義（英雄譚の全章数・蓄積の必要数の表示） */
+  powerDef?: (pw: battle.PowerInst) => CardDef | undefined;
 }
 
 /** 起動の ⚡ ボタン（モンスター・パワー）。使えないときは灰色で、押すと理由を出す */
@@ -181,6 +186,8 @@ export function PlayerPanel({
   discardUsable = 0,
   pileLit,
   pileHover,
+  hasCrown,
+  powerDef,
 }: PlayerPanelProps) {
   const hp = hpShown ?? ps.hp;
   const pct = Math.max(0, Math.min(100, (hp / ps.maxHp) * 100));
@@ -203,6 +210,13 @@ export function PlayerPanel({
       <div className="pp__row">
         <span className="pp__role">{roleLabel}</span>
         <b className="pp__name">{ps.name}</b>
+        {hasCrown && (
+          <Popover content={{ title: `${mechanicGlossary.crown!.icon} 王冠`, description: mechanicGlossary.crown!.short }} placement="bottom">
+            <span className="pp__crown" data-fx={`crown:${isMe ? 'me' : 'opp'}`} aria-label="王冠を持っている">
+              {mechanicGlossary.crown!.icon}
+            </span>
+          </Popover>
+        )}
         {targetable && <span className="pp__target">対象</span>}
         <span className="pp__energy" aria-label={`エナジー${ps.energy}`}>
           ⚡{ps.energy}
@@ -302,9 +316,12 @@ export function PlayerPanel({
             </span>
           </Popover>
         )}
+        {/* MTG 要素 ○ バッチC2：速度ゲージ（ゲージがあるときだけ） */}
+        {(ps.speed ?? 0) > 0 && <SpeedGauge speed={ps.speed!} />}
         <Chips chips={statusChips(ps.status, true)} />
         {ps.powers.map((pw) => {
           const act = powerActivate?.(pw) ?? null;
+          const meter = powerMeter(pw, powerDef?.(pw));
           return (
             <span key={pw.uid} className={cx('pw-chip', act && 'pw-chip--act')} data-fx={pw.uid}>
               <button
@@ -318,6 +335,7 @@ export function PlayerPanel({
               >
                 ✦{pw.name}
                 {pw.life !== undefined && <span className="st__life">{` ${mechanicGlossary.lifespan!.icon}${pw.life}`}</span>}
+                {meter && <span className="st__meter">{` ${meter}`}</span>}
               </button>
               {act && <ActivateBtn a={act} name={pw.name} />}
             </span>
@@ -329,10 +347,46 @@ export function PlayerPanel({
   );
 }
 
-export function powerLines(pw: battle.PowerInst): ReactNode[] {
+/** 速度ゲージ（MTG 要素 ○ バッチC2）：最大までの目盛り */
+export function SpeedGauge({ speed }: { speed: number }) {
+  const max = BALANCE.speed.max;
+  const g = mechanicGlossary.speed!;
+  return (
+    <Popover content={{ title: `${g.icon} 速度 ${speed}/${max}${speed >= max ? '（最高速度）' : ''}`, description: g.short }} placement="top">
+      <span className={cx('speed', speed >= max && 'is-max')} aria-label={`速度${speed}/${max}`}>
+        {g.icon}
+        <span className="speed__bar" aria-hidden="true">
+          {Array.from({ length: max }, (_, i) => (
+            <i key={i} className={cx('speed__tick', i < speed && 'is-on')} />
+          ))}
+        </span>
+      </span>
+    </Popover>
+  );
+}
+
+/** パワーの札に添える短い表示：英雄譚「📖2/3」・蓄積「🔋1/3」（MTG 要素 ○ バッチC2） */
+export function powerMeter(pw: battle.PowerInst, def: CardDef | undefined): string | null {
+  if (pw.chapter !== undefined) return `${mechanicGlossary.saga!.icon}${pw.chapter}/${battle.lastChapter(def) || pw.chapter}`;
+  const charge = def?.abilities?.find((a) => a.id === 'charge');
+  if (charge) return `${mechanicGlossary.charge!.icon}${pw.charge ?? 0}/${charge.value ?? ''}`;
+  return null;
+}
+
+export function powerLines(pw: battle.PowerInst, def?: CardDef): ReactNode[] {
   const effects = pw.effects.filter((x) => !x.removed).map((x) => `${TIMINGS[x.effect.timing]?.label ?? ''}：${getEffect(x.effect.id)?.name ?? x.effect.id}`);
   const life = pw.life !== undefined ? [`${mechanicGlossary.lifespan!.icon} 寿命：残り${pw.life}（持ち主のターン終了時に1減り、0で消える）`] : [];
-  return [...effects, ...pw.drawbacks.map((d) => `☠ デメリット（${d.timing ? TIMINGS[d.timing].label : ''}）`), ...life];
+  // 英雄譚：いまの章と、次の章の効果。蓄積：たまった数
+  const extra: string[] = [];
+  if (pw.chapter !== undefined) {
+    const last = battle.lastChapter(def) || pw.chapter;
+    const next = pw.chapter < last ? (def?.effects ?? []).filter((e) => e.timing === `chapter${pw.chapter! + 1}`).map((e) => describeEffect(e, def, { noTiming: true })) : [];
+    extra.push(`${mechanicGlossary.saga!.icon} 英雄譚：第${pw.chapter}章／全${last}章${pw.chapter >= last ? '（この章で終わる）' : ''}`);
+    if (next.length > 0) extra.push(`次の自分のターン開始時に第${pw.chapter + 1}章：${next.join('')}`);
+  }
+  const charge = def?.abilities?.find((a) => a.id === 'charge');
+  if (charge) extra.push(`${mechanicGlossary.charge!.icon} 蓄積：${pw.charge ?? 0}/${charge.value ?? ''}`);
+  return [...extra, ...effects, ...pw.drawbacks.map((d) => `☠ デメリット（${d.timing ? TIMINGS[d.timing].label : ''}）`), ...life];
 }
 
 // ---------------------------------------------------------------- モンスター
@@ -534,6 +588,11 @@ export function MonsterTile({
         {def?.icon ?? '？'}
       </span>
       <span className="mt__name">{label}</span>
+      {def?.tribe && (
+        <span className="mt__tribe" title={`種族：${TRIBE_LABEL[def.tribe]}`}>
+          {TRIBE_LABEL[def.tribe]}
+        </span>
+      )}
       <span className="mt__stats" aria-hidden="true">
         <span className={cx('mt__stat', attackOf(m, attackNow) > m.attack ? 'is-buffed' : undefined)}>
           <small>⚔</small>
@@ -625,10 +684,13 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
     steps.length > 0 ? `元のコスト${def.cost}：${steps.map((x) => `${x.label}${x.delta > 0 ? '+' : '−'}${Math.abs(x.delta)}`).join('、')}` : '',
     info.kicker ? `キッカー：追加でエナジー${info.kicker.extra}（${info.kicker.payable ? '払える' : '今は払えない'}）` : '',
     ...handAbilityNotes(def),
+    // モード選択（MTG 要素 ○ バッチC2）：モードごとのコスト
+    info.modes ? `モード選択：${info.modes.map((m) => `${m.mode === 0 ? '全' : m.label} ⚡${m.cost}${m.blocked ? '（不可）' : ''}`).join('・')}（場に落とすと選ぶ）` : '',
   ].filter(Boolean);
   // サイクリング・魂力の印（捨て札の山へドラッグで使える）
   const kinds = battle.handAbilityKinds(def);
-  const abil = kinds.length > 0 ? { icon: kinds.map((k) => (k === 'cycling' ? '♻' : '🌀')).join(''), title: kinds.map((k) => battle.handAbilityOf(def, k)!.name).join('・') } : null;
+  const marks = [...kinds.map((k) => ({ icon: k === 'cycling' ? '♻' : '🌀', title: battle.handAbilityOf(def, k)!.name })), ...(info.modes ? [{ icon: mechanicGlossary.modes!.icon, title: 'モード選択' }] : [])];
+  const abil = marks.length > 0 ? { icon: marks.map((m) => m.icon).join(''), title: marks.map((m) => m.title).join('・') } : null;
   const costEl = (
     <span className={cx('hc__cost', discounted && 'is-down', taxed && 'is-up', short && 'is-short')}>
       {cost}

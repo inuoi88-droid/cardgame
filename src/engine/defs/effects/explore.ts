@@ -13,7 +13,7 @@ export default defineEffect({
   summary: '山札の一番上を公開する。モンスターなら手札に加え（引いた扱い）、違えば捨て札に置いて自分のモンスター1体の攻撃力と体力+N',
   value: valueParam('上昇量', { default: 1, max: B.maxValue }),
   targetRule: 'allyMonsterOne',
-  excludeTargets: ['allyMonsters', 'otherAllies'],
+  excludeTargets: ['allyMonsters', 'otherAllies', 'tribeAllies'],
   scalable: true,
   // 対象がいなくても、カードの移動だけは行う
   resolveWithoutTargets: true,

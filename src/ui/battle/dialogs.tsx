@@ -2,6 +2,7 @@
 import { useState, type ReactNode } from 'react';
 import { analyzeCard, BALANCE, battle, CARD_TYPE_LABEL, getDrawback, getEffect, type CardDef } from '../../engine/index.ts';
 import { Modal } from '../components/controls.tsx';
+import { Sheet } from '../components/Sheet.tsx';
 import { cx } from '../util.ts';
 import { CardDetailModal } from './CardDetail.tsx';
 import { summarizeResult } from './summary.ts';
@@ -350,5 +351,60 @@ export function KickerDialog({
         </button>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * モード選択のカード（MTG 要素 ○ バッチC2）：モードを選ぶシート。各モードの効果の文・コスト・使えない理由を出す。
+ * 選べるのはエンジンの PlayInfo.modes が使えるとしたものだけ（双呪は「すべて」）
+ */
+export function ModeDialog({
+  name,
+  modes,
+  energy,
+  onPick,
+  onCancel,
+}: {
+  name: string;
+  modes: battle.ModeInfo[];
+  energy: number;
+  onPick: (mode: number) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Sheet open title={`「${name}」：次のうち1つを選ぶ`} onClose={onCancel} desktop="modal">
+      <p className="mode-sheet__lead">使うモードを選んでください（残りのエナジー ⚡{energy}）。対象が要るモードは、このあと対象を選びます。</p>
+      <div className="mode-list" role="list">
+        {modes.map((m) => (
+          <button
+            key={m.mode}
+            type="button"
+            role="listitem"
+            className={cx('mode-opt', m.mode === 0 && 'mode-opt--all', m.blocked && 'is-blocked')}
+            disabled={!!m.blocked}
+            onClick={() => onPick(m.mode)}
+          >
+            <span className="mode-opt__label" aria-hidden="true">
+              {m.mode === 0 ? '全' : m.label}
+            </span>
+            <span className="mode-opt__body">
+              <span className="mode-opt__name">{m.mode === 0 ? 'すべてのモード（双呪）' : `モード${m.label}`}</span>
+              <span className="mode-opt__text">{m.text}</span>
+              {m.blocked ? (
+                <span className="mode-opt__why">{m.blocked}</span>
+              ) : (
+                m.warnings.length > 0 && <span className="mode-opt__warn">⚠ {m.warnings.join('／')}</span>
+              )}
+            </span>
+            <span className="mode-opt__cost">⚡{m.cost}</span>
+          </button>
+        ))}
+      </div>
+      <div className="btn-row modal__foot dlg__foot">
+        <button type="button" className="btn btn--ghost" onClick={onCancel}>
+          やめる
+        </button>
+      </div>
+    </Sheet>
   );
 }

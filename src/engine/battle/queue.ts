@@ -9,7 +9,8 @@ import { checkCondition } from './conditions.ts';
 import { destroyMonster, keywordFlags } from './damage.ts';
 import { cardName, checkGameEnd, enqueue, findMonster, log, monsterLabel, newUid, other, playRecord } from './core.ts';
 import { executeFreePlay, finishCard } from './play.ts';
-import { makeRuntime, resolveTargets } from './runtime.ts';
+import { makeRuntime, resolveTargets, tribeAllies } from './runtime.ts';
+import { endSaga } from './powers.ts';
 import { retainOptions, runAutoAttacks, turnEndEffects, turnEndFinish } from './turn.ts';
 import { bounce, createTokens, discardCard, discardChosen } from './zones.ts';
 import { classifyCard } from '../classify.ts';
@@ -50,6 +51,8 @@ function executeStep(g: GameState, step: Step): void {
       discardCard(g, step.card);
       log(g, step.depth, `反復を終えた「${cardName(g, step.card.cardId)}」は捨て札に置かれた`, 'info');
       return;
+    case 'sagaEnd':
+      return endSaga(g, step.player, step.powerUid, step.depth);
     case 'autoAttacks':
       return runAutoAttacks(g, step.player);
     case 'turnEndEffects':
@@ -98,6 +101,13 @@ function scaledEffect(g: GameState, step: Extract<Step, { t: 'effect' }>, def: E
       const count = g.players[me].discard.filter((c) => c.cardId !== NOISE_CARD_ID && g.cards[c.cardId]?.stats).length;
       factor = Math.min(count, dcap);
       why = `捨て札のモンスター${count}枚${count > dcap ? `（最大${dcap}）` : ''}`;
+      break;
+    }
+    case 'perTribeAlly': {
+      // 同じ種族の自分のモンスター（自分自身を含む。MTG 要素 ○ バッチC2）
+      const count = tribeAllies(g, me, step.src.cardId).length;
+      factor = Math.min(count, cap);
+      why = `同じ種族の自分のモンスター${count}体${count > cap ? `（最大${cap}）` : ''}`;
       break;
     }
     default:

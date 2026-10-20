@@ -361,7 +361,7 @@ describe('タイミング（○ バッチA）', () => {
     expect(analyzeCard(card({ rarity: 'legend', cost: 5, effects: [fx({ id: 'heal', value: 2, timing: 'bigCardPlayed', target: 'self' })] })).cardType).toBe('power');
     expect(analyzeCard(card({ rarity: 'rare', cost: 1, effects: [fx({ id: 'draw', value: 1, timing: 'drawn', target: 'self' })] })).cardType).toBe('skill');
     // 引いたとき：カード自身はまだ手札なので「このモンスター」「自分の他のモンスター全体」は選べない
-    expect(targetsForEffect(getEffect('train')!, 'drawn', 'monster')).toEqual(['random', 'allyMonsters', 'weakestAlly']);
+    expect(targetsForEffect(getEffect('train')!, 'drawn', 'monster')).toEqual(['random', 'allyMonsters', 'weakestAlly', 'tribeAllies']);
   });
 
   it('引いたとき：効果のポイントの合計はコスト0のときのレアリティ上限まで（DRAWN_OVER_CAP）', () => {

@@ -30,6 +30,8 @@ import {
   fromDiscardAbility,
   kickerCost,
   leavesPower,
+  modeName,
+  playableModes,
   playTiming,
   quashMatches,
   targetKey,
@@ -39,6 +41,9 @@ import {
   type PlayOpts,
 } from './play.ts';
 import { isCurseCard } from '../classify.ts';
+import { modeTexts } from '../text.ts';
+import { effectsForMode } from './modes.ts';
+import { tribeAllies } from './runtime.ts';
 import type { EffectInstance, TimingId } from '../types.ts';
 import { ARMY_CARD_ID, NOISE_CARD_ID, type Action, type CardInst, type Chosen, type GameState, type HandAbilityKind, type PlayerId, type TargetRef } from './types.ts';
 
@@ -72,6 +77,27 @@ export interface PlayInfo {
   kicker?: { extra: number; payable: boolean };
   /** 捨て札から使う能力の名前と、追加の支払い（再活：捨てる手札の候補／脱出：除外する枚数と候補・最初に選ぶ分） */
   fromDiscard?: { name: string; discardChoices?: string[]; exileCount?: number; exileChoices?: string[]; exileDefaults?: string[]; discardDefault?: string };
+  /**
+   * モード選択のカード（MTG 要素 ○ バッチC2）：モードごとの情報（双呪は mode 0）。このときの enemyTargets・allyTargets は
+   * 使えるモードの候補を合わせたもの、cost はいちばん安いモードのコスト。使うときは modes のどれかを選ぶ
+   */
+  modes?: ModeInfo[];
+}
+
+/** モード選択のカードの1つのモードの情報（MTG 要素 ○ バッチC2） */
+export interface ModeInfo {
+  /** 1〜3（0 は双呪：すべてのモード） */
+  mode: number;
+  /** 「A」「B」「すべて（双呪）」 */
+  label: string;
+  /** そのモードの効果の文 */
+  text: string;
+  cost: number;
+  blocked: string | null;
+  enemyTargets: TargetRef[];
+  allyTargets: string[];
+  warnings: string[];
+  targetCosts?: Record<string, number>;
 }
 
 /** 起動（MTG 要素 ○ バッチC1）の情報。PlayInfo と同じ形（UI のドラッグ・CPU が使う） */
@@ -120,7 +146,16 @@ export function isPowerCapWarning(w: string): boolean {
 }
 
 /** 今使っても発動しない効果の注意（使用時・召喚時の効果が対象。捨て札から使うなら timing は「捨て札から使ったとき」のことも） */
-export function playWarnings(g: GameState, p: PlayerId, def: CardDef, allyTargets: string[], timing: TimingId = def.stats ? 'summon' : 'play'): string[] {
+export function playWarnings(
+  g: GameState,
+  p: PlayerId,
+  def: CardDef,
+  allyTargets: string[],
+  timing: TimingId = def.stats ? 'summon' : 'play',
+  mode?: number,
+  /** GameState.cards のキー（種族の注意に使う。省略は def.id） */
+  cardId: string = def.id,
+): string[] {
   const out: string[] = [];
   const powers = g.players[p].powers;
   if (powers.length >= BALANCE.battle.maxPowers && leavesPower(def)) {
@@ -129,12 +164,19 @@ export function playWarnings(g: GameState, p: PlayerId, def: CardDef, allyTarget
   if (quashMatches(g, p, def)) out.push(WARN_QUASH);
   // 召喚するモンスターのカードは、出たモンスター自身も「自分のモンスター」に数える（魂力・起動では数えない）
   const summoning = def.stats !== null && (timing === 'summon' || timing === 'fromDiscard');
-  for (const w of effectWarnings(g, p, def.effects.filter((e) => e.timing === timing), allyTargets, summoning)) if (!out.includes(w)) out.push(w);
+  for (const w of effectWarnings(g, p, effectsForMode(def.effects, timing, mode), allyTargets, summoning, cardId)) if (!out.includes(w)) out.push(w);
   return out;
 }
 
 /** 効果の一覧の「今使っても発動しない」注意（使う・起動・魂力で共通）。summoning：出るモンスター自身を自分のモンスターに数える */
-export function effectWarnings(g: GameState, p: PlayerId, effects: readonly EffectInstance[], allyTargets: string[], summoning: boolean): string[] {
+export function effectWarnings(
+  g: GameState,
+  p: PlayerId,
+  effects: readonly EffectInstance[],
+  allyTargets: string[],
+  summoning: boolean,
+  cardId?: string,
+): string[] {
   const oppMonsters = g.players[other(p)].board.length;
   const myMonsters = g.players[p].board.length + (summoning ? 1 : 0);
   const out: string[] = [];
@@ -146,7 +188,7 @@ export function effectWarnings(g: GameState, p: PlayerId, effects: readonly Effe
     if (!ed) continue;
     // 濫用は使ってから選ぶので、生け贄にできるモンスターがいれば満たせる。キッカーは払うかどうかを使うときに選ぶ
     if (e.condition === 'kicked') continue;
-    const unmet = e.condition === 'exploit' ? myMonsters === 0 : e.condition !== null && !checkCondition(g, p, e.condition);
+    const unmet = e.condition === 'exploit' ? myMonsters === 0 : e.condition !== null && !checkCondition(g, p, e.condition, cardId ? { cardId } : {});
     if (e.condition && unmet) add(`条件を満たしていません：${CONDITIONS[e.condition].label}`);
     const rule = ed.targetRule;
     const monsterOnly = isMonsterOnlyRule(rule);
@@ -189,6 +231,10 @@ export function effectWarnings(g: GameState, p: PlayerId, effects: readonly Effe
       case 'otherAllies':
         // 召喚時：出たモンスター自身は含まない（起動：このモンスター自身は含まない）
         if (g.players[p].board.length - (summoning ? 0 : 1) <= 0) add(WARN_NO_TARGET);
+        break;
+      case 'tribeAllies':
+        // 同じ種族の自分のモンスター（MTG 要素 ○ バッチC2。召喚するモンスター自身も数える）
+        if (cardId && tribeAllies(g, p, cardId).length === 0 && !(summoning && g.cards[cardId]?.tribe)) add(WARN_NO_TARGET);
         break;
       default:
         break;
@@ -285,8 +331,11 @@ export function playInfo(g: GameState, p: PlayerId, card: CardInst, opts: { from
   // 護法：対象ごとのコスト。どの対象もエナジーが足りなければ使えない
   const targetCosts = wardCosts(enemyTargets, cost, (chosen) => effectiveCost(g, p, card, { chosen, from }));
   if (!blocked && noPayableTarget(enemyTargets, targetCosts, cost, energy)) blocked = 'エナジーが足りません（護法）';
-  const info: PlayInfo = { card, cost, blocked, enemyTargets, allyTargets, warnings: playWarnings(g, p, def, allyTargets, timing), tauntLimited };
+  const info: PlayInfo = { card, cost, blocked, enemyTargets, allyTargets, warnings: playWarnings(g, p, def, allyTargets, timing, undefined, card.cardId), tauntLimited };
   if (targetCosts) info.targetCosts = targetCosts;
+  // モード選択（MTG 要素 ○ バッチC2）：モードごとの情報。どのモードも使えなければ使えない
+  const modes = playableModes(def, timing);
+  if (modes.length > 0) applyModes(g, p, card, def, timing, from, modes, blocked, info);
   info.printedCost = def.cost;
   info.breakdown = breakdown;
   if (fromDiscard) info.from = 'discard';
@@ -297,6 +346,68 @@ export function playInfo(g: GameState, p: PlayerId, card: CardInst, opts: { from
     info.kicker = { extra: k, payable: costs.some((c) => c + k <= energy) };
   }
   return info;
+}
+
+/**
+ * モード選択のカードの PlayInfo を、モードごとの情報で作り直す（MTG 要素 ○ バッチC2）。
+ * common はモードに関係しない使えない理由（今は使えない・デメリット・捨て札の支払いなど）
+ */
+function applyModes(
+  g: GameState,
+  p: PlayerId,
+  card: CardInst,
+  def: CardDef,
+  timing: TimingId,
+  from: 'hand' | 'discard',
+  modes: number[],
+  common: string | null,
+  info: PlayInfo,
+): void {
+  const energy = g.players[p].energy;
+  const texts = new Map(modeTexts(def, timing).map((m) => [m.mode as number, m.text]));
+  const list: ModeInfo[] = modes.map((mode) => {
+    const rules = chosenRules(def, timing, mode);
+    const enemyTargets = enemyCandidates(g, p, rules.enemy);
+    const allyTargets = rules.ally ? allyCandidates(g, p, card, timing) : [];
+    const cost = effectiveCost(g, p, card, { from, mode });
+    const targetCosts = wardCosts(enemyTargets, cost, (chosen) => effectiveCost(g, p, card, { chosen, from, mode }));
+    // 「エナジーが足りません」以外の共通の理由はそのまま。エナジーはモードごとに見直す
+    let blocked = common && !common.startsWith('エナジーが足りません') ? common : null;
+    if (!blocked && cost > energy) blocked = 'エナジーが足りません';
+    if (!blocked && noPayableTarget(enemyTargets, targetCosts, cost, energy)) blocked = 'エナジーが足りません（護法）';
+    const m: ModeInfo = {
+      mode,
+      label: modeName(mode),
+      text: mode === 0 ? [...texts.values()].join(' ／ ') : (texts.get(mode) ?? ''),
+      cost,
+      blocked,
+      enemyTargets,
+      allyTargets,
+      warnings: playWarnings(g, p, def, allyTargets, timing, mode, card.cardId),
+    };
+    if (targetCosts) m.targetCosts = targetCosts;
+    return m;
+  });
+  const open = list.filter((m) => !m.blocked);
+  const usable = open.length > 0 ? open : list;
+  const sameRefKey = new Map<string, TargetRef>();
+  for (const m of usable) for (const t of m.enemyTargets) sameRefKey.set(targetKey(t), t);
+  info.enemyTargets = [...sameRefKey.values()];
+  info.allyTargets = [...new Set(usable.flatMap((m) => m.allyTargets))];
+  info.cost = Math.min(...usable.map((m) => m.cost));
+  info.blocked = open.length > 0 ? null : (list[0]?.blocked ?? common);
+  // 対象ごとの最安のコスト（ドラッグで光らせる対象。護法）
+  let targetCosts: Record<string, number> | undefined;
+  for (const t of info.enemyTargets) {
+    const k = targetKey(t);
+    const c = Math.min(...usable.filter((m) => m.enemyTargets.some((x) => targetKey(x) === k)).map((m) => m.targetCosts?.[k] ?? m.cost));
+    if (c !== info.cost) (targetCosts ??= {})[k] = c;
+  }
+  if (targetCosts) info.targetCosts = targetCosts;
+  else delete info.targetCosts;
+  // 注意はどのモードにも出るもの（パワーの上限・封殺）だけ
+  info.warnings = list.length > 0 ? list[0]!.warnings.filter((w) => list.every((m) => m.warnings.includes(w))) : info.warnings;
+  info.modes = list;
 }
 
 /** 捨て札から使えるカード（捨て札から使う能力を持つもの）の情報。使えないものも理由つきで返す */
@@ -410,15 +521,20 @@ function chosenCombos(enemyTargets: TargetRef[], allyTargets: string[]): Chosen[
   return out;
 }
 
-/** カードを使う行動をすべて（キッカーを払える組は払う／払わないの両方） */
+/** カードを使う行動をすべて（キッカーを払える組は払う／払わないの両方。モード選択のカードはモードごと：MTG 要素 ○ バッチC2） */
 function playActions(g: GameState, p: PlayerId, info: PlayInfo, extra: PlayOpts): Action[] {
   const out: Action[] = [];
   const kicks = info.kicker?.payable ? [false, true] : [false];
-  for (const chosen of chosenCombos(info.enemyTargets, info.allyTargets)) {
-    for (const kick of kicks) {
-      const opts: PlayOpts = { ...extra, ...(kick ? { kick: true } : {}) };
-      if (validatePlay(g, p, info.card.uid, chosen, opts) !== null) continue;
-      out.push({ type: 'playCard', player: p, cardUid: info.card.uid, chosen, ...opts });
+  const variants: { mode?: number; enemy: TargetRef[]; ally: string[] }[] = info.modes
+    ? info.modes.filter((m) => !m.blocked).map((m) => ({ mode: m.mode, enemy: m.enemyTargets, ally: m.allyTargets }))
+    : [{ enemy: info.enemyTargets, ally: info.allyTargets }];
+  for (const v of variants) {
+    for (const chosen of chosenCombos(v.enemy, v.ally)) {
+      for (const kick of kicks) {
+        const opts: PlayOpts = { ...extra, ...(kick ? { kick: true } : {}), ...(v.mode !== undefined ? { mode: v.mode } : {}) };
+        if (validatePlay(g, p, info.card.uid, chosen, opts) !== null) continue;
+        out.push({ type: 'playCard', player: p, cardUid: info.card.uid, chosen, ...opts });
+      }
     }
   }
   return out;

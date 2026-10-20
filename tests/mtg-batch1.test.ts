@@ -359,12 +359,12 @@ describe('タイミング（バッチ1）', () => {
 describe('対象（バッチ1）', () => {
   it('allowedTargets の表（自分のモンスター1体に作用する効果）', () => {
     // ○ バッチAで「自分の他のモンスター全体」（モンスターのカードだけ）と「いちばん体力の低い自分のモンスター」が増えた
-    expect(allowedTargets('allyMonsterOne', 'summon', 'monster')).toEqual(['chosen', 'random', 'thisMonster', 'allyMonsters', 'otherAllies', 'weakestAlly']);
-    expect(allowedTargets('allyMonsterOne', 'destroyed', 'monster')).toEqual(['random', 'allyMonsters', 'otherAllies', 'weakestAlly']);
-    expect(allowedTargets('allyMonsterOne', 'play', 'spell')).toEqual(['chosen', 'random', 'allyMonsters', 'weakestAlly']);
-    expect(allowedTargets('allyMonsterOne', 'turnEnd', 'spell')).toEqual(['random', 'allyMonsters', 'weakestAlly']);
-    expect(allowedTargets('allyMonsterOne', 'turnEnd', 'monster')).toEqual(['random', 'thisMonster', 'allyMonsters', 'otherAllies', 'weakestAlly']);
-    expect(allowedTargets('allyMonsterOne', 'allySummoned', 'spell')).toEqual(['chosen', 'random', 'allyMonsters', 'weakestAlly']);
+    expect(allowedTargets('allyMonsterOne', 'summon', 'monster')).toEqual(['chosen', 'random', 'thisMonster', 'allyMonsters', 'otherAllies', 'weakestAlly', 'tribeAllies']);
+    expect(allowedTargets('allyMonsterOne', 'destroyed', 'monster')).toEqual(['random', 'allyMonsters', 'otherAllies', 'weakestAlly', 'tribeAllies']);
+    expect(allowedTargets('allyMonsterOne', 'play', 'spell')).toEqual(['chosen', 'random', 'allyMonsters', 'weakestAlly', 'tribeAllies']);
+    expect(allowedTargets('allyMonsterOne', 'turnEnd', 'spell')).toEqual(['random', 'allyMonsters', 'weakestAlly', 'tribeAllies']);
+    expect(allowedTargets('allyMonsterOne', 'turnEnd', 'monster')).toEqual(['random', 'thisMonster', 'allyMonsters', 'otherAllies', 'weakestAlly', 'tribeAllies']);
+    expect(allowedTargets('allyMonsterOne', 'allySummoned', 'spell')).toEqual(['chosen', 'random', 'allyMonsters', 'weakestAlly', 'tribeAllies']);
     // 土台を渡さないとき：モンスター専用のタイミングならモンスター
     expect(allowedTargets('allyMonsterOne', 'attack')).toContain('thisMonster');
     expect(allowedTargets('allyMonsterOne', 'turnEnd')).not.toContain('thisMonster');
@@ -425,8 +425,8 @@ describe('修飾（数値の倍数。バッチ1）', () => {
     expect(v(fx({ id: 'heal', value: 1, target: 'self', timing: 'turnStart', mods: ['perEnemyMonster'] }))).toEqual([]);
     // エディター用：付けられるものだけ
     // ○ バッチAで「捨て札のモンスター1枚につき」と遅延「次のターンに」（使用時・召喚時、ほとんどの効果）が増えた
-    expect(modifiersFor(getEffect('damage')!, 'play').map((m) => m.id)).toEqual(['pierce', 'drain', 'xEnergy', 'perEnemyMonster', 'perCardPlayed', 'perDiscardMonster', 'nextTurn']);
-    expect(modifiersFor(getEffect('heal')!, 'turnStart').map((m) => m.id)).toEqual(['perEnemyMonster', 'perDiscardMonster']);
+    expect(modifiersFor(getEffect('damage')!, 'play').map((m) => m.id)).toEqual(['pierce', 'drain', 'xEnergy', 'perEnemyMonster', 'perCardPlayed', 'perDiscardMonster', 'perTribeAlly', 'nextTurn']);
+    expect(modifiersFor(getEffect('heal')!, 'turnStart').map((m) => m.id)).toEqual(['perEnemyMonster', 'perDiscardMonster', 'perTribeAlly']);
     expect(modifiersFor(getEffect('execute')!, 'play').map((m) => m.id)).toEqual(['nextTurn']);
     // fitEffect は付けられないものを外し、数値の倍数を1つにする
     expect(fitEffect(fx({ id: 'damage', value: 1, mods: ['xEnergy', 'perEnemyMonster'] }), 'spell').mods).toEqual(['perEnemyMonster']);

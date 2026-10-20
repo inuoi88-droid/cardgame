@@ -156,3 +156,9 @@
     border-top: 1px solid var(--line);
   }
 }
+
+/* モード選択の「A：…」の行（MTG 要素 ○ バッチC2） */
+.card__text .card__mode {
+  padding-left: 0.8em;
+  border-left: 2px solid var(--accent);
+}

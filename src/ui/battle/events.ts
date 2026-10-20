@@ -147,6 +147,28 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
         else push(e.text, ev.player, { t: 'notice', text: label, tone: ev.player === me ? 'mine' : 'enemy' }, DURATION.notice);
         break;
       }
+      // MTG 要素 ○ バッチC2：速度・王冠（プレイヤーの枠に浮かぶ文字）、英雄譚の章・蓄積がたまった（見出し）
+      case 'speed':
+        if (ev.player === undefined) break;
+        push(e.text, ev.player, { t: 'float', key: `p${ev.player}`, text: `🏁速度${ev.amount ?? ''}`, tone: 'good', flash: 'status' }, DURATION.float);
+        break;
+      case 'crown':
+        if (ev.player === undefined) break;
+        push(e.text, ev.player, { t: 'float', key: `p${ev.player}`, text: '👑王冠', tone: 'good', flash: 'status' }, DURATION.float);
+        push(e.text, ev.player, { t: 'notice', text: `👑 王冠は${ev.player === me ? 'あなた' : '相手'}に`, tone: ev.player === me ? 'mine' : 'enemy' }, DURATION.notice);
+        break;
+      case 'saga': {
+        if (ev.player === undefined) break;
+        const name = ev.cardId ? (view.cards[ev.cardId]?.name ?? '') : '';
+        push(e.text, ev.player, { t: 'notice', text: `📖 ${name ? `『${name}』` : '英雄譚'} 第${ev.amount ?? ''}章`, tone: ev.player === me ? 'mine' : 'enemy' }, DURATION.notice);
+        break;
+      }
+      case 'charge':
+        if (ev.player === undefined) break;
+        // たまりきったとき（効果が出る）だけ見出し。1つたまるのはティッカーだけ
+        if (e.kind === 'effect') push(e.text, ev.player, { t: 'notice', text: '🔋 蓄積がたまった', tone: ev.player === me ? 'mine' : 'enemy' }, DURATION.notice);
+        else push(e.text, ev.player, { t: 'tick' }, DURATION.tick);
+        break;
       case 'damage':
       case 'retaliate': {
         if (!ev.target) break;

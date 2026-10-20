@@ -7,10 +7,10 @@ import { CARD_TYPE_LABEL } from './labels.ts';
 import { cardBase, classifyCard, rarityRank } from './classify.ts';
 import { drawbackValueSpec, type AbilityDef, type DrawbackDef, type EffectDef, type ModifierDef } from './define.ts';
 import { modifierFits } from './points.ts';
-import { allowedTargets, conditionsFor, costConditions, defaultTiming, targetsForEffect, TIMINGS, timingsFor } from './options.ts';
+import { allowedTargets, CONDITIONS, conditionsFor, costConditions, defaultTiming, MODE_TIMINGS, targetsForEffect, TIMINGS, timingsFor, TRIBE_TARGETS } from './options.ts';
 import { getAbility, getDrawback, getEffect, getModifier, listAbilities, listDrawbacks, listEffects, listModifiers } from './registry.ts';
 import { stampScale } from './scaling.ts';
-import type { AbilityInstance, CardBase, CardDef, DrawbackInstance, EffectInstance, Rarity, Stats, TimingId } from './types.ts';
+import type { AbilityInstance, CardBase, CardDef, DrawbackInstance, EffectInstance, Rarity, Stats, TimingId, TribeId } from './types.ts';
 
 export const DEFAULT_STATS: Stats = { attack: 1 * BALANCE.amountScale, hp: 1 * BALANCE.amountScale, defense: 0 };
 
@@ -144,6 +144,8 @@ export function fitEffect(e: EffectInstance, base: CardBase, abilities?: Abiliti
   const target = targets.includes(e.target) ? e.target : targets[0]!;
   const condition = e.condition !== null && conditionsFor(timing, base, abilities).includes(e.condition) ? e.condition : null;
   const next: EffectInstance = { ...e, timing, target, condition };
+  // モード（MTG 要素 ○ バッチC2）は使用時・召喚時・捨て札から使ったときだけ
+  if (next.mode !== undefined && !MODE_TIMINGS.includes(timing)) delete next.mode;
   // 付けられないオプションを外す。数値の倍数は1つまで（後から付けたものを残す）
   const allowed = new Set(modifiersFor(def, timing).map((m) => m.id));
   let mods = [...new Set(e.mods ?? [])].filter((m) => allowed.has(m));
@@ -184,6 +186,43 @@ export function setAbilities(card: CardDef, abilities: AbilityInstance[]): CardD
   const next: CardDef = { ...card, effects: card.effects.map((e) => fitEffect(e, base, abilities)) };
   if (abilities.length > 0) next.abilities = abilities;
   else delete next.abilities;
+  return next;
+}
+
+/**
+ * 種族を変える（MTG 要素 ○ バッチC2）。種族を外すと、種族のあるカードだけの対象・条件・修飾・「同じ種族」の指定を外す
+ * （対象はそのタイミングの最初の対象、指定は効果の初期値に戻す）
+ */
+export function setTribe(card: CardDef, tribe: TribeId | null): CardDef {
+  const next: CardDef = { ...card };
+  if (tribe) {
+    next.tribe = tribe;
+    return next;
+  }
+  delete next.tribe;
+  const base = cardBase(card);
+  next.effects = card.effects.map((e) => {
+    const def = getEffect(e.id);
+    if (!def) return e;
+    const out: EffectInstance = { ...e };
+    if (TRIBE_TARGETS.includes(out.target)) out.target = targetsForEffect(def, out.timing, base).find((t) => !TRIBE_TARGETS.includes(t)) ?? out.target;
+    if (out.condition && CONDITIONS[out.condition]?.requiresTribe) out.condition = null;
+    if (out.mods?.includes('perTribeAlly')) {
+      const mods = out.mods.filter((m) => m !== 'perTribeAlly');
+      if (mods.length > 0) out.mods = mods;
+      else delete out.mods;
+    }
+    if (out.option === 'tribe') out.option = def.option?.default;
+    return out;
+  });
+  return next;
+}
+
+/** 効果のモードを変える（MTG 要素 ○ バッチC2。null は「いつも」） */
+export function setEffectMode(e: EffectInstance, mode: EffectInstance['mode'] | null): EffectInstance {
+  const next: EffectInstance = { ...e };
+  if (mode === null || mode === undefined || !MODE_TIMINGS.includes(e.timing)) delete next.mode;
+  else next.mode = mode;
   return next;
 }
 

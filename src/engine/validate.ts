@@ -5,17 +5,41 @@ import { drawbackValueSpec, type ParamSpec } from './define.ts';
 import { CARD_TYPE_LABEL, RARITY_LABEL } from './labels.ts';
 import { isIntInRange } from './math.ts';
 import { effectPoints, modifierFits, rarityCap } from './points.ts';
-import { CONDITIONS, TIMINGS, conditionsFor, costConditions, hasAnyAbility, targetLabel, targetsForEffect } from './options.ts';
+import {
+  CHAPTER_TIMINGS,
+  CONDITIONS,
+  MODE_TIMINGS,
+  TIMINGS,
+  TRIBE_TARGETS,
+  chapterOf,
+  conditionsFor,
+  costConditions,
+  hasAnyAbility,
+  isPowerTiming,
+  targetLabel,
+  targetsForEffect,
+} from './options.ts';
 import { getAbility, getDrawback, getEffect, getKeyword, getModifier } from './registry.ts';
 import { growHits } from './defs/abilities/grow.ts';
-import { RARITIES, type CardDef, type PointSummary, type TimingId, type Violation } from './types.ts';
+import { MODE_IDS, MODE_LABEL, RARITIES, TRIBE_IDS, type CardDef, type ModeId, type PointSummary, type TimingId, type Violation } from './types.ts';
 
 /** 能力が要るタイミング（MTG 要素 ○ バッチC1）の違反コード：能力が無いのにそのタイミングの効果がある／能力があるのに効果が無い */
 const ABILITY_TIMING_CODE: Partial<Record<TimingId, string>> = {
   fromDiscard: 'FROM_DISCARD_WITHOUT_ABILITY',
   activated: 'ACTIVATE_MISMATCH',
   channel: 'CHANNEL_MISMATCH',
+  charged: 'CHARGE_MISMATCH',
 };
+
+/** 種族のあるカードでしか使えない要素（MTG 要素 ○ バッチC2）を、この効果が使っているか。使っていればその名前 */
+function tribeUse(e: CardDef['effects'][number]): string | null {
+  if (TRIBE_TARGETS.includes(e.target)) return `対象「${targetLabel(e.target, 'allyMonsterOne', e.timing)}」`;
+  if (e.condition && CONDITIONS[e.condition]?.requiresTribe) return `条件「${CONDITIONS[e.condition].label}」`;
+  const mod = (e.mods ?? []).map((m) => getModifier(m)).find((m) => m?.id === 'perTribeAlly');
+  if (mod) return `「${mod.name}」`;
+  if (e.option === 'tribe') return '「同じ種族」の指定';
+  return null;
+}
 
 function checkParam(
   out: Violation[],
@@ -48,6 +72,10 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
   if (!rarityOk) out.push({ code: 'RARITY_INVALID', path: 'rarity', message: 'レアリティが正しくありません' });
   if (!isIntInRange(card.cost, C.costMin, C.costMax)) {
     out.push({ code: 'COST_RANGE', path: 'cost', message: `コストは${C.costMin}〜${C.costMax}の整数にしてください` });
+  }
+  // 種族（MTG 要素 ○ バッチC2）
+  if (card.tribe !== undefined && !(TRIBE_IDS as readonly string[]).includes(card.tribe)) {
+    out.push({ code: 'TRIBE_INVALID', path: 'tribe', message: '種族が正しくありません' });
   }
 
   // ステータス
@@ -155,6 +183,20 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
         });
       }
     }
+    // 種族のあるカードだけの対象・条件・修飾・指定（MTG 要素 ○ バッチC2）
+    const tribal = tribeUse(e);
+    if (tribal && !card.tribe) {
+      out.push({ code: 'TRIBE_REQUIRED', path, message: `${tribal}は、種族のあるカードにしか付けられません（基本情報で種族を選んでください）` });
+    }
+    // モード（MTG 要素 ○ バッチC2）：番号と、付けられるタイミング
+    if (e.mode !== undefined) {
+      if (!(MODE_IDS as readonly number[]).includes(e.mode)) {
+        out.push({ code: 'MODE_INVALID', path: `${path}.mode`, message: `${what}のモードが正しくありません` });
+      } else if (!MODE_TIMINGS.includes(e.timing)) {
+        const ok = MODE_TIMINGS.map((t) => `「${TIMINGS[t].label}」`).join('・');
+        out.push({ code: 'MODE_TIMING', path: `${path}.mode`, message: `モードは${ok}の効果にしか付けられません` });
+      }
+    }
     const mods = e.mods ?? [];
     if (mods.length > 0) {
       const modDefs = mods.map((m) => getModifier(m));
@@ -189,6 +231,44 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
       }
     }
   });
+
+  // モード選択（MTG 要素 ○ バッチC2）：タイミングごとに、モードは A から順に2〜3種、各モードに効果が1つ以上
+  const modeSets = new Map<TimingId, Set<ModeId>>();
+  for (const e of card.effects) {
+    if (e.mode === undefined || !MODE_TIMINGS.includes(e.timing) || !(MODE_IDS as readonly number[]).includes(e.mode)) continue;
+    const set = modeSets.get(e.timing) ?? new Set<ModeId>();
+    set.add(e.mode);
+    modeSets.set(e.timing, set);
+  }
+  for (const [timing, set] of modeSets) {
+    const max = Math.max(...set);
+    const missing = MODE_IDS.filter((m) => m <= max && !set.has(m));
+    if (set.size < 2 || missing.length > 0) {
+      const need = set.size < 2 ? `モードは2つ以上必要です（いま${[...set].map((m) => MODE_LABEL[m]).join('・')}だけ）` : `モード${missing.map((m) => MODE_LABEL[m]).join('・')}の効果がありません`;
+      out.push({ code: 'MODE_INCOMPLETE', path: 'effects', message: `「${TIMINGS[timing].label}」の${need}（モードは A から順に付けます）` });
+    }
+  }
+
+  // 英雄譚（MTG 要素 ○ バッチC2）：章は第1章から飛ばさずに。他のパワー用のタイミング・デメリット・寿命・蓄積とは混ぜない
+  const chapters = new Set(card.effects.map((e) => chapterOf(e.timing)).filter((c) => c > 0));
+  if (chapters.size > 0) {
+    const last = Math.max(...chapters);
+    const gaps = CHAPTER_TIMINGS.slice(0, last).filter((_, i) => !chapters.has(i + 1));
+    if (gaps.length > 0) {
+      out.push({ code: 'SAGA_CHAPTER_GAP', path: 'effects', message: `英雄譚の章は第1章から順に付けてください（${gaps.map((t) => TIMINGS[t].label).join('・')}がありません）` });
+    }
+    const otherPower =
+      card.effects.some((e) => chapterOf(e.timing) === 0 && isPowerTiming(e.timing, base)) ||
+      card.drawbacks.some((d) => isPowerTiming(d.timing, base) || getDrawback(d.id)?.battle.lifespan !== undefined) ||
+      (card.abilities ?? []).some((a) => getAbility(a.id)?.battle.charge !== undefined);
+    if (otherPower) {
+      out.push({
+        code: 'SAGA_MIXED',
+        path: 'effects',
+        message: '英雄譚（章の効果があるカード）には、ほかのパワー用のタイミング（ターン開始時など）の効果・デメリット、寿命、蓄積は付けられません',
+      });
+    }
+  }
 
   // 1枚のカードのダメージの合計（値×回数）。どのタイミング・対象でも数える（決定事項 #64）
   const damageMax = BALANCE.params.damagePerCardMax;
@@ -324,6 +404,10 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
         path,
         message: `${what}は、「${TIMINGS[def.requiresTiming].label}」の効果があるカードにしか付けられません`,
       });
+    }
+    // 双呪（MTG 要素 ○ バッチC2）はモード選択のカードだけ
+    if (def.battle.entwineCost && modeSets.size === 0) {
+      out.push({ code: 'ENTWINE_WITHOUT_MODES', path, message: `${what}は、モード選択（次のうち1つを選ぶ）のカードにしか付けられません` });
     }
     // キッカーは「キッカーを払っていれば」の効果が要る
     if (def.battle.kickerCost && !card.effects.some((e) => e.condition === 'kicked')) {

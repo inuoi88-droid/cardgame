@@ -20,6 +20,7 @@ import {
   isEnded,
 } from './core.ts';
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
+import { chargePowers } from './powers.ts';
 import { drawCards } from './zones.ts';
 import type { DamageKind, GameState, Monster, PlayerId, StatusKey, TargetRef } from './types.ts';
 
@@ -276,6 +277,9 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
       turn.enemyDamaged = true;
       // 合計（条件「このターン相手に合計6以上のダメージを与えた」。MTG 要素 ○ バッチA）
       turn.enemyDamageTotal = (turn.enemyDamageTotal ?? 0) + result.hpLost;
+      // 速度ゲージ（MTG 要素 ○ バッチC2）：自分のターンに相手のHPを減らすと1ターン1回+1。蓄積「相手のHPを減らすたび」
+      speedUp(g, g.active, opts.depth + 1);
+      chargePowers(g, g.active, 'enemyDamaged', opts.depth + 1);
     }
     if (checkGameEnd(g)) return result;
     lifelink(g, combatSrc, result.hpLost, opts.depth + 1);
@@ -343,6 +347,24 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
 }
 
 /** モンスターを破壊する（不屈は効かない）。カードは元の持ち主の捨て札へ（残らないコピーは除外） */
+/** 速度ゲージ（MTG 要素 ○ バッチC2）：ゲージがあって最大でなく、このターンまだ上がっていなければ+1 */
+export function speedUp(g: GameState, p: PlayerId, depth: number): void {
+  const ps = g.players[p];
+  const speed = ps.speed ?? 0;
+  if (speed < 1 || speed >= BALANCE.speed.max || ps.turn.speedUp) return;
+  ps.turn.speedUp = true;
+  ps.speed = speed + 1;
+  log(g, depth, `${ps.name}の速度${ps.speed}${ps.speed >= BALANCE.speed.max ? '（最高速度）' : ''}`, 'info', undefined, { kind: 'speed', player: p, amount: ps.speed });
+}
+
+/** 王冠（MTG 要素 ○ バッチC2）を p に移す（もう持っていれば何もしない）。how はログの言い方 */
+export function setCrown(g: GameState, p: PlayerId, depth: number, how: 'take' | 'steal'): void {
+  if (g.crown === p) return;
+  g.crown = p;
+  const name = g.players[p].name;
+  log(g, depth, how === 'take' ? `👑${name}は王冠を得た` : `👑王冠が${name}に移った`, 'effect', undefined, { kind: 'crown', player: p });
+}
+
 export function destroyMonster(g: GameState, m: Monster, depth: number): void {
   const board = g.players[m.controller].board;
   const i = board.findIndex((x) => x.uid === m.uid);
@@ -372,6 +394,7 @@ export function destroyMonster(g: GameState, m: Monster, depth: number): void {
   }
   // 自分の他のモンスターが破壊されるたび：破壊されたときの持ち主のパワー → 場に残っているモンスター（左から）
   enqueuePowers(g, m.controller, 'allyDestroyed', depth + 1);
+  chargePowers(g, m.controller, 'allyDestroyed', depth + 1);
   enqueueMonsters(g, m.controller, 'allyDestroyed', depth + 1);
 }
 

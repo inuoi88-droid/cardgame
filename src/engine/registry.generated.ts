@@ -15,6 +15,7 @@ import effects_cloneToken from './defs/effects/cloneToken.ts';
 import effects_confuse from './defs/effects/confuse.ts';
 import effects_conjure from './defs/effects/conjure.ts';
 import effects_counter from './defs/effects/counter.ts';
+import effects_crown from './defs/effects/crown.ts';
 import effects_damage from './defs/effects/damage.ts';
 import effects_defenseUp from './defs/effects/defenseUp.ts';
 import effects_discount from './defs/effects/discount.ts';
@@ -65,6 +66,7 @@ import effects_search from './defs/effects/search.ts';
 import effects_seek from './defs/effects/seek.ts';
 import effects_shield from './defs/effects/shield.ts';
 import effects_slay from './defs/effects/slay.ts';
+import effects_startEngine from './defs/effects/startEngine.ts';
 import effects_steal from './defs/effects/steal.ts';
 import effects_strength from './defs/effects/strength.ts';
 import effects_token from './defs/effects/token.ts';
@@ -79,6 +81,7 @@ import modifiers_nextTurn from './defs/modifiers/nextTurn.ts';
 import modifiers_perCardPlayed from './defs/modifiers/perCardPlayed.ts';
 import modifiers_perDiscardMonster from './defs/modifiers/perDiscardMonster.ts';
 import modifiers_perEnemyMonster from './defs/modifiers/perEnemyMonster.ts';
+import modifiers_perTribeAlly from './defs/modifiers/perTribeAlly.ts';
 import modifiers_pierce from './defs/modifiers/pierce.ts';
 import modifiers_xEnergy from './defs/modifiers/xEnergy.ts';
 import keywords_bushido from './defs/keywords/bushido.ts';
@@ -124,8 +127,10 @@ import abilities_activate from './defs/abilities/activate.ts';
 import abilities_affinity from './defs/abilities/affinity.ts';
 import abilities_buyback from './defs/abilities/buyback.ts';
 import abilities_channel from './defs/abilities/channel.ts';
+import abilities_charge from './defs/abilities/charge.ts';
 import abilities_costCut from './defs/abilities/costCut.ts';
 import abilities_cycling from './defs/abilities/cycling.ts';
+import abilities_entwine from './defs/abilities/entwine.ts';
 import abilities_escape from './defs/abilities/escape.ts';
 import abilities_flashback from './defs/abilities/flashback.ts';
 import abilities_grow from './defs/abilities/grow.ts';
@@ -150,6 +155,7 @@ export const EFFECT_DEFS: readonly EffectDef[] = [
   effects_confuse,
   effects_conjure,
   effects_counter,
+  effects_crown,
   effects_damage,
   effects_defenseUp,
   effects_discount,
@@ -200,6 +206,7 @@ export const EFFECT_DEFS: readonly EffectDef[] = [
   effects_seek,
   effects_shield,
   effects_slay,
+  effects_startEngine,
   effects_steal,
   effects_strength,
   effects_token,
@@ -216,6 +223,7 @@ export const MODIFIER_DEFS: readonly ModifierDef[] = [
   modifiers_perCardPlayed,
   modifiers_perDiscardMonster,
   modifiers_perEnemyMonster,
+  modifiers_perTribeAlly,
   modifiers_pierce,
   modifiers_xEnergy,
 ];
@@ -267,8 +275,10 @@ export const ABILITY_DEFS: readonly AbilityDef[] = [
   abilities_affinity,
   abilities_buyback,
   abilities_channel,
+  abilities_charge,
   abilities_costCut,
   abilities_cycling,
+  abilities_entwine,
   abilities_escape,
   abilities_flashback,
   abilities_grow,

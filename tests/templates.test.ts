@@ -4,8 +4,8 @@ import { analyzeCard } from '../src/engine/index.ts';
 import { TEMPLATES } from '../src/ui/editor/templates.ts';
 
 describe('テンプレート', () => {
-  it('6種類ある', () => {
-    expect(TEMPLATES.length).toBe(6);
+  it('8種類ある（○ バッチC2 で製造・暴動）', () => {
+    expect(TEMPLATES.length).toBe(8);
   });
   for (const t of TEMPLATES) {
     it(`${t.title}（${t.id}）は作成できる`, () => {

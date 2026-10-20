@@ -144,6 +144,13 @@ export interface PowerInst {
   life?: number;
   /** 起動（MTG 要素 ○ バッチC1）した通算ターン（1ターン1回。モンスターは counters.activatedTurn） */
   activatedTurn?: number;
+  // ---- MTG 要素 ○ バッチC2（公開情報）
+  /** 英雄譚：いま出た章（1〜3）。英雄譚でなければ無し */
+  chapter?: number;
+  /** 蓄積カウンターの数（蓄積の能力のあるパワー。無ければ0） */
+  charge?: number;
+  /** 蓄積がたまった回数（通算ターンごと。1ターン battle.maxRepeatTriggersPerTurn 回まで） */
+  chargeTicks?: { turnIndex: number; count: number };
 }
 
 /** 1ターンの上限を数える（安全装置：決定事項 #64）。turnIndex が変わったら数え直す */
@@ -188,6 +195,8 @@ export interface PlayerState {
     enemyDamageTotal?: number;
     /** 自分のHPが1以上回復した（条件「このターン自分が回復した」） */
     healed?: boolean;
+    /** 速度がこのターンもう上がった（MTG 要素 ○ バッチC2。1ターン1回） */
+    speedUp?: boolean;
   };
   /** 最後に終えた自分のターンの記録（ターン終了時に写す。条件「前の相手のターンに相手がカードを3枚以上使った」）。無ければ記録なし */
   lastTurn?: { cardsPlayed: number };
@@ -197,6 +206,8 @@ export interface PlayerState {
   quash?: { kind: string; until: number };
   /** 最大エナジー増加（MTG 要素 ○ バッチB）：ターン開始時のエナジーに足す */
   energyBonus?: number;
+  /** 速度ゲージ（MTG 要素 ○ バッチC2）。無ければ0＝ゲージ無し。公開情報 */
+  speed?: number;
   /** 次に使うカードのコスト軽減（使うまで残る） */
   discount: number;
   /** 自分のターンを迎えた回数 */
@@ -266,11 +277,24 @@ export type Step =
    * 無料で使う（続唱。MTG 要素 ○ バッチB）。「選んだ1体」が要れば、相手側 → 自分側の順に選ぶ（stage）。
    * freeDepth は無料で使う連鎖の段（battle.maxFreePlayDepth まで）
    */
-  | { t: 'freePlay'; player: PlayerId; card: CardInst; depth: number; freeDepth: number; chosen?: Chosen; stage?: 'enemy' | 'ally'; picks?: string[] }
+  | {
+      t: 'freePlay';
+      player: PlayerId;
+      card: CardInst;
+      depth: number;
+      freeDepth: number;
+      chosen?: Chosen;
+      /** モード選択のカード（MTG 要素 ○ バッチC2）は、対象より先にモードを選ぶ（stage 'mode'） */
+      stage?: 'mode' | 'enemy' | 'ally';
+      mode?: number;
+      picks?: string[];
+    }
   /** 一撃離脱：攻撃したモンスターを持ち主の手札に戻す */
   | { t: 'returnToHand'; uid: string; depth: number }
   /** 反復の2回目が終わったカードを捨て札に置く */
   | { t: 'reboundDone'; card: CardInst; depth: number }
+  /** 英雄譚（MTG 要素 ○ バッチC2）：最後の章を解決し終えたら、パワーを消す（誘発なし） */
+  | { t: 'sagaEnd'; player: PlayerId; powerUid: string; depth: number }
   | { t: 'autoAttacks'; player: PlayerId }
   | { t: 'turnEndEffects'; player: PlayerId }
   | { t: 'retain'; player: PlayerId; picks?: string[] }
@@ -323,7 +347,12 @@ export interface LogEvent {
     | 'result'
     // MTG 要素 ○ バッチC1：起動（uid は起動したモンスター・パワー）、手札から使う能力（status は cycling / channel）
     | 'activate'
-    | 'handAbility';
+    | 'handAbility'
+    // MTG 要素 ○ バッチC2：速度・王冠・英雄譚の章・蓄積（status は speed / crown / chapter / charge / sagaEnd、amount は値）
+    | 'speed'
+    | 'crown'
+    | 'saga'
+    | 'charge';
   player?: PlayerId;
   target?: TargetRef;
   source?: TargetRef;
@@ -336,6 +365,8 @@ export interface LogEvent {
   damageKind?: DamageKind;
   /** play のとき、捨て札から使った（MTG 要素 ○ バッチC1） */
   from?: 'discard';
+  /** play のとき、選んだモード（MTG 要素 ○ バッチC2。0 は双呪） */
+  mode?: number;
 }
 
 export interface LogEntry {
@@ -372,6 +403,8 @@ export interface PlayRecord {
   freeDepth?: number;
   /** キッカーを払った（条件「キッカーを払っていれば」。MTG 要素 ○ バッチC1） */
   kicked?: boolean;
+  /** 選んだモード（MTG 要素 ○ バッチC2。0 は双呪ですべて）。反復でも同じモード */
+  mode?: number;
 }
 
 export interface GameResult {
@@ -395,6 +428,8 @@ export interface GameState {
   queue: Step[];
   /** キューに割り込ませる位置（処理中だけ使う） */
   qInsert: number;
+  /** 王冠（MTG 要素 ○ バッチC2）を持っているプレイヤー。無ければ誰も持っていない。公開情報 */
+  crown?: PlayerId | null;
   /** 1つの効果を処理している間は決着を保留する（同時にHP0なら引き分けにするため） */
   holdEnd: number;
   pending: PendingChoice | null;
@@ -416,7 +451,18 @@ export type Action =
    * カードを使う。MTG 要素 ○ バッチC1：from 'discard' なら捨て札から（フラッシュバック・再活・脱出）。discardUid は再活で捨てる手札、
    * exileUids は脱出で除外する捨て札、kick はキッカーを払う
    */
-  | { type: 'playCard'; player: PlayerId; cardUid: string; chosen?: Chosen; from?: 'discard'; discardUid?: string; exileUids?: string[]; kick?: boolean }
+  | {
+      type: 'playCard';
+      player: PlayerId;
+      cardUid: string;
+      chosen?: Chosen;
+      from?: 'discard';
+      discardUid?: string;
+      exileUids?: string[];
+      kick?: boolean;
+      /** モード選択のカード（MTG 要素 ○ バッチC2）で選ぶモード（1〜3）。0 は双呪（すべてのモード。追加エナジー） */
+      mode?: number;
+    }
   /** 起動（MTG 要素 ○ バッチC1）：場のモンスター・パワー（sourceUid）の「起動」の効果を使う */
   | { type: 'activate'; player: PlayerId; sourceUid: string; chosen?: Chosen }
   /** 手札から使う能力（MTG 要素 ○ バッチC1）：サイクリング・魂力 */
@@ -527,6 +573,11 @@ export interface EffectRuntime {
   ramp(player: PlayerId): boolean;
   /** 創出：カード定義を登録し、使い切りのコピーを手札に count 枚 */
   conjure(player: PlayerId, def: CardDef, count: number): void;
+  // ---- MTG 要素 ○ バッチC2
+  /** エンジン始動：速度が無ければ始める */
+  startEngine(player: PlayerId): void;
+  /** 王冠を得る */
+  takeCrown(player: PlayerId): void;
 }
 
 export type StatusKey =

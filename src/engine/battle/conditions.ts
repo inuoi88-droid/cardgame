@@ -24,6 +24,8 @@ export interface ConditionOpts {
    */
   forCost?: boolean;
   selfUid?: string;
+  /** 条件を持つカード（MTG 要素 ○ バッチC2：種族の条件。src があれば src のカード） */
+  cardId?: string;
 }
 
 /** 捨て札のカードの種類の数（昂揚）：モンスター・アタック・スキル・パワー（パワーアタックを含む）と、呪い。ノイズは数えない */
@@ -168,5 +170,18 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
     // ---- MTG 要素 ○ バッチC1
     case 'kicked':
       return opts.protectKey !== undefined && g.protect[opts.protectKey]?.kicked === true;
+    // ---- MTG 要素 ○ バッチC2
+    case 'tribeAlly': {
+      const cardId = opts.src?.cardId ?? opts.cardId;
+      if (cardId === undefined) return true;
+      const tribe = g.cards[cardId]?.tribe;
+      if (!tribe) return false;
+      const self = opts.src?.kind === 'monster' ? opts.src.uid : undefined;
+      return mine.board.some((m) => m.uid !== self && g.cards[m.card.cardId]?.tribe === tribe);
+    }
+    case 'maxSpeed':
+      return (mine.speed ?? 0) >= BALANCE.speed.max;
+    case 'hasCrown':
+      return g.crown === me;
   }
 }

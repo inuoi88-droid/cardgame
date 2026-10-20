@@ -13,7 +13,7 @@ export default defineEffect({
   value: countParam('エナジー', { default: 1, max: B.maxValue }),
   targetRule: 'allyMonsterOne',
   timings: ['play', 'summon'],
-  excludeTargets: ['allyMonsters', 'otherAllies', 'thisMonster', 'weakestAlly'],
+  excludeTargets: ['allyMonsters', 'otherAllies', 'thisMonster', 'weakestAlly', 'tribeAllies'],
   noDelay: true,
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,

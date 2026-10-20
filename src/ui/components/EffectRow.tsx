@@ -20,6 +20,10 @@ import {
   getEffect,
   getModifier,
   modifiersFor,
+  MODE_IDS,
+  MODE_LABEL,
+  MODE_TIMINGS,
+  setEffectMode,
   targetLabel,
   type CardDef,
   type DrawbackInstance,
@@ -157,6 +161,14 @@ export function EffectRow({ index, count, effect, card, violations, expanded, on
     );
   }
   (effect.mods ?? []).forEach((m) => chips.push(<span key={m} className="ed-chip ed-chip--mod">{getModifier(m)?.name ?? m}</span>));
+  if (effect.mode !== undefined) {
+    chips.unshift(
+      <span key="mode" className="ed-chip ed-chip--mode">
+        モード{MODE_LABEL[effect.mode]}
+      </span>,
+    );
+  }
+  const modeable = MODE_TIMINGS.includes(effect.timing);
   const mods = def ? modifiersFor(def, effect.timing) : [];
 
   return (
@@ -240,15 +252,41 @@ export function EffectRow({ index, count, effect, card, violations, expanded, on
         />
       </div>
 
+      {/* モード選択（MTG 要素 ○ バッチC2）：使用時・召喚時・捨て札から使ったときの効果だけ */}
+      {modeable && (
+        <div className="ed-row__mode" role="radiogroup" aria-label={`${nth}のモード`}>
+          <span className="ed-row__mode-label">モード</span>
+          {([null, ...MODE_IDS] as const).map((m) => {
+            const on = (effect.mode ?? null) === m;
+            return (
+              <button
+                key={m ?? 'always'}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                className={cx('mode-seg__btn', on && 'is-on')}
+                onClick={() => onChange(setEffectMode(effect, m))}
+              >
+                {m === null ? 'いつも' : MODE_LABEL[m]}
+              </button>
+            );
+          })}
+          <span className="ed-row__mode-note">A・B…を付けると、使うときに1つを選ぶ（次のうち1つを選ぶ）</span>
+        </div>
+      )}
+
       {mods.length > 0 && (
         <div className="ed-row__mods">
           {mods.map((m) => {
             const on = effect.mods?.includes(m.id) ?? false;
             const scale = m.scope === 'scale';
+            // 「同じ種族1体につき」は種族のあるカードだけ（MTG 要素 ○ バッチC2）
+            const needTribe = m.id === 'perTribeAlly' && !card.tribe && !on;
             return (
-              <label key={m.id} className="check" title={m.summary}>
+              <label key={m.id} className={cx('check', needTribe && 'is-disabled')} title={needTribe ? '基本情報で種族を選ぶと付けられます' : m.summary}>
                 <input
                   type="checkbox"
+                  disabled={needTribe}
                   checked={on}
                   onChange={() => {
                     // 数値の倍数（scale）は1効果に1つまで：付けたら他の倍数を外す

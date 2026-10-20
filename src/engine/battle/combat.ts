@@ -17,9 +17,9 @@ import {
   targetLabel,
   isEnded,
 } from './core.ts';
-import { combatBonus, combatSourceOf, dealDamage, keywordFlags, playerBonus, targetableTaunts } from './damage.ts';
+import { combatBonus, combatSourceOf, dealDamage, keywordFlags, playerBonus, setCrown, targetableTaunts } from './damage.ts';
 import { enqueueCardTiming } from './triggers.ts';
-import type { GameState, Monster, TargetRef } from './types.ts';
+import type { GameState, Monster, PlayerId, TargetRef } from './types.ts';
 
 export function attacksPerTurn(g: GameState, m: Monster): number {
   return keywordFlags(g, m).attacksPerTurn ?? 1;
@@ -104,11 +104,14 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   if (isEnded(g)) return;
   /** 相手プレイヤーのHPを減らしたか（「相手プレイヤーにダメージを与えたとき」。裏切り・混乱で自分を殴ったときは数えない） */
   let hitEnemy = target.kind === 'player' && target.player === enemy && r.hpLost > 0;
+  // 王冠（MTG 要素 ○ バッチC2）：王冠を持つプレイヤーのHPを相手のモンスターの攻撃が減らしたら、王冠はそのモンスターの持ち主へ
+  if (target.kind === 'player' && r.hpLost > 0) crownByAttack(g, m.controller, target.player, depth + 1);
   // 貫通：モンスターを倒して余ったダメージは、そのモンスターの持ち主のプレイヤーへ
   if (defender && r.destroyed && r.overflow > 0 && findMonster(g, m.uid) && keywordFlags(g, m).trample) {
     log(g, depth + 1, `貫通：余った${r.overflow}ダメージが${g.players[defender.controller].name}に通る`);
     const t = dealDamage(g, playerRef(defender.controller), r.overflow, { kind: 'trample', source: attackerRef, depth: depth + 2 });
     if (defender.controller === enemy && t.hpLost > 0) hitEnemy = true;
+    if (t.hpLost > 0) crownByAttack(g, m.controller, defender.controller, depth + 2);
     if (isEnded(g)) return;
   }
   // 反撃：守備側が倒れていても、封印・凍結・隠密でも返す。守備側の「攻撃するたび」は発動しない。
@@ -147,6 +150,11 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   }
   // 一撃離脱：攻撃に関わる処理がすべて終わったあと、場に残っていれば手札に戻る
   if (flags.returnAfterAttack && !m.card.token) enqueue(g, { t: 'returnToHand', uid: m.uid, depth: depth + 1 });
+}
+
+/** 王冠を持つ victim が、attacker 側のモンスターの攻撃（貫通の余りを含む）で HP を減らされたら、王冠は attacker へ */
+function crownByAttack(g: GameState, attacker: PlayerId, victim: PlayerId, depth: number): void {
+  if (g.crown === victim && attacker !== victim && !isEnded(g)) setCrown(g, attacker, depth, 'steal');
 }
 
 /** 混乱・裏切りの自動攻撃の対象 */

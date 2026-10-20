@@ -7,10 +7,12 @@ import { toCurrentScale } from './scaling.ts';
 import {
   CARD_DESCRIPTION_MAX,
   CONDITION_IDS,
+  MODE_IDS,
   MODIFIER_IDS,
   RARITIES,
   TARGET_IDS,
   TIMING_IDS,
+  TRIBE_IDS,
   type AbilityInstance,
   type CardDef,
   type ConditionId,
@@ -18,10 +20,12 @@ import {
   type DrawbackInstance,
   type EffectInstance,
   type KeywordInstance,
+  type ModeId,
   type ModifierId,
   type Rarity,
   type TargetId,
   type TimingId,
+  type TribeId,
 } from './types.ts';
 
 export const EXPORT_FORMAT = 'cardgame-export';
@@ -82,6 +86,11 @@ function parseEffect(x: unknown): EffectInstance | null {
   if (x.option !== undefined) {
     if (!isStr(x.option)) return null;
     e.option = x.option;
+  }
+  // モード（MTG 要素 ○ バッチC2）：1〜3 だけ。ほかの値は効果ごと読まない
+  if (x.mode !== undefined && x.mode !== null) {
+    if (!(MODE_IDS as readonly unknown[]).includes(x.mode)) return null;
+    e.mode = x.mode as ModeId;
   }
   return e;
 }
@@ -178,6 +187,8 @@ export function parseCard(x: unknown): Result<CardDef> {
   const card: CardDef = { v: 1, id: x.id, name: x.name, icon: x.icon, rarity: x.rarity, cost: x.cost, stats, keywords, effects, drawbacks };
   // カードの能力は、あるときだけ持たせる（古いデータ・能力のないカードの形を変えない）
   if (abilities.length > 0) card.abilities = abilities;
+  // 種族（MTG 要素 ○ バッチC2）：知らない値は「種族なし」として読む
+  if (oneOf<TribeId>(TRIBE_IDS, x.tribe)) card.tribe = x.tribe;
   // 説明は見た目だけの任意項目。文字列でなければ無いものとして読み、長すぎれば切り詰める（カードごと捨てない）
   const description = normalizeDescription(x.description);
   if (description !== undefined) card.description = description;

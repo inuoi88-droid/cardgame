@@ -1,6 +1,6 @@
 /** ドラッグ＆ドロップの判断（src/ui/battle/dragLogic.ts）。DOM は使わない */
 import { describe, expect, it } from 'vitest';
-import { arrowPath, gestureOf, parseSpot, pickSpot, planDrag, resolveDrop, spotKey, type DragSource } from '../../src/ui/battle/dragLogic.ts';
+import { arrowPath, gestureOf, parseSpot, pickSpot, planDrag, resolveDrop, resolveModeDrop, spotKey, type DragSource } from '../../src/ui/battle/dragLogic.ts';
 
 const opp = { kind: 'player', player: 1 } as const;
 const m = (uid: string) => ({ kind: 'monster', uid }) as const;
@@ -219,5 +219,39 @@ describe('新しい出どころ（捨て札・起動）と捨て札の山', () =
     expect(gestureOf(20, 4, 'touch', 'list')).toBe('drag');
     expect(gestureOf(3, 20, 'touch', 'list')).toBe('scroll');
     expect(gestureOf(0, -20, 'mouse', 'list')).toBe('drag');
+  });
+});
+
+describe('モード選択のカード（MTG 要素 ○ バッチC2）', () => {
+  // A：相手に5ダメージ（相手プレイヤー・m2）／B：引く（対象なし）。合わせた候補は相手側だけ
+  const modal = card({ modal: true, enemyTargets: [opp, m('m2')], allyTargets: [] });
+  const modeA = { blocked: null, enemyTargets: [opp, m('m2')], allyTargets: [] };
+  const modeB = { blocked: null, enemyTargets: [], allyTargets: [] };
+
+  it('候補は光り、場のどこでも落とせる（離すとモードを選ぶ）', () => {
+    expect(planDrag(modal)).toEqual({ mode: 'arrow', targets: [opp, m('m2')], zone: 'play', hint: '離すとモードを選ぶ', pile: false });
+    expect(planDrag(card({ modal: true }))).toMatchObject({ mode: 'ghost', zone: 'play' });
+    expect(planDrag(card({ modal: true, blocked: 'エナジーが足りません' }))).toMatchObject({ zone: null, hint: 'エナジーが足りません' });
+  });
+
+  it('落とした場所は、どれかのモードの対象なら覚えておく', () => {
+    expect(resolveDrop(modal, { kind: 'player', player: 1 })).toEqual({ t: 'modes', chosen: { enemy: opp } });
+    expect(resolveDrop(modal, { kind: 'zone' })).toEqual({ t: 'modes', chosen: {} });
+    expect(resolveDrop(modal, { kind: 'monster', uid: 'mine1' })).toEqual({ t: 'modes', chosen: {} });
+    expect(resolveDrop(modal, { kind: 'none' })).toMatchObject({ t: 'invalid' });
+    expect(resolveDrop(modal, { kind: 'hand' })).toEqual({ t: 'cancel' });
+    expect(resolveDrop(card({ modal: true, blocked: '今は使えません' }), { kind: 'zone' })).toEqual({ t: 'invalid', reason: '今は使えません' });
+  });
+
+  it('モードを選んだあと：合法な対象ならそのまま使い、違えば対象選びに入る', () => {
+    expect(resolveModeDrop(modeA, { enemy: opp })).toEqual({ t: 'play', chosen: { enemy: opp } });
+    expect(resolveModeDrop(modeA, {})).toEqual({ t: 'need', chosen: {}, need: 'enemy' });
+    expect(resolveModeDrop({ ...modeA, enemyTargets: [m('m2')] }, { enemy: opp })).toEqual({ t: 'play', chosen: { enemy: m('m2') } });
+    expect(resolveModeDrop(modeB, { enemy: opp })).toEqual({ t: 'play', chosen: {} });
+    expect(resolveModeDrop({ blocked: 'エナジーが足りません', enemyTargets: [], allyTargets: [] }, {})).toEqual({ t: 'invalid', reason: 'エナジーが足りません' });
+    // 召喚するモンスター自身しか選べないモード（製造の「このモンスター」など）
+    expect(resolveModeDrop({ blocked: null, enemyTargets: [], allyTargets: ['h1'] }, {}, 'h1')).toEqual({ t: 'play', chosen: { ally: 'h1' } });
+    expect(resolveModeDrop({ blocked: null, enemyTargets: [], allyTargets: ['h1', 'm5'] }, { ally: 'm5' }, 'h1')).toEqual({ t: 'play', chosen: { ally: 'm5' } });
+    expect(resolveModeDrop({ blocked: null, enemyTargets: [], allyTargets: ['h1', 'm5'] }, {}, 'h1')).toEqual({ t: 'need', chosen: {}, need: 'ally' });
   });
 });

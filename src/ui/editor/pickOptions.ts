@@ -11,6 +11,10 @@ import {
   CONDITION_TIER_LABEL,
   TIMINGS,
   TIMING_GROUPS,
+  TRIBE_TARGETS,
+  TRIBE_IDS,
+  TRIBE_LABEL,
+  type TribeId,
   drawbackTimings,
   effectTimings,
   getDrawback,
@@ -157,12 +161,17 @@ export function targetOptions(effect: EffectInstance, card: CardDef): PickOption
   const def = getEffect(effect.id);
   if (!def) return [];
   const targets = targetsForEffect(def, effect.timing, cardBase(card));
-  const out: PickOption[] = targets.map((t) => ({
-    id: t,
-    label: targetLabel(t, def.targetRule, effect.timing),
-    hint: mult(() => targetMultiplier(t, def.targetRule)),
-    points: `${effectPoints({ ...effect, target: t }, card).value}pt`,
-  }));
+  const out: PickOption[] = targets.map((t) => {
+    // 種族のあるカードだけの対象（MTG 要素 ○ バッチC2）
+    const needTribe = TRIBE_TARGETS.includes(t) && !card.tribe;
+    return {
+      id: t,
+      label: targetLabel(t, def.targetRule, effect.timing),
+      hint: mult(() => targetMultiplier(t, def.targetRule)),
+      points: needTribe ? undefined : `${effectPoints({ ...effect, target: t }, card).value}pt`,
+      disabled: needTribe ? TRIBE_REASON : undefined,
+    };
+  });
   if (!targets.includes(effect.target)) {
     out.push({ id: effect.target, label: targetLabel(effect.target as TargetId, def.targetRule, effect.timing), disabled: 'いまのタイミングでは選べません' });
   }
@@ -170,6 +179,9 @@ export function targetOptions(effect: EffectInstance, card: CardDef): PickOption
 }
 
 // ---------------------------------------------------------------- 条件
+
+/** 種族のあるカードだけの選択肢の理由（MTG 要素 ○ バッチC2） */
+const TRIBE_REASON = '基本情報で種族を選ぶと使えます';
 
 function conditionReason(id: ConditionId, timing: TimingId, base: CardBase): string {
   const c = CONDITIONS[id];
@@ -194,7 +206,8 @@ export function conditionOptions(effect: EffectInstance, card: CardDef): PickOpt
   const list = (Object.keys(CONDITIONS) as ConditionId[]).map((c): PickOption => {
     const def = CONDITIONS[c];
     const x = extra(def);
-    const ok = usable.has(c);
+    const needTribe = def.requiresTribe === true && !card.tribe;
+    const ok = usable.has(c) && !needTribe;
     return {
       id: c,
       label: def.label,
@@ -202,7 +215,7 @@ export function conditionOptions(effect: EffectInstance, card: CardDef): PickOpt
       description: x.description,
       hint: mult(() => conditionMultiplier(c, card)),
       points: ok ? `${effectPoints({ ...effect, condition: c }, card).value}pt` : undefined,
-      disabled: ok ? undefined : conditionReason(c, effect.timing, base),
+      disabled: ok ? undefined : needTribe ? TRIBE_REASON : conditionReason(c, effect.timing, base),
     };
   });
   return [none, ...byGroup(list, CONDITION_GROUPS)];
@@ -219,12 +232,15 @@ export function effectOptionOptions(effect: EffectInstance, card: CardDef): Pick
   if (!def?.option) return [];
   return def.option.choices.map((c) => {
     const x = extra(c);
+    // サーチ・抽出の「同じ種族」は種族のあるカードだけ（MTG 要素 ○ バッチC2）
+    const needTribe = c.id === 'tribe' && !card.tribe;
     return {
       id: c.id,
       label: c.label,
       group: x.group,
       description: x.description,
       points: `${effectPoints({ ...effect, option: c.id }, card).value}pt`,
+      disabled: needTribe ? TRIBE_REASON : undefined,
     };
   });
 }
@@ -270,3 +286,15 @@ export function abilityConditionOptions(a: AbilityInstance, card: CardDef): Pick
   });
   return byGroup(list, CONDITION_GROUPS);
 }
+
+// ---------------------------------------------------------------- 種族（MTG 要素 ○ バッチC2）
+
+/** 種族の選択肢（「なし」が先頭。ID ⇔ 値は tribeValue / tribeFromValue） */
+export function tribeOptions(): PickOption[] {
+  return [
+    { id: NONE, label: 'なし', description: '種族を付けない（ポイントは0）', pinned: true },
+    ...TRIBE_IDS.map((t) => ({ id: t, label: TRIBE_LABEL[t], description: `種族「${TRIBE_LABEL[t]}」。同じ種族を参照する条件・修飾・対象・サーチが使える（ポイントは0）` })),
+  ];
+}
+export const tribeValue = (t: TribeId | undefined): string => t ?? NONE;
+export const tribeFromValue = (v: string): TribeId | null => (v === NONE ? null : (v as TribeId));

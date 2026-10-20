@@ -2,6 +2,7 @@
 import type { Action, Chosen, GameState, MulliganMode, PlayerId, TargetRef } from '../engine/battle/types.ts';
 import type { CardDef, Deck } from '../engine/types.ts';
 import { normalizeCode } from './codes.ts';
+import { BALANCE } from '../engine/balance.ts';
 
 export type OnlineRequest =
   | { op: 'create'; name: string; deck: Deck; cards: CardDef[] }
@@ -101,6 +102,8 @@ export function parseAction(x: unknown): Action | null {
       if (x.discardUid !== undefined && !isId(x.discardUid)) return null;
       if (x.exileUids !== undefined && !isIdList(x.exileUids)) return null;
       if (x.kick !== undefined && typeof x.kick !== 'boolean') return null;
+      // MTG 要素 ○ バッチC2：モード（0〜3 の整数。0 は双呪。合っているかはエンジンの validatePlay が見る）
+      if (x.mode !== undefined && !(Number.isInteger(x.mode) && (x.mode as number) >= 0 && (x.mode as number) <= BALANCE.modal.maxModes)) return null;
       return {
         type: 'playCard',
         player,
@@ -110,6 +113,7 @@ export function parseAction(x: unknown): Action | null {
         ...(x.discardUid !== undefined ? { discardUid: x.discardUid } : {}),
         ...(x.exileUids !== undefined ? { exileUids: [...x.exileUids] } : {}),
         ...(x.kick === true ? { kick: true } : {}),
+        ...(x.mode !== undefined ? { mode: x.mode as number } : {}),
       };
     }
     case 'activate': {

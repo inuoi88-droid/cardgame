@@ -131,8 +131,9 @@ export function RulesPage() {
             エナジーを得ます。エナジーは自分のターン数で増えます：<b>{energyText}</b>。先攻の1ターン目だけ−{B.firstPlayerFirstTurnPenalty}（{firstEnergy}）です。エナジーは次のターンに持ち越せません。
           </li>
           <li>
-            カードを <b>{B.drawPerTurn}枚</b> 引きます（1ターン目を除く）。山札が尽きたら捨て札を混ぜて山札にします。
+            カードを <b>{B.drawPerTurn}枚</b> 引きます（1ターン目を除く）。山札が尽きたら捨て札を混ぜて山札にします。「引いたとき」の効果は、引き終えてから引いた順に発動します。
           </li>
+          <li>予約していた効果（修飾「次のターンに」）が古い順に発動します（1人{B.maxDelayedPerPlayer}件まで）。</li>
           <li>「自分のターン開始時」の効果（パワー → 場のモンスターの左から）。混乱・裏切りのモンスターが自動で攻撃します。</li>
         </ol>
         <h3>ターン中</h3>
@@ -201,7 +202,7 @@ export function RulesPage() {
           <li>
             <b>接死</b>のモンスターが攻撃・反撃・格闘でダメージを与えたモンスターは破壊されます（不屈でも踏みとどまれません）。<b>先制攻撃</b>のモンスターは、攻撃で相手を倒せば反撃を受けません。<b>聖盾</b>は最初のダメージ1回を0にします。<b>呪禁</b>のモンスターはカードの「選んだ1体」に選べません（呪禁の挑発は、カードの対象選びを縛りません）。<b>防衛</b>のモンスターは攻撃できませんが、反撃はします。
           </li>
-          {(['token', 'tempAttack', 'granted', 'fight', 'lifespan'] as const).map((id) => (
+          {(['token', 'tempAttack', 'granted', 'fight', 'lifespan', 'exert'] as const).map((id) => (
             <li key={id}>
               <b>{mechanicGlossary[id]!.name}</b>：{mechanicGlossary[id]!.short}。
             </li>
@@ -278,9 +279,9 @@ export function RulesPage() {
             </dl>
           </div>
         ))}
-        <h3>対象（自分のモンスター）</h3>
+        <h3>対象（自分のモンスター・お互い）</h3>
         <dl className="terms">
-          {(['thisMonster', 'allyMonsters', 'triggerAlly'] as const).map((id) => (
+          {(['thisMonster', 'allyMonsters', 'otherAllies', 'weakestAlly', 'triggerAlly', 'bothPlayers'] as const).map((id) => (
             <Term key={id} name={mechanicGlossary[id]!.name} icon={mechanicGlossary[id]!.icon}>
               {mechanicGlossary[id]!.short}
             </Term>
@@ -304,13 +305,21 @@ export function RulesPage() {
         <dl className="terms">
           {listModifiers().map((m) => (
             <Term key={m.id} name={m.name} icon={modifierGlossary[m.id]?.icon}>
-              {m.summary}（ポイント+{Math.round(m.rate * 100)}%）
+              {m.summary}（ポイント{m.rate >= 0 ? '+' : '−'}{Math.round(Math.abs(m.rate) * 100)}%）
             </Term>
           ))}
         </dl>
         <ul>
           <li>防御無視・吸収はダメージと連撃だけに付けられます。数値の倍数（X・相手モンスター1体につき・このターン使ったカード1枚につき）は1つの効果に1つまで。掛けた数値は、その効果の入力欄の上限（ダメージは1枚の合計{BALANCE.params.damagePerCardMax}）で頭打ちです。</li>
           <li>X のカードは、使うと残りのエナジーをすべて使います。カードの X の効果はすべて同じ X を使います。</li>
+          {(['delayed', 'clash', 'exploit', 'drawn'] as const).map((id) => (
+            <li key={id}>
+              <b>{mechanicGlossary[id]!.name}</b>：{mechanicGlossary[id]!.short}。
+            </li>
+          ))}
+          <li>
+            「引いたとき」の効果のポイントの合計は、コスト0のときのレアリティ上限までです（コストを上げて得た予算で「引くだけで得をする」カードは作れません）。
+          </li>
         </ul>
       </Section>
 

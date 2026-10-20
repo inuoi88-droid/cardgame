@@ -12,6 +12,8 @@ export default defineEffect({
   summary: 'カードをN枚引き、そのあと手札を1枚選んで捨てる（捨てても何も起きない）',
   value: countParam('枚数', { default: 1, max: B.maxValue }),
   targetRule: 'self',
+  // 対象「お互い」を選べる（MTG 要素 ○ バッチA）
+  symmetric: true,
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e) => `カードを${n(e)}枚引き、手札を1枚選んで捨てる`,

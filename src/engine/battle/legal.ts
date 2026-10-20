@@ -57,7 +57,9 @@ export function playWarnings(g: GameState, p: PlayerId, def: CardDef, allyTarget
     if (e.timing !== timing) continue;
     const ed = getEffect(e.id);
     if (!ed) continue;
-    if (e.condition && !checkCondition(g, p, e.condition)) add(`条件を満たしていません：${CONDITIONS[e.condition].label}`);
+    // 濫用は使ってから選ぶので、生け贄にできるモンスターがいれば満たせる
+    const unmet = e.condition === 'exploit' ? myMonsters === 0 : e.condition !== null && !checkCondition(g, p, e.condition);
+    if (e.condition && unmet) add(`条件を満たしていません：${CONDITIONS[e.condition].label}`);
     const rule = ed.targetRule;
     const monsterOnly = isMonsterOnlyRule(rule);
     if (rule === 'fight') {
@@ -88,7 +90,12 @@ export function playWarnings(g: GameState, p: PlayerId, def: CardDef, allyTarget
         if (oppMonsters === 0 && myMonsters === 0) add(WARN_NO_MONSTER);
         break;
       case 'allyMonsters':
+      case 'weakestAlly':
         if (myMonsters === 0) add(WARN_NO_TARGET);
+        break;
+      case 'otherAllies':
+        // 召喚時：出たモンスター自身は含まない
+        if (g.players[p].board.length === 0) add(WARN_NO_TARGET);
         break;
       default:
         break;

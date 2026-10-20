@@ -16,6 +16,8 @@ export interface DetailExtras {
   /** 場のモンスター（今の値・状態を出す） */
   monster?: battle.Monster;
   flags?: ReturnType<typeof battle.keywordFlags>;
+  /** 今の持ち主が自分のターンを迎えた回数（消耗の表示） */
+  ownerTurns?: number;
   /** 場に残っているパワー */
   power?: battle.PowerInst;
   /** 手札での今のコスト（元のコストと違えば並べて出す） */
@@ -46,7 +48,7 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
   const def = displayDef(rawDef, m);
   const a = analyzeCard(def);
   const desc = descriptionOf(def);
-  const chips = m ? monsterChips(def, m, extras.flags ?? {}) : [];
+  const chips = m ? monsterChips(def, m, extras.flags ?? {}, extras.ownerTurns) : [];
   const statusChips = chips.filter((c) => !c.id.startsWith('kw:'));
   return (
     <div className="cdetail">

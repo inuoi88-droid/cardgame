@@ -11,6 +11,8 @@ export default defineEffect({
   summary: '再生Nを得る（ターン開始時にN回復し、その後Nが半分（切り捨て）になる）',
   value: valueParam('再生', { default: 1 }),
   targetRule: 'self',
+  // 対象「お互い」を選べる（MTG 要素 ○ バッチA）
+  symmetric: true,
   scalable: true,
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,

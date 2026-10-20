@@ -11,7 +11,7 @@ export * from './registry.ts';
 export * from './editing.ts';
 export { fromBaseScale, scaleCardValues, stampScale, toCurrentScale } from './scaling.ts';
 export type { EffectDef, KeywordDef, DrawbackDef, ModifierDef, ParamSpec, OptionSpec, EffectGroup, PointCard } from './define.ts';
-export { EFFECT_GROUPS } from './define.ts';
+export { EFFECT_GROUPS, drawbackValueSpec } from './define.ts';
 export { analyzeDeck, isNameTaken, normalizeName, uniqueName, type DeckAnalysis, type RarityRow } from './deck.ts';
 export {
   buildExport,

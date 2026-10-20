@@ -94,6 +94,19 @@ export const BALANCE = {
     skillPlayedPower: 4.5,
     /** 「相手プレイヤーにダメージを与えたとき」（モンスター専用。二回攻撃なら攻撃回数を掛ける） */
     hitEnemyPlayer: 1.5,
+    /**
+     * MTG 要素 ○ バッチA（決定事項ログ）。引いたとき（奇跡）・自分のカードの対象になるたび（英雄的。モンスター専用）・
+     * コスト timingParams.bigCardCost 以上のカードを使うたび（演目。モンスターとパワー）
+     */
+    drawn: 0.9,
+    targeted: 1.5,
+    bigCardPlayedMonster: 1.2,
+    bigCardPlayedPower: 3.5,
+  },
+  /** タイミングに出てくる数（MTG 要素 ○ バッチA） */
+  timingParams: {
+    /** 「コスト3以上のカードを使うたび」（印刷コスト） */
+    bigCardCost: 3,
   },
 
   /** 対象の倍率。self / enemyPlayer / board は選択肢のない固定対象（#73 で相手全体 2.5→3.5） */
@@ -110,6 +123,10 @@ export const BALANCE = {
     thisMonster: 1.0,
     /** 自分のモンスター全体（MTG 要素バッチ1） */
     allyMonsters: 2.0,
+    /** MTG 要素 ○ バッチA：自分の他のモンスター全体（喊声）・いちばん体力の低い自分のモンスター（鼓舞）・お互い（対称効果。相手も得するぶん安い） */
+    otherAllies: 1.8,
+    weakestAlly: 0.9,
+    bothPlayers: 0.4,
   },
   /** モンスターにしか作用しない効果（処刑・封印など）の「敵味方すべて」はプレイヤーに当たらないぶん高い（決定事項 #68） */
   targetMonsterOnly: {
@@ -143,6 +160,23 @@ export const BALANCE = {
     bigDiscard: 0.7,
     monsterInHand: 0.8,
     twoSummonsThisTurn: 0.5,
+    /** MTG 要素 ○ バッチA（決定事項ログ） */
+    enemyPlayedMany: 0.6,
+    veteran: 0.6,
+    strongerAlly: 0.7,
+    totalAttack: 0.6,
+    twoAllyAttacks: 0.6,
+    coven: 0.5,
+    delirium: 0.7,
+    criticalHp: 0.4,
+    bigDamageThisTurn: 0.6,
+    skillsInDiscard: 0.85,
+    healedThisTurn: 0.6,
+    /** 「相手が毒状態」（0.45）より厳しいので低く */
+    enemyPoisonHigh: 0.4,
+    notFirstCard: 0.8,
+    clash: 0.45,
+    exploit: 0.6,
   },
 
   /** 条件に出てくる数 */
@@ -161,6 +195,28 @@ export const BALANCE = {
     powersMin: 2,
     /** 「このターンにモンスターを2体以上出した」 */
     summonsMin: 2,
+    /** MTG 要素 ○ バッチA。「前の相手のターンに相手がカードを3枚以上使った」 */
+    enemyCardsMin: 3,
+    /** 「このモンスターが3回以上攻撃した」 */
+    veteranAttacks: 3,
+    /** 「自分のモンスターの攻撃力の合計が8以上」（量なので倍率を掛ける） */
+    totalAttackMin: x(8),
+    /** 「このターン自分のモンスターが2回以上攻撃した」 */
+    allyAttacksMin: 2,
+    /** 「攻撃力の違う自分のモンスターが3体以上」 */
+    covenMin: 3,
+    /** 「捨て札にカードの種類が3種類以上」 */
+    deliriumMin: 3,
+    /** 「自分のHPが4分の1以下」（最大HPに掛ける割合） */
+    criticalHpRate: 0.25,
+    /** 「このターン相手に合計6以上のダメージを与えた」（量） */
+    bigDamageMin: x(6),
+    /** 「捨て札にスキルが2枚以上」 */
+    skillsInDiscardMin: 2,
+    /** 「相手の毒が3以上」（量） */
+    enemyPoisonMin: x(3),
+    /** 「このターン2枚目以降に使う」 */
+    notFirstCardFrom: 2,
   },
 
   /**
@@ -174,10 +230,15 @@ export const BALANCE = {
     // 測定（決定事項 #89）：0.5 では相手モンスターの多いデッキ（B0）に 100% 勝つため、2体ぶんで元が取れる 1.0 に
     perEnemyMonster: 1.0,
     perCardPlayed: 0.8,
+    /** MTG 要素 ○ バッチA：次のターンに（遅延。×0.75）・捨て札のモンスター1枚につき（数値の倍数） */
+    nextTurn: -0.25,
+    perDiscardMonster: 1.2,
   },
   modifierParams: {
     /** 「相手モンスター1体につき」「このターン使ったカード1枚につき」の数の上限 */
     scaleCountCap: 3,
+    /** 「捨て札のモンスター1枚につき」の数の上限 */
+    discardCountCap: 5,
   },
 
   /** 効果の数値 N の入力範囲（効果ごとの上書きは effects 側の maxValue）。value は量、count は枚数・ターン数・エナジー */
@@ -341,6 +402,14 @@ export const BALANCE = {
     exhaust: { flat: x(3) },
     /** 生け贄（タイミングの倍率を掛ける。使用時・召喚時だけ） */
     sacrifice: { flat: x(5) },
+    /** MTG 要素 ○ バッチA（決定事項ログ）。伝説：同じ名前のものが場にあると使えない（固定値） */
+    legendary: { fixed: x(2) },
+    /** 消耗：攻撃したら次の自分のターンは攻撃できない。max(min, 攻撃力×perAttack)（固定値） */
+    exert: { min: x(1), perAttack: 1 },
+    /** 枯朽 N：自分のモンスター1体の攻撃力と体力を−N（N×perValue × タイミング。N は maxValue まで） */
+    blight: { perValue: 3, maxValue: x(5) },
+    /** 捨て札の除外：枚数 N（N×perCard）か、コストの合計 N（N×perCost）。× タイミング */
+    exileDiscard: { perCard: x(0.8), perCost: x(0.4), maxCount: 5, maxCost: 10 },
   },
 
   /** オンライン対戦（決定事項 #57） */
@@ -428,6 +497,8 @@ export const BALANCE = {
     tokenIcon: '👺',
     /** 呪縛（MTG 要素バッチ2）の合計の上限 */
     doomCap: x(5),
+    /** 予約（修飾「次のターンに」。MTG 要素 ○ バッチA）は1人この件数まで（数なので倍率は掛けない） */
+    maxDelayedPerPlayer: 6,
   },
 } as const;
 

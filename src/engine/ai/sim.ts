@@ -80,6 +80,51 @@ function chooseSpecial(g: GameState, p: PendingChoice, me: PlayerId): string[] |
     const best = [...options].sort((a, b) => junkRank(g, b.cardId) - junkRank(g, a.cardId))[0];
     return best && junkRank(g, best.cardId) > 0 ? [best.id] : [];
   }
+  // MTG 要素 ○ バッチA：濫用・枯朽・捨て札の除外
+  if (step.t === 'exploitChoice') {
+    // 見える情報には解決待ちの効果が無い（view.ts がキューを隠す）ので、仮に実行して比べられない。
+    // どうせ場を離れるモンスター（トークン・裏切り・寿命の残り1・攻撃した腐乱）だけを、評価値の低い順に選ぶ。いなければ選ばない
+    const expendable = options
+      .map((o) => findMonster(g, o.id))
+      .filter((m): m is NonNullable<typeof m> => {
+        if (!m) return false;
+        const def = g.cards[m.card.cardId];
+        const decaying = m.counters.attackedTurn === g.turnIndex && (def?.drawbacks.some((d) => d.id === 'decay') ?? false);
+        return m.card.token !== undefined || m.betraying || m.counters.life === 1 || decaying;
+      })
+      .sort((a, b) => a.attack * 3 + a.hp * 1.5 - (b.attack * 3 + b.hp * 1.5));
+    return expendable[0] ? [expendable[0].uid] : [];
+  }
+  if (step.t === 'drawback' && step.drawback.id === 'blight') {
+    // トークン → 枯朽で死なないもののうち評価値（攻撃力×3＋体力×1.5）が一番低いもの → 全部死ぬなら一番低いもの
+    const amount = step.drawback.value ?? 0;
+    const scored = options.map((o) => {
+      const m = findMonster(g, o.id);
+      if (!m) return { o, key: Infinity };
+      const value = m.attack * 3 + m.hp * 1.5;
+      return { o, key: (m.card.token ? 0 : m.hp > amount ? 1e6 : 2e6) + value };
+    });
+    scored.sort((a, b) => a.key - b.key);
+    return scored.slice(0, Math.max(1, n)).map((x) => x.o.id);
+  }
+  if (step.t === 'drawback' && step.drawback.id === 'exileDiscard') {
+    // ノイズ → 呪い → コストの低い順（コストの合計なら、ノイズ・呪いのうちコストのあるもの → コストの高い順に、届くまで）
+    const cost = (id: string | undefined) => (id && g.cards[id] ? g.cards[id]!.cost : 0);
+    if (step.drawback.option === 'costSum') {
+      const need = step.drawback.value ?? 0;
+      const sorted = [...options].filter((o) => cost(o.cardId) > 0).sort((a, b) => junkRank(g, b.cardId) - junkRank(g, a.cardId) || cost(b.cardId) - cost(a.cardId));
+      const picks: string[] = [];
+      let sum = 0;
+      for (const o of sorted) {
+        if (sum >= need) break;
+        picks.push(o.id);
+        sum += cost(o.cardId);
+      }
+      return picks.length >= Math.max(1, p.min) ? picks : options.slice(0, Math.max(1, p.min)).map((o) => o.id);
+    }
+    const sorted = [...options].sort((a, b) => junkRank(g, b.cardId) - junkRank(g, a.cardId) || cost(a.cardId) - cost(b.cardId));
+    return sorted.slice(0, n).map((o) => o.id);
+  }
   if (step.t === 'drawback' && step.drawback.id === 'sacrifice') {
     // トークン → 破壊されたときの効果を持つもの → 評価値（攻撃力×3＋体力×1.5）が一番低いもの
     const scored = options.map((o) => {
@@ -136,8 +181,8 @@ export function usesRandom(view: GameState, action: Action): boolean {
   const myBoard = view.players[action.player].board.length;
   for (const e of def.effects) {
     if (e.timing !== timing) continue;
-    // コイン投げの条件：仮の実行で結果を先読みしないよう、複数のシードの平均で評価する
-    if (e.condition === 'coinFlip') return true;
+    // コイン投げ・激突の条件：仮の実行で結果を先読みしないよう、複数のシードの平均で評価する
+    if (e.condition === 'coinFlip' || e.condition === 'clash') return true;
     if (e.target !== 'random') continue;
     if (oppBoard > 0 || myBoard > 1) return true;
   }

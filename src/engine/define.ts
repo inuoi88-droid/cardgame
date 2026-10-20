@@ -92,6 +92,10 @@ export interface EffectDef {
   timings?: readonly TimingId[];
   /** 作用先から選べても外す対象（例：再行動の「このモンスター」） */
   excludeTargets?: readonly TargetId[];
+  /** 対象「お互い」を選べる（自分に作用する効果のうち、相手にも同じことが起きてよいもの。MTG 要素 ○ バッチA） */
+  symmetric?: boolean;
+  /** 修飾「次のターンに（遅延）」を付けられない（再行動：ターン開始時には意味がない） */
+  noDelay?: boolean;
   /** 倍率を掛ける前の基礎ポイント */
   basePoints(e: EffectInstance): number;
   /** 基礎ポイントの式（内訳表示用。例：「2×2」） */
@@ -117,9 +121,10 @@ export interface ModifierDef {
   summary: string;
   /**
    * damage：ダメージ系の効果（allowsMods）に付けるもの（防御無視・吸収）。テキストは効果の文の中に入る。
-   * scale：数値に倍数を掛けるもの（scalable な効果に1つまで）。テキストは効果の文の前後に付く
+   * scale：数値に倍数を掛けるもの（scalable な効果に1つまで）。テキストは効果の文の前後に付く。
+   * delay：効果を次の自分のターン開始時に遅らせるもの（noDelay でない効果に付けられる。X とは併用できない）
    */
-  scope: 'damage' | 'scale';
+  scope: 'damage' | 'scale' | 'delay';
   /** 使えるタイミングの制限（省略ならすべて） */
   timings?: readonly TimingId[];
   /** 基礎ポイントへの上乗せ率 */
@@ -184,6 +189,10 @@ export interface DrawbackDef {
   timings?: readonly TimingId[];
   /** 倍率込みの固定値（タイミングを選ばず、basePoints がそのままポイントになる） */
   fixed?: boolean;
+  /** 追加の選択欄（捨て札の除外の「枚数／コスト合計」） */
+  option?: OptionSpec;
+  /** 選択欄によって数値の入力欄が変わるとき（省略なら value） */
+  valueFor?(d: DrawbackInstance): ParamSpec | undefined;
   /** 倍率を掛ける前のポイント（正の数）。card はステータスを見るデメリット（裏切り）が使う */
   basePoints(d: DrawbackInstance, card: PointCard): number;
   baseFormula(d: DrawbackInstance, card: PointCard): string;
@@ -199,6 +208,8 @@ export interface DrawbackDef {
     resolve?(rt: EffectRuntime, d: DrawbackInstance, picks?: string[]): void;
     /** このモンスターは攻撃できない（防衛。混乱・裏切りの自動攻撃もしない） */
     cannotAttack?: boolean;
+    /** 攻撃したら、次の持ち主のターンは攻撃できない（消耗） */
+    exert?: boolean;
     /** 寿命：場に残るターン数（持ち主のターン終了時に1減り、0で場から消える。モンスターは破壊、パワーは消える） */
     lifespan?(d: DrawbackInstance): number;
     /** 使ったあと捨て札ではなく除外される（廃棄。パワーとして残らない呪文だけ） */
@@ -238,6 +249,11 @@ export function countParam(label = 'N', opts: { min?: number; max?: number; defa
     max: opts.max ?? BALANCE.params.countMax,
     default: opts.default ?? 1,
   };
+}
+
+/** デメリットの数値の入力欄（選択欄で変わるものは valueFor） */
+export function drawbackValueSpec(def: Pick<DrawbackDef, 'value' | 'valueFor'>, d: DrawbackInstance): ParamSpec | undefined {
+  return def.valueFor ? def.valueFor(d) : def.value;
 }
 
 /** 効果の追加指定（未設定なら定義の初期値） */

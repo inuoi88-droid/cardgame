@@ -11,6 +11,8 @@ export default defineEffect({
   summary: '次のターンのエナジー+N',
   value: countParam('エナジー', { default: 1 }),
   targetRule: 'self',
+  // 対象「お互い」を選べる（MTG 要素 ○ バッチA）
+  symmetric: true,
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
   describe: (e) => `次のターン、エナジー+${n(e)}`,

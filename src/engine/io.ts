@@ -91,7 +91,12 @@ function parseDrawback(x: unknown): DrawbackInstance | null {
   if (timing !== null && !oneOf<TimingId>(TIMING_IDS, timing)) return null;
   const value = optNum(x.value);
   if (value === false) return null;
-  return value === undefined ? { id: x.id, timing } : { id: x.id, value, timing };
+  const d: DrawbackInstance = value === undefined ? { id: x.id, timing } : { id: x.id, value, timing };
+  if (x.option !== undefined) {
+    if (!isStr(x.option)) return null;
+    d.option = x.option;
+  }
+  return d;
 }
 
 function parseList<T>(x: unknown, parse: (y: unknown) => T | null): T[] | null {

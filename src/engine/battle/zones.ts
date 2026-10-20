@@ -64,6 +64,18 @@ export function drawCards(g: GameState, p: PlayerId, count: number, depth: numbe
       hook(makeRuntime(g, src, [], { depth: depth + 1, attackCard: false }), d);
     }
   }
+  // 「引いたとき」（MTG 要素 ○ バッチA）：対戦が始まってから引いたカードだけ（配った手札・マリガンでは出ない）。
+  // 引いた順に、この処理のあとで解決する。効果が出ると、引いたカードが相手にも分かる
+  if (g.phase === 'main') {
+    for (const card of drawn) {
+      const def = g.cards[card.cardId];
+      if (!def || card.cardId === NOISE_CARD_ID) continue;
+      if (!def.effects.some((e) => e.timing === 'drawn') && !def.drawbacks.some((d) => d.timing === 'drawn')) continue;
+      const src: SourceRef = { kind: 'card', uid: card.uid, cardId: card.cardId, name: def.name, controller: p };
+      log(g, depth, `${ps.name}は「${def.name}」を引いた（引いたときの効果）`, 'effect', undefined, { kind: 'status', player: p, cardId: card.cardId, uid: card.uid, status: 'drawn' });
+      enqueueCardTiming(g, src, def, 'drawn', {}, depth + 1, {});
+    }
+  }
   return drawn.length;
 }
 
@@ -192,6 +204,8 @@ export function steal(g: GameState, uid: string, to: PlayerId, depth: number): v
   m.enteredTurn = g.turnIndex;
   m.attacksUsed = 0;
   m.stealth = false;
+  // 消耗は前の持ち主のターンで数えていたので消す
+  delete m.counters.exertTurn;
   g.players[to].board.push(m);
   log(g, depth, `${label}を奪って${g.players[to].name}の場に移した（次の自分のターンから攻撃できる）`);
 }

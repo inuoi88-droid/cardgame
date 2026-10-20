@@ -76,6 +76,7 @@ describe('選択パネルの選択肢', () => {
     const dmg = getEffect('damage')!;
     expect(modifiersFor(dmg, 'play').map((m) => m.id)).toContain('xEnergy');
     expect(modifiersFor(dmg, 'turnEnd').map((m) => m.id)).not.toContain('xEnergy');
-    expect(modifiersFor(getEffect('fight')!, 'play').map((m) => m.id)).toEqual([]);
+    // 格闘は数値がないので倍数は付かない（遅延「次のターンに」だけ。○ バッチA）
+    expect(modifiersFor(getEffect('fight')!, 'play').map((m) => m.id)).toEqual(['nextTurn']);
   });
 });

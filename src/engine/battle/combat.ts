@@ -28,11 +28,23 @@ export function cannotAttack(g: GameState, m: Monster): boolean {
   return (g.cards[m.card.cardId]?.drawbacks ?? []).some((d) => getDrawback(d.id)?.battle.cannotAttack === true);
 }
 
+/** 消耗（MTG 要素 ○ バッチA）で、このターンは攻撃できないか（持ち主のターンの数え方で判定する） */
+export function exerted(g: GameState, m: Monster): boolean {
+  const t = m.counters.exertTurn;
+  return t !== undefined && t === g.players[m.controller].turnsTaken;
+}
+
+/** 消耗のデメリットを持つか（封印されても働く） */
+function hasExert(g: GameState, m: Monster): boolean {
+  return (g.cards[m.card.cardId]?.drawbacks ?? []).some((d) => getDrawback(d.id)?.battle.exert === true);
+}
+
 /** このモンスターが今、手動で攻撃できるか。できなければ理由 */
 export function attackBlockReason(g: GameState, m: Monster): string | null {
   if (g.phase !== 'main') return '今は攻撃できません';
   if (m.controller !== g.active) return '自分のターンではありません';
   if (cannotAttack(g, m)) return '防衛：このモンスターは攻撃できない';
+  if (exerted(g, m)) return '消耗：このターンは攻撃できない';
   if (m.status.freezeActive) return '凍結していて攻撃できません';
   if (m.status.confuseActive) return '混乱していて、ターン開始時に自動で攻撃しました';
   if (m.betraying) return '裏切ったモンスターは自分では攻撃できません';
@@ -57,6 +69,10 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   m.attacksUsed += 1;
   // 腐乱などが見る「攻撃したターン」
   m.counters.attackedTurn = g.turnIndex;
+  // 場に出てから攻撃した回数（条件「このモンスターが3回以上攻撃した」。MTG 要素 ○ バッチA）
+  m.counters.attacksTotal = (m.counters.attacksTotal ?? 0) + 1;
+  // 消耗：次の持ち主のターンは攻撃できない
+  if (hasExert(g, m)) m.counters.exertTurn = g.players[m.controller].turnsTaken + 1;
   // このターンの記録：手番のプレイヤーのモンスターが攻撃した（自動攻撃も数える）
   if (m.controller === g.active) {
     const turn = g.players[g.active].turn;

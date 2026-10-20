@@ -1,9 +1,10 @@
 /** カード作成ルールの検証。違反があれば理由を返す（空なら作成できる）。 */
 import { BALANCE } from './balance.ts';
 import { cardBase, classifyCard, isCurseCard, rarityRank } from './classify.ts';
-import type { ParamSpec } from './define.ts';
+import { drawbackValueSpec, type ParamSpec } from './define.ts';
 import { CARD_TYPE_LABEL, RARITY_LABEL } from './labels.ts';
 import { isIntInRange } from './math.ts';
+import { effectPoints, modifierFits, rarityCap } from './points.ts';
 import { CONDITIONS, TIMINGS, conditionsFor, targetLabel, targetsForEffect } from './options.ts';
 import { getDrawback, getEffect, getKeyword, getModifier } from './registry.ts';
 import { RARITIES, type CardDef, type PointSummary, type Violation } from './types.ts';
@@ -140,6 +141,14 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
         if (known.some((m) => m.scope === 'damage') && !def.allowsMods) {
           out.push({ code: 'EFFECT_MODS', path: `${path}.mods`, message: '防御無視・吸収はダメージと連撃にしか付けられません' });
         }
+        // 遅延（次のターンに）：付けられない効果（再行動）と、X（全力）との併用（MTG 要素 ○ バッチA）
+        const delay = known.filter((m) => m.scope === 'delay');
+        if (delay.length > 0 && !modifierFits(delay[0]!, def)) {
+          out.push({ code: 'EFFECT_MODS', path: `${path}.mods`, message: `${what}には「${delay[0]!.name}」を付けられません` });
+        }
+        if (delay.length > 0 && known.some((m) => m.id === 'xEnergy')) {
+          out.push({ code: 'DELAY_WITH_X', path: `${path}.mods`, message: `「${delay[0]!.name}」と「${getModifier('xEnergy')!.name}」は同時に付けられません` });
+        }
         const scale = known.filter((m) => m.scope === 'scale');
         if (scale.length > 0 && !def.scalable) {
           out.push({ code: 'EFFECT_MODS_SCALE', path: `${path}.mods`, message: `${what}には「${scale[0]!.name}」を付けられません（数値に掛けられない効果です）` });
@@ -172,6 +181,20 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     });
   }
 
+  // 引いたときの効果は、コスト0のときのレアリティ上限まで（コストを上げて得た予算で「引くだけで得をする」カードを作らせない。
+  // MTG 要素 ○ バッチA）
+  if (rarityOk) {
+    const drawnTotal = card.effects.filter((e) => e.timing === 'drawn').reduce((sum, e) => sum + effectPoints(e, card).value, 0);
+    const drawnCap = rarityCap(card.rarity, 0);
+    if (drawnTotal > drawnCap) {
+      out.push({
+        code: 'DRAWN_OVER_CAP',
+        path: 'effects',
+        message: `「${TIMINGS.drawn.label}」の効果のポイントの合計は、コスト0のときの上限${drawnCap}ptまでです（いま${drawnTotal}pt）`,
+      });
+    }
+  }
+
   // デメリット
   const seenDrawbacks = new Set<string>();
   const cardType = classifyCard(card);
@@ -199,7 +222,10 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
         out.push({ code: 'DRAWBACK_CONFLICT', path, message: `${what}と「${otherDef?.name ?? other.id}」は同時に付けられません` });
       }
     }
-    checkParam(out, 'DRAWBACK_VALUE', `${path}.value`, what, def.value, d.value);
+    if (def.option && d.option !== undefined && !def.option.choices.some((c) => c.id === d.option)) {
+      out.push({ code: 'DRAWBACK_OPTION', path: `${path}.option`, message: `${what}の${def.option.label}が正しくありません` });
+    }
+    checkParam(out, 'DRAWBACK_VALUE', `${path}.value`, what, drawbackValueSpec(def, d), d.value);
     if (def.fixed) {
       if (d.timing !== null) {
         out.push({ code: 'DRAWBACK_TIMING', path: `${path}.timing`, message: `${what}は発動タイミングを選べません` });

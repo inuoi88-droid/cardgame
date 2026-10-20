@@ -52,7 +52,9 @@ import effects_weaken from './defs/effects/weaken.ts';
 import effects_wipe from './defs/effects/wipe.ts';
 import effects_wither from './defs/effects/wither.ts';
 import modifiers_drain from './defs/modifiers/drain.ts';
+import modifiers_nextTurn from './defs/modifiers/nextTurn.ts';
 import modifiers_perCardPlayed from './defs/modifiers/perCardPlayed.ts';
+import modifiers_perDiscardMonster from './defs/modifiers/perDiscardMonster.ts';
 import modifiers_perEnemyMonster from './defs/modifiers/perEnemyMonster.ts';
 import modifiers_pierce from './defs/modifiers/pierce.ts';
 import modifiers_xEnergy from './defs/modifiers/xEnergy.ts';
@@ -71,11 +73,15 @@ import keywords_taunt from './defs/keywords/taunt.ts';
 import keywords_trample from './defs/keywords/trample.ts';
 import keywords_undying from './defs/keywords/undying.ts';
 import drawbacks_betrayal from './defs/drawbacks/betrayal.ts';
+import drawbacks_blight from './defs/drawbacks/blight.ts';
 import drawbacks_decay from './defs/drawbacks/decay.ts';
 import drawbacks_defender from './defs/drawbacks/defender.ts';
 import drawbacks_discardRandom from './defs/drawbacks/discardRandom.ts';
+import drawbacks_exert from './defs/drawbacks/exert.ts';
 import drawbacks_exhaust from './defs/drawbacks/exhaust.ts';
+import drawbacks_exileDiscard from './defs/drawbacks/exileDiscard.ts';
 import drawbacks_gift from './defs/drawbacks/gift.ts';
+import drawbacks_legendary from './defs/drawbacks/legendary.ts';
 import drawbacks_lifespan from './defs/drawbacks/lifespan.ts';
 import drawbacks_parasite from './defs/drawbacks/parasite.ts';
 import drawbacks_pollute from './defs/drawbacks/pollute.ts';
@@ -141,7 +147,9 @@ export const EFFECT_DEFS: readonly EffectDef[] = [
 ];
 export const MODIFIER_DEFS: readonly ModifierDef[] = [
   modifiers_drain,
+  modifiers_nextTurn,
   modifiers_perCardPlayed,
+  modifiers_perDiscardMonster,
   modifiers_perEnemyMonster,
   modifiers_pierce,
   modifiers_xEnergy,
@@ -164,11 +172,15 @@ export const KEYWORD_DEFS: readonly KeywordDef[] = [
 ];
 export const DRAWBACK_DEFS: readonly DrawbackDef[] = [
   drawbacks_betrayal,
+  drawbacks_blight,
   drawbacks_decay,
   drawbacks_defender,
   drawbacks_discardRandom,
+  drawbacks_exert,
   drawbacks_exhaust,
+  drawbacks_exileDiscard,
   drawbacks_gift,
+  drawbacks_legendary,
   drawbacks_lifespan,
   drawbacks_parasite,
   drawbacks_pollute,

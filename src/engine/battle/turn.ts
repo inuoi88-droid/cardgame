@@ -2,12 +2,12 @@
 import { BALANCE } from '../balance.ts';
 import { getDrawback, getKeyword } from '../registry.ts';
 import { checkGameEnd, endGame, enqueue, log, monsterLabel, other, playerRef, sourceOfMonster, isEnded, turnLimits } from './core.ts';
-import { autoAttackTarget, attacksPerTurn, cannotAttack, performAttack } from './combat.ts';
+import { autoAttackTarget, attacksPerTurn, cannotAttack, exerted, performAttack } from './combat.ts';
 import { dealDamage, destroyMonster, heal } from './damage.ts';
 import { lifespanOf } from './play.ts';
 import { randInt } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
-import { enqueueMonsters, enqueuePowers } from './triggers.ts';
+import { enqueueDelayed, enqueueMonsters, enqueuePowers } from './triggers.ts';
 import { discardCard, drawCards } from './zones.ts';
 import type { GameState, PlayerId, Statuses } from './types.ts';
 
@@ -120,6 +120,11 @@ export function startTurn(g: GameState, p: PlayerId): void {
   drawCards(g, p, drawCount, 1);
   if (isEnded(g)) return;
 
+  // 予約した効果（修飾「次のターンに」。MTG 要素 ○ バッチA）：引いた後・ターン開始時のパワーより前に、古い順
+  const delayed = ps.delayed?.length ?? 0;
+  if (delayed > 0) log(g, 1, `${ps.name}の予約していた効果が発動する（${delayed}件）`, 'info');
+  enqueueDelayed(g, p);
+
   // 「自分のターン開始時」：パワー → 場のモンスター（左から）。その後、混乱・裏切りの自動攻撃
   enqueuePowers(g, p, 'turnStart', 1);
   enqueueMonsters(g, p, 'turnStart', 1);
@@ -131,8 +136,8 @@ export function runAutoAttacks(g: GameState, p: PlayerId): void {
   for (const m of [...g.players[p].board]) {
     if (!(m.status.confuseActive || m.betraying)) continue;
     if (m.status.freezeActive) continue;
-    // 防衛のモンスターは自動でも攻撃しない
-    if (cannotAttack(g, m)) continue;
+    // 防衛・消耗のモンスターは自動でも攻撃しない
+    if (cannotAttack(g, m) || exerted(g, m)) continue;
     const times = attacksPerTurn(g, m) - m.attacksUsed;
     for (let i = 0; i < times; i++) {
       const alive = g.players[p].board.find((x) => x.uid === m.uid);
@@ -245,6 +250,8 @@ export function turnEndFinish(g: GameState, p: PlayerId, kept: string[]): void {
   }
   ps.status.focus = 0;
   ps.turn.freezeTax = false;
+  // このターンの記録を残す（条件「前の相手のターンに相手がカードを3枚以上使った」。MTG 要素 ○ バッチA）
+  ps.lastTurn = { cardsPlayed: ps.turn.cardsPlayed };
   // 一時強化はターンの終わりに消える（両者のモンスター）
   for (const pl of g.players) for (const m of pl.board) if (m.tempAttack) delete m.tempAttack;
 

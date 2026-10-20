@@ -423,6 +423,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               key={m.uid}
               m={m}
               def={view.cards[m.card.cardId]}
+              ownerTurns={view.players[m.controller].turnsTaken}
               isMine={isMine}
               ready={ready}
               blockLabel={isMine && myTurn ? shortBlock(battle.attackBlockReason(view, m)) : null}
@@ -551,7 +552,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
             ) : undefined
           }
         >
-          <CardDetailBody def={def} extras={{ monster: m, flags: battle.keywordFlags(view, m), where: isMine ? 'あなたの場' : `${opponentLabel}の場` }} />
+          <CardDetailBody def={def} extras={{ monster: m, flags: battle.keywordFlags(view, m), ownerTurns: view.players[m.controller].turnsTaken, where: isMine ? 'あなたの場' : `${opponentLabel}の場` }} />
         </CardDetailSheet>
       );
     }

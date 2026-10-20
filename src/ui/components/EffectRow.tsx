@@ -8,7 +8,9 @@ import {
   CONDITIONS,
   TIMINGS,
   cardBase,
+  changeDrawbackOption,
   describeDrawback,
+  drawbackValueSpec,
   describeEffect,
   drawbackPoints,
   effectPoints,
@@ -30,7 +32,16 @@ import {
 import { GROUP_ICON } from '../editor/EffectPicker.tsx';
 import { drawbackHint, effectHint } from '../editor/hints.ts';
 import { OptionPicker } from '../editor/OptionPicker.tsx';
-import { conditionFromValue, conditionOptions, conditionValue, drawbackTimingOptions, effectOptionOptions, effectTimingOptions, targetOptions } from '../editor/pickOptions.ts';
+import {
+  conditionFromValue,
+  conditionOptions,
+  conditionValue,
+  drawbackOptionOptions,
+  drawbackTimingOptions,
+  effectOptionOptions,
+  effectTimingOptions,
+  targetOptions,
+} from '../editor/pickOptions.ts';
 import { fieldId } from '../editor/validation.ts';
 import { cx, stepOf } from '../util.ts';
 import { Popover } from './Popover.tsx';
@@ -247,10 +258,11 @@ export function EffectRow({ index, count, effect, card, violations, expanded, on
                       : [...cur.filter((x) => !(scale && getModifier(x)?.scope === 'scale')), m.id as ModifierId];
                     const next: EffectInstance = { ...effect, mods };
                     if (mods.length === 0) delete next.mods;
-                    onChange(next);
+                    // 遅延と X は同時に付けられない（fitEffect が先に付いていたほうを外す）
+                    onChange(fitEffect(next, cardBase(card)));
                   }}
                 />
-                {m.name}（+{Math.round(m.rate * 100)}%{scale ? '・数値の倍数' : ''}）
+                {m.name}（{m.rate >= 0 ? '+' : '−'}{Math.round(Math.abs(m.rate) * 100)}%{scale ? '・数値の倍数' : m.scope === 'delay' ? '・予約' : ''}）
               </label>
             );
           })}
@@ -311,7 +323,8 @@ export function DrawbackRow({ index, drawback, card, violations, expanded, onTog
     firstRef.current?.querySelector<HTMLElement>('input, select, button')?.focus({ preventScroll: true });
   }, [autoFocus, expanded]);
 
-  const step = def?.value ? stepOf(def.value) : 1;
+  const spec = def ? drawbackValueSpec(def, drawback) : undefined;
+  const step = spec ? stepOf(spec) : 1;
   const chips: ReactNode[] = [
     <span key="t" className="ed-chip">
       {def?.fixed ? '固定（タイミングなし）' : (TIMINGS[drawback.timing ?? 'play']?.label ?? '')}
@@ -327,7 +340,7 @@ export function DrawbackRow({ index, drawback, card, violations, expanded, onTog
       expanded={expanded}
       onToggle={onToggle}
       icon="☠"
-      title={`${def?.name ?? drawback.id}${def?.value ? ` ${drawback.value ?? 0}` : ''}`}
+      title={`${def?.name ?? drawback.id}${spec ? ` ${drawback.value ?? 0}` : ''}`}
       chips={chips}
       pts={`−${p.value}pt`}
       hint={drawbackHint(drawback, card)}
@@ -335,12 +348,23 @@ export function DrawbackRow({ index, drawback, card, violations, expanded, onTog
     >
       {def && <p className="ed-row__summary">{def.summary}</p>}
       <div className="ed-row__params" ref={firstRef}>
-        {def?.value && (
+        {def?.option && (
+          <OptionPicker
+            label={def.option.label}
+            title={`${nth}の${def.option.label}`}
+            value={drawback.option ?? def.option.default}
+            options={drawbackOptionOptions(drawback, card)}
+            onChange={(option) => onChange(changeDrawbackOption(drawback, option))}
+            id={fieldId(`drawbacks.${index}.option`)}
+            invalid={has('.option')}
+          />
+        )}
+        {spec && (
           <Stepper
-            label={def.value.label}
+            label={spec.label}
             value={drawback.value}
-            min={def.value.min}
-            max={def.value.max}
+            min={spec.min}
+            max={spec.max}
             step={step}
             snap={step > 1}
             invalid={has('.value')}

@@ -23,6 +23,10 @@ export const TIMING_IDS = [
   'powerPlayed',
   'skillPlayed',
   'hitEnemyPlayer',
+  // MTG 要素 ○ バッチA
+  'drawn',
+  'targeted',
+  'bigCardPlayed',
 ] as const;
 export type TimingId = (typeof TIMING_IDS)[number];
 
@@ -37,6 +41,10 @@ export const TARGET_IDS = [
   'board',
   'thisMonster',
   'allyMonsters',
+  // MTG 要素 ○ バッチA
+  'otherAllies',
+  'weakestAlly',
+  'bothPlayers',
 ] as const;
 export type TargetId = (typeof TARGET_IDS)[number];
 
@@ -61,11 +69,30 @@ export const CONDITION_IDS = [
   'bigDiscard',
   'monsterInHand',
   'twoSummonsThisTurn',
+  // MTG 要素 ○ バッチA
+  'enemyPlayedMany',
+  'veteran',
+  'strongerAlly',
+  'totalAttack',
+  'twoAllyAttacks',
+  'coven',
+  'delirium',
+  'criticalHp',
+  'bigDamageThisTurn',
+  'skillsInDiscard',
+  'healedThisTurn',
+  'enemyPoisonHigh',
+  'notFirstCard',
+  'clash',
+  'exploit',
 ] as const;
 export type ConditionId = (typeof CONDITION_IDS)[number];
 
-/** 効果のオプション。pierce・drain はダメージ系（allowsMods）、それ以外は数値に掛ける倍数（scalable な効果） */
-export const MODIFIER_IDS = ['pierce', 'drain', 'xEnergy', 'perEnemyMonster', 'perCardPlayed'] as const;
+/**
+ * 効果のオプション。pierce・drain はダメージ系（allowsMods）、nextTurn は遅延（予約）、
+ * それ以外は数値に掛ける倍数（scalable な効果）
+ */
+export const MODIFIER_IDS = ['pierce', 'drain', 'xEnergy', 'perEnemyMonster', 'perCardPlayed', 'nextTurn', 'perDiscardMonster'] as const;
 export type ModifierId = (typeof MODIFIER_IDS)[number];
 
 export interface Stats {
@@ -100,6 +127,8 @@ export interface DrawbackInstance {
   value?: number;
   /** 倍率込み固定値のデメリット（維持費・寄生・裏切り）は null */
   timing: TimingId | null;
+  /** デメリットごとの追加指定（捨て札の除外の「枚数／コスト合計」など） */
+  option?: string;
 }
 
 export interface CardDef {

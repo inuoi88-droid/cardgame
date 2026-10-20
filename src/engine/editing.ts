@@ -4,7 +4,8 @@
  */
 import { BALANCE } from './balance.ts';
 import { cardBase, rarityRank } from './classify.ts';
-import type { DrawbackDef, EffectDef, ModifierDef } from './define.ts';
+import { drawbackValueSpec, type DrawbackDef, type EffectDef, type ModifierDef } from './define.ts';
+import { modifierFits } from './points.ts';
 import { allowedTargets, conditionsFor, defaultTiming, targetsForEffect, TIMINGS, timingsFor } from './options.ts';
 import { getDrawback, getEffect, getModifier, listDrawbacks, listEffects, listModifiers } from './registry.ts';
 import { stampScale } from './scaling.ts';
@@ -66,10 +67,10 @@ export function effectTimings(def: Pick<EffectDef, 'timings'>, base: CardBase): 
   return timingsFor(base).filter((t) => !def.timings || def.timings.includes(t));
 }
 
-/** この効果に、このタイミングで付けられるオプション（防御無視・吸収と、数値の倍数） */
-export function modifiersFor(def: Pick<EffectDef, 'allowsMods' | 'scalable'>, timing: TimingId): ModifierDef[] {
+/** この効果に、このタイミングで付けられるオプション（防御無視・吸収と、数値の倍数と、遅延） */
+export function modifiersFor(def: Pick<EffectDef, 'allowsMods' | 'scalable' | 'noDelay'>, timing: TimingId): ModifierDef[] {
   return listModifiers().filter((m) => {
-    if (m.scope === 'damage' ? !def.allowsMods : !def.scalable) return false;
+    if (!modifierFits(m, def)) return false;
     return !m.timings || m.timings.includes(timing);
   });
 }
@@ -90,6 +91,10 @@ export function fitEffect(e: EffectInstance, base: CardBase): EffectInstance {
   let mods = [...new Set(e.mods ?? [])].filter((m) => allowed.has(m));
   const scale = mods.filter((m) => getModifier(m)?.scope === 'scale');
   if (scale.length > 1) mods = mods.filter((m) => getModifier(m)?.scope !== 'scale' || m === scale[scale.length - 1]);
+  // 遅延と X は同時に付けられない（後から付けたほうを残す）
+  const delayAt = mods.findIndex((m) => getModifier(m)?.scope === 'delay');
+  const xAt = mods.indexOf('xEnergy');
+  if (delayAt >= 0 && xAt >= 0) mods = mods.filter((_, i) => i !== Math.min(delayAt, xAt));
   if (mods.length > 0) next.mods = mods;
   else delete next.mods;
   return next;
@@ -124,8 +129,19 @@ export function fitDrawback(d: DrawbackInstance, base: CardBase): DrawbackInstan
 export function createDrawback(drawbackId: string, base: CardBase): DrawbackInstance {
   const def = getDrawback(drawbackId);
   const d: DrawbackInstance = { id: drawbackId, timing: defaultTiming(base) };
-  if (def?.value) d.value = def.value.default;
+  if (def?.option) d.option = def.option.default;
+  const spec = def ? drawbackValueSpec(def, d) : undefined;
+  if (spec) d.value = spec.default;
   return fitDrawback(d, base);
+}
+
+/** デメリットの追加指定を変える。数値の入力欄が変わるなら、その初期値に戻す */
+export function changeDrawbackOption(d: DrawbackInstance, option: string): DrawbackInstance {
+  const def = getDrawback(d.id);
+  const next: DrawbackInstance = { ...d, option };
+  const spec = def ? drawbackValueSpec(def, next) : undefined;
+  if (spec && (next.value === undefined || next.value < spec.min || next.value > spec.max || drawbackValueSpec(def!, d) !== spec)) next.value = spec.default;
+  return next;
 }
 
 /** モンスターにする／やめる。キーワード・効果・デメリットを新しい土台に合わせる */

@@ -5,7 +5,7 @@
  */
 import { BALANCE } from './balance.ts';
 import { cardBase } from './classify.ts';
-import type { ModifierDef, PointCard } from './define.ts';
+import type { EffectDef, ModifierDef, PointCard } from './define.ts';
 import { formatMultiplier } from './labels.ts';
 import { ceilPoints, floorPoints, round2 } from './math.ts';
 import {
@@ -99,16 +99,28 @@ function timingFactor(timing: keyof typeof TIMINGS, base: CardBase, card: PointC
   return { label: names.join('・'), value, text: profile.attacks === 1 && !profile.haste ? undefined : text };
 }
 
+/** このオプション（の種類）をこの効果に付けられるか（タイミングは見ない） */
+export function modifierFits(m: Pick<ModifierDef, 'scope'>, def: Pick<EffectDef, 'allowsMods' | 'scalable' | 'noDelay'>): boolean {
+  switch (m.scope) {
+    case 'damage':
+      return def.allowsMods === true;
+    case 'scale':
+      return def.scalable === true;
+    case 'delay':
+      return def.noDelay !== true;
+  }
+}
+
 /**
- * 効果に付いていて、その効果に付けられるオプション（防御無視・吸収は allowsMods、数値の倍数は scalable の効果だけ）。
- * 付けられないものは無視する（validate が違反として出す）
+ * 効果に付いていて、その効果に付けられるオプション（防御無視・吸収は allowsMods、数値の倍数は scalable の効果だけ、
+ * 遅延は noDelay でない効果）。付けられないものは無視する（validate が違反として出す）
  */
 export function effectModifiers(e: EffectInstance): ModifierDef[] {
   const def = getEffect(e.id);
   if (!def) return [];
   return [...new Set(e.mods ?? [])]
     .map((m) => getModifier(m))
-    .filter((m): m is ModifierDef => m !== undefined && (m.scope === 'damage' ? def.allowsMods === true : def.scalable === true));
+    .filter((m): m is ModifierDef => m !== undefined && modifierFits(m, def));
 }
 
 /** 効果1つのポイント：基礎ポイント ×（1 + オプション）× タイミング × 対象 × 条件 → 切り上げ */

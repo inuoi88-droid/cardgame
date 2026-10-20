@@ -92,6 +92,19 @@ export function resolveTargets(
     }
     case 'allyMonsters':
       return mons(me);
+    // ---- MTG 要素 ○ バッチA
+    case 'otherAllies':
+      // 効果を持つモンスター以外の自分のモンスター（左から）
+      return g.players[me].board.filter((m) => !(src.kind === 'monster' && m.uid === src.uid)).map((m) => ({ kind: 'monster', uid: m.uid }));
+    case 'weakestAlly': {
+      // 体力（今の値）がいちばん低い自分のモンスター（同じなら左）
+      let best: { uid: string; hp: number } | null = null;
+      for (const m of g.players[me].board) if (!best || m.hp < best.hp) best = { uid: m.uid, hp: m.hp };
+      return best ? [{ kind: 'monster', uid: best.uid }] : [];
+    }
+    case 'bothPlayers':
+      // 使った人の分。相手の分は queue.ts が入れ替えてもう一度解決する
+      return [playerRef(me)];
   }
 }
 

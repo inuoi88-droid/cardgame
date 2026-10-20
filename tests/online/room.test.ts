@@ -364,6 +364,53 @@ describe('時間切れ（決定事項 #57）', () => {
     expect(after.deck.some((c) => c.uid === picked)).toBe(false);
     expect(after.discard.some((c) => c.uid === picked)).toBe(true);
   });
+
+  it('濫用（選ばなくてもよい選択）の途中で時間切れなら、選ばずに進む（MTG 要素 ○ バッチA）', () => {
+    const { s, now } = playing(BEASTS, BEASTS);
+    const room = s.room!;
+    const g = room.state!;
+    const p = g.active;
+    const opp = battle.other(p);
+    const pet = card({ id: 'pet', name: '生け贄の獣', stats: { attack: 1, hp: 1, defense: 0 } });
+    g.cards[`p${p}:pet`] = pet;
+    giveCard(g, p, pet);
+    const exploit = card({ id: 'exploit', name: '濫用', effects: [{ id: 'damage', value: 5, timing: 'play', target: 'chosen', condition: 'exploit' }] });
+    const uid = giveCard(g, p, exploit);
+    g.players[p].energy = 10;
+    const petUid = g.players[p].hand.find((c) => c.cardId === `p${p}:pet`)!.uid;
+    ok(s.send(actionReq(tokenOf(p), room.version, { type: 'playCard', player: p, cardUid: petUid }), { tokenHash: tokenOf(p), now }));
+    const hp = s.room!.state!.players[opp].hp;
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'playCard', player: p, cardUid: uid, chosen: { enemy: { kind: 'player', player: opp } } }), { tokenHash: tokenOf(p), now: now + 1 }));
+    expect(s.room!.state!.pending).toMatchObject({ player: p, min: 0, max: 1 });
+    ok(s.send(stateReq(tokenOf(p)), { tokenHash: tokenOf(p), now: s.room!.deadline! + 1 }));
+    const after = s.room!.state!;
+    expect(after.pending).toBeNull();
+    expect(after.players[opp].hp).toBe(hp);
+    expect(after.players[p].board.some((m) => m.uid === petUid)).toBe(true);
+  });
+
+  it('お互いの手札整理：相手側の選択は相手が送る（MTG 要素 ○ バッチA）', () => {
+    const { s, now } = playing(BEASTS, BEASTS);
+    const room = s.room!;
+    const g = room.state!;
+    const p = g.active;
+    const opp = battle.other(p);
+    const loot = card({ id: 'loot2', name: 'お互いの整理', effects: [{ id: 'loot', value: 1, timing: 'play', target: 'bothPlayers', condition: null }] });
+    const uid = giveCard(g, p, loot);
+    g.players[p].energy = 10;
+    ok(s.send(actionReq(tokenOf(p), room.version, { type: 'playCard', player: p, cardUid: uid }), { tokenHash: tokenOf(p), now }));
+    const mine = s.room!.state!.pending!;
+    expect(mine.player).toBe(p);
+    ok(s.send(actionReq(tokenOf(p), s.room!.version, { type: 'choose', player: p, picks: [mine.options[0]!.id] }), { tokenHash: tokenOf(p), now: now + 1 }));
+    const theirs = s.room!.state!.pending!;
+    expect(theirs.player).toBe(opp);
+    // 相手の画面には選択肢が出る（自分の画面では隠れる）
+    expect(ok(s.send(stateReq(tokenOf(p)), { tokenHash: tokenOf(p), now: now + 2 })).view!.pending!.options).toEqual([]);
+    expect(ok(s.send(stateReq(tokenOf(opp)), { tokenHash: tokenOf(opp), now: now + 2 })).view!.pending!.options.length).toBeGreaterThan(0);
+    ok(s.send(actionReq(tokenOf(opp), s.room!.version, { type: 'choose', player: opp, picks: [theirs.options[0]!.id] }), { tokenHash: tokenOf(opp), now: now + 3 }));
+    expect(s.room!.state!.pending).toBeNull();
+    expect(s.room!.state!.active).toBe(p);
+  });
 });
 
 describe('接続状態と再接続', () => {

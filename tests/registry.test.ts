@@ -23,11 +23,11 @@ describe('レジストリ', () => {
     expect(readFileSync(OUTPUT_PATH, 'utf8')).toBe(generateRegistrySource());
   });
 
-  it('仕様の数だけ登録されている（効果51・オプション5・キーワード14・デメリット15。MTG 要素バッチ1で数値の倍数3つ、バッチ2で効果12・キーワード6・デメリット5）', () => {
+  it('仕様の数だけ登録されている（効果51・オプション7・キーワード14・デメリット19。MTG 要素バッチ1で数値の倍数3つ、バッチ2で効果12・キーワード6・デメリット5、○ バッチAで修飾2・デメリット4）', () => {
     expect(listEffects()).toHaveLength(51);
-    expect(listModifiers()).toHaveLength(5);
+    expect(listModifiers()).toHaveLength(7);
     expect(listKeywords()).toHaveLength(14);
-    expect(listDrawbacks()).toHaveLength(15);
+    expect(listDrawbacks()).toHaveLength(19);
   });
 
   it('すべての効果に balance.ts の基礎ポイントがある', () => {

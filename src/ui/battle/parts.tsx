@@ -189,6 +189,20 @@ export function PlayerPanel({ ps, isMe, active, targetable, onClick, onPile, flo
             </span>
           </Popover>
         )}
+        {(ps.delayed?.length ?? 0) > 0 && (
+          <Popover
+            content={{
+              title: `${mechanicGlossary.delayed!.icon} 予約 ${ps.delayed!.length}/${BALANCE.battle.maxDelayedPerPlayer}`,
+              description: mechanicGlossary.delayed!.short,
+              lines: ps.delayed!.map((d) => d.label),
+            }}
+            placement="top"
+          >
+            <span className="pp__next">
+              {mechanicGlossary.delayed!.icon}予約 {ps.delayed!.length}
+            </span>
+          </Popover>
+        )}
         <Chips chips={statusChips(ps.status, true)} />
         {ps.powers.map((pw) => (
           <button
@@ -245,10 +259,18 @@ interface MonsterTileProps {
   dropHover?: boolean;
   /** つかんで動かしている */
   dragging?: boolean;
+  /** 今の持ち主が自分のターンを迎えた回数（消耗の表示） */
+  ownerTurns?: number;
 }
 
 /** モンスターの札（キーワード・封印・隠密・裏切り・予告・攻撃回数・状態異常）。タイルと詳細で共用 */
-export function monsterChips(def: CardDef | undefined, m: battle.Monster, flags: ReturnType<typeof battle.keywordFlags>): Chip[] {
+export function monsterChips(
+  def: CardDef | undefined,
+  m: battle.Monster,
+  flags: ReturnType<typeof battle.keywordFlags>,
+  /** 今の持ち主が自分のターンを迎えた回数（消耗の表示に使う。省略すると消耗を出さない） */
+  ownerTurns?: number,
+): Chip[] {
   const kws: Chip[] = (def?.keywords ?? []).map((k) => {
     const g = keywordGlossary[k.id];
     return {
@@ -290,6 +312,21 @@ export function monsterChips(def: CardDef | undefined, m: battle.Monster, flags:
   if (life !== undefined && life > 0) {
     extra.push({ id: 'life', label: `${M.lifespan!.icon}寿命${life}`, tone: 'bad', card: { title: `${M.lifespan!.icon} 寿命 残り${life}`, description: M.lifespan!.short, lines: [life === 1 ? 'このモンスターの持ち主のターン終了時に破壊される' : `あと${life}回、持ち主のターン終了時を迎えると破壊される`] } });
   }
+  // MTG 要素 ○ バッチA：消耗（次の持ち主のターンは攻撃できない）・攻撃した回数（条件「このモンスターが3回以上攻撃した」のカードだけ）
+  const exertTurn = m.counters.exertTurn;
+  if (exertTurn !== undefined && ownerTurns !== undefined && exertTurn >= ownerTurns) {
+    const now = exertTurn === ownerTurns;
+    extra.push({
+      id: 'exert',
+      label: `${M.exert!.icon}消耗${now ? '中' : ''}`,
+      tone: 'bad',
+      card: { title: `${M.exert!.icon} ${M.exert!.name}`, description: M.exert!.short, lines: [now ? 'このターンは攻撃できない' : '次の持ち主のターンは攻撃できない'] },
+    });
+  }
+  const attacksTotal = m.counters.attacksTotal ?? 0;
+  if (attacksTotal > 0 && def?.effects.some((e) => e.condition === 'veteran')) {
+    extra.push({ id: 'attacksTotal', label: `⚔攻撃した回数 ${attacksTotal}`, tone: 'info', card: { title: `攻撃した回数 ${attacksTotal}`, description: '場に出てから攻撃した回数（場を離れると0から）' } });
+  }
   for (const f of monsterForecasts(def, m)) extra.push({ id: `fc:${f.title}`, label: f.label, tone: f.tone, card: { title: f.title, description: f.description } });
   if ((flags.attacksPerTurn ?? 1) > 1 && m.attacksUsed > 0) {
     extra.push({ id: 'attacks', label: `攻撃${m.attacksUsed}/${flags.attacksPerTurn}`, tone: 'info', card: { title: 'このターンの攻撃回数', description: `${flags.attacksPerTurn}回まで攻撃できる` } });
@@ -297,9 +334,9 @@ export function monsterChips(def: CardDef | undefined, m: battle.Monster, flags:
   return [...(m.sealed ? [] : kws), ...extra, ...statusChips(m.status, false)];
 }
 
-export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, flags, onClick, onDetail, onPointerDown, floats, flash, hidden, dying, isMine, dropHover, dragging }: MonsterTileProps) {
+export function MonsterTile({ m, def, ready, blockLabel, selected, targetable, flags, onClick, onDetail, onPointerDown, floats, flash, hidden, dying, isMine, dropHover, dragging, ownerTurns }: MonsterTileProps) {
   const press = useLongPress(onDetail);
-  const chips = monsterChips(def, m, flags);
+  const chips = monsterChips(def, m, flags, ownerTurns);
   const label = def?.name ?? '？';
   const state = targetable ? '対象' : selected ? '選択中' : ready ? '攻撃できる' : blockLabel ?? null;
   return (

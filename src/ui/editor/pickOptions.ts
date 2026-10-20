@@ -14,6 +14,7 @@ import {
   drawbackTimings,
   effectTimings,
   getDrawback,
+  changeDrawbackOption,
   targetsForEffect,
   attackProfile,
   cardBase,
@@ -215,4 +216,15 @@ export function effectOptionOptions(effect: EffectInstance, card: CardDef): Pick
       points: `${effectPoints({ ...effect, option: c.id }, card).value}pt`,
     };
   });
+}
+
+/** デメリットごとの追加指定（捨て札の除外の「枚数／コスト合計」。MTG 要素 ○ バッチA） */
+export function drawbackOptionOptions(drawback: DrawbackInstance, card: CardDef): PickOption[] {
+  const def = getDrawback(drawback.id);
+  if (!def?.option) return [];
+  return def.option.choices.map((c) => ({
+    id: c.id,
+    label: c.label,
+    points: `−${drawbackPoints(changeDrawbackOption(drawback, c.id), card).value}pt`,
+  }));
 }

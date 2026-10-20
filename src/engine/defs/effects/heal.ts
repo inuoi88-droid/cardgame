@@ -11,6 +11,8 @@ export default defineEffect({
   summary: '自分のHPをN回復する',
   value: valueParam('回復量', { default: 2 }),
   targetRule: 'self',
+  // 対象「お互い」を選べる（MTG 要素 ○ バッチA）
+  symmetric: true,
   scalable: true,
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,

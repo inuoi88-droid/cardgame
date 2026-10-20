@@ -146,12 +146,32 @@ export interface PlayerState {
     allyAttacks?: number;
     summoned?: number;
     monstersDestroyed?: number;
+    /** 相手プレイヤーのHPを減らした合計（MTG 要素 ○ バッチA。条件「このターン相手に合計6以上のダメージを与えた」） */
+    enemyDamageTotal?: number;
+    /** 自分のHPが1以上回復した（条件「このターン自分が回復した」） */
+    healed?: boolean;
   };
+  /** 最後に終えた自分のターンの記録（ターン終了時に写す。条件「前の相手のターンに相手がカードを3枚以上使った」）。無ければ記録なし */
+  lastTurn?: { cardsPlayed: number };
+  /** 予約された効果（修飾「次のターンに」）。次の自分のターン開始時（引いた後）に古い順に発動する。無ければ空 */
+  delayed?: DelayedEffect[];
   /** 次に使うカードのコスト軽減（使うまで残る） */
   discount: number;
   /** 自分のターンを迎えた回数 */
   turnsTaken: number;
   mulligan: { done: boolean; fullCount: number };
+}
+
+/** 予約された効果（修飾「次のターンに」。MTG 要素 ○ バッチA）。公開情報 */
+export interface DelayedEffect {
+  id: string;
+  src: SourceRef;
+  /** 遅延を外し、条件を外し、数値の倍数を予約した時点の値で確定した写し */
+  effect: EffectInstance;
+  timing: TimingId;
+  chosen: Chosen;
+  /** 表示用（カード名と効果テキスト） */
+  label: string;
 }
 
 /** 効果や攻撃の出どころ */
@@ -187,6 +207,8 @@ export type Step =
   | { t: 'drawback'; src: SourceRef; drawback: DrawbackInstance; protectKey?: string; depth: number; picks?: string[] }
   /** 手札を count 枚選んで捨てる（手札整理） */
   | { t: 'discardChoice'; player: PlayerId; count: number; depth: number; picks?: string[] }
+  /** 濫用：自分のモンスター1体を生け贄にしてよい（選んだら PlayRecord.exploited。MTG 要素 ○ バッチA） */
+  | { t: 'exploitChoice'; player: PlayerId; protectKey: string; depth: number; picks?: string[] }
   | { t: 'cardDone'; player: PlayerId; card: CardInst; protectKey: string; depth: number }
   | { t: 'autoAttacks'; player: PlayerId }
   | { t: 'turnEndEffects'; player: PlayerId }
@@ -273,6 +295,8 @@ export interface PlayRecord {
   counterHit?: string[];
   /** X（全力）で使ったエナジー（このカードの X の効果がすべて使う） */
   x?: number;
+  /** 濫用で自分のモンスターを生け贄にした（条件「自分のモンスター1体を生け贄にしたなら」） */
+  exploited?: boolean;
 }
 
 export interface GameResult {

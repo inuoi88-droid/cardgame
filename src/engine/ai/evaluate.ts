@@ -16,6 +16,7 @@ import { effectiveAttack, other } from '../battle/core.ts';
 import { combatBonus, keywordFlags } from '../battle/damage.ts';
 import { effectiveCost, lifespanOf } from '../battle/play.ts';
 import { energyForTurn } from '../battle/turn.ts';
+import { effectPoints } from '../points.ts';
 import { getKeyword } from '../registry.ts';
 import type { CardDef } from '../types.ts';
 import { NOISE_CARD_ID, type GameState, type Monster, type PlayerId } from '../battle/types.ts';
@@ -90,9 +91,21 @@ export const WEIGHTS = {
   /** 寿命の残り1ターンにつき、モンスターの価値に掛ける割合（残り1なら 0.25+0.25＝半分） */
   lifespanBase: 0.25,
   lifespanPerTurn: 0.25,
+  // ---- MTG 要素 ○ バッチA
+  /** 消耗で次のターンに攻撃できないモンスターの打点の割合 */
+  exertFactor: 0.5,
+  /**
+   * 予約した効果（次のターンに）：効果のポイント ÷ pointsPerHp を HP に換算し、この割合だけ価値がある
+   * （ダメージ1が3pt なので、ポイント3で HP1 くらい）
+   */
+  delayed: 0.8,
+  pointsPerHp: 3,
 } as const;
 
 const W = WEIGHTS;
+
+/** ポイント計算に渡す「モンスターでないカード」（予約した効果の価値に使う） */
+const NO_CARD = { stats: null, keywords: [] };
 
 /** 毎ターン keepRate 倍（切り捨て）に減りながら効く量 n の合計（毒・再生：n + ⌊n/2⌋ + ⌊n/4⌋ + …） */
 export function decayingTotal(n: number, keepRate: number): number {
@@ -169,12 +182,19 @@ export function nextEnergy(g: GameState, p: PlayerId): number {
   return Math.max(0, energyForTurn(ps.turnsTaken + 1) - penalty + carried);
 }
 
+/** 消耗（MTG 要素 ○ バッチA）で、次の持ち主のターンに攻撃できないか */
+function exertedNextTurn(g: GameState, m: Monster): boolean {
+  return m.counters.exertTurn !== undefined && m.counters.exertTurn === g.players[m.controller].turnsTaken + 1;
+}
+
 export function nextTurnThreat(g: GameState, p: PlayerId): Threat {
   const ps = g.players[p];
   let board = 0;
   let attacks = 0;
   for (const m of ps.board) {
     if (m.betraying || m.status.freezePending || cannotAttack(g, m)) continue;
+    // 消耗：次の自分のターンは攻撃できない
+    if (exertedNextTurn(g, m)) continue;
     const n = attacksPerTurn(g, m);
     let atk = m.attack;
     if (m.status.weak > 0) atk = Math.floor(atk * (1 - B.weakRate));
@@ -274,6 +294,8 @@ function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   // 防衛：攻撃しないので打点として数えない
   let attackVal = cannotAttack(g, m) ? 0 : m.attack * n * W.monsterAttack * Math.max(0, attackTurns);
   if (m.status.confusePending || m.status.confuseActive) attackVal *= W.confusedFactor;
+  // 消耗：次の自分のターンは攻撃できないので、打点を半分に数える
+  if (exertedNextTurn(g, m)) attackVal *= W.exertFactor;
   let v = attackVal + m.hp * W.monsterHp + m.defense * W.monsterDefense;
   // 一時強化・再行動：このターンに残っている攻撃のぶん（自分のターン中だけ）
   if (g.phase === 'main' && g.active === m.controller && !attackBlockReason(g, m)) {
@@ -350,6 +372,8 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
     v += pw.effects.filter((x) => !x.removed).length * W.power * life;
   }
   v += ps.next.energy * W.nextEnergy + ps.next.draw * W.nextDraw + ps.discount * W.discount;
+  // 予約した効果（次のターンに）：効果のポイントを HP に換算して足す（そうしないと、予約するカードを使う意味がないと判断してしまう）
+  for (const d of ps.delayed ?? []) v += (effectPoints(d.effect, NO_CARD).raw / W.pointsPerHp) * W.delayed;
   v -= ps.deck.filter((c) => c.cardId === NOISE_CARD_ID).length * W.noiseInDeck;
   for (const m of ps.board) v += monsterValue(g, m, ctx);
 

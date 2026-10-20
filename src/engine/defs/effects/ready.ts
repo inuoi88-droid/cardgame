@@ -13,7 +13,9 @@ export default defineEffect({
   targetRule: 'allyMonsterOne',
   timings: ['play', 'summon'],
   // 自分自身・全体に付けると何度でも攻撃できてしまうので外す
-  excludeTargets: ['thisMonster', 'allyMonsters'],
+  excludeTargets: ['thisMonster', 'allyMonsters', 'otherAllies'],
+  // ターン開始時に再行動しても意味がないので、遅延（次のターンに）は付けられない
+  noDelay: true,
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
   describe: (_e, c) => `${c.target}をもう一度攻撃できるようにする（1体につき1ターン1回）`,

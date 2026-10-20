@@ -210,7 +210,7 @@ describe('効果（バッチ2）：テキストとポイント', () => {
 
   it('使えるタイミング・対象の制限（再行動・格闘・倍化・トークン）', () => {
     const ready = getEffect('ready')!;
-    expect(targetsForEffect(ready, 'summon', 'monster')).toEqual(['chosen', 'random']);
+    expect(targetsForEffect(ready, 'summon', 'monster')).toEqual(['chosen', 'random', 'weakestAlly']);
     const v = (c: CardDef) => codes(analyzeCard(c).violations);
     expect(v(SPELL([fx({ id: 'ready', timing: 'turnEnd', target: 'random' })]))).toContain('EFFECT_TIMING');
     expect(v(MON(1, 1, { effects: [fx({ id: 'ready', timing: 'summon', target: 'thisMonster' })] }))).toContain('EFFECT_TARGET');

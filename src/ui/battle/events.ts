@@ -158,6 +158,19 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
           push(e.text, ev.player ?? null, { t: 'notice', text: `🪙 コイン投げ：${heads ? '表' : '裏'}`, tone: 'neutral' }, DURATION.notice);
           break;
         }
+        // MTG 要素 ○ バッチA：激突（amount 1＝勝ち）・予約（amount＝予約の件数）・引いたときの効果
+        if (ev.status === 'clash') {
+          push(e.text, ev.player ?? null, { t: 'notice', text: `⚔ 激突：${(ev.amount ?? 0) > 0 ? '勝ち' : '負け'}`, tone: 'neutral' }, DURATION.notice);
+          break;
+        }
+        if (ev.status === 'delayed') {
+          push(e.text, ev.player ?? null, { t: 'notice', text: `⏳ 予約（${ev.amount ?? 1}件）`, tone: 'neutral' }, DURATION.notice);
+          break;
+        }
+        if (ev.status === 'drawn') {
+          push(e.text, ev.player ?? null, { t: 'notice', text: '✋ 引いたときの効果', tone: 'neutral' }, DURATION.notice);
+          break;
+        }
         if (!ev.target) break;
         const name = STATUS_NAME[ev.status ?? ''] ?? ev.status ?? '';
         const good = GOOD_STATUS.has(ev.status ?? '');

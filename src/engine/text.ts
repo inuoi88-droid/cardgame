@@ -17,11 +17,14 @@ export function describeEffect(e: EffectInstance): string {
     modPrefix: mods.map((m) => m.textPrefix).join(''),
     modSuffix: mods.map((m) => m.textSuffix).join(''),
   });
+  // 遅延（次のターンに）は条件の後ろ、倍数の前に付ける。「お互い」は効果の文の先頭（MTG 要素 ○ バッチA）
+  const delay = all.filter((m) => m.scope === 'delay');
   const timing = TIMINGS[e.timing]?.textPrefix ?? '';
   const condition = e.condition ? (CONDITIONS[e.condition]?.textPrefix ?? '') : '';
-  const before = scale.map((m) => m.textPrefix).join('');
-  const after = scale.map((m) => m.textSuffix).join('');
-  return `${timing}${condition}${before}${body}${after}。`;
+  const before = [...delay, ...scale].map((m) => m.textPrefix).join('');
+  const after = [...scale, ...delay].map((m) => m.textSuffix).join('');
+  const both = e.target === 'bothPlayers' ? 'お互い、' : '';
+  return `${timing}${condition}${before}${both}${body}${after}。`;
 }
 
 export function describeDrawback(d: DrawbackInstance): string {

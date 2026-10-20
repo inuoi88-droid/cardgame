@@ -141,6 +141,10 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
     playRecord(g, protectKey).x = x;
     log(g, 1, `X＝${x}（エナジーをすべて使った）`, 'info', undefined, { kind: 'energy', player: p, amount: 0 });
   }
+  // 自分のカードの対象になるたび（英雄的。MTG 要素 ○ バッチA）：選んだ自分のモンスターの効果を、カードの効果より先に積む
+  if (chosen.ally && chosenRules(def).ally && ps.board.some((m) => m.uid === chosen.ally)) {
+    enqueueMonsters(g, p, 'targeted', 1, { onlyUid: chosen.ally });
+  }
   if (def.stats) {
     summon(g, p, card, chosen, 1, protectKey);
   } else {
@@ -227,6 +231,11 @@ export function finishCard(g: GameState, p: PlayerId, card: CardInst, protectKey
   if (timing) {
     enqueuePowers(g, p, timing, depth, { excludeUid: newPower?.uid });
     enqueueMonsters(g, p, timing, depth);
+  }
+  // コスト3以上のカードを使うたび（演目。MTG 要素 ○ バッチA）：印刷コストで判定。いま置いたパワー・いま出たモンスター自身は除く
+  if (def && def.cost >= BALANCE.timingParams.bigCardCost) {
+    enqueuePowers(g, p, 'bigCardPlayed', depth, { excludeUid: newPower?.uid });
+    enqueueMonsters(g, p, 'bigCardPlayed', depth, def.stats ? { excludeUid: card.uid } : {});
   }
 }
 

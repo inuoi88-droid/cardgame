@@ -2,17 +2,18 @@
 import { BALANCE } from '../balance.ts';
 import type { EffectDef } from '../define.ts';
 import { effectModifiers } from '../points.ts';
-import { getDrawback, getEffect } from '../registry.ts';
+import { getDrawback, getEffect, getModifier } from '../registry.ts';
 import { describeDrawback, describeEffect } from '../text.ts';
 import type { EffectInstance } from '../types.ts';
 import { checkCondition } from './conditions.ts';
-import { checkGameEnd, enqueue, findMonster, log, other, playRecord } from './core.ts';
+import { destroyMonster } from './damage.ts';
+import { cardName, checkGameEnd, enqueue, findMonster, log, monsterLabel, newUid, other, playRecord } from './core.ts';
 import { finishCard } from './play.ts';
 import { makeRuntime, resolveTargets } from './runtime.ts';
 import { retainOptions, runAutoAttacks, turnEndEffects, turnEndFinish } from './turn.ts';
 import { discardChosen } from './zones.ts';
 import { CONDITIONS, REPEAT_CAPPED_TIMINGS } from '../options.ts';
-import type { GameState, Step } from './types.ts';
+import { NOISE_CARD_ID, type DelayedEffect, type GameState, type SourceRef, type Step } from './types.ts';
 
 /** 1回の行動で処理する上限（効果の無限ループを防ぐ） */
 const MAX_STEPS = 5000;
@@ -48,6 +49,8 @@ function executeStep(g: GameState, step: Step): void {
       return executeRetain(g, step);
     case 'discardChoice':
       return executeDiscardChoice(g, step);
+    case 'exploitChoice':
+      return executeExploitChoice(g, step);
     case 'turnEndFinish':
       return turnEndFinish(g, step.player, step.kept);
   }
@@ -81,6 +84,13 @@ function scaledEffect(g: GameState, step: Extract<Step, { t: 'effect' }>, def: E
       why = g.active === me ? `このターン使ったカード${count}枚${count > cap ? `（最大${cap}）` : ''}` : '相手のターン';
       break;
     }
+    case 'perDiscardMonster': {
+      const dcap = BALANCE.modifierParams.discardCountCap;
+      const count = g.players[me].discard.filter((c) => c.cardId !== NOISE_CARD_ID && g.cards[c.cardId]?.stats).length;
+      factor = Math.min(count, dcap);
+      why = `捨て札のモンスター${count}枚${count > dcap ? `（最大${dcap}）` : ''}`;
+      break;
+    }
     default:
       return null;
   }
@@ -103,7 +113,8 @@ function executeEffect(g: GameState, step: Extract<Step, { t: 'effect' }>): void
   if (!step.picks) {
     if (sourceGone(g, step)) return;
     log(g, step.depth, `${step.src.name}：${describeEffect(step.effect)}`, 'effect');
-    if (step.effect.condition && !checkCondition(g, me, step.effect.condition, { roll: { depth: step.depth + 1 } })) {
+    const opts = { roll: { depth: step.depth + 1 }, src: step.src, ...(step.protectKey ? { protectKey: step.protectKey } : {}) };
+    if (step.effect.condition && !checkCondition(g, me, step.effect.condition, opts)) {
       log(g, step.depth + 1, `条件「${CONDITIONS[step.effect.condition].label}」を満たさないため発動しない`);
       return;
     }
@@ -118,6 +129,11 @@ function executeEffect(g: GameState, step: Extract<Step, { t: 'effect' }>): void
     log(g, step.depth + 1, `${scaled.why}：数値 ${step.effect.value ?? 0}×${scaled.factor} → ${scaled.effect.value ?? 0}`);
   }
   if (scaled && scaled.factor <= 0) return;
+  // 次のターンに（遅延）：条件と数値の倍数はいま決め、次の自分のターン開始時に発動させる（MTG 要素 ○ バッチA）
+  if (!step.picks && effectModifiers(step.effect).some((m) => m.scope === 'delay')) {
+    reserve(g, step, scaled?.effect ?? step.effect);
+    return;
+  }
   const effect = scaled?.effect ?? step.effect;
   const targets = resolveTargets(g, step.src, effect, step.timing, def.targetRule, step.chosen);
   const rt = makeRuntime(g, step.src, targets, {
@@ -149,10 +165,79 @@ function executeEffect(g: GameState, step: Extract<Step, { t: 'effect' }>): void
   g.holdEnd += 1;
   try {
     def.battle.resolve(rt, effect, picks);
+    // お互い：相手にも同じ効果（使った人と相手を入れ替えて、もう一度。上限はそれぞれのプレイヤーで数える）
+    if (effect.target === 'bothPlayers' && g.phase !== 'ended') {
+      const swapped: SourceRef = { ...step.src, controller: other(me) };
+      log(g, step.depth + 1, `${g.players[other(me)].name}にも同じ効果`);
+      const rt2 = makeRuntime(g, swapped, resolveTargets(g, swapped, effect, step.timing, def.targetRule, {}), { depth: step.depth + 1, attackCard: false });
+      def.battle.resolve(rt2, effect, undefined);
+    }
   } finally {
     g.holdEnd -= 1;
   }
   checkGameEnd(g);
+}
+
+/** 効果を予約する（次の自分のターン開始時に発動）。予約は1人 battle.maxDelayedPerPlayer 件まで */
+function reserve(g: GameState, step: Extract<Step, { t: 'effect' }>, effect: EffectInstance): void {
+  const me = step.src.controller;
+  const ps = g.players[me];
+  const max = BALANCE.battle.maxDelayedPerPlayer;
+  const list = ps.delayed ?? [];
+  if (list.length >= max) {
+    log(g, step.depth + 1, `予約は${max}件までなので、この効果は予約できない`);
+    return;
+  }
+  // 遅延・数値の倍数（値は確定済み）・条件（判定済み）を外した写し
+  const mods = (effect.mods ?? []).filter((m) => {
+    const scope = getModifier(m)?.scope;
+    return scope !== 'delay' && scope !== 'scale';
+  });
+  const copy: EffectInstance = { ...effect, condition: null };
+  if (mods.length > 0) copy.mods = mods;
+  else delete copy.mods;
+  const entry: DelayedEffect = {
+    id: newUid(g, 'dl'),
+    src: step.src,
+    effect: copy,
+    timing: step.timing,
+    chosen: step.chosen,
+    label: `${step.src.name}：${describeEffect(copy)}`,
+  };
+  ps.delayed = [...list, entry];
+  log(g, step.depth + 1, `予約：次のターン開始時に「${describeEffect(copy).replace(/。$/, '')}」`, 'effect', undefined, {
+    kind: 'status',
+    player: me,
+    status: 'delayed',
+    amount: ps.delayed.length,
+  });
+}
+
+/** 濫用：自分のモンスター1体を生け贄にしてよい（選ばなくてもよい）。場にいなければ選ばずに終わる */
+function executeExploitChoice(g: GameState, step: Extract<Step, { t: 'exploitChoice' }>): void {
+  const ps = g.players[step.player];
+  if (step.picks) {
+    const uid = step.picks[0];
+    const m = uid ? findMonster(g, uid) : undefined;
+    if (!m || m.controller !== step.player) {
+      log(g, step.depth, `${ps.name}は生け贄にしなかった`);
+      return;
+    }
+    log(g, step.depth, `濫用：${monsterLabel(g, m)}を生け贄にした`);
+    playRecord(g, step.protectKey).exploited = true;
+    destroyMonster(g, m, step.depth + 1);
+    checkGameEnd(g);
+    return;
+  }
+  if (ps.board.length === 0) return;
+  g.pending = {
+    player: step.player,
+    prompt: '濫用：生け贄にする自分のモンスターを選んでください（選ばなくてもよい）',
+    options: ps.board.map((m) => ({ id: m.uid, label: cardName(g, m.card.cardId), cardId: m.card.cardId })),
+    min: 0,
+    max: 1,
+    step,
+  };
 }
 
 function executeDrawback(g: GameState, step: Extract<Step, { t: 'drawback' }>): void {

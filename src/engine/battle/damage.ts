@@ -227,7 +227,12 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
     );
     const result: DamageResult = { hpLost: before - ps.hp, overflow: 0, destroyed: false };
     // このターンの記録：手番のプレイヤーが相手のHPを減らした（出どころは問わない。条件「このターン相手にダメージを与えた」）
-    if (result.hpLost > 0 && g.phase === 'main' && target.player !== g.active) g.players[g.active].turn.enemyDamaged = true;
+    if (result.hpLost > 0 && g.phase === 'main' && target.player !== g.active) {
+      const turn = g.players[g.active].turn;
+      turn.enemyDamaged = true;
+      // 合計（条件「このターン相手に合計6以上のダメージを与えた」。MTG 要素 ○ バッチA）
+      turn.enemyDamageTotal = (turn.enemyDamageTotal ?? 0) + result.hpLost;
+    }
     if (checkGameEnd(g)) return result;
     lifelink(g, combatSrc, result.hpLost, opts.depth + 1);
     // 反撃（状態）：攻撃を受けたら、攻撃してきた相手に返す。1枚のカード（1回の攻撃）につき1回
@@ -339,6 +344,8 @@ export function heal(g: GameState, target: TargetRef, amount: number, depth: num
     const before = ps.hp;
     ps.hp = Math.min(ps.maxHp, ps.hp + n);
     log(g, depth, `${ps.name}のHPが${n}回復${note}：HP ${before}→${ps.hp}`, 'effect', undefined, { kind: 'heal', target, amount: ps.hp - before });
+    // このターンの記録：手番のプレイヤーが回復した（条件「このターン自分が回復した」。MTG 要素 ○ バッチA）
+    if (ps.hp > before && g.phase === 'main' && target.player === g.active) ps.turn.healed = true;
     return ps.hp - before;
   }
   const m = findMonster(g, target.uid)!;

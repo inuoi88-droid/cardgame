@@ -10,9 +10,11 @@ export default defineEffect({
   order: 23,
   summary: '自分の状態異常をすべて解除する',
   targetRule: 'self',
+  // 対象「お互い」を選べる（MTG 要素 ○ バッチA）
+  symmetric: true,
   basePoints: () => B.flat,
   baseFormula: () => `${B.flat}`,
-  describe: () => '自分の状態異常をすべて解除する',
+  describe: (e) => (e.target === 'bothPlayers' ? '状態異常をすべて解除する' : '自分の状態異常をすべて解除する'),
   battle: {
     resolve(rt) {
       rt.cleanse(rt.controller);

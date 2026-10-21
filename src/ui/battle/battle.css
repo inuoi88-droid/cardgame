@@ -1798,6 +1798,16 @@ button.lt-card:focus-visible {
   text-align: center;
   max-width: calc(100% - 24px);
 }
+/* スマホ：場の真ん中に出すとモンスターの名前に重なるので、場所の上の縁に載せる */
+@media (max-width: 919px) {
+  .play-zone {
+    place-items: start center;
+  }
+  .play-zone__label {
+    transform: translateY(-50%);
+    padding: 6px 14px;
+  }
+}
 .play-zone.is-hover .play-zone__label {
   border-color: var(--ok);
   color: var(--ok);

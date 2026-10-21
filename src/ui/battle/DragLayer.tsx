@@ -83,7 +83,8 @@ export function DragLayer({
           {hoverValid && <circle className="drag-arrow__reticle" cx={arrow.to.x} cy={arrow.to.y} r="22" />}
         </svg>
       )}
-      {phase === 'drag' && (
+      {/* 「ここに離して使う」の場所が出ているときは、同じ意味の案内を指の横に重ねない */}
+      {phase === 'drag' && !(plan.mode === 'ghost' && zone && plan.zone) && (
         <div
           className={cx('drag-hint', hoverValid && 'is-ok', drag.src.kind === 'attacker' && 'drag-hint--below', plan.hint.length > 14 && 'is-long')}
           style={

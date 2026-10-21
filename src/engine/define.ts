@@ -58,6 +58,11 @@ export interface OptionSpec {
   label: string;
   choices: readonly { id: string; label: string }[];
   default: string;
+  /**
+   * 今は選べない（見送り中の）選択肢（決定事項 #102：効果「フィールド」の闘技場）。choices には入れない。
+   * 保存済みのカードに残っていると検証の違反 OPTION_RETIRED（エディターでは灰色で今の値として見える）。テキスト・ポイントは普通に出す
+   */
+  retired?: readonly { id: string; label: string; reason: string }[];
 }
 
 export type EffectGroup = 'damage' | 'defense' | 'status' | 'buff' | 'resource' | 'disrupt' | 'special';

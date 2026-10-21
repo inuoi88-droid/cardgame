@@ -110,6 +110,7 @@ function damageTone(kind: battle.DamageKind | undefined): FxTone {
     case 'poison':
     case 'doom':
     case 'rad':
+    case 'fatigue':
       return 'poison';
     case 'burn':
       return 'burn';
@@ -345,6 +346,8 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
           emblem: '🔰 紋章になった',
           siegeWon: '🏰 砦を落とした',
           manifest: '🂠 予示',
+          // 疲労（山札切れ。決定事項 #102）：amount は引けなかった枚数。続くダメージの行が1枚ずつ浮かぶ
+          fatigue: '📭 疲労',
         };
         if (!ev.target && ev.status && PLAYER_NOTICE[ev.status]) {
           push(e.text, ev.player ?? null, { t: 'notice', text: `${PLAYER_NOTICE[ev.status]}${ev.amount && ev.amount > 1 ? `（${ev.amount}）` : ''}`, tone: 'neutral' }, DURATION.notice);

@@ -238,7 +238,11 @@ export const conditionFromValue = (v: string): ConditionId | null => (v === NONE
 export function effectOptionOptions(effect: EffectInstance, card: CardDef): PickOption[] {
   const def = getEffect(effect.id);
   if (!def?.option) return [];
-  return def.option.choices.map((c) => {
+  // 見送り中の選択肢（決定事項 #102：フィールドの闘技場）は、保存済みのカードの今の値のときだけ灰色で出す（選び直してもらう）
+  const retired: PickOption[] = (def.option.retired ?? [])
+    .filter((c) => c.id === effect.option)
+    .map((c) => ({ id: c.id, label: c.label, description: extra(c).description, disabled: `今は使えません（${c.reason}）` }));
+  const list = def.option.choices.map((c): PickOption => {
     const x = extra(c);
     // サーチ・抽出の「同じ種族」は種族のあるカードだけ（MTG 要素 ○ バッチC2）
     const needTribe = c.id === 'tribe' && !card.tribe;
@@ -254,6 +258,7 @@ export function effectOptionOptions(effect: EffectInstance, card: CardDef): Pick
       disabled: needTribe ? TRIBE_REASON : lowRarity ? `${RARITY_LABEL[minRarity!]}のカードだけ` : undefined,
     };
   });
+  return [...list, ...retired];
 }
 
 /** デメリットごとの追加指定（捨て札の除外の「枚数／コスト合計」。MTG 要素 ○ バッチA） */

@@ -149,6 +149,7 @@ export function logIcon(evKind: battle.LogEvent['kind'] | undefined, rowKind?: b
   if (status === 'drawn') return '✋';
   if (status === 'divineShield') return '✴';
   if (status === 'doom') return '⏳'; // 呪縛を与えた・呪縛のダメージ（damageKind）
+  if (status === 'fatigue') return '📭'; // 疲労（山札切れ。決定事項 #102）の知らせとダメージ（damageKind）
   // MTG 要素 ○ バッチC1：サイクリング・魂力
   if (status === 'cycling') return '♻';
   if (status === 'channel') return '🌀';

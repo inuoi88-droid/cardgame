@@ -88,6 +88,8 @@ export function summarizeResult(view: GameState, me: PlayerId): ResultSummary {
     }
     if (idx >= 0) {
       const hit = view.log[idx]!.ev!;
+      // 疲労（山札切れ。決定事項 #102）には出どころのカードがない（引かせたカードの名前にしない）
+      if (hit.damageKind === 'fatigue') decisive = '疲労（山札切れ）';
       const src = hit.source;
       if (src?.kind === 'monster') {
         const cardId = battle.findMonster(view, src.uid)?.card.cardId ?? summonedCard.get(src.uid);

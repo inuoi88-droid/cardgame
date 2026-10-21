@@ -75,7 +75,8 @@ export interface DamageResult {
 /** 攻撃・ダメージ効果・モンスターの反撃：弱体・脆弱・守備力・最低1・出血が働く */
 const isHitKind = (k: DamageKind) => k === 'attack' || k === 'hit' || k === 'retaliate';
 const detailOf = (base: number, steps: string[]) => (steps.length ? `（基本${base} → ${steps.join(' → ')}）` : '');
-const isDot = (k: DamageKind) => k === 'poison' || k === 'burn' || k === 'doom' || k === 'rad';
+/** 毒・やけど・呪縛・放射能・疲労（決定事項 #102）：シールド・無効化・聖盾を無視し、「ダメージを受けたとき」は出ない */
+const isDot = (k: DamageKind) => k === 'poison' || k === 'burn' || k === 'doom' || k === 'rad' || k === 'fatigue';
 const targetKey = (t: TargetRef) => (t.kind === 'player' ? `p${t.player}` : t.uid);
 
 /** 同じカードの使用で、この対象にもう働いたか（記録して true/false を返す。記録のキーがなければ毎回働く） */
@@ -300,8 +301,9 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
       ev(amount),
     );
     const result: DamageResult = { hpLost: before - ps.hp, overflow: 0, destroyed: false };
-    // このターンの記録：手番のプレイヤーが相手のHPを減らした（出どころは問わない。条件「このターン相手にダメージを与えた」）
-    if (result.hpLost > 0 && g.phase === 'main' && target.player !== g.active) {
+    // このターンの記録：手番のプレイヤーが相手のHPを減らした（出どころは問わない。条件「このターン相手にダメージを与えた」）。
+    // 疲労（山札切れ。決定事項 #102）は引いた本人のルール上のダメージなので数えない（速度・蓄積も上がらない）
+    if (result.hpLost > 0 && g.phase === 'main' && target.player !== g.active && opts.kind !== 'fatigue') {
       const turn = g.players[g.active].turn;
       turn.enemyDamaged = true;
       // 合計（条件「このターン相手に合計6以上のダメージを与えた」。MTG 要素 ○ バッチA）

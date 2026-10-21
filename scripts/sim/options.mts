@@ -1,15 +1,17 @@
 /**
  * 対戦のオプション（MTG 要素 △ バッチD：リーダー・フィールド・昼と夜）の測り直し。
- *   node scripts/sim/options.mts [n] [--leader] [--field] [--daynight]   … 1組み合わせあたり n 試合（既定 100）。フラグを省くと全部
+ *   node scripts/sim/options.mts [n] [--leader] [--field] [--daynight] [--all-fields]   … 1組み合わせあたり n 試合（既定 100）。フラグを省くと全部
  * - --leader：プリセットのミラー戦で、席A だけにリーダー（席B はなし）。A の勝率が 50% からどれだけ離れるか（リーダーの強さ）
- * - --field：各フィールドを最初から置いて、プリセット総当たりの A 勝率の 50% からのずれ（そのフィールドで得をするデッキ）
+ * - --field：各フィールドを最初から置いて、プリセット総当たりの A 勝率の 50% からのずれ（そのフィールドで得をするデッキ）。
+ *   見送り中のフィールド（闘技場。決定事項 #102）は --all-fields を付けたときだけ測る（戻す前の確認用）
  * - --daynight：昼と夜ありでのプリセット総当たり（試合の長さが変わらないか）
  * 出力：scripts/sim/out/options.json。どれも差が10%以内が目安（spec3 の 8.4）。外れたら balance.ts の leaders・fields を直す
  */
-import { FIELD_IDS, LEADER_IDS, type FieldId, type LeaderId } from '../../src/engine/index.ts';
+import { ACTIVE_FIELD_IDS, FIELD_IDS, LEADER_IDS, type FieldId, type LeaderId } from '../../src/engine/index.ts';
 import { PRESET_NAMES, SERIES_HEADER, argN, isMain, pct, presetSpec, series, seriesRow, table, writeOut, type SeriesResult } from './lib.mts';
 
 const flags = new Set(process.argv.slice(2).filter((a) => a.startsWith('--')));
+const allFields = flags.delete('--all-fields');
 const all = flags.size === 0;
 
 export async function run(n: number) {
@@ -27,7 +29,7 @@ export async function run(n: number) {
     }
   }
   if (all || flags.has('--field')) {
-    for (const field of FIELD_IDS) {
+    for (const field of allFields ? FIELD_IDS : ACTIVE_FIELD_IDS) {
       const results: SeriesResult[] = [];
       for (let a = 0; a < presets.length; a++)
         for (let b = a + 1; b < presets.length; b++) results.push(await series(presets[a]!, presets[b]!, n, { field, seedBase: 8000 + a * 100 + b, label: `${presets[a]!.name} 対 ${presets[b]!.name}（${field}）` }));

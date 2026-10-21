@@ -17,6 +17,7 @@ import { combatBonus, keywordFlags, playerBonus, wardTax } from '../battle/damag
 import { effectiveCost, lifespanOf, waitingRule } from '../battle/play.ts';
 import { altWinGoalOf, altWinTarget } from '../battle/powers.ts';
 import { energyForTurn } from '../battle/turn.ts';
+import { fatigueDamage } from '../battle/zones.ts';
 import { effectPoints } from '../points.ts';
 import { chapterOf } from '../options.ts';
 import { getKeyword } from '../registry.ts';
@@ -160,6 +161,8 @@ export const WEIGHTS = {
   fieldArena: 1 * S,
   /** 霧：相手の次ターンの盤面の打点と自分の打点の差に掛ける割合（守る側が得をする） */
   fieldFog: 0.3,
+  /** 疲労（決定事項 #102）：次の自分のターンに引けない分の疲労ダメージの見込み（HP 1あたり。毒と同じ） */
+  fatigue: 0.9,
 } as const;
 
 const W = WEIGHTS;
@@ -485,6 +488,9 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
   v += (ps.exp ?? 0) * W.exp;
   v -= Math.min((s.rad ?? 0) * B.radDamage * W.radHitRate, ps.hp) * W.poison;
   v -= (ps.ice ?? 0) * W.iced;
+  // 疲労（決定事項 #102）：山札と捨て札が細って次のターンに引けない分（ふつうは0。除外・パワーで細らせすぎない）。
+  // 相手の山札・捨て札は仮の実行の盤面（leanView）では外してあるので、自分の分だけ見る
+  if (isMe) v -= Math.min(fatigueOutlook(g, p), ps.hp) * W.fatigue;
   // 王冠は持っている間ずっと1枚多く引く（残りターンの見込みぶん）
   if (g.crown === p) v += W.crown * Math.max(1, ctx.turnsLeft);
   // フィールド（MTG 要素 △ バッチD）：両者に効くので、どちらに得かが分かるものだけ
@@ -515,6 +521,22 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
     v += cards * W.oppHandCard;
   }
   return v;
+}
+
+/**
+ * 疲労（決定事項 #102）の見込み：次の自分のターン開始時に引く枚数のうち、山札と捨て札（手番なら、ターン終了時に捨て札へ行く手札も）で
+ * 足りない分の疲労ダメージの合計。山札の中身は隠れていても枚数は見える（仮の実行で山札を外したプレイヤー＝noFatigue は0）
+ */
+export function fatigueOutlook(g: GameState, p: PlayerId): number {
+  const ps = g.players[p];
+  if (ps.noFatigue) return 0;
+  const active = g.active === p && g.phase === 'main';
+  const pool = ps.deck.length + ps.discard.length + (active ? ps.hand.filter((c) => c.copy !== 'temp').length : 0);
+  // 1ターン目は配った手札を使うので引かない（決定事項 #47）
+  const draws = Math.min(B.maxDrawPerTurn, Math.max(0, (ps.turnsTaken === 0 ? 0 : B.drawPerTurn) + ps.next.draw));
+  let dmg = 0;
+  for (let k = 1; k <= draws - pool; k++) dmg += fatigueDamage((ps.fatigue ?? 0) + k);
+  return dmg;
 }
 
 /**

@@ -8,7 +8,7 @@
 npm run sim                 # 全部をほどほどの試合数で回し、out/summary.json と out/summary.md を書く
 npm run sim:presets         # プリセット総当たり（1組み合わせ 200 試合）
 node scripts/sim/presets.mts 300        # 試合数を指定
-npm run sim:options -- 60 --leader      # リーダー・フィールド・昼と夜（--leader・--field・--daynight。省くと全部）
+npm run sim:options -- 60 --leader      # リーダー・フィールド・昼と夜（--leader・--field・--daynight。省くと全部。見送り中の闘技場は --all-fields で測る）
 node scripts/sim/stress.mts 60          # 極端なデッキ vs 基準デッキ
 node scripts/sim/stress.mts 60 poison burn   # デッキのキーを指定（stress.mts 冒頭の表）
 node scripts/sim/stress10.mts 150       # 基準デッキの10枚だけを極端なカードに差し替えて元の基準デッキと戦う（40 種類、約15分）

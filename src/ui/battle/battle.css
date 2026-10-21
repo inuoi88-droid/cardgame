@@ -2297,6 +2297,11 @@ button.lt-card:focus-visible {
   color: #06281a;
   background: var(--ok);
 }
+/* 山札の山：疲労（山札切れ。決定事項 #102）で引けなかった枚数 */
+.pile__usable.pile__fatigue {
+  color: #fff;
+  background: var(--danger-strong);
+}
 .pile--btn.is-lit {
   border-color: var(--warn);
   color: var(--warn);

@@ -2,7 +2,7 @@
  * 用語集：状態異常・持続効果・モンスターの状態の「名前」「短い説明」「アイコン」。
  * 対戦画面のポップオーバーとルールページが同じ文を使う。数字は balance.ts から読む。
  */
-import { BALANCE, CONDITIONS, FIELD_IDS, FIELDS, LEADER_IDS, LEADERS, TIMINGS, TRIBE_IDS, TRIBE_LABEL, listAbilities, listKeywords, listModifiers } from '../engine/index.ts';
+import { ACTIVE_FIELD_IDS, BALANCE, CONDITIONS, DISABLED_FIELD_IDS, FIELDS, LEADER_IDS, LEADERS, TIMINGS, TRIBE_IDS, TRIBE_LABEL, listAbilities, listKeywords, listModifiers } from '../engine/index.ts';
 
 const B = BALANCE.battle;
 const pct = (rate: number) => `${Math.round(rate * 100)}%`;
@@ -605,7 +605,13 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     name: 'フィールド',
     icon: '🗺',
     tone: 'info',
-    short: `両者に効く場の効果（場に1つ）。対戦のオプション「次元」で開始時にランダムに決まり（「移り変わる」なら通算${BALANCE.fields.planarEvery}ターンごとに別のものへ）、効果「フィールド」で置き換えられる。${FIELD_IDS.map((id) => `${FIELDS[id].icon}${FIELDS[id].name}：${FIELDS[id].description}`).join('／')}`,
+    short: `両者に効く場の効果（場に1つ）。対戦のオプション「次元」で開始時にランダムに決まり（「移り変わる」なら通算${BALANCE.fields.planarEvery}ターンごとに別のものへ）、効果「フィールド」で置き換えられる。${ACTIVE_FIELD_IDS.map((id) => `${FIELDS[id].icon}${FIELDS[id].name}：${FIELDS[id].description}`).join('／')}${DISABLED_FIELD_IDS.length > 0 ? `（${DISABLED_FIELD_IDS.map((id) => FIELDS[id].name).join('・')}は見送り中）` : ''}`,
+  },
+  fatigue: {
+    name: '疲労',
+    icon: '📭',
+    tone: 'bad',
+    short: `山札も捨て札も無くて引けないときは、引けなかった1枚ごとに疲労のダメージを受ける。その試合で n 枚目なら n×${B.fatigueStep}（${B.fatigueStep}・${B.fatigueStep * 2}・${B.fatigueStep * 3}…と増える）。毒と同じく守備力・シールド・無効化を無視し、誰が与えたダメージにも数えない。捨て札が残っていれば、いつもどおり混ぜて山札にするので起きない`,
   },
   dayNight: {
     name: '昼と夜',

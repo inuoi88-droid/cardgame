@@ -9,7 +9,7 @@ export default defineEffect({
   name: '山札消滅',
   group: 'disrupt',
   order: 75.1,
-  summary: '相手の山札の上N枚を除外する（足りなければある分、切り直さない。切削と違って捨て札に行かず、デッキがやせる。山札切れの負けはない）',
+  summary: '相手の山札の上N枚を除外する（足りなければある分、切り直さない。切削と違って捨て札に行かず、デッキがやせる。山札切れですぐ負けはしないが、山札も捨て札も無くなると引くたびに疲労のダメージ）',
   value: countParam('枚数', { default: 1, max: B.maxCount }),
   targetRule: 'enemyPlayer',
   basePoints: (e) => B.perCount * n(e),

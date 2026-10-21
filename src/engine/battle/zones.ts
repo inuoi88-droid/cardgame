@@ -3,8 +3,8 @@ import { BALANCE } from '../balance.ts';
 import { getAbility, getDrawback, getEffect } from '../registry.ts';
 import type { ModeSel } from './modes.ts';
 import { TIMINGS } from '../options.ts';
-import { cardName, emptyStatuses, enqueue, findMonster, isEnded, log, monsterLabel, newUid, turnLimits } from './core.ts';
-import { keywordFlags, onLeaveBoard } from './damage.ts';
+import { cardName, emptyStatuses, enqueue, findMonster, isEnded, log, monsterLabel, newUid, playerRef, turnLimits } from './core.ts';
+import { dealDamage, keywordFlags, onLeaveBoard } from './damage.ts';
 import { pick, randInt, shuffle } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
@@ -32,7 +32,10 @@ import {
   type TokenSpec,
 } from './types.ts';
 
-/** 山札が尽きたら捨て札をシャッフルして山札にする。引けた枚数を返す */
+/**
+ * 山札が尽きたら捨て札をシャッフルして山札にする。引けた枚数を返す。
+ * 山札も捨て札も無くて引けなかった1枚ごとに疲労のダメージ（対戦中だけ。引けなかった1枚も1ターンに引ける枚数に数える：決定事項 #102）
+ */
 export function drawCards(g: GameState, p: PlayerId, count: number, depth: number): number {
   const ps = g.players[p];
   const drawn: CardInst[] = [];
@@ -40,13 +43,21 @@ export function drawCards(g: GameState, p: PlayerId, count: number, depth: numbe
   const limits = g.phase === 'main' ? turnLimits(g, ps) : null;
   const maxDraw = BALANCE.battle.maxDrawPerTurn;
   let capped = false;
+  /** 山札も捨て札も無くて引けなかった枚数（疲労） */
+  let failed = 0;
   for (let i = 0; i < count; i++) {
     if (limits && limits.drawn >= maxDraw) {
       capped = true;
       break;
     }
     if (ps.deck.length === 0) {
-      if (ps.discard.length === 0) break;
+      if (ps.discard.length === 0) {
+        // 配った手札・マリガンでは疲労にしない。CPU の仮の実行で山札を外した相手（noFatigue）も
+        if (!limits || ps.noFatigue) break;
+        failed += 1;
+        limits.drawn += 1;
+        continue;
+      }
       ps.deck = ps.discard;
       ps.discard = [];
       shuffle(g, ps.deck);
@@ -61,11 +72,40 @@ export function drawCards(g: GameState, p: PlayerId, count: number, depth: numbe
   if (drawn.length > 0) {
     log(g, depth, `${ps.name}はカードを${drawn.length}枚引いた`, 'info', undefined, { kind: 'draw', player: p, amount: drawn.length });
     log(g, depth, `引いたカード：${drawn.map((c) => cardName(g, c.cardId)).join('、')}`, 'info', p);
-  } else if (count > 0) {
+  } else if (count > 0 && failed === 0) {
     log(g, depth, `${ps.name}は引けるカードがなかった`, 'info');
   }
   afterDrawn(g, p, drawn, depth);
+  if (failed > 0 && !isEnded(g)) fatigue(g, p, failed, depth);
   return drawn.length;
+}
+
+/** 疲労（決定事項 #102）：この試合で n 枚目に引けなかったカードのダメージ */
+export const fatigueDamage = (n: number): number => Math.max(0, n) * BALANCE.battle.fatigueStep;
+
+/** 次に引けなかったときの疲労のダメージ（表示・CPU の見込み用） */
+export const nextFatigueDamage = (ps: { fatigue?: number }): number => fatigueDamage((ps.fatigue ?? 0) + 1);
+
+/**
+ * 疲労：引けなかった1枚ごとに、そのプレイヤーの試合で n 枚目なら n×fatigueStep のダメージ（1枚ずつ。HP が0になったらそこで止まる）。
+ * 毒と同じく守備力・シールド・無効化を無視し、「ダメージを受けたとき」・絆魂・このターンの記録（相手にダメージを与えた）には数えない
+ */
+function fatigue(g: GameState, p: PlayerId, failed: number, depth: number): void {
+  const ps = g.players[p];
+  const from = (ps.fatigue ?? 0) + 1;
+  const range = failed > 1 ? `${from}〜${from + failed - 1}` : `${from}`;
+  log(g, depth, `📭${ps.name}は山札も捨て札も無いので${failed}枚引けない：疲労（通算${range}枚目）`, 'effect', undefined, {
+    kind: 'status',
+    player: p,
+    status: 'fatigue',
+    amount: failed,
+  });
+  for (let k = 0; k < failed; k++) {
+    if (isEnded(g)) return;
+    const n = (ps.fatigue ?? 0) + 1;
+    ps.fatigue = n;
+    dealDamage(g, playerRef(p), fatigueDamage(n), { kind: 'fatigue', source: null, depth: depth + 1, prefix: `疲労${n}：` });
+  }
 }
 
 /**

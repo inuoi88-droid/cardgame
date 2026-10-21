@@ -166,7 +166,15 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     }
     checkParam(out, 'EFFECT_VALUE', `${path}.value`, what, def.value, e.value);
     checkParam(out, 'EFFECT_HITS', `${path}.hits`, what, def.hits, e.hits);
-    if (def.option && e.option !== undefined && !def.option.choices.some((c) => c.id === e.option)) {
+    // 見送り中の選択肢（決定事項 #102：フィールドの闘技場）は、正しくない値とは別の分かる違反にする
+    const retired = e.option !== undefined ? def.option?.retired?.find((c) => c.id === e.option) : undefined;
+    if (def.option && retired) {
+      out.push({
+        code: 'OPTION_RETIRED',
+        path: `${path}.option`,
+        message: `${what}の${def.option.label}「${retired.label}」は今は使えません（${retired.reason}）。ほかの${def.option.label}を選んでください`,
+      });
+    } else if (def.option && e.option !== undefined && !def.option.choices.some((c) => c.id === e.option)) {
       out.push({ code: 'EFFECT_OPTION', path: `${path}.option`, message: `${what}の${def.option.label}が正しくありません` });
     }
     // 追加指定ごとのレアリティ（倍化の「3倍」はレジェンドだけ。MTG 要素 △ バッチA）

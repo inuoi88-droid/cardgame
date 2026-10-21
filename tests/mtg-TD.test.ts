@@ -10,8 +10,13 @@ import {
   CONDITIONS,
   conditionsFor,
   describeCard,
+  ACTIVE_FIELD_IDS,
+  DISABLED_FIELD_IDS,
   FIELD_IDS,
   FIELDS,
+  fieldEnabled,
+  getEffect,
+  isFieldId,
   LEADER_IDS,
   LEADERS,
   normalizeRules,
@@ -65,13 +70,36 @@ const SET = (option: FieldId) => fx({ id: 'setField', target: 'self', option });
 // ---------------------------------------------------------------- 定義
 describe('定義（△ バッチD）：ポイント・テキスト・条件', () => {
   it('効果「フィールド」は x(6)＝6pt（倍率1）。選んだフィールドの名前と説明がテキストに出る', () => {
-    for (const id of FIELD_IDS) {
+    for (const id of ACTIVE_FIELD_IDS) {
       const c = SPELL([SET(id)]);
       const a = analyzeCard(c);
       expect(a.violations, id).toEqual([]);
       expect(a.points.lines.find((l) => l.kind === 'effect')?.value).toBe(6);
       expect(JSON.stringify(describeCard(c))).toContain(`フィールドを「${FIELDS[id].name}」（${FIELDS[id].description}）にする`);
     }
+  });
+
+  it('闘技場は見送り中（決定事項 #102）：選択肢に無く、保存済みのカードは違反 OPTION_RETIRED（テキスト・ポイントは出る）', () => {
+    expect(fieldEnabled('arena')).toBe(false);
+    expect(ACTIVE_FIELD_IDS).toEqual(FIELD_IDS.filter((id) => id !== 'arena'));
+    expect(DISABLED_FIELD_IDS).toEqual(['arena']);
+    const def = getEffect('setField')!;
+    expect(def.option!.choices.map((c) => c.id)).toEqual([...ACTIVE_FIELD_IDS]);
+    expect(def.option!.retired!.map((c) => c.id)).toEqual(['arena']);
+    expect(def.summary).not.toContain('闘技場');
+    const c = SPELL([SET('arena')]);
+    const a = analyzeCard(c);
+    expect(a.violations.map((v) => v.code)).toEqual(['OPTION_RETIRED']);
+    expect(a.violations[0]!.path).toBe('effects.0.option');
+    expect(a.violations[0]!.message).toContain('闘技場');
+    expect(a.violations[0]!.message).toContain('今は使えません');
+    expect(a.points.lines.find((l) => l.kind === 'effect')?.value).toBe(6);
+    expect(JSON.stringify(describeCard(c))).toContain('フィールドを「闘技場」');
+    // 知らない値は今までどおり EFFECT_OPTION
+    expect(analyzeCard(SPELL([fx({ id: 'setField', target: 'self', option: 'swamp' })])).violations.map((v) => v.code)).toEqual(['EFFECT_OPTION']);
+    // 闘技場のカードを入れたデッキはデッキとしても違反
+    const byId = new Map([[c.id, c]]);
+    expect(analyzeDeck({ v: 1, id: 'd', name: 'd', entries: [{ cardId: c.id, count: 2 }] }, byId).valid).toBe(false);
   });
 
   // [条件, 倍率, テキストの前置き]
@@ -189,7 +217,7 @@ describe('フィールド', () => {
     expect(g.players[0].hp).toBe(B.playerHp);
   });
 
-  it('闘技場：場に出したターンから攻撃できる（無ければできない）', () => {
+  it('闘技場（見送り中。見送り前に始まった対戦の途中保存では効く）：場に出したターンから攻撃できる（無ければできない）', () => {
     const m = MON(2, 2);
     let g = rich(startWith());
     let uid = giveCard(g, 0, m);
@@ -250,13 +278,42 @@ describe('フィールド', () => {
     expect(g.log.some((e) => e.ev?.kind === 'field')).toBe(true);
     // 効果「フィールド」で上書き → 次の切り替えで次元のものへ
     rich(g);
-    const other: FieldId = g.field!.id === 'fog' ? 'arena' : 'fog';
+    const other: FieldId = g.field!.id === 'fog' ? 'market' : 'fog';
     const uid = giveCard(g, g.active, SPELL([SET(other)]));
     g = act(g, { type: 'playCard', player: g.active, cardUid: uid, chosen: {} });
     expect(g.field).toMatchObject({ id: other, by: g.active });
     while (g.turnIndex < 1 + 2 * F.planarEvery) g = endTurn(g);
     expect(g.field!.by).toBeNull();
     expect(g.field!.id).not.toBe(other);
+  });
+
+  it('次元（ランダム・移り変わる）は見送り中の闘技場を選ばない（決定事項 #102）', () => {
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 40; seed++) {
+      let g = startWith({ rules: { field: seed % 2 ? 'random' : 'planar' }, seed });
+      seen.add(g.field!.id);
+      if (seed % 2 === 0) {
+        while (g.turnIndex < 1 + 3 * BALANCE.fields.planarEvery) {
+          g = endTurn(g);
+          seen.add(g.field!.id);
+        }
+      }
+    }
+    expect(seen.has('arena')).toBe(false);
+    expect([...seen].sort()).toEqual([...ACTIVE_FIELD_IDS].sort());
+  });
+
+  it('見送り中の闘技場の効果「フィールド」（途中保存に残ったカード）は何もしない。闘技場の対戦の途中保存も次元で別のものへ移る', () => {
+    let g = rich(withField(startWith(), 'fog'));
+    const uid = giveCard(g, 0, SPELL([SET('arena')]));
+    g = act(g, { type: 'playCard', player: 0, cardUid: uid, chosen: {} });
+    expect(g.field!.id).toBe('fog');
+    expect(g.log.some((e) => e.text.includes('「闘技場」は今は使えないフィールド'))).toBe(true);
+    // 闘技場が置かれたままの古い対戦（planar）：切り替えで闘技場以外へ
+    let h = withField(startWith({ rules: { field: 'planar' }, seed: 3 }), 'arena');
+    while (h.turnIndex < 1 + BALANCE.fields.planarEvery) h = endTurn(h);
+    expect(h.field!.id).not.toBe('arena');
+    expect(isFieldId(h.field!.id) && fieldEnabled(h.field!.id)).toBe(true);
   });
 
   it('効果「フィールド」：置き換える・同じなら何もしない・相手にも効く', () => {
@@ -361,7 +418,7 @@ describe('CPU（△ バッチD）', () => {
   const cards: CardDef[] = [
     s('volcano', '火山の呼び声', 1, [SET('volcano')]),
     s('fog', '霧の帳', 1, [SET('fog')]),
-    s('arena', '闘技場の門', 1, [SET('arena'), fx({ ...DRAW1 })]),
+    s('library', '大図書館の門', 1, [SET('library'), fx({ ...DRAW1 })]),
     s('market', '市の開催', 1, [SET('market')]),
     m('dayBeast', '昼の獣', 2, 2, 2, { effects: [D(2, { timing: 'summon', condition: 'isDay' })] }),
     m('nightBeast', '夜の獣', 2, 2, 2, { effects: [D(3, { timing: 'summon', condition: 'isNight' })] }),
@@ -369,7 +426,7 @@ describe('CPU（△ バッチD）', () => {
     m('grunt', '兵士', 1, 1, 2),
   ];
   const deckOfIds = (id: string, counts: Record<string, number>) => ({ v: 1 as const, id, name: id, entries: Object.entries(counts).map(([cardId, count]) => ({ cardId, count })) });
-  const deckA = deckOfIds('tdA', { volcano: 3, fog: 3, arena: 3, market: 3, dayBeast: 5, nightBeast: 5, dawn: 4, grunt: 4 });
+  const deckA = deckOfIds('tdA', { volcano: 3, fog: 3, library: 3, market: 3, dayBeast: 5, nightBeast: 5, dawn: 4, grunt: 4 });
   const byId = new Map(cards.map((c) => [c.id, c]));
 
   it('カードとデッキはすべて作れる（30枚）', () => {

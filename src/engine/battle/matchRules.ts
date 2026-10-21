@@ -3,7 +3,7 @@
  * 効き目そのもの（攻撃力・ドロー・コストなど）は rules.ts の ruleHooks。
  */
 import { BALANCE } from '../balance.ts';
-import { FIELDS, FIELD_IDS, type FieldId } from '../fields.ts';
+import { ACTIVE_FIELD_IDS, FIELDS, type FieldId } from '../fields.ts';
 import type { CardDef } from '../types.ts';
 import { log } from './core.ts';
 import { randInt } from './rng.ts';
@@ -25,9 +25,9 @@ export function setField(g: GameState, id: FieldId, by: PlayerId | null, depth: 
   });
 }
 
-/** 次元：今と違うフィールドをランダムに選ぶ（シード乱数） */
+/** 次元：今と違うフィールドをランダムに選ぶ（シード乱数）。見送り中のフィールド（闘技場。決定事項 #102）は選ばない */
 function randomField(g: GameState, except: FieldId | null): FieldId {
-  const pool = FIELD_IDS.filter((id) => id !== except);
+  const pool = ACTIVE_FIELD_IDS.filter((id) => id !== except);
   return pool[randInt(g, pool.length)]!;
 }
 

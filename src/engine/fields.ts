@@ -1,7 +1,7 @@
 /**
  * フィールド（MTG 要素 △ バッチD：#11 次元・#19 ワールドのアレンジ）。両者に効く場の効果（場に1つ）。
  * 対戦オプション「次元」で開始時にランダムに決まり（planar なら通算 fields.planarEvery ターンごとに変わる）、効果「フィールド」で上書きもできる。
- * 数値は balance.ts の fields、効果の処理は battle/rules.ts の ruleHooks。
+ * 数値は balance.ts の fields、効果の処理は battle/rules.ts の ruleHooks。闘技場は見送り中（ACTIVE_FIELD_IDS に入らない。決定事項 #102）。
  */
 import { BALANCE } from './balance.ts';
 
@@ -30,6 +30,20 @@ export const FIELDS: Record<FieldId, FieldInfo> = {
 export function isFieldId(x: unknown): x is FieldId {
   return typeof x === 'string' && (FIELD_IDS as readonly string[]).includes(x);
 }
+
+/**
+ * 今使えるフィールドか（balance.ts の fields.<id>.enabled が false なら見送り中。決定事項 #102：闘技場）。
+ * 見送り中のフィールドは次元で選ばれず、効果「フィールド」でも選べない（保存済みのカードは違反 OPTION_RETIRED）。
+ * 効き目（rules.ts の ruleHooks）と FIELDS の説明は残すので、見送り前に始まった対戦はそのまま続き、enabled を戻せばすぐ使える
+ */
+export function fieldEnabled(id: FieldId): boolean {
+  return (F[id] as { enabled?: boolean }).enabled !== false;
+}
+
+/** 今使えるフィールド（次元の抽選・効果「フィールド」の選択肢・ルールページ・用語集） */
+export const ACTIVE_FIELD_IDS: readonly FieldId[] = FIELD_IDS.filter(fieldEnabled);
+/** 見送り中のフィールド */
+export const DISABLED_FIELD_IDS: readonly FieldId[] = FIELD_IDS.filter((id) => !fieldEnabled(id));
 
 /** 対戦オプション「次元」：なし・ランダム（開始時に1つ）・移り変わる（開始時に1つ、通算 planarEvery ターンごとに別の1つへ） */
 export const PLANAR_MODES = ['off', 'random', 'planar'] as const;

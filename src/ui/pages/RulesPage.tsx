@@ -8,8 +8,9 @@ import {
   CARD_TYPE_LABEL,
   CONDITION_GROUPS,
   CONDITIONS,
+  ACTIVE_FIELD_IDS,
+  DISABLED_FIELD_IDS,
   EFFECT_GROUPS,
-  FIELD_IDS,
   FIELDS,
   LEADER_IDS,
   LEADERS,
@@ -25,6 +26,7 @@ import {
   listEffects,
   listKeywords,
   listModifiers,
+  battle,
 } from '../../engine/index.ts';
 import { abilityGlossary, glossary, keywordGlossary, mechanicGlossary, MTG_GUIDE, modifierGlossary, type StatusId } from '../glossary.ts';
 import { TEMPLATES } from '../editor/templates.ts';
@@ -93,6 +95,8 @@ export function RulesPage() {
     })
     .join('、');
   const firstEnergy = (energy[0]?.energy ?? 0) - B.firstPlayerFirstTurnPenalty;
+  /** 疲労（決定事項 #102）：もう done 枚引けなかったあとに、1ターンの drawPerTurn 枚がすべて引けないときの合計 */
+  const fatigueTurn = (done: number) => Array.from({ length: B.drawPerTurn }, (_, k) => battle.fatigueDamage(done + k + 1)).reduce((a, b) => a + b, 0);
   const statusOrder: StatusId[] = ['poison', 'doom', 'rad', 'burn', 'weak', 'vulnerable', 'bleed', 'freeze', 'confuse', 'seal', 'shield', 'counter', 'nullify', 'regen', 'strength', 'focus', 'stealth', 'betrayal'];
 
   return (
@@ -122,6 +126,13 @@ export function RulesPage() {
           <li>
             <b>{mechanicGlossary.altWin!.name}</b>：{mechanicGlossary.altWin!.short}。
           </li>
+          <li>
+            <b>
+              {mechanicGlossary.fatigue!.icon}
+              {mechanicGlossary.fatigue!.name}（山札切れ）
+            </b>
+            ：{mechanicGlossary.fatigue!.short}。1ターンに{B.drawPerTurn}枚引けなければ、最初は{fatigueTurn(0)}、次のターンは{fatigueTurn(B.drawPerTurn)}です。引けなかった1枚も1ターンに引ける枚数（{B.maxDrawPerTurn}枚）に数えます。
+          </li>
           <li>降参すると負けになります。オンライン対戦では、続けて時間切れになると負けです（「オンライン対戦」の節）。</li>
         </ul>
       </Section>
@@ -145,7 +156,7 @@ export function RulesPage() {
             エナジーを得ます。エナジーは自分のターン数で増えます：<b>{energyText}</b>。先攻の1ターン目だけ−{B.firstPlayerFirstTurnPenalty}（{firstEnergy}）です。エナジーは次のターンに持ち越せません（効果「蓄え」を除く）。「最大エナジー増加」の分はここに足します。
           </li>
           <li>
-            カードを <b>{B.drawPerTurn}枚</b> 引きます（1ターン目を除く）。山札が尽きたら捨て札を混ぜて山札にします。「引いたとき」の効果は、引き終えてから引いた順に発動します。
+            カードを <b>{B.drawPerTurn}枚</b> 引きます（1ターン目を除く）。山札が尽きたら捨て札を混ぜて山札にします。「引いたとき」の効果は、引き終えてから引いた順に発動します。山札も捨て札も無くて引けなければ<b>疲労</b>のダメージを受けます（「勝敗」の節）。
           </li>
           <li>
             放射能（山札の上を捨て札に置き、モンスター以外1枚ごとに{B.radDamage}ダメージ）→ 氷結（手札がランダムに凍る）→ 卵の孵化。
@@ -544,12 +555,18 @@ export function RulesPage() {
           </li>
         </ul>
         <dl className="terms">
-          {FIELD_IDS.map((id) => (
+          {ACTIVE_FIELD_IDS.map((id) => (
             <Term key={id} name={FIELDS[id].name} icon={FIELDS[id].icon}>
               {FIELDS[id].description}
             </Term>
           ))}
         </dl>
+        {DISABLED_FIELD_IDS.length > 0 && (
+          <p className="hint">
+            {DISABLED_FIELD_IDS.map((id) => `${FIELDS[id].icon}${FIELDS[id].name}（${FIELDS[id].description}）`).join('・')}
+            は見送り中です（次元では選ばれず、効果「フィールド」でも選べません）。
+          </p>
+        )}
         <h3>昼と夜</h3>
         <p>{mechanicGlossary.dayNight!.short}。条件「昼なら」「夜なら」で効果が切り替わります（MTG の日暮／夜明の両面カードは、この2つの条件の効果を持つ1枚で作ります）。</p>
         <h3>ドラフト戦とコスト分布</h3>

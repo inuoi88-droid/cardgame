@@ -853,6 +853,11 @@ export const BALANCE = {
     siegeName: '砦',
     siegeIcon: '🏰',
     altWinEarliestTurn: 8,
+    /**
+     * 疲労（山札切れ。決定事項 #102）：山札も捨て札も無くて引けなかった1枚ごとに、そのプレイヤーの試合で n 枚目なら n×fatigueStep のダメージ
+     * （倍率1で 1・2・3…、1ターンに5枚引けなければ 15、次は 40）。毒と同じく守備力・シールド・無効化を無視
+     */
+    fatigueStep: x(1),
   },
 
   /** 速度ゲージ（MTG 要素 ○ バッチC2）：エンジン始動で start、自分のターンに相手のHPを減らすと1ターン1回+1、max まで */
@@ -876,13 +881,15 @@ export const BALANCE = {
   /**
    * MTG 要素 △ バッチD：フィールド（両者に効く場の効果）。火山：すべてのモンスターの攻撃力+attack／大図書館：ターン開始時に draw 枚多く引く／
    * 聖域：ターン開始時に HP+heal／闘技場：モンスターは出たターンから攻撃できる／市場：各ターン最初に使うカードのコスト−discount／
-   * 霧：モンスターの攻撃で相手プレイヤーに与えるダメージ−rate（切り捨て）。次元（planar）は通算 planarEvery ターンごとに別のフィールドへ
+   * 霧：モンスターの攻撃で相手プレイヤーに与えるダメージ−rate（切り捨て）。次元（planar）は通算 planarEvery ターンごとに別のフィールドへ。
+   * enabled: false のフィールドは見送り中（次元で選ばれず、効果「フィールド」でも選べない。fields.ts の ACTIVE_FIELD_IDS）。
+   * 闘技場は鉄壁の砦が速いモンスターに 93〜95% 負け、数値で直せないので見送り（決定事項 #102。true に戻せばそのまま使える）
    */
   fields: {
     volcano: { attack: x(0.5) },
     library: { draw: 1 },
     sanctuary: { heal: x(2) },
-    arena: {},
+    arena: { enabled: false },
     market: { discount: 1 },
     fog: { rate: 0.25 },
     planarEvery: 6,

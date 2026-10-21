@@ -316,6 +316,16 @@ export interface PlayerState {
   swapUsed?: boolean;
   /** リーダー（MTG 要素 △ バッチD。対戦の開始時に選ぶ。無ければ none。公開情報） */
   leader?: LeaderId;
+  /**
+   * 疲労（決定事項 #102）：この試合で、山札も捨て札も無くて引けなかった枚数の合計。次の1枚は (fatigue+1)×battle.fatigueStep のダメージ。
+   * 無ければ0（古い保存）。公開情報
+   */
+  fatigue?: number;
+  /**
+   * CPU の仮の実行用に山札・捨て札を外したプレイヤー（ai/sim.ts の leanView が相手に付ける）。外したカードは本当はあるので、引けなくても疲労にしない。
+   * 本当の対戦の状態には付かない
+   */
+  noFatigue?: boolean;
   /** 次に使うカードのコスト軽減（使うまで残る） */
   discount: number;
   /** 自分のターンを迎えた回数 */
@@ -490,9 +500,10 @@ export interface PendingChoice {
 /**
  * ダメージの種類。attack：モンスターの攻撃 / hit：ダメージ・連撃効果の1回分（格闘も） / counter：反撃（状態） /
  * retaliate：攻撃されたモンスターの反撃 / trample：貫通の余り / poison・burn・doom：毒・やけど・呪縛 / self：自傷・維持費・寄生 /
- * rad：放射能（MTG 要素 △ バッチA。毒と同じくシールド・無効化を無視）
+ * rad：放射能（MTG 要素 △ バッチA。毒と同じくシールド・無効化を無視） /
+ * fatigue：疲労（山札切れ。決定事項 #102。毒と同じくシールド・無効化を無視し、誰が与えたダメージにも数えない）
  */
-export type DamageKind = 'attack' | 'hit' | 'counter' | 'retaliate' | 'trample' | 'poison' | 'burn' | 'doom' | 'self' | 'rad';
+export type DamageKind = 'attack' | 'hit' | 'counter' | 'retaliate' | 'trample' | 'poison' | 'burn' | 'doom' | 'self' | 'rad' | 'fatigue';
 
 /** ログに付ける構造化された出来事（UI の演出・再生用。決定事項 #71）。公開情報だけを入れる */
 export interface LogEvent {

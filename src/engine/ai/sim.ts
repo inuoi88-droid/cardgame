@@ -195,7 +195,8 @@ function chooseSpecial(g: GameState, p: PendingChoice, me: PlayerId): string[] |
 
 /**
  * 仮の実行用に軽くした盤面。ログを空にし、このターンに触れないもの（相手の山札・捨て札・除外、自分の除外、
- * 1ターンに引ける枚数を超える自分の山札）を外す。applyAction は毎回盤面を複製するので、小さいほど速い
+ * 1ターンに引ける枚数を超える自分の山札）を外す。applyAction は毎回盤面を複製するので、小さいほど速い。
+ * 山札を外した相手は、仮の実行でターンを終えても引かない（疲労にもしない：noFatigue。決定事項 #102）
  */
 export function leanView(view: GameState, me: PlayerId): GameState {
   const opp = other(me);
@@ -203,6 +204,7 @@ export function leanView(view: GameState, me: PlayerId): GameState {
   players[opp].deck = [];
   players[opp].discard = [];
   players[opp].exile = [];
+  players[opp].noFatigue = true;
   players[me].deck = view.players[me].deck.slice(0, BALANCE.battle.maxDrawPerTurn);
   players[me].exile = [];
   return { ...view, log: [], players };

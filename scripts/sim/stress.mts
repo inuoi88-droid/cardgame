@@ -150,6 +150,8 @@
  * | tExtraTurn      | 追加ターン（レジェンド）×2 ＋ 火球 ×28                        | 1試合1回 |
  * | tAltWin         | 特殊勝利（カードを使う。レジェンドのパワー・コスト4）×2 ＋ 火球 ×28 | |
  * | tEmblem         | 紋章：ターン開始時に相手に N ダメージ（レジェンド）×2 ＋ 火球 ×28 | |
+ * | tExileMill      | 山札消滅 N（相手）×30                                         | 疲労（決定事項 #102）で勝てるか |
+ * | tExileMillHalf  | 山札消滅 N（相手）×15 ＋ 兵士 ×15                             | 同上（守りつき） |
  */
 import {
   B0,
@@ -477,6 +479,9 @@ export const EXTREME: Record<string, () => DeckSpec> = {
       ...fitFill('legend', 3, (v) => ({ effects: [eff('damage', { value: v, timing: 'turnStart', target: 'enemyPlayer' })], abilities: [{ id: 'emblem' }], name: `紋章${v}` }), BALANCE.rarity.legend.deckLimit ?? 2),
       [burnCard(undefined, '火球'), 30 - (BALANCE.rarity.legend.deckLimit ?? 2)],
     ]),
+  // 疲労（山札切れ。決定事項 #102）：相手の山札を除外し続けて、山札も捨て札も尽きさせる
+  tExileMill: () => single('tExileMill', (v) => ({ effects: [eff('exileMill', { value: v, target: 'enemyPlayer' })], name: `山札消滅${v}` })),
+  tExileMillHalf: () => half('tExileMillHalf', SOLDIER(), (v) => ({ effects: [eff('exileMill', { value: v, target: 'enemyPlayer' })], name: `山札消滅${v}` })),
   attackPoison: () => mon('attackPoison', (v) => ({ stats: { attack: 1, hp: 2, defense: 0 }, effects: [eff('poison', { value: v, timing: 'attack' }, true)], name: `毒牙${v}` })),
 };
 

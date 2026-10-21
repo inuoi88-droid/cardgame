@@ -286,8 +286,22 @@ export function PlayerPanel({
         )}
       </div>
       <div className="pp__meta">
-        <Popover content={{ title: `📚 山札 ${ps.deck.length}枚`, description: '引く順番は非公開。尽きたら捨て札をシャッフルして山札にする' }} placement="top">
-          <span className="pile">📚{ps.deck.length}</span>
+        <Popover
+          content={{
+            title: `📚 山札 ${ps.deck.length}枚`,
+            description: '引く順番は非公開。尽きたら捨て札をシャッフルして山札にする',
+            // 疲労（山札切れ。決定事項 #102）：もう起きた・山札も捨て札も無いときは、次の1枚のダメージ
+            lines:
+              (ps.fatigue ?? 0) > 0 || ps.deck.length + ps.discard.length === 0
+                ? [`${mechanicGlossary.fatigue!.icon}疲労：山札も捨て札も無いと、引けない1枚ごとにダメージ（これまで${ps.fatigue ?? 0}枚、次は${battle.nextFatigueDamage(ps)}）`]
+                : undefined,
+          }}
+          placement="top"
+        >
+          <span className="pile">
+            📚{ps.deck.length}
+            {(ps.fatigue ?? 0) > 0 && <span className="pile__usable pile__fatigue">疲労{ps.fatigue}</span>}
+          </span>
         </Popover>
         <button
           type="button"

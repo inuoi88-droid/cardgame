@@ -109,12 +109,20 @@ describe('種族（MTG 要素 ○ バッチC2）', () => {
 });
 
 describe('MTG 要素 △ バッチD の選択肢', () => {
-  it('効果「フィールド」の追加指定は6つのフィールドが説明つきで出る。条件「昼なら／夜なら」は見出し「昼と夜」で選べる', () => {
+  it('効果「フィールド」の追加指定は使える5つのフィールドが説明つきで出る（闘技場は見送り中：決定事項 #102）。条件「昼なら／夜なら」は見出し「昼と夜」で選べる', () => {
     const card = spell();
     const e = createEffect('setField', 'spell');
     const opts = effectOptionOptions(e, card);
-    expect(opts).toHaveLength(6);
-    for (const o of opts) expect(o.description?.length ?? 0).toBeGreaterThan(0);
+    expect(opts).toHaveLength(5);
+    expect(opts.map((o) => o.id)).not.toContain('arena');
+    for (const o of opts) {
+      expect(o.description?.length ?? 0).toBeGreaterThan(0);
+      expect(o.disabled).toBeUndefined();
+    }
+    // 保存済みのカードの今の値が闘技場なら、灰色（選べない理由つき）で最後に出る
+    const old = effectOptionOptions({ ...e, option: 'arena' }, card);
+    expect(old).toHaveLength(6);
+    expect(old.at(-1)).toMatchObject({ id: 'arena', disabled: expect.stringContaining('見送り中') });
     const conds = conditionOptions(createEffect('damage', 'spell'), card);
     for (const id of ['isDay', 'isNight']) {
       const o = conds.find((x) => x.id === id);

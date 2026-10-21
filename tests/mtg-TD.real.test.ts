@@ -34,7 +34,7 @@ describe('△ バッチD（実際の倍率）', () => {
       alchemist: { everyTurns: 4, energy: 1 },
       scholar: { everyTurns: 2, draw: 1 },
     });
-    expect(BALANCE.fields).toEqual({ volcano: { attack: 10 }, library: { draw: 1 }, sanctuary: { heal: 40 }, arena: {}, market: { discount: 1 }, fog: { rate: 0.25 }, planarEvery: 6 });
+    expect(BALANCE.fields).toEqual({ volcano: { attack: 10 }, library: { draw: 1 }, sanctuary: { heal: 40 }, arena: { enabled: false }, market: { discount: 1 }, fog: { rate: 0.25 }, planarEvery: 6 });
     expect(BALANCE.effects.setField).toEqual({ flat: 120 });
     expect(BALANCE.dayNight).toEqual({ toNight: 0, toDay: 2 });
     expect(BALANCE.draft).toEqual({ rounds: 15, offer: 3, copies: 2 });

@@ -49,9 +49,18 @@ export function CardRow({
           <span className="crow__head">
             <span className="crow__cost">{def.cost}</span>
             <b>{def.name}</b>
-            <small>{CARD_TYPE_LABEL[a.cardType]}</small>
+            <small className="crow__type">{CARD_TYPE_LABEL[a.cardType]}</small>
+            {/* スマホは効果を短く切るので、ステータスは見出しの行に */}
+            {def.stats && (
+              <small className="crow__hstats" aria-hidden="true">
+                ⚔{def.stats.attack} ❤{def.stats.hp}
+                {def.stats.defense > 0 ? ` 🛡${def.stats.defense}` : ''}
+              </small>
+            )}
           </span>
           <span className="crow__body">
+            {/* スマホは種類を本文の頭に（見出しの行は名前とステータスだけにして1行に収める） */}
+            <span className="crow__btype">{CARD_TYPE_LABEL[a.cardType]} </span>
             {a.text.keywords.map((k) => k.name).join('・')}
             {a.text.keywords.length > 0 && ' '}
             {a.text.effects.join('')}
@@ -104,7 +113,7 @@ export function MulliganDialog({ view, me, onAction, timeLeft }: { view: GameSta
           <span className={cx('badge', first ? 'badge--mine' : 'badge--enemy')}>{first ? '先攻（1ターン目はエナジー−1）' : '後攻'}</span>
           {timeLeft && <span className="dlg__time">{timeLeft}</span>}
         </div>
-        <p className="hint">このまま始めるか、引き直すカードを選んでください。一部だけの引き直しは1回で手札が決まります。</p>
+        <p className="hint dlg__lead">このまま始めるか、引き直すカードを選んでください。一部だけの引き直しは1回で手札が決まります。</p>
         <div className="crow-list">
           {mine.hand.map((c) => (
             <CardRow key={c.uid} def={view.cards[c.cardId]} picked={picked.has(c.uid)} mark="戻す" onToggle={() => toggle(c.uid)} onZoom={setZoom} />
@@ -223,7 +232,8 @@ export function ChoiceDialog({ view, me, onAction, timeLeft }: { view: GameState
 
 // ---------------------------------------------------------------- 結果
 
-export function ResultDialog({ view, me, onHide, children }: { view: GameState; me: PlayerId; onHide: () => void; children: ReactNode }) {
+/** 結果の見出しと理由（結果ダイアログと、ダイアログを閉じたあとの操作バーで共用） */
+export function resultTexts(view: GameState, me: PlayerId): { title: string; why: string; won: boolean; draw: boolean } {
   const result = view.result!;
   const won = result.winner === me;
   const draw = result.winner === null;
@@ -244,6 +254,11 @@ export function ResultDialog({ view, me, onHide, children }: { view: GameState; 
           : won
             ? '相手のHPを0にしました'
             : 'HPが0になりました';
+  return { title, why, won, draw };
+}
+
+export function ResultDialog({ view, me, onHide, children }: { view: GameState; me: PlayerId; onHide: () => void; children: ReactNode }) {
+  const { title, why, won, draw } = resultTexts(view, me);
   const s = summarizeResult(view, me);
   return (
     <Modal title="対戦終了" onClose={onHide}>

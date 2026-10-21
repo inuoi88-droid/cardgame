@@ -31,6 +31,7 @@ import {
   payFields,
   PaySheet,
   ResultDialog,
+  resultTexts,
   ZoomModal,
   type PayChoice,
 } from './dialogs.tsx';
@@ -890,7 +891,12 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   const hint = (() => {
     if (busy) return '送信中…';
     if (view.phase === 'mulligan') return mine.mulligan.done ? `${opponentLabel}が手札を決めています…` : '最初の手札を決めてください';
-    if (view.phase === 'ended') return '対戦は終了しました';
+    if (view.phase === 'ended') {
+      // 結果ダイアログを閉じたあとも、誰が勝ったかを操作バーに出す
+      if (!view.result) return '対戦は終了しました';
+      const r = resultTexts(view, me);
+      return `${r.title}（${r.why}）`;
+    }
     if (view.pending) return view.pending.player === me ? '選んでください' : `${opponentLabel}が選んでいます…`;
     if (view.active !== me) return `${opponentLabel}のターンです…`;
     if (attacker) return `「${view.cards[attacker.card.cardId]?.name}」の攻撃先を選んでください`;
@@ -918,7 +924,8 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       return `${what}を使いますか？`;
     }
     if (nothingLeft) return 'できることはもうありません。ターンを終了しましょう';
-    return phone ? 'カードを上へドラッグで使用・タップで詳細' : 'カードを場へドラッグして使う・モンスターを相手へドラッグして攻撃（クリックで詳細）';
+    if (phone) return readyAttackers.length > 0 ? '緑に光るモンスターは相手へドラッグで攻撃・タップで詳細' : 'カードを上へドラッグで使用・タップで詳細';
+    return 'カードを場へドラッグして使う・モンスターを相手へドラッグして攻撃（クリックで詳細）';
   })();
 
   const turnLabel =
@@ -1390,7 +1397,8 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   };
 
   // 操作バーの案内が大事なとき（対象選び・もうできることがない・対戦終了）。スマホの低い画面では、大事でない案内の代わりに直近の出来事を出す
-  const hintKey = !!sel || nothingLeft || view.phase !== 'main' || !!view.pending;
+  // 最初の2ターンは操作の案内（ドラッグ・緑のモンスター）を直近の出来事より優先する
+  const hintKey = !!sel || nothingLeft || view.phase !== 'main' || !!view.pending || (myTurn && mine.turnsTaken <= 2);
   /** スマホの帯から開くプレイヤーの詳細（詰める前の全部入りのパネル） */
   const renderPlayerSheet = (): ReactNode => {
     if (playerOpen === null) return null;
@@ -1407,9 +1415,16 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           targetable={false}
           dropKey={`sheet:${p}`}
           onClick={() => undefined}
-          onPile={(kind) => setPile({ player: p, kind })}
+          // 捨て札・除外・待機ゾーンの一覧はこのシートの下に開いてしまうので、先にシートを閉じる
+          onPile={(kind) => {
+            setPlayerOpen(null);
+            setPile({ player: p, kind });
+          }}
           onPower={(pw) => setDetail({ kind: 'power', player: p, uid: pw.uid })}
-          onWaiting={() => setWaitingOpen(p)}
+          onWaiting={() => {
+            setPlayerOpen(null);
+            setWaitingOpen(p);
+          }}
           hasCrown={view.crown === p}
           powerDef={(pw) => view.cards[pw.cardId]}
           powerFlash={replay.flash}

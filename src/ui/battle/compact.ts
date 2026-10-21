@@ -20,6 +20,23 @@ export function briefLabel(label: string): string {
   return Array.from(label.trim())[0] ?? '';
 }
 
+/** 挑発（キーワード・付与・このターンだけの付与）の札の id。攻撃先・「選んだ1体」を縛るので、タイルでは先頭に名前つきで出す */
+const TAUNT_IDS = new Set(['kw:taunt', 'gr:taunt', 'tg:taunt']);
+export const isTauntChip = (id: string): boolean => TAUNT_IDS.has(id);
+
+/** スマホのタイルの札の並び：挑発 → 守備力（ステータスの行から移す）→ ほか（元の順） */
+export function tileChipOrder<T extends { id: string }>(chips: readonly T[], defense?: T): T[] {
+  const taunt = chips.filter((c) => isTauntChip(c.id));
+  const rest = chips.filter((c) => !isTauntChip(c.id));
+  return [...taunt, ...(defense ? [defense] : []), ...rest];
+}
+
+/** タイルの札の文字：挑発だけは「挑発」の名前を残す（アイコンの 🛡 は守備力と同じなので） */
+export function briefChipLabel(c: { id: string; label: string }): string {
+  // 付与（➕）・このターンだけ（⏱）の印は落として、どれも「🛡挑発」（狭いタイルに入るように。詳細には印つきで出る）
+  return isTauntChip(c.id) ? '🛡挑発' : briefLabel(c.label);
+}
+
 /** 手札の注意の札（パワー入替・条件未達…）をスマホではアイコンにする */
 export const HAND_BADGE_ICON: Record<string, string> = {
   氷結: '🧊',

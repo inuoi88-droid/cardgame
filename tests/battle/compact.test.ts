@@ -1,6 +1,6 @@
 // スマホの詰めた表示の小道具（src/ui/battle/compact.ts）
 import { describe, expect, it } from 'vitest';
-import { briefLabel, HAND_BADGE_ICON, overflowItems } from '../../src/ui/battle/compact.ts';
+import { briefChipLabel, briefLabel, HAND_BADGE_ICON, isTauntChip, overflowItems, tileChipOrder } from '../../src/ui/battle/compact.ts';
 
 describe('overflowItems', () => {
   it('max 個までならそのまま、残りは数だけ', () => {
@@ -33,5 +33,22 @@ describe('briefLabel', () => {
 describe('HAND_BADGE_ICON', () => {
   it('手札の注意の札にはすべてアイコンがある', () => {
     for (const k of ['氷結', '封殺', 'パワー入替', '条件未達', '対象なし']) expect(HAND_BADGE_ICON[k]).toBeTruthy();
+  });
+});
+
+describe('タイルの札の並び（tileChipOrder・briefChipLabel）', () => {
+  const c = (id: string, label = id) => ({ id, label });
+  it('挑発を先頭、次に守備力、ほかは元の順', () => {
+    const out = tileChipOrder([c('kw:flying'), c('poison'), c('gr:taunt')], c('def'));
+    expect(out.map((x) => x.id)).toEqual(['gr:taunt', 'def', 'kw:flying', 'poison']);
+    expect(tileChipOrder([c('a'), c('b')]).map((x) => x.id)).toEqual(['a', 'b']);
+  });
+  it('挑発の札は名前を残す（守備力の 🛡 と見分ける）', () => {
+    expect(briefChipLabel(c('kw:taunt', '🛡挑発'))).toBe('🛡挑発');
+    expect(briefChipLabel(c('tg:taunt', '⏱🛡挑発'))).toBe('🛡挑発');
+    expect(briefChipLabel(c('gr:taunt', '➕🛡挑発'))).toBe('🛡挑発');
+    expect(briefChipLabel(c('poison', '☠40'))).toBe('☠40');
+    expect(isTauntChip('kw:taunt')).toBe(true);
+    expect(isTauntChip('kw:flying')).toBe(false);
   });
 });

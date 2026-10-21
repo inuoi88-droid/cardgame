@@ -8,7 +8,7 @@ import { logIcon, tokenizeLog, type LogNames } from './logFormat.ts';
 import type { Float } from './useReplay.ts';
 import { monsterForecasts, summarizeCard } from './summary.ts';
 import { dayNightBand, fieldBand } from './matchOptions.ts';
-import { briefLabel, HAND_BADGE_ICON, overflowItems } from './compact.ts';
+import { briefChipLabel, briefLabel, HAND_BADGE_ICON, isTauntChip, overflowItems, tileChipOrder } from './compact.ts';
 
 type Statuses = battle.Statuses;
 type PlayerId = battle.PlayerId;
@@ -261,9 +261,11 @@ export function PlayerPanel({
     if ((ps.fatigue ?? 0) > 0) badges.push({ id: 'fatigue', label: `${M.fatigue!.icon}${ps.fatigue}`, tone: 'bad', title: `疲労${ps.fatigue}` });
     for (const c of statusChips(ps.status, true)) badges.push({ id: c.id, label: briefLabel(c.label), tone: c.tone, title: typeof c.card.title === 'string' ? c.card.title : c.label });
     if ((ps.ice ?? 0) > 0) badges.push({ id: 'ice', label: `${M.ice!.icon}${ps.ice}`, tone: 'bad', title: `氷結${ps.ice}` });
+    // リーダーはいちばん後ろ（空きがあれば出る）
+    const leaderId = toLeaderId(ps.leader);
+    if (leaderId !== 'none') badges.push({ id: 'leader', label: LEADERS[leaderId].icon, tone: 'info', title: `リーダー：${LEADERS[leaderId].name}` });
     // 帯に出さないもの（詳細だけ）も「+N」に数える
     const hiddenExtras =
-      (toLeaderId(ps.leader) !== 'none' ? 1 : 0) +
       (ps.emblems?.length ?? 0) +
       next.length +
       ((ps.delayed?.length ?? 0) > 0 ? 1 : 0) +
@@ -272,8 +274,10 @@ export function PlayerPanel({
       ((ps.exp ?? 0) > 0 ? 1 : 0) +
       ((ps.speed ?? 0) > 0 ? 1 : 0) +
       (!isMe && waiting.length > 0 ? 1 : 0);
+    // 札は相手2つ・自分1つ。狭い画面（〜379px）は1つ減らす（最後の札を隠して「+N」を1つ増やした方を出す。battle.css）
     const { shown, more } = overflowItems(badges, isMe ? 1 : 2);
     const moreN = more + hiddenExtras;
+    const moreNarrow = moreN + (shown.length > 0 ? 1 : 0);
     const pwFlash = ps.powers.map((pw) => powerFlash?.[pw.uid]).find(Boolean);
     const open = targetable ? onClick : onOpen;
     return (
@@ -306,11 +310,9 @@ export function PlayerPanel({
         <span className="ppc__energy" aria-hidden="true">
           ⚡{ps.energy}
         </span>
-        {!isMe && (
-          <span className="ppc__cnt" aria-label={`手札${ps.hand.length}枚`}>
-            🂠{ps.hand.length}
-          </span>
-        )}
+        <span className="ppc__cnt ppc__hand" aria-label={`手札${ps.hand.length}枚`}>
+          🂠{ps.hand.length}
+        </span>
         <span className="ppc__cnt ppc__deck" aria-label={`山札${ps.deck.length}枚`}>
           📚{ps.deck.length}
         </span>
@@ -354,14 +356,19 @@ export function PlayerPanel({
               ✦{ps.powers.length}
             </span>
           ))}
-        {shown.map((b) => (
-          <span key={b.id} className={`st st--${b.tone} ppc__badge`} title={b.title} aria-label={b.title}>
+        {shown.map((b, i) => (
+          <span key={b.id} className={cx('st', `st--${b.tone}`, 'ppc__badge', i === shown.length - 1 && 'ppc__badge--last')} title={b.title} aria-label={b.title}>
             {b.label}
           </span>
         ))}
         {moreN > 0 && (
-          <span className="ppc__more" aria-label={`ほか${moreN}件（押すと詳細）`}>
+          <span className="ppc__more ppc__more--wide" aria-label={`ほか${moreN}件（押すと詳細）`}>
             +{moreN}
+          </span>
+        )}
+        {moreNarrow > 0 && (
+          <span className="ppc__more ppc__more--narrow" aria-label={`ほか${moreNarrow}件（押すと詳細）`}>
+            +{moreNarrow}
           </span>
         )}
         <span className="ppc__bar" aria-hidden="true">
@@ -630,6 +637,7 @@ export function PowersList({
               </span>
               <span className="pw-list__text">
                 <b>{pw.name}</b>
+                {def && <span className="pw-list__sum">{summarizeCard(def)}</span>}
                 {(meter || pw.life !== undefined) && (
                   <small>
                     {pw.life !== undefined ? `${mechanicGlossary.lifespan!.icon}寿命${pw.life} ` : ''}
@@ -974,18 +982,23 @@ export function monsterChips(
   return [...(m.sealed ? [] : kws), ...extra, ...statusChips(m.status, false)];
 }
 
-/** 札をアイコンだけで max 個まで並べ、残りを「+N」にする（スマホのモンスターのタイル。押すとタイルの詳細） */
-function BriefChips({ chips, max }: { chips: Chip[]; max: number }) {
+/**
+ * 札をアイコンだけで並べ、残りを「+N」にする（スマホのモンスターのタイル。押すとタイルの詳細）。
+ * ふつうは2つ＋「+N」、狭いタイルは1つ＋「+N」、場に余裕があって大きく出すタイルは4つ＋「+N」（どれを出すかは battle.css のコンテナクエリ）
+ */
+function BriefChips({ chips }: { chips: Chip[] }) {
   if (chips.length === 0) return null;
-  const { shown, more } = overflowItems(chips, max);
+  const { shown } = overflowItems(chips, 4);
   return (
     <span className="mt__brief" aria-hidden="true">
-      {shown.map((c) => (
-        <span key={c.id} className={`st st--${c.tone} mt__bchip`} title={typeof c.card.title === 'string' ? c.card.title : undefined}>
-          {briefLabel(c.label)}
+      {shown.map((c, i) => (
+        <span key={c.id} className={cx('st', `st--${c.tone}`, 'mt__bchip', i >= 1 && 'mt__bchip--2nd', i >= 2 && 'mt__bchip--late', isTauntChip(c.id) && 'mt__bchip--taunt')} title={typeof c.card.title === 'string' ? c.card.title : undefined}>
+          {briefChipLabel(c)}
         </span>
       ))}
-      {more > 0 && <span className="mt__bmore">+{more}</span>}
+      {chips.length > 1 && <span className="mt__bmore mt__bmore--1">+{chips.length - 1}</span>}
+      {chips.length > 2 && <span className="mt__bmore mt__bmore--2">+{chips.length - 2}</span>}
+      {chips.length > 4 && <span className="mt__bmore mt__bmore--4">+{chips.length - 4}</span>}
     </span>
   );
 }
@@ -1017,6 +1030,11 @@ export function MonsterTile({
 }: MonsterTileProps) {
   const press = useLongPress(onDetail);
   const chips = monsterChips(def, m, flags, ownerTurns, attackNow, realName);
+  // スマホ：挑発を先頭に、守備力（0でなければ）はステータスの行から札へ移す（狭いタイルで数字がくっつかないように）
+  const briefChips = compact
+    ? tileChipOrder(chips, m.defense !== 0 ? { id: 'def', label: `🛡${m.defense}`, tone: 'info', card: { title: `守備力 ${m.defense}`, description: '受けるダメージをこの数だけ減らす（最低ダメージあり）' } } : undefined)
+    : [];
+  const taunt = compact && chips.some((c) => isTauntChip(c.id));
   const label = def?.name ?? '？';
   // 護法（MTG 要素 ○ バッチB）：対象にすると増えるエナジーを「対象」の札に添える
   const state = targetable ? (extraCost > 0 ? `対象 護法+${extraCost}⚡` : '対象') : selected ? '選択中' : ready ? '攻撃できる' : blockLabel ?? null;
@@ -1028,6 +1046,7 @@ export function MonsterTile({
       className={cx(
         'mt',
         compact && 'mt--compact',
+        taunt && 'mt--taunt',
         isMine ? 'mt--me' : 'mt--opp',
         `frame--${def?.rarity ?? 'common'}`,
         def && analyzeCard(def).isCurse && 'mt--curse',
@@ -1086,7 +1105,7 @@ export function MonsterTile({
           {m.defense}
         </span>
       </span>
-      {compact ? <BriefChips chips={chips} max={3} /> : <Chips chips={chips} className="mt__chips" passive />}
+      {compact ? <BriefChips chips={briefChips} /> : <Chips chips={chips} className="mt__chips" passive />}
       {activate && activate.length > 0 && !dying && (
         <span className="mt__acts">
           {activate.map((a) => (
@@ -1203,6 +1222,8 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
       className={cx(
         'hc',
         `frame--${def.rarity}`,
+        // 種類（スマホは種類の文字を出さないので、上の縁の色で見分ける）
+        `hc--t-${a.cardType}`,
         a.isCurse && 'hc--curse',
         playable && 'is-playable',
         selected && 'is-selected',

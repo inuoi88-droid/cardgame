@@ -1557,83 +1557,6 @@ button.lt-card:focus-visible {
 }
 
 /* ------------------------------------------------------------ PC（3カラム・1画面固定） */
-/* ------------------------------------------------------------ スマホ：6体ずつ並んでも2段で収まるように詰める */
-@media (max-width: 919px) {
-  .battle {
-    --gutter: 10px;
-  }
-  .pp {
-    gap: 3px;
-    padding: 5px 10px;
-  }
-  .pp__hpnum {
-    min-width: 0;
-  }
-  .board {
-    padding: 9px 4px 4px;
-    gap: 9px 4px;
-  }
-  .mt,
-  .board--many .mt {
-    flex-basis: calc((100% - 2 * 4px) / 3);
-  }
-  .board--many .mt {
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas:
-      'icon name'
-      'stats stats'
-      'chips chips';
-    justify-items: stretch;
-    align-items: center;
-    gap: 2px 4px;
-    padding: 5px 2px 3px;
-  }
-  .board--many .mt__icon {
-    grid-area: icon;
-    font-size: 18px;
-    line-height: 1;
-    margin: 0;
-  }
-  .board--many .mt__name {
-    grid-area: name;
-    text-align: left;
-  }
-  .board--many .mt__stats {
-    grid-area: stats;
-    grid-template-columns: repeat(3, auto);
-    justify-content: space-around;
-    padding: 1px 0;
-    overflow: hidden;
-  }
-  .board--many .mt__stat {
-    display: flex;
-    align-items: baseline;
-    font-size: 12.5px;
-    letter-spacing: -0.03em;
-  }
-  .board--many .mt__stat small {
-    margin-right: 0;
-  }
-  .board--many .mt__chips {
-    grid-area: chips;
-    flex-wrap: nowrap;
-    overflow: hidden;
-    justify-content: flex-start;
-  }
-  .board--many .mt__state {
-    top: -9px;
-    line-height: 1.2;
-  }
-  .hand {
-    min-height: 138px;
-    padding-top: 10px;
-  }
-  .hc {
-    width: 106px;
-    min-height: 124px;
-  }
-}
-
 @media (min-width: 920px) {
   .battle {
     --bar-h: 96px;
@@ -1742,21 +1665,6 @@ button.lt-card:focus-visible {
     }
   }
 }
-
-/* 低い画面（横向きのスマホなど）：手札を少し小さく */
-@media (max-height: 700px) and (max-width: 919px) {
-  .hc {
-    min-height: 118px;
-    width: 104px;
-  }
-  .hand {
-    min-height: 132px;
-  }
-  .mt__icon {
-    font-size: 22px;
-  }
-}
-
 
 /* ============================================================ ドラッグ＆ドロップ（useDrag・DragLayer） */
 :root {
@@ -2845,5 +2753,587 @@ button.lt-card:focus-visible {
   .pile.is-fresh {
     animation: none;
     outline: 2px solid var(--warn);
+  }
+}
+
+/* ============================================================ パワーの一覧（スマホの帯の「✦N」から開くシート） */
+.pw-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.pw-list__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px 4px 6px;
+  border: 1px solid rgba(181, 109, 255, 0.45);
+  background: rgba(181, 109, 255, 0.1);
+  border-radius: var(--radius);
+}
+.pw-list__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pw-list__main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pw-list__icon {
+  flex: none;
+  font-size: 24px;
+  line-height: 1;
+}
+.pw-list__text {
+  display: grid;
+  min-width: 0;
+}
+.pw-list__text b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-list__text small {
+  font-size: var(--fs-xs);
+  color: #dcc2ff;
+}
+.pw-list .act-btn {
+  min-height: 36px;
+  min-width: 52px;
+  font-size: var(--fs-sm);
+}
+.pw-list .act-btn::after {
+  inset: -4px -4px;
+}
+.hc__badgeicon {
+  display: none;
+}
+
+/* ============================================================ スマホ（〜919px）：場が主役。
+   見出し 40px／相手の帯 44px／相手の場・自分の場（残りを分ける。モンスターのいない場は細く）／自分の帯 46px／手札 約100px／操作バー 52px。
+   プレイヤーの細かい情報は帯を押すと出る詳細（BattleBoard の renderPlayerSheet）へ、手札は効果テキストなし（押すと詳細） */
+@media (max-width: 919px) {
+  .battle {
+    --gutter: 10px;
+    --bar-h: 56px;
+    --bo-min: 80px;
+    --bm-min: 80px;
+    --bo-size: 1fr;
+    --bm-size: 1fr;
+    grid-template-rows: auto auto minmax(var(--bo-min), var(--bo-size)) minmax(var(--bm-min), var(--bm-size)) auto auto auto;
+    gap: 4px;
+    padding-top: 0;
+  }
+  .battle.is-bo-empty {
+    --bo-min: 0px;
+    --bo-size: auto;
+  }
+  .battle.is-bm-empty {
+    --bm-min: 0px;
+    --bm-size: auto;
+  }
+  .battle.is-bo-empty.is-bm-empty {
+    --bo-size: 1fr;
+    --bm-size: 1fr;
+  }
+
+  /* ---- 見出し */
+  .battle__head {
+    min-height: 40px;
+    gap: 6px;
+  }
+  .battle__turn {
+    font-size: 15px;
+    gap: 6px;
+  }
+  .battle__headbtns .btn,
+  .battle__headbtns .btn--icon.btn--small {
+    min-height: 40px;
+    min-width: 40px;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  .battle__headbtns .btn::after {
+    content: '';
+    position: absolute;
+    inset: -2px 0;
+  }
+
+  /* ---- プレイヤーの帯（1行） */
+  .pp--compact {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 44px;
+    padding: 3px 8px 7px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pp--compact:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .pp--compact .pp__target {
+    font-size: var(--fs-xs);
+    line-height: 1.5;
+  }
+  .ppc__name {
+    flex: 1 1 auto;
+    min-width: 1.5em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  /* 自分の帯は名前を出さない（青い縁と位置で分かる。読み上げは aria-label） */
+  .pp--me .ppc__name {
+    display: none;
+  }
+  .pp--me .ppc__energy {
+    margin-right: auto;
+  }
+  .ppc__hp {
+    flex: none;
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .ppc__hp .pp__hpicon {
+    font-size: var(--fs-xs);
+    margin-right: 1px;
+  }
+  .ppc__shield {
+    flex: none;
+    color: #9fd0ff;
+    font-weight: bold;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .ppc__energy {
+    flex: none;
+    color: #ffe066;
+    font-weight: bold;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+  .ppc__cnt {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    min-height: 26px;
+    padding: 0 5px;
+    border-radius: var(--radius-pill);
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid transparent;
+    font: inherit;
+    font-size: var(--fs-xs);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .ppc__cnt--btn {
+    position: relative;
+    cursor: pointer;
+    border-color: var(--line);
+    color: var(--text);
+  }
+  /* 押せる範囲は帯の高さいっぱい（44px） */
+  .ppc__cnt--btn::after {
+    content: '';
+    position: absolute;
+    inset: -9px -2px;
+  }
+  .ppc__cnt.is-usable {
+    border-color: var(--ok);
+    color: #b5f3d4;
+  }
+  .ppc__cnt.is-lit {
+    border-color: var(--warn);
+    color: var(--warn);
+    animation: target-pulse 1.1s ease-in-out infinite;
+  }
+  .ppc__cnt.is-drop-hover {
+    animation: none;
+    border-color: var(--ok);
+    color: #fff;
+    background: rgba(60, 207, 145, 0.3);
+    box-shadow:
+      0 0 0 3px var(--ok),
+      0 0 20px rgba(60, 207, 145, 0.8);
+    transform: scale(1.12);
+  }
+  .ppc__cnt.is-fresh {
+    animation: hc-fresh 1.5s ease-out;
+  }
+  .ppc__powers {
+    color: #dcc2ff;
+    border-color: rgba(181, 109, 255, 0.55);
+    background: rgba(181, 109, 255, 0.15);
+    font-weight: bold;
+  }
+  .ppc__powers.is-usable {
+    border-color: #ffd85c;
+    color: #ffe9a3;
+  }
+  .ppc__powers.is-activate {
+    animation: glow-activate 0.6s;
+  }
+  .ppc__badge {
+    flex: none;
+    padding: 0 4px;
+    line-height: 1.5;
+  }
+  .ppc__more {
+    flex: none;
+    font-size: var(--fs-xs);
+    font-weight: bold;
+    color: var(--muted);
+  }
+  .ppc__bar {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 3px;
+    height: 3px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+  }
+  .ppc__bar .hpbar__fill {
+    display: block;
+  }
+  .pp--compact .fx-floats {
+    left: 40%;
+    top: 0;
+  }
+  .battle.is-dragging--arrow .pp:not(.is-targetable):not(:has(.is-lit)) {
+    opacity: 0.55;
+  }
+
+  /* ---- 場 */
+  .board {
+    padding: 10px 4px 4px;
+    gap: 11px 4px;
+  }
+  .board__empty {
+    padding: 4px 0;
+  }
+  /* 混んだ場（4体以上）が2段に収まらない高さ：札はタイルの下の縁に重ねて、タイルを低くする */
+  .battle:not(.is-bo-empty) .battle__board--opp,
+  .battle:not(.is-bm-empty) .battle__board--me {
+    container-type: size;
+  }
+  @container (max-height: 172px) {
+    .board--many {
+      row-gap: 13px;
+      padding-bottom: 9px;
+    }
+    .board--many .mt--compact {
+      grid-template-areas:
+        'icon name'
+        'stats stats';
+      padding-bottom: 3px;
+    }
+    .board--many .mt__brief {
+      position: absolute;
+      left: 4px;
+      right: 4px;
+      bottom: -9px;
+      z-index: 1;
+    }
+    .board--many .mt .mt__bchip {
+      line-height: 1.2;
+      background-color: var(--panel-2);
+    }
+    .board--many .mt__bmore {
+      padding: 0 3px;
+      border-radius: 6px;
+      background: var(--panel-2);
+    }
+  }
+  .battle.is-bo-empty .board--opp,
+  .battle.is-bm-empty .board--me {
+    min-height: 32px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  /* モンスターのタイル（詰めた表示）：アイコン＋名前の1行、ステータス、札はアイコン3つまで */
+  .mt--compact {
+    flex: 0 0 calc((100% - 8px) / 3);
+    max-width: none;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'icon name'
+      'stats stats'
+      'brief brief';
+    justify-items: stretch;
+    align-items: center;
+    align-content: start;
+    gap: 2px 4px;
+    padding: 5px 4px 4px;
+    text-align: left;
+    border-radius: 9px;
+  }
+  .mt--compact .mt__icon {
+    grid-area: icon;
+    font-size: 18px;
+    line-height: 1;
+    margin: 0;
+  }
+  .mt--compact .mt__name {
+    grid-area: name;
+    font-size: var(--fs-xs);
+  }
+  .mt--compact .mt__stats {
+    grid-area: stats;
+    display: flex;
+    justify-content: space-evenly;
+    gap: 2px;
+    padding: 1px 2px;
+  }
+  .mt--compact .mt__stat {
+    display: flex;
+    align-items: baseline;
+    font-size: 13px;
+    letter-spacing: -0.03em;
+  }
+  @media (max-width: 400px) {
+    .mt--compact .mt__stats {
+      gap: 0;
+      padding: 1px 0;
+    }
+    .mt--compact .mt__stat {
+      font-size: var(--fs-xs);
+      letter-spacing: -0.04em;
+    }
+  }
+  /* 守備力0は出さない（ふつうは0。詳細には出る） */
+  .mt--compact .mt__stat.is-zero {
+    display: none;
+  }
+  .mt__brief {
+    grid-area: brief;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .mt .mt__bchip {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: clip;
+    padding: 0 3px;
+    line-height: 1.35;
+  }
+  .mt__bmore {
+    flex: none;
+    font-size: var(--fs-xs);
+    font-weight: bold;
+    color: var(--muted);
+  }
+  /* 「攻撃できる」・攻撃できない理由の札は出さない（攻撃できるタイルは緑に光る。理由は押すと詳細・ドラッグで出る）。対象・選択中だけ */
+  .mt--compact .mt__state:not(.mt__state--target):not(.mt__state--sel) {
+    display: none;
+  }
+  .mt--compact .mt__state {
+    top: -10px;
+    line-height: 1.25;
+    padding: 0 6px;
+    max-width: calc(100% + 6px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mt--compact .mt__acts {
+    top: 16px;
+    right: -6px;
+  }
+
+  /* ---- 手札（効果テキストなし。押すと詳細） */
+  .battle__hand {
+    position: relative;
+    grid-template-rows: auto;
+  }
+  .hand__meta {
+    display: none;
+  }
+  /* ドラッグ中だけ「手札に戻すと取り消し」を手札の右上に重ねる */
+  .battle.is-dragging .hand__meta {
+    display: flex;
+    position: absolute;
+    right: 4px;
+    top: -10px;
+    z-index: 4;
+    pointer-events: none;
+  }
+  .battle.is-dragging .hand__meta > :not(.hand__drop) {
+    display: none;
+  }
+  .hand__drop {
+    padding: 0 8px;
+    border-radius: var(--radius-pill);
+    background: rgba(17, 21, 42, 0.94);
+    border: 1px solid var(--warn);
+  }
+  .hand {
+    min-height: 0;
+    gap: 6px;
+    padding: 9px 24px 4px 4px;
+  }
+  .hand__empty {
+    min-height: 86px;
+    font-size: var(--fs-xs);
+  }
+  .hc {
+    width: 80px;
+    min-height: 0;
+    height: 88px;
+    grid-template-rows: auto auto 1fr;
+    gap: 1px;
+    padding: 8px 4px 4px;
+  }
+  .hc__type,
+  .hc__text,
+  .hc__kick {
+    display: none;
+  }
+  .hc__icon {
+    font-size: 24px;
+    line-height: 1.1;
+  }
+  .hc__name {
+    max-width: 100%;
+    max-height: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.3;
+  }
+  .hc__stats {
+    display: flex;
+    justify-content: center;
+    gap: 3px;
+    align-self: end;
+    padding: 0 1px;
+    letter-spacing: -0.03em;
+  }
+  /* 守備力は詳細で（幅が足りない） */
+  .hc__stats > span:nth-child(3) {
+    display: none;
+  }
+  .hc__cost {
+    width: 24px;
+    height: 24px;
+    font-size: 13px;
+  }
+  /* 注意の札（パワー入替・条件未達…）は右上の小さな丸いアイコン（コストに重ならない） */
+  .hc__badge {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    right: -5px;
+    top: -6px;
+    border-radius: 50%;
+    font-size: var(--fs-xs);
+    line-height: 1;
+  }
+  .hc__badgetext {
+    display: none;
+  }
+  .hc__badgeicon {
+    display: inline;
+  }
+
+  /* ---- 操作バー（低い画面は1行：直近の出来事か大事な案内＋ボタン） */
+  .battle-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'cands cands'
+      'info btns';
+    column-gap: 8px;
+    row-gap: 0;
+    padding: 4px max(var(--gutter), env(safe-area-inset-left)) calc(4px + env(safe-area-inset-bottom));
+  }
+  .battle-bar__row {
+    display: contents;
+  }
+  .battle-bar__cands {
+    grid-area: cands;
+    margin-bottom: 4px;
+  }
+  .battle-bar__ticker,
+  .battle-bar__hint {
+    grid-area: info;
+    align-self: center;
+  }
+  .battle-bar__ticker {
+    min-height: 44px;
+    padding: 0;
+  }
+  .battle-bar__btns {
+    grid-area: btns;
+  }
+  .battle-bar__btns .btn {
+    min-height: 44px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .battle-bar:not(.has-key-hint) .battle-bar__hint,
+  .battle-bar.has-key-hint .battle-bar__ticker {
+    display: none;
+  }
+}
+/* 縦に余裕のあるスマホ：直近の出来事を操作バーの上に1行、案内はいつも出す */
+@media (max-width: 919px) and (min-height: 760px) {
+  .battle-bar {
+    grid-template-areas:
+      'ticker ticker'
+      'cands cands'
+      'info btns';
+  }
+  .battle-bar__ticker {
+    grid-area: ticker;
+    min-height: 24px;
+  }
+  .battle-bar.has-key-hint .battle-bar__ticker {
+    display: flex;
+  }
+  .battle-bar:not(.has-key-hint) .battle-bar__hint {
+    display: -webkit-box;
+  }
+}
+@media (max-width: 379px) {
+  /* 狭い画面：自分の帯の山札は詳細だけ */
+  .pp--me .ppc__deck {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ppc__cnt.is-lit,
+  .ppc__cnt.is-fresh {
+    animation: none;
+    outline: 2px solid var(--warn);
+  }
+  .ppc__cnt.is-drop-hover {
+    transform: none;
   }
 }

@@ -38,7 +38,7 @@ import { DragLayer } from './DragLayer.tsx';
 import { resolveDrop, resolveModeDrop, parseSpot, targetKey, type DragSource } from './dragLogic.ts';
 import { keyOf } from './events.ts';
 import { logNamesOf } from './logFormat.ts';
-import { grownDef, HandCard, MatchBand, LogPanel, LogText, MonsterTile, PlayerPanel, type ActivateButton } from './parts.tsx';
+import { grownDef, HandCard, MatchBand, LogPanel, LogText, MonsterTile, PlayerPanel, PowersList, type ActivateButton } from './parts.tsx';
 import { useBattleDrag, type DropResult } from './useDrag.ts';
 import { useReplay } from './useReplay.ts';
 
@@ -143,6 +143,9 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   const [zoom, setZoom] = useState<CardDef | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // スマホの帯から開く：プレイヤーの詳細・自分のパワーの一覧
+  const [playerOpen, setPlayerOpen] = useState<battle.PlayerId | null>(null);
+  const [powersOpen, setPowersOpen] = useState(false);
   const [resultHidden, setResultHidden] = useState(false);
   // 結果ダイアログは演出が終わって少し待ってから出す（演出を飛ばしたタップで閉じてしまわないように）
   const [resultReady, setResultReady] = useState(false);
@@ -809,6 +812,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     onStart: (src) => {
       if ((src.kind === 'card' && src.from === 'discard') || src.kind === 'discardAbility') setPile(null);
       if (src.kind === 'card' && src.from === 'waiting') setWaitingOpen(null);
+      if (src.kind === 'activate') setPowersOpen(false);
     },
   });
   const dragging = drag.drag?.phase === 'drag' ? drag.drag : null;
@@ -987,6 +991,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               dying={ghost && (replay.ghosts.get(m.uid)?.dying ?? false)}
               activate={isMine && !ghost ? activateButtons(m.uid) : null}
               realName={m.faceDown?.card ? view.cards[m.faceDown.card.cardId]?.name : undefined}
+              compact={phone}
             />
           );
         })}
@@ -1384,6 +1389,42 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
     );
   };
 
+  // 操作バーの案内が大事なとき（対象選び・もうできることがない・対戦終了）。スマホの低い画面では、大事でない案内の代わりに直近の出来事を出す
+  const hintKey = !!sel || nothingLeft || view.phase !== 'main' || !!view.pending;
+  /** スマホの帯から開くプレイヤーの詳細（詰める前の全部入りのパネル） */
+  const renderPlayerSheet = (): ReactNode => {
+    if (playerOpen === null) return null;
+    const p = playerOpen;
+    const isMe = p === me;
+    const ps = view.players[p];
+    return (
+      <Sheet open title={`${isMe ? 'あなた' : opponentLabel}の情報`} onClose={() => setPlayerOpen(null)} desktop="modal">
+        <PlayerPanel
+          ps={ps}
+          isMe={isMe}
+          roleLabel={isMe ? 'あなた' : '相手'}
+          active={view.active === p && view.phase === 'main'}
+          targetable={false}
+          dropKey={`sheet:${p}`}
+          onClick={() => undefined}
+          onPile={(kind) => setPile({ player: p, kind })}
+          onPower={(pw) => setDetail({ kind: 'power', player: p, uid: pw.uid })}
+          onWaiting={() => setWaitingOpen(p)}
+          hasCrown={view.crown === p}
+          powerDef={(pw) => view.cards[pw.cardId]}
+          powerFlash={replay.flash}
+          {...(isMe
+            ? {
+                powerActivate: (pw: battle.PowerInst) => closingActivate(activateButtons(pw.uid), () => setPlayerOpen(null)),
+                waitingUsable,
+                discardUsable,
+              }
+            : {})}
+        />
+      </Sheet>
+    );
+  };
+
   const openCard = (cardId: string) => {
     if (view.cards[cardId]) setDetail({ kind: 'card', cardId });
   };
@@ -1392,7 +1433,15 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   return (
     <div
       ref={rootRef}
-      className={cx('battle', replay.playing && 'is-replaying', dragging && 'is-dragging', dragging && `is-dragging--${dragging.plan.mode}`)}
+      className={cx(
+        'battle',
+        replay.playing && 'is-replaying',
+        dragging && 'is-dragging',
+        dragging && `is-dragging--${dragging.plan.mode}`,
+        // スマホ：モンスターのいない場は細くして、もう一方の場に高さを回す
+        boardOf(opp).length === 0 && 'is-bo-empty',
+        boardOf(me).length === 0 && 'is-bm-empty',
+      )}
       onPointerDownCapture={replay.playing ? replay.skip : undefined}
     >
       <header className="battle__head">
@@ -1425,6 +1474,8 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           onPile={(kind) => setPile({ player: opp, kind })}
           onPower={(pw) => setDetail({ kind: 'power', player: opp, uid: pw.uid })}
           onWaiting={() => setWaitingOpen(opp)}
+          compact={phone}
+          onOpen={() => setPlayerOpen(opp)}
           hasCrown={view.crown === opp}
           powerDef={(pw) => view.cards[pw.cardId]}
           powerFlash={replay.flash}
@@ -1461,6 +1512,9 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           discardUsable={discardUsable}
           pileLit={!!dragging?.plan.pile}
           pileHover={!!dragging?.plan.pile && dragging.hover === 'pile'}
+          compact={phone}
+          onOpen={() => setPlayerOpen(me)}
+          onPowers={() => setPowersOpen(true)}
         />
       </div>
 
@@ -1507,7 +1561,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
         {!phone && <LogPanel log={view.log} me={me} names={names} onCard={openCard} />}
       </aside>
 
-      <div className="battle-bar">
+      <div className={cx('battle-bar', hintKey && 'has-key-hint')}>
         <button type="button" className="battle-bar__ticker" onClick={() => setLogOpen(true)} aria-live="polite" aria-label="直近の出来事（タップでログ）">
           <span className="battle-bar__tickicon" aria-hidden="true">
             ›
@@ -1526,7 +1580,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           </div>
         )}
         <div className="battle-bar__row">
-          <div className={cx('battle-bar__hint', nothingLeft && !sel && 'is-ok')} aria-live="polite">
+          <div className={cx('battle-bar__hint', nothingLeft && !sel && 'is-ok', hintKey && 'is-key')} aria-live="polite">
             {hint}
           </div>
           <div className="battle-bar__btns">
@@ -1783,6 +1837,18 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           </div>
         </Sheet>
       )}
+      {renderPlayerSheet()}
+      {powersOpen && (
+        <Sheet open title={`あなたのパワー（${mine.powers.length}/${BALANCE.battle.maxPowers}）`} onClose={() => setPowersOpen(false)} desktop="modal">
+          <PowersList
+            ps={mine}
+            powerDef={(pw) => view.cards[pw.cardId]}
+            powerActivate={(pw) => closingActivate(activateButtons(pw.uid), () => setPowersOpen(false))}
+            onPower={(pw) => setDetail({ kind: 'power', player: me, uid: pw.uid })}
+            powerFlash={replay.flash}
+          />
+        </Sheet>
+      )}
       <ZoomModal def={zoom} onClose={() => setZoom(null)} />
       {phone && (
         <Sheet open={logOpen} title="ログ" onClose={() => setLogOpen(false)}>
@@ -1809,6 +1875,17 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       </Sheet>
     </div>
   );
+}
+
+/** シートの中の起動のボタン：押したら先にシートを閉じる（対象選びは盤面で） */
+function closingActivate(list: ActivateButton[], close: () => void): ActivateButton[] {
+  return list.map((a) => ({
+    ...a,
+    onTap: () => {
+      close();
+      a.onTap();
+    },
+  }));
 }
 
 /** 手札から使う能力のアイコン（サイクリング・魂力・予見） */

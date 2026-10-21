@@ -8,6 +8,7 @@ import { logIcon, tokenizeLog, type LogNames } from './logFormat.ts';
 import type { Float } from './useReplay.ts';
 import { monsterForecasts, summarizeCard } from './summary.ts';
 import { dayNightBand, fieldBand } from './matchOptions.ts';
+import { briefLabel, HAND_BADGE_ICON, overflowItems } from './compact.ts';
 
 type Statuses = battle.Statuses;
 type PlayerId = battle.PlayerId;
@@ -154,6 +155,12 @@ interface PlayerPanelProps {
   waitingHover?: boolean;
   /** 待機ゾーンから使えるカードの数（バッジ） */
   waitingUsable?: number;
+  // ---- スマホの詰めた表示（1行の帯。細かい情報は onOpen の詳細へ）
+  compact?: boolean;
+  /** 帯を押したとき（対象選び中でなければ）：プレイヤーの詳細を開く */
+  onOpen?: () => void;
+  /** 帯の「✦N」を押したとき：パワーの一覧を開く（自分） */
+  onPowers?: () => void;
 }
 
 /** 起動の ⚡ ボタン（モンスター・パワー）。使えないときは灰色で、押すと理由を出す */
@@ -230,6 +237,9 @@ export function PlayerPanel({
   waitingLit,
   waitingHover,
   waitingUsable = 0,
+  compact,
+  onOpen,
+  onPowers,
 }: PlayerPanelProps) {
   const waiting = ps.waiting ?? [];
   // 手札から捨てられたカード（MTG 要素 △ バッチA：捨てられたとき。B：大混乱）が捨て札に入ったら、捨て札の山を少しの間光らせる
@@ -241,6 +251,126 @@ export function PlayerPanel({
     ps.next.draw ? `次のドロー${ps.next.draw > 0 ? '+' : ''}${ps.next.draw}` : '',
     ps.discount ? `次のカード−${ps.discount}` : '',
   ].filter(Boolean);
+  if (compact) {
+    // スマホ：1行の帯（名前・HP・エナジー・小さな数字）。状態異常などは大事なものから2つ（自分は1つ）＋「+N」、残りは詳細（onOpen）
+    const M = mechanicGlossary;
+    const badges: { id: string; label: string; tone: Chip['tone']; title: string }[] = [];
+    if (hasCrown) badges.push({ id: 'crown', label: M.crown!.icon, tone: 'good', title: '王冠' });
+    if (ps.extraTurnPending) badges.push({ id: 'extra', label: M.extraTurn!.icon, tone: 'good', title: '追加ターン' });
+    if (ps.quash) badges.push({ id: 'quash', label: M.quash!.icon, tone: 'bad', title: `封殺（${QUASH_KIND[ps.quash.kind] ?? 'カード'}）` });
+    if ((ps.fatigue ?? 0) > 0) badges.push({ id: 'fatigue', label: `${M.fatigue!.icon}${ps.fatigue}`, tone: 'bad', title: `疲労${ps.fatigue}` });
+    for (const c of statusChips(ps.status, true)) badges.push({ id: c.id, label: briefLabel(c.label), tone: c.tone, title: typeof c.card.title === 'string' ? c.card.title : c.label });
+    if ((ps.ice ?? 0) > 0) badges.push({ id: 'ice', label: `${M.ice!.icon}${ps.ice}`, tone: 'bad', title: `氷結${ps.ice}` });
+    // 帯に出さないもの（詳細だけ）も「+N」に数える
+    const hiddenExtras =
+      (toLeaderId(ps.leader) !== 'none' ? 1 : 0) +
+      (ps.emblems?.length ?? 0) +
+      next.length +
+      ((ps.delayed?.length ?? 0) > 0 ? 1 : 0) +
+      ((ps.status.boonUses ?? 0) > 0 ? 1 : 0) +
+      ((ps.energyBonus ?? 0) > 0 ? 1 : 0) +
+      ((ps.exp ?? 0) > 0 ? 1 : 0) +
+      ((ps.speed ?? 0) > 0 ? 1 : 0) +
+      (!isMe && waiting.length > 0 ? 1 : 0);
+    const { shown, more } = overflowItems(badges, isMe ? 1 : 2);
+    const moreN = more + hiddenExtras;
+    const pwFlash = ps.powers.map((pw) => powerFlash?.[pw.uid]).find(Boolean);
+    const open = targetable ? onClick : onOpen;
+    return (
+      <div
+        className={cx('pp', 'pp--compact', isMe ? 'pp--me' : 'pp--opp', active && 'is-active', targetable && 'is-targetable', dropHover && 'is-drop-hover', flash)}
+        onClick={open}
+        onKeyDown={open ? (e) => (e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget && (e.preventDefault(), open()) : undefined}
+        role="button"
+        tabIndex={0}
+        aria-label={
+          targetable
+            ? `${ps.name}を対象にする`
+            : `${roleLabel}：${ps.name}、HP${hp}/${ps.maxHp}${ps.shield > 0 ? `、シールド${ps.shield}` : ''}、エナジー${ps.energy}。押すと詳細`
+        }
+        data-fx={isMe ? 'me' : 'opp'}
+        data-drop={dropKey}
+      >
+        {targetable && <span className="pp__target">対象</span>}
+        {/* CPU の名前の「（デッキ名）」は詳細で */}
+        <b className="ppc__name">{ps.name.replace(/（[^（）]*）$/, '') || ps.name}</b>
+        <span className="ppc__hp" aria-hidden="true">
+          <span className="pp__hpicon">❤</span>
+          {hp}
+        </span>
+        {ps.shield > 0 && (
+          <span className="ppc__shield" aria-hidden="true">
+            🛡{ps.shield}
+          </span>
+        )}
+        <span className="ppc__energy" aria-hidden="true">
+          ⚡{ps.energy}
+        </span>
+        {!isMe && (
+          <span className="ppc__cnt" aria-label={`手札${ps.hand.length}枚`}>
+            🂠{ps.hand.length}
+          </span>
+        )}
+        <span className="ppc__cnt ppc__deck" aria-label={`山札${ps.deck.length}枚`}>
+          📚{ps.deck.length}
+        </span>
+        {isMe && (
+          <button
+            type="button"
+            className={cx('ppc__cnt ppc__cnt--btn', discardUsable > 0 && 'is-usable', pileLit && 'is-lit', pileHover && 'is-drop-hover', pileFresh && 'is-fresh')}
+            onClick={(e) => (e.stopPropagation(), onPile('discard'))}
+            aria-label={`捨て札${ps.discard.length}枚を見る${discardUsable > 0 ? `（捨て札から使えるカード${discardUsable}枚）` : ''}`}
+            data-drop="pile"
+            data-fx="pile"
+          >
+            🗑{ps.discard.length}
+          </button>
+        )}
+        {isMe && (
+          <button
+            type="button"
+            className={cx('ppc__cnt ppc__cnt--btn', waitingUsable > 0 && 'is-usable', waitingLit && 'is-lit', waitingHover && 'is-drop-hover')}
+            onClick={(e) => (e.stopPropagation(), onWaiting?.())}
+            aria-label={`待機ゾーン${waiting.length}枚を見る${waitingUsable > 0 ? `（使えるカード${waitingUsable}枚）` : ''}`}
+            data-drop="waiting"
+            data-fx="waiting:me"
+          >
+            {M.waiting!.icon}
+            {waiting.length}
+          </button>
+        )}
+        {ps.powers.length > 0 &&
+          (isMe && onPowers ? (
+            <button
+              type="button"
+              className={cx('ppc__cnt ppc__cnt--btn ppc__powers', ps.powers.some((pw) => (powerActivate?.(pw) ?? []).some((a) => !a.blocked)) && 'is-usable', pwFlash)}
+              onClick={(e) => (e.stopPropagation(), onPowers())}
+              aria-label={`パワー${ps.powers.length}つ（${ps.powers.map((pw) => pw.name).join('・')}）を見る`}
+            >
+              ✦{ps.powers.length}
+            </button>
+          ) : (
+            <span className={cx('ppc__cnt ppc__powers', pwFlash)} aria-label={`パワー${ps.powers.length}つ`}>
+              ✦{ps.powers.length}
+            </span>
+          ))}
+        {shown.map((b) => (
+          <span key={b.id} className={`st st--${b.tone} ppc__badge`} title={b.title} aria-label={b.title}>
+            {b.label}
+          </span>
+        ))}
+        {moreN > 0 && (
+          <span className="ppc__more" aria-label={`ほか${moreN}件（押すと詳細）`}>
+            +{moreN}
+          </span>
+        )}
+        <span className="ppc__bar" aria-hidden="true">
+          <span className="hpbar__fill" style={{ width: `${pct}%` }} />
+        </span>
+        <Floats items={floats} />
+      </div>
+    );
+  }
   return (
     <div
       className={cx('pp', isMe ? 'pp--me' : 'pp--opp', active && 'is-active', targetable && 'is-targetable', dropHover && 'is-drop-hover', flash)}
@@ -469,6 +599,55 @@ export function PlayerPanel({
   );
 }
 
+/** パワーの一覧（スマホの帯の「✦N」から開く）：1行に名前・章などの表示・起動のボタン。名前を押すと詳細 */
+export function PowersList({
+  ps,
+  powerDef,
+  powerActivate,
+  onPower,
+  powerFlash,
+}: {
+  ps: battle.PlayerState;
+  powerDef?: (pw: battle.PowerInst) => CardDef | undefined;
+  powerActivate?: (pw: battle.PowerInst) => ActivateButton[];
+  onPower?: (pw: battle.PowerInst) => void;
+  powerFlash?: Record<string, string>;
+}) {
+  const all = [...(ps.emblems ?? []).map((pw) => ({ pw, emblem: true })), ...ps.powers.map((pw) => ({ pw, emblem: false }))];
+  if (all.length === 0) return <p className="hint">パワーはありません</p>;
+  return (
+    <ul className="pw-list">
+      {all.map(({ pw, emblem }) => {
+        const def = powerDef?.(pw);
+        const meter = powerMeter(pw, def, ps.turnsTaken);
+        const acts = emblem ? [] : (powerActivate?.(pw) ?? []);
+        const dormant = pw.dormantFrom !== undefined && (ps.turnsTaken - pw.dormantFrom) % 2 === 1;
+        return (
+          <li key={pw.uid} className={cx('pw-list__row', 'pw-chip', dormant && 'is-dormant', powerFlash?.[pw.uid])}>
+            <button type="button" className="pw-list__main" onClick={() => onPower?.(pw)} aria-label={`${emblem ? '紋章' : 'パワー'}「${pw.name}」の詳細`}>
+              <span className="pw-list__icon" aria-hidden="true">
+                {emblem ? mechanicGlossary.emblem!.icon : (def?.icon ?? '✦')}
+              </span>
+              <span className="pw-list__text">
+                <b>{pw.name}</b>
+                {(meter || pw.life !== undefined) && (
+                  <small>
+                    {pw.life !== undefined ? `${mechanicGlossary.lifespan!.icon}寿命${pw.life} ` : ''}
+                    {meter ?? ''}
+                  </small>
+                )}
+              </span>
+            </button>
+            {acts.map((a) => (
+              <ActivateBtn key={a.key ?? 'act'} a={a} name={pw.name} className="pw-list__act" />
+            ))}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /** リーダー（MTG 要素 △ バッチD）の札：アイコンだけ。タップで名前と説明 */
 function LeaderChip({ leader }: { leader: ReturnType<typeof toLeaderId> }) {
   const l = LEADERS[leader];
@@ -617,6 +796,8 @@ interface MonsterTileProps {
   extraCost?: number;
   /** 裏向きの自分のモンスターの正体の名前（MTG 要素 △ バッチC。持ち主にだけ） */
   realName?: string;
+  /** スマホの詰めた表示：アイコンと名前を1行、札はアイコンだけ3つまで＋「+N」（種族・正体は詳細へ） */
+  compact?: boolean;
 }
 
 /** カードの能力のアイコン */
@@ -793,6 +974,22 @@ export function monsterChips(
   return [...(m.sealed ? [] : kws), ...extra, ...statusChips(m.status, false)];
 }
 
+/** 札をアイコンだけで max 個まで並べ、残りを「+N」にする（スマホのモンスターのタイル。押すとタイルの詳細） */
+function BriefChips({ chips, max }: { chips: Chip[]; max: number }) {
+  if (chips.length === 0) return null;
+  const { shown, more } = overflowItems(chips, max);
+  return (
+    <span className="mt__brief" aria-hidden="true">
+      {shown.map((c) => (
+        <span key={c.id} className={`st st--${c.tone} mt__bchip`} title={typeof c.card.title === 'string' ? c.card.title : undefined}>
+          {briefLabel(c.label)}
+        </span>
+      ))}
+      {more > 0 && <span className="mt__bmore">+{more}</span>}
+    </span>
+  );
+}
+
 export function MonsterTile({
   m,
   def,
@@ -816,6 +1013,7 @@ export function MonsterTile({
   activate,
   extraCost = 0,
   realName,
+  compact,
 }: MonsterTileProps) {
   const press = useLongPress(onDetail);
   const chips = monsterChips(def, m, flags, ownerTurns, attackNow, realName);
@@ -829,6 +1027,7 @@ export function MonsterTile({
     <div
       className={cx(
         'mt',
+        compact && 'mt--compact',
         isMine ? 'mt--me' : 'mt--opp',
         `frame--${def?.rarity ?? 'common'}`,
         def && analyzeCard(def).isCurse && 'mt--curse',
@@ -847,7 +1046,7 @@ export function MonsterTile({
       )}
       role="button"
       tabIndex={dying ? -1 : 0}
-      aria-label={`${label}（攻撃力${attackOf(m, attackNow)}・体力${m.hp}・守備力${m.defense}）${state ? `・${state}` : ''}${targetable && extraCost > 0 ? `・護法でエナジー+${extraCost}` : ''}。押すと詳細`}
+      aria-label={`${label}（攻撃力${attackOf(m, attackNow)}・体力${m.hp}・守備力${m.defense}）${state ? `・${state}` : ''}${targetable && extraCost > 0 ? `・護法でエナジー+${extraCost}` : ''}${compact && chips.length > 0 ? `・${chips.map((c) => c.label).join('・')}` : ''}。押すと詳細`}
       aria-pressed={selected || undefined}
       data-fx={m.uid}
       data-drop={dying ? undefined : `m:${m.uid}`}
@@ -867,8 +1066,8 @@ export function MonsterTile({
         {def?.icon ?? '？'}
       </span>
       <span className="mt__name">{label}</span>
-      {realName && <span className="mt__real">（{realName}）</span>}
-      {def?.tribe && (
+      {realName && !compact && <span className="mt__real">（{realName}）</span>}
+      {def?.tribe && !compact && (
         <span className="mt__tribe" title={`種族：${TRIBE_LABEL[def.tribe]}`}>
           {TRIBE_LABEL[def.tribe]}
         </span>
@@ -887,7 +1086,7 @@ export function MonsterTile({
           {m.defense}
         </span>
       </span>
-      <Chips chips={chips} className="mt__chips" passive />
+      {compact ? <BriefChips chips={chips} max={3} /> : <Chips chips={chips} className="mt__chips" passive />}
       {activate && activate.length > 0 && !dying && (
         <span className="mt__acts">
           {activate.map((a) => (
@@ -1029,7 +1228,14 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
           {costEl}
         </Popover>
       )}
-      {badge && <span className={cx('hc__badge', (quashed || iced) && 'hc__badge--quash')}>{badge}</span>}
+      {badge && (
+        <span className={cx('hc__badge', (quashed || iced) && 'hc__badge--quash')} title={badge}>
+          <span className="hc__badgetext">{badge}</span>
+          <span className="hc__badgeicon" aria-hidden="true">
+            {HAND_BADGE_ICON[badge] ?? '!'}
+          </span>
+        </span>
+      )}
       {abil && (
         <span className="hc__abil" aria-hidden="true" title={abil.title}>
           {abil.icon}

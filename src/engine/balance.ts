@@ -814,6 +814,8 @@ export const BALANCE = {
     maxTokens: 5,
     tokenName: '小鬼',
     tokenIcon: '👺',
+    /** トークンのカードの絵（game-icons。文字の中では tokenIcon の絵文字を使う。決定事項 #105） */
+    tokenArt: 'gi:imp',
     /** 呪縛（MTG 要素バッチ2）の合計の上限 */
     doomCap: x(5),
     /** 予約（修飾「次のターンに」。MTG 要素 ○ バッチA）は1人この件数まで（数なので倍率は掛けない） */
@@ -823,6 +825,7 @@ export const BALANCE = {
     /** 動員の「軍団」トークン（1人 maxArmy 体） */
     armyName: '軍団',
     armyIcon: '🛡️',
+    armyArt: 'gi:rally-the-troops',
     maxArmy: 1,
     /** 最大エナジー増加は1人この回数まで */
     rampCap: 1,
@@ -834,6 +837,7 @@ export const BALANCE = {
     eggHatchTurns: 2,
     eggName: '卵',
     eggIcon: '🥚',
+    eggArt: 'gi:big-egg',
     /** MTG 要素 △ バッチB：代替コスト・発掘は1人1ターンこの回数まで */
     maxPitchPerTurn: 1,
     maxDredgePerTurn: 1,
@@ -848,10 +852,12 @@ export const BALANCE = {
     faceDownWard: 1,
     faceDownName: '裏向きのモンスター',
     faceDownIcon: '🂠',
+    faceDownArt: 'gi:hooded-figure',
     maxEmblems: 1,
     maxSieges: 1,
     siegeName: '砦',
     siegeIcon: '🏰',
+    siegeArt: 'gi:siege-tower',
     altWinEarliestTurn: 8,
     /**
      * 疲労（山札切れ。決定事項 #102）：山札も捨て札も無くて引けなかった1枚ごとに、そのプレイヤーの試合で n 枚目なら n×fatigueStep のダメージ

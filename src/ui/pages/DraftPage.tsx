@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 import { ai, BALANCE, uniqueName, type CardDef } from '../../engine/index.ts';
 import { PRESET_DECKS } from '../../presets.ts';
 import { CardDetail } from '../components/CardDetail.tsx';
+import { CardArtOf } from '../components/CardArt.tsx';
 import { CardView } from '../components/CardView.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { CostCurve } from '../components/CostCurve.tsx';
@@ -161,7 +162,7 @@ export function DraftPage() {
           <div className="setup__cards draft__picked">
             {myCards.map((c) => (
               <button key={c.id} type="button" className="setup__card" onClick={() => setZoom(c)} aria-label={`${c.name}（${draft.counts[c.id]}枚）を詳しく見る`}>
-                <span aria-hidden="true">{c.icon}</span>
+                <CardArtOf card={c} size="1.6em" />
                 {c.name}
                 <b>×{draft.counts[c.id]}</b>
               </button>

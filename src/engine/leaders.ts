@@ -12,26 +12,31 @@ export type LeaderId = (typeof LEADER_IDS)[number];
 export interface LeaderInfo {
   id: LeaderId;
   name: string;
+  /** 文字の中（ログ・説明）に出す絵文字 */
   icon: string;
+  /** 札に描く絵（game-icons。UI の CardArt が描く。決定事項 #105） */
+  art: string;
   /** 1行の説明（数字は balance.ts から） */
   description: string;
 }
 
 export const LEADERS: Record<LeaderId, LeaderInfo> = {
-  none: { id: 'none', name: 'なし', icon: '・', description: 'リーダーの効果なし' },
-  knight: { id: 'knight', name: '騎士', icon: '🏇', description: `最大HPとHPが+${L.knight.hp}` },
-  mage: { id: 'mage', name: '魔術師', icon: '🧙', description: `最初の手札が${L.mage.firstHand}枚多い（配るときだけ）` },
-  summoner: { id: 'summoner', name: '召喚士', icon: '📯', description: `自分のモンスターが場に出るたび、そのモンスターの体力と最大体力+${L.summoner.hp}（トークンも）` },
+  none: { id: 'none', name: 'なし', icon: '・', art: 'gi:cancel', description: 'リーダーの効果なし' },
+  knight: { id: 'knight', name: '騎士', icon: '🏇', art: 'gi:mounted-knight', description: `最大HPとHPが+${L.knight.hp}` },
+  mage: { id: 'mage', name: '魔術師', icon: '🧙', art: 'gi:wizard-face', description: `最初の手札が${L.mage.firstHand}枚多い（配るときだけ）` },
+  summoner: { id: 'summoner', name: '召喚士', icon: '📯', art: 'gi:magic-portal', description: `自分のモンスターが場に出るたび、そのモンスターの体力と最大体力+${L.summoner.hp}（トークンも）` },
   alchemist: {
     id: 'alchemist',
     name: '錬金術師',
     icon: '⚗',
+    art: 'gi:fizzing-flask',
     description: `自分の${L.alchemist.everyTurns}・${L.alchemist.everyTurns * 2}・${L.alchemist.everyTurns * 3}…ターン目の開始時にエナジー+${L.alchemist.energy}`,
   },
   scholar: {
     id: 'scholar',
     name: '賢者',
     icon: '📜',
+    art: 'gi:scroll-unfurled',
     description: `自分の${L.scholar.everyTurns}・${L.scholar.everyTurns * 2}・${L.scholar.everyTurns * 3}…ターン目に${L.scholar.draw}枚多く引く（1ターンに引ける上限に数える）`,
   },
 };

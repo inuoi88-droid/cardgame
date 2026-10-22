@@ -18,18 +18,20 @@ interface Props {
   desktop?: 'side' | 'modal';
   /** 見出しの右に置くもの（ボタンなど） */
   actions?: ReactNode;
+  /** パネルに足すクラス（中身の高さを決めたいときなど） */
+  className?: string;
 }
 
 /** これより下へ引いたら閉じる（px） */
 const CLOSE_DRAG = 90;
 
-export function Sheet({ open, title, onClose, children, desktop = 'side', actions }: Props) {
+export function Sheet({ open, title, onClose, children, desktop = 'side', actions, className }: Props) {
   const phone = useIsPhone();
   if (!open) return null;
-  return createPortal(<SheetBody phone={phone} title={title} onClose={onClose} desktop={desktop} actions={actions} children={children} />, document.body);
+  return createPortal(<SheetBody phone={phone} title={title} onClose={onClose} desktop={desktop} actions={actions} className={className} children={children} />, document.body);
 }
 
-function SheetBody({ phone, title, onClose, children, desktop, actions }: Omit<Props, 'open'> & { phone: boolean }) {
+function SheetBody({ phone, title, onClose, children, desktop, actions, className }: Omit<Props, 'open'> & { phone: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const closeRef = useRef(onClose);
@@ -63,7 +65,7 @@ function SheetBody({ phone, title, onClose, children, desktop, actions }: Omit<P
     <div className={cx('sheet', `sheet--${mode}`)} onClick={onClose}>
       <div
         ref={ref}
-        className={cx('sheet__panel', drag && 'is-dragging')}
+        className={cx('sheet__panel', drag && 'is-dragging', className)}
         style={drag ? { transform: `translateY(${drag.dy}px)` } : undefined}
         role="dialog"
         aria-modal="true"

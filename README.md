@@ -6,6 +6,8 @@
 
 https://cardgame-swart.vercel.app （スマホでもPCでも。オンライン対戦の相手にはこの URL を送ってください）
 
+カードの絵は [game-icons.net](https://game-icons.net) のアイコン（Lorc・Delapouite ほか、[CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)、色を変更）です。詳しくは [docs/CREDITS.md](docs/CREDITS.md)。
+
 ## PCで遊ぶ（インストール不要）
 
 1. [`release/cardgame.html`](release/cardgame.html) をダウンロードします（GitHub ではファイルを開いて「Download raw file」ボタン）。

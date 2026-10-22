@@ -1,9 +1,11 @@
 /** 対戦画面のダイアログ：マリガン、選択、結果。カードは読める大きさのリストで出し、🔍（一覧ではカードそのもの）で詳細を見られる */
 import { useState, type ReactNode } from 'react';
 import { analyzeCard, BALANCE, battle, CARD_TYPE_LABEL, describeEffect, getDrawback, getEffect, type CardDef } from '../../engine/index.ts';
+import { CardArt, NOISE_ART } from '../components/CardArt.tsx';
 import { Modal, Stepper } from '../components/controls.tsx';
 import { Sheet } from '../components/Sheet.tsx';
 import { cx } from '../util.ts';
+import { iconText } from '../icons/ref.ts';
 import { CardDetailModal } from './CardDetail.tsx';
 import { summarizeResult } from './summary.ts';
 
@@ -31,7 +33,9 @@ export function CardRow({
     return (
       <div className={cx('crow', picked && 'is-picked')}>
         <button type="button" className="crow__main" onClick={onToggle} aria-pressed={picked}>
-          <span className="crow__icon">📛</span>
+          <span className="crow__icon">
+            <CardArt icon={NOISE_ART} curse />
+          </span>
           <span className="crow__text">
             <b>{label ?? 'ノイズ'}</b>
           </span>
@@ -44,7 +48,9 @@ export function CardRow({
   return (
     <div className={cx('crow', picked && 'is-picked', a.isCurse && 'crow--curse')}>
       <button type="button" className="crow__main" onClick={onToggle} aria-pressed={picked}>
-        <span className={cx('crow__icon', `frame--${def.rarity}`, a.isCurse && 'frame--curse')}>{def.icon}</span>
+        <span className="crow__icon">
+          <CardArt icon={def.icon} rarity={def.rarity} cardType={a.cardType} curse={a.isCurse} />
+        </span>
         <span className="crow__text">
           <span className="crow__head">
             <span className="crow__cost">{def.cost}</span>
@@ -490,7 +496,7 @@ export function PaySheet({
     const m = mine.board.find((x) => x.uid === uid);
     if (m) {
       const d = view.cards[m.card.cardId];
-      return `${d?.icon ?? ''}${d?.name ?? '？'} ⚔${battle.effectiveAttack(view, m)} ❤${m.hp}`;
+      return `${iconText(d?.icon)}${d?.name ?? '？'} ⚔${battle.effectiveAttack(view, m)} ❤${m.hp}`;
     }
     const pw = mine.powers.find((x) => x.uid === uid);
     return pw ? `✦${pw.name}（パワー）` : '？';
@@ -760,7 +766,7 @@ export function EnlistSheet({
           return (
             <button key={m.uid} type="button" role="listitem" className="mode-opt" onClick={() => onPick(m.uid)}>
               <span className="mode-opt__label" aria-hidden="true">
-                {d?.icon ?? '？'}
+                <CardArt icon={d?.icon} rarity={d?.rarity} cardType="monster" />
               </span>
               <span className="mode-opt__body">
                 <span className="mode-opt__name">{d?.name ?? '？'}を休ませる</span>

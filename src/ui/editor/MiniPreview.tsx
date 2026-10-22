@@ -1,6 +1,7 @@
 /** スマホ上部に固定する小さなプレビュー（アイコン・名前・種類・予算メーター）。タップで等倍プレビューと内訳を開く */
 import { CARD_TYPE_LABEL, CURSE_LABEL, RARITY_LABEL, type CardAnalysis, type CardDef } from '../../engine/index.ts';
 import { cx } from '../util.ts';
+import { CardArt } from '../components/CardArt.tsx';
 import type { BudgetModel } from './budget.ts';
 import { BudgetMeterCompact } from './BudgetMeter.tsx';
 
@@ -17,8 +18,8 @@ export function MiniPreview({ card, analysis: a, budget, invalidCount, flash, on
   const name = card.name.trim() || '（名前なし）';
   return (
     <button type="button" className={cx('ed-mini', a.isCurse && 'is-curse')} onClick={onOpen} aria-label={`${name} のプレビューと内訳を見る`}>
-      <span className={cx('ed-mini__icon', `frame--${card.rarity}`, a.isCurse && 'frame--curse')} aria-hidden="true">
-        {card.icon}
+      <span className="ed-mini__icon" aria-hidden="true">
+        <CardArt icon={card.icon} rarity={card.rarity} cardType={a.cardType} curse={a.isCurse} size={52} />
         <span className="ed-mini__cost">{card.cost}</span>
       </span>
       <span className="ed-mini__main">

@@ -5,3 +5,6 @@ dist/
 .vite/
 scripts/sim/out/
 .claude/worktrees/
+dist-single/
+src/ui/icons/generated/
+public/icons/

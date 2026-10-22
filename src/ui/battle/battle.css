@@ -1331,10 +1331,7 @@ button.lt-card:focus-visible {
   place-items: center;
   width: 44px;
   height: 44px;
-  font-size: 24px;
-  border-radius: 8px;
-  border: 2px solid var(--common);
-  background: var(--field);
+  font-size: 33px;
 }
 .crow__text {
   flex: 1;
@@ -3636,9 +3633,9 @@ button.lt-card:focus-visible {
     padding: 5px 2px 5px 6px;
   }
   .crow__icon {
-    width: 36px;
-    height: 36px;
-    font-size: 20px;
+    width: 38px;
+    height: 38px;
+    font-size: 29px;
   }
   .crow__head {
     flex-wrap: nowrap;

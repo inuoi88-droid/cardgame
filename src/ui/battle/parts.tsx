@@ -1,6 +1,7 @@
 /** 対戦画面の部品：プレイヤー情報、モンスター、手札、ログ、状態異常の札（説明はポップオーバー） */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { BALANCE, battle, CARD_TYPE_LABEL, CONDITIONS, analyzeCard, describeEffect, getEffect, LEADERS, TIMINGS, toLeaderId, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
+import { CardArt, NOISE_ART } from '../components/CardArt.tsx';
 import { Popover, type PopoverCard } from '../components/Popover.tsx';
 import { abilityGlossary, glossary, keywordGlossary, mechanicGlossary, type GlossaryEntry } from '../glossary.ts';
 import { cx } from '../util.ts';
@@ -633,7 +634,7 @@ export function PowersList({
           <li key={pw.uid} className={cx('pw-list__row', 'pw-chip', dormant && 'is-dormant', powerFlash?.[pw.uid])}>
             <button type="button" className="pw-list__main" onClick={() => onPower?.(pw)} aria-label={`${emblem ? '紋章' : 'パワー'}「${pw.name}」の詳細`}>
               <span className="pw-list__icon" aria-hidden="true">
-                {emblem ? mechanicGlossary.emblem!.icon : (def?.icon ?? '✦')}
+                {emblem ? mechanicGlossary.emblem!.icon : def ? <CardArt icon={def.icon} rarity={def.rarity} cardType="power" curse={analyzeCard(def).isCurse} /> : '✦'}
               </span>
               <span className="pw-list__text">
                 <b>{pw.name}</b>
@@ -662,7 +663,7 @@ function LeaderChip({ leader }: { leader: ReturnType<typeof toLeaderId> }) {
   return (
     <Popover content={{ title: `${l.icon} リーダー：${l.name}`, description: l.description }} placement="bottom">
       <span className="pp__leader" aria-label={`リーダー：${l.name}`}>
-        {l.icon}
+        <CardArt icon={l.art} rarity="legend" size="1.35em" />
       </span>
     </Popover>
   );
@@ -681,7 +682,7 @@ export function MatchBand({ view, flash = {} }: { view: battle.GameState; flash?
       {f && (
         <Popover content={{ title: `${f.icon} フィールド：${f.name}`, description: `${f.description}（両者に効く。${f.note}）` }} placement="bottom">
           <span className={cx('match-band__chip', 'match-band__field', flash.field)} data-fx="field" aria-label={`フィールド：${f.name}`}>
-            <span aria-hidden="true">{f.icon}</span>
+            <CardArt icon={f.art} rarity="epic" size="1.5em" />
             <span className="match-band__name">{f.name}</span>
           </span>
         </Popover>
@@ -1041,6 +1042,7 @@ export function MonsterTile({
   // 休眠中（MTG 要素 △ バッチA）は半透明。一時蘇生・ワープ（△ バッチB・C）はターン終了時に場を離れるので点線の枠で薄く
   const dormant = m.counters.dormantFrom !== undefined && ownerTurns !== undefined && (ownerTurns - m.counters.dormantFrom) % 2 === 1;
   const fleeting = m.unearthed === true || m.warped === true;
+  const curse = def ? analyzeCard(def).isCurse : false;
   return (
     <div
       className={cx(
@@ -1049,7 +1051,7 @@ export function MonsterTile({
         taunt && 'mt--taunt',
         isMine ? 'mt--me' : 'mt--opp',
         `frame--${def?.rarity ?? 'common'}`,
-        def && analyzeCard(def).isCurse && 'mt--curse',
+        curse && 'mt--curse',
         ready && 'is-ready',
         selected && 'is-selected',
         targetable && 'is-targetable',
@@ -1082,7 +1084,7 @@ export function MonsterTile({
     >
       {state && <span className={cx('mt__state', targetable && 'mt__state--target', targetable && extraCost > 0 && 'mt__state--ward', selected && 'mt__state--sel', ready && !targetable && !selected && 'mt__state--ready')}>{state}</span>}
       <span className="mt__icon" aria-hidden="true">
-        {def?.icon ?? '？'}
+        <CardArt icon={def?.icon} rarity={def?.rarity} cardType="monster" curse={curse} />
       </span>
       <span className="mt__name">{label}</span>
       {realName && !compact && <span className="mt__real">（{realName}）</span>}
@@ -1169,7 +1171,7 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
       <div ref={ref} className={cx('hc', 'hc--noise', selected && 'is-selected', dim && 'is-dim', playable && 'is-playable', dragCls, fresh && 'is-fresh')} aria-label={`ノイズ（除外にエナジー${cost}）。押すと詳細`} {...interactive}>
         <span className={cx('hc__cost', cost > energy && 'is-short')}>{cost}</span>
         <span className="hc__icon" aria-hidden="true">
-          📛
+          <CardArt icon={NOISE_ART} curse />
         </span>
         <span className="hc__name">ノイズ</span>
         <span className="hc__type">何もしない</span>
@@ -1263,7 +1265,7 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
         </span>
       )}
       <span className="hc__icon" aria-hidden="true">
-        {def.icon}
+        <CardArt icon={def.icon} rarity={def.rarity} cardType={a.cardType} curse={a.isCurse} />
       </span>
       <span className="hc__name">{def.name}</span>
       <span className="hc__type">

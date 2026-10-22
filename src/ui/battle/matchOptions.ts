@@ -54,14 +54,14 @@ export function rulesSummary(rules: MatchRules | undefined): string {
 }
 
 /** 対戦画面のフィールドの帯の文（無ければ null）。次元が移り変わるなら次の切り替えまでのターン */
-export function fieldBand(g: battle.GameState): { icon: string; name: string; description: string; note: string } | null {
+export function fieldBand(g: battle.GameState): { icon: string; art: string; name: string; description: string; note: string } | null {
   if (!g.field) return null;
   const f = FIELDS[g.field.id];
   if (!f) return null;
   const next = battle.nextPlanarTurn(g);
   const who = g.field.by === null ? '次元' : `${g.players[g.field.by]?.name ?? ''}が置いた`;
   const note = next === null ? who : `${who}・あと${Math.max(0, next - g.turnIndex)}ターンで移り変わる`;
-  return { icon: f.icon, name: f.name, description: f.description, note };
+  return { icon: f.icon, art: f.art, name: f.name, description: f.description, note };
 }
 
 /** 昼と夜の表示（まだ始まっていなければ null） */

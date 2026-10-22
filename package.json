@@ -4,16 +4,17 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "gen": "node scripts/gen-registry.mjs",
+    "gen": "node scripts/gen-registry.mjs && node scripts/gen-icons.mjs",
     "predev": "npm run gen",
     "dev": "vite",
     "pretest": "npm run gen",
     "test": "vitest run",
     "test:watch": "vitest",
+    "pretypecheck": "npm run gen",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.engine.json",
     "prebuild": "npm run gen",
     "build": "npm run typecheck && vite build",
-    "build:single": "npm run build && node scripts/build-single.mjs",
+    "build:single": "npm run build && vite build --mode single --outDir dist-single && node scripts/build-single.mjs",
     "prebuild:server": "npm run gen",
     "build:server": "node scripts/build-server.mjs",
     "presim": "npm run gen",
@@ -24,6 +25,7 @@
     "sim:options": "node scripts/sim/options.mts"
   },
   "dependencies": {
+    "@iconify-json/game-icons": "^1.2.4",
     "@supabase/realtime-js": "2.117.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"

@@ -992,6 +992,9 @@ select:disabled {
 }
 
 .icon-btn {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
   font-size: 34px;
   line-height: 1;
   width: 64px;
@@ -1432,12 +1435,9 @@ select:disabled {
   flex: none;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  font-size: 22px;
-  border-radius: 8px;
-  border: 2px solid var(--common);
-  background: var(--field);
+  width: 44px;
+  height: 44px;
+  font-size: 33px;
 }
 .frame--rare {
   border-color: var(--rare);
@@ -2246,4 +2246,30 @@ body:has(.savebar) .toasts {
     border-bottom: 0;
     white-space: normal;
   }
+}
+
+/* ------------------------------------------------------------ クレジット（決定事項 #105） */
+.app-foot {
+  padding: 12px var(--gutter) calc(96px + env(safe-area-inset-bottom));
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  text-align: center;
+}
+.app-foot a {
+  color: var(--muted);
+}
+.main:has(+ .app-foot) {
+  padding-bottom: 24px;
+}
+.credits {
+  max-width: 820px;
+}
+.credits__sec p {
+  line-height: 1.7;
+}
+.credits__samples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 4px 0 12px;
 }

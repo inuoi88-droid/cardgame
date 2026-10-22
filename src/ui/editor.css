@@ -88,13 +88,6 @@
   place-items: center;
   width: 56px;
   height: 56px;
-  font-size: 30px;
-  border-radius: 12px;
-  border: 2px solid var(--common);
-  background: linear-gradient(160deg, #2b3356 0%, #1a1f36 100%);
-}
-.ed-mini.is-curse .ed-mini__icon {
-  background: linear-gradient(160deg, #2a0d22 0%, #0d070f 100%);
 }
 .ed-mini__cost {
   position: absolute;
@@ -1057,14 +1050,6 @@
   place-items: center;
   width: 64px;
   height: 64px;
-  font-size: 34px;
-  border-radius: 14px;
-  border: 2px solid var(--common);
-  background: linear-gradient(160deg, #2b3356 0%, #1a1f36 100%);
-  box-shadow: var(--shadow-1);
-}
-.ed-tpl.is-curse .ed-tpl__tile {
-  background: linear-gradient(160deg, #2a0d22 0%, #0d070f 100%);
 }
 .ed-tpl__main {
   flex: 1;

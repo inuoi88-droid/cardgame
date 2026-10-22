@@ -10,6 +10,7 @@ import { BattleSetupPage } from './pages/BattleSetupPage.tsx';
 import { DraftPage } from './pages/DraftPage.tsx';
 import { OnlineBattlePage } from './pages/OnlineBattlePage.tsx';
 import { OnlineLobbyPage } from './pages/OnlineLobbyPage.tsx';
+import { CreditsPage } from './pages/CreditsPage.tsx';
 import { RulesPage } from './pages/RulesPage.tsx';
 import { UiKitPage } from './pages/UiKitPage.tsx';
 import { navigate, useRoute } from './router.ts';
@@ -38,7 +39,7 @@ export function App() {
         ? 'battle'
         : route.page === 'online' || route.page === 'onlineBattle'
           ? 'online'
-          : route.page === 'rules'
+          : route.page === 'rules' || route.page === 'credits'
             ? 'rules'
             : 'cards';
 
@@ -92,7 +93,18 @@ export function App() {
             {route.page === 'onlineBattle' && <OnlineBattlePage />}
             {route.page === 'rules' && <RulesPage />}
             {route.page === 'uiKit' && <UiKitPage />}
+            {route.page === 'credits' && <CreditsPage />}
           </main>
+          {/* カードの絵（game-icons.net、CC BY 3.0）の表示。対戦画面では出さない（決定事項 #105） */}
+          {route.page !== 'battle' && route.page !== 'onlineBattle' && (
+            <footer className="app-foot">
+              カードの絵：
+              <a href="https://game-icons.net" target="_blank" rel="noreferrer">
+                game-icons.net
+              </a>
+              （Lorc・Delapouite ほか・CC BY 3.0）・<a href="#/credits">クレジット</a>
+            </footer>
+          )}
         </div>
       </ConfirmProvider>
     </ToastProvider>

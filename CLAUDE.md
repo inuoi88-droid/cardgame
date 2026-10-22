@@ -52,6 +52,7 @@
   - `codes.ts` 部屋コード・名前 / `protocol.ts` 送受信の形と検証 / `room.ts` 部屋の作成・入室・行動・時間切れ・各席への見え方
   - `server.ts` 1回の送信の処理 / `http.ts` 受付（DB・時刻・乱数・ハッシュ・通知は外から渡す）/ `index.ts` 公開窓口
 - `supabase/` … `migrations/`（専用スキーマ `cardgame` の rooms）と `functions/cardgame/`（Deno の Edge Function。`engine.js` は `npm run build:server` の生成物）
+- `src/ui/icons/` … カードの絵（game-icons.net。決定事項 #105）。`ref.ts`（"gi:<名前>" と絵文字の読み分け・`iconText`・シャードの二分探索。純粋関数）、`load.ts`（シャードと索引を必要なときに読む・`useIconPath`）、`shardSource.ts`（public/icons/<stamp>/ から fetch。1ファイル版は `shardSource.single.ts` に差し替え）、`categories.ts`（分類12）、`search.ts`（英語と日本語の検索・おすすめ）。`generated/` と `public/icons/` は `scripts/gen-icons.mjs` の生成物（git に入れない。辞書は `scripts/icons/ja-*.json`）。絵を描くのは `components/CardArt.tsx`（`CardArtOf`）だけ、選ぶのは `components/IconPicker.tsx`（エディターから遅れて読む）。クレジットは `pages/CreditsPage.tsx`（#/credits）・docs/CREDITS.md
 - `src/ui/` … React の画面。`store.ts` が localStorage を扱う。`router.ts` はハッシュのルーティング（未保存の編集があるときの離脱確認 `setNavigationGuard`）。`glossary.ts` は用語の説明（ルールページ・ポップオーバーで共用）
   - `components/` … 共通部品：`ConfirmDialog`（`useConfirm()`）・`Toast`（`useToast()`）・`Sheet`（スマホは下から出るシート）・`Popover`・`controls.tsx`（`Modal` など）・`dialogUtil.ts`（フォーカス・`useIsPhone`）・`CardView`・`EffectRow`・`PointPanel`・`EmojiPicker`・`ImportExport`・`CardDetail`（一覧・デッキ構築でカードを押したときの詳細。#87）。`dialogUtil.ts` のフォーカストラップは積み重ね式（いちばん上のダイアログだけが扱う）
   - `editor/` … カードエディターの部品（`pages/CardEditorPage.tsx` から使う）：予算メーター・効果の選択・ミニプレビュー・ヒント・検証の表示、`templates.ts` のテンプレート16（製造・暴動、△ バッチD の補強・湧血・種類サイクリング・変成・融合、統合 #101 の想起・予顕・変装を含む）（`tests/templates*.test.ts` で作れることを固定。#79）。`OptionPicker.tsx` はプルダウンの代わりの選択パネル（検索・見出し・1行の説明・ポイント・選べない理由。スマホはシート）、選択肢は `pickOptions.ts` がエンジンの一覧から作る（ID を書かない。`tests/pickOptions.test.ts`。#87）
@@ -61,6 +62,7 @@
 - `src/presets.ts` … CPU 用プリセットデッキ5つ（毒・モンスター・呪い・守り・コンボ。どれも選ぶ効果のカードを含む。決定事項 #76）
 - `tests/` … Vitest（作成例・違反ケース・デッキ・取り込み・レジストリ整合性・エンジンの純粋性・対戦（パワーの上限・挑発・CPU を含む）・テンプレート・プリセット・オンラインのサーバー処理。MTG 要素 ○ は `mtg-A|B|C1|C2(.real).test.ts`、統合のレビューで見つけた不具合と仕組みどうしの組み合わせは `mtg-X.test.ts`、△ は `mtg-TA|TB|TC|TD(.real).test.ts`、△ の統合のレビューで見つけた不具合は `mtg-TX.test.ts`、ドラフト・コスト分布は `draft.test.ts`、疲労は `fatigue(.real).test.ts`）。UI の通し確認は Playwright を手で回す（リポジトリには入れていない）
 - `scripts/gen-registry.mjs` … 定義ファイルの索引を生成
+- `scripts/gen-icons.mjs` … game-icons のシャード・索引を生成（npm run gen に含む）
 
 効果を追加するときは `src/engine/defs/effects/<id>.ts` を1ファイル作り（定義・テキスト・対戦での処理 `battle.resolve`）、基礎ポイントを `balance.ts` に書く。
 

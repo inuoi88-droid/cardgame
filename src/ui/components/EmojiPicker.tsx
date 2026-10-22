@@ -1,12 +1,11 @@
+/** 絵文字の一覧（アイコン選択パネル IconPicker の「絵文字」タブ。決定事項 #105 より前のカードの絵） */
 import { useState } from 'react';
 import { EMOJI_GROUPS } from '../emoji.ts';
 import { cx } from '../util.ts';
-import { Modal } from './controls.tsx';
 
 interface Props {
   value: string;
   onSelect: (emoji: string) => void;
-  onClose: () => void;
 }
 
 const RECENT_KEY = 'cardgame.v1.recentEmoji';
@@ -30,11 +29,11 @@ function pushRecent(e: string): void {
   }
 }
 
-export function EmojiPicker({ value, onSelect, onClose }: Props) {
+export function EmojiGrid({ value, onSelect }: Props) {
   const [recent] = useState(readRecent);
   const groups = recent.length > 0 ? [{ label: '最近使った', items: recent }, ...EMOJI_GROUPS] : EMOJI_GROUPS;
   return (
-    <Modal title="アイコンを選ぶ" onClose={onClose}>
+    <div className="emoji-pane">
       {groups.map((g) => (
         <section key={g.label} className="emoji-group">
           <h3>{g.label}</h3>
@@ -49,7 +48,6 @@ export function EmojiPicker({ value, onSelect, onClose }: Props) {
                 onClick={() => {
                   pushRecent(e);
                   onSelect(e);
-                  onClose();
                 }}
               >
                 {e}
@@ -58,6 +56,6 @@ export function EmojiPicker({ value, onSelect, onClose }: Props) {
           </div>
         </section>
       ))}
-    </Modal>
+    </div>
   );
 }

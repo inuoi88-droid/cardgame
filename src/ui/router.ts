@@ -12,6 +12,7 @@ export type Route =
   | { page: 'online'; code: string | null }
   | { page: 'onlineBattle' }
   | { page: 'rules'; section: string | null }
+  | { page: 'credits' }
   | { page: 'uiKit' };
 
 export function parseRoute(hash: string): Route {
@@ -28,6 +29,7 @@ export function parseRoute(hash: string): Route {
   }
   if (section === 'rules') return { page: 'rules', section: id ?? null };
   if (section === 'ui-kit') return { page: 'uiKit' };
+  if (section === 'credits') return { page: 'credits' };
   if (section === 'cards' && id !== undefined) return { page: 'cardEdit', id: id === 'new' ? null : id };
   return { page: 'cards' };
 }

@@ -6,6 +6,7 @@ import { normalizeName, uniqueName } from './deck.ts';
 import { toCurrentScale } from './scaling.ts';
 import {
   CARD_DESCRIPTION_MAX,
+  CARD_ICON_MAX,
   CONDITION_IDS,
   MODE_IDS,
   MODIFIER_IDS,
@@ -170,6 +171,8 @@ export function parseCard(x: unknown): Result<CardDef> {
   if (x.v !== undefined && x.v !== 1) return { ok: false, error: `${label}のデータ形式のバージョンに対応していません` };
   if (!isStr(x.id) || x.id.length === 0) return { ok: false, error: `${label}にIDがありません` };
   if (!isStr(x.name) || !isStr(x.icon)) return { ok: false, error: `${label}の名前かアイコンがありません` };
+  // 絵は絵文字か "gi:<名前>"（決定事項 #105）。どちらも短いので、長すぎるものは壊れたデータとして読まない
+  if (x.icon.length > CARD_ICON_MAX) return { ok: false, error: `${label}のアイコンが長すぎます` };
   if (!oneOf<Rarity>(RARITIES, x.rarity)) return { ok: false, error: `${label}のレアリティが正しくありません` };
   if (!isNum(x.cost)) return { ok: false, error: `${label}のコストが正しくありません` };
   let stats: CardDef['stats'] = null;

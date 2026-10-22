@@ -7,9 +7,9 @@ const B = BALANCE.effects.conjure;
 const E = BALANCE.effects;
 /** 作れるカード：名前・アイコン・元の効果（基礎ポイントはその効果の perValue） */
 const KINDS = {
-  fireball: { label: '火の玉', icon: '☄️', perValue: E.damage.perValue, text: (v: number) => `相手1体に${v}ダメージ` },
-  potion: { label: '薬', icon: '🧪', perValue: E.heal.perValue, text: (v: number) => `HPを${v}回復` },
-  ward: { label: '盾', icon: '🛡', perValue: E.shield.perValue, text: (v: number) => `シールド${v}` },
+  fireball: { label: '火の玉', icon: 'gi:fireball', perValue: E.damage.perValue, text: (v: number) => `相手1体に${v}ダメージ` },
+  potion: { label: '薬', icon: 'gi:round-potion', perValue: E.heal.perValue, text: (v: number) => `HPを${v}回復` },
+  ward: { label: '盾', icon: 'gi:magic-shield', perValue: E.shield.perValue, text: (v: number) => `シールド${v}` },
 } as const;
 type Kind = keyof typeof KINDS;
 const option = { label: '作るカード', choices: (Object.keys(KINDS) as Kind[]).map((id) => ({ id, label: KINDS[id].label })), default: 'fireball' };

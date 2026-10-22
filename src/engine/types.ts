@@ -237,6 +237,10 @@ export interface CardDef {
   scale?: number;
   id: string;
   name: string;
+  /**
+   * カードの絵。絵文字（例 '🔥'）か、game-icons.net のアイコン "gi:<名前>"（例 'gi:dragon-head'。決定事項 #105）。
+   * エンジンは中身を見ない（描くのは UI の CardArt だけ）。CARD_ICON_MAX 文字まで
+   */
   icon: string;
   rarity: Rarity;
   cost: number;
@@ -257,6 +261,8 @@ export interface CardDef {
 
 /** カードの説明の最大文字数（見た目の都合の上限で、バランスの数値ではない） */
 export const CARD_DESCRIPTION_MAX = 80;
+/** カードの絵（icon）の最大の長さ（UTF-16 の文字数）。絵文字の並びも "gi:" ＋アイコン名も収まる（決定事項 #105） */
+export const CARD_ICON_MAX = 64;
 
 export interface DeckEntry {
   cardId: string;

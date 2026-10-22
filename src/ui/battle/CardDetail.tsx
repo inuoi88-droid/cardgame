@@ -6,6 +6,7 @@
 import type { ReactNode } from 'react';
 import { analyzeCard, battle, CARD_TYPE_LABEL, describeEffect, CURSE_LABEL, RARITY_LABEL, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
 import { CardView } from '../components/CardView.tsx';
+import { CardArt, NOISE_ART } from '../components/CardArt.tsx';
 import { Modal } from '../components/controls.tsx';
 import { Sheet } from '../components/Sheet.tsx';
 import { keywordGlossary } from '../glossary.ts';
@@ -129,7 +130,7 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
           <section className="cdetail__sec">
             <h3>正体（あなたにだけ見える）</h3>
             <p>
-              {extras.realDef.icon}「{extras.realDef.name}」
+              <CardArt icon={extras.realDef.icon} rarity={extras.realDef.rarity} size="1.6em" />「{extras.realDef.name}」
               {m?.faceDown?.revealCost !== null && m?.faceDown?.revealCost !== undefined ? `：自分のターンにエナジー${m.faceDown.revealCost}で表にできる` : '：モンスターでないので表にできない'}
             </p>
             <ul className="cdetail__plain">
@@ -147,7 +148,7 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
               {extras.equipment.map((e, i) => (
                 <li key={`${e.id}${i}`}>
                   <span className="st st--good">
-                    {e.icon}
+                    <CardArt icon={e.icon} rarity={e.rarity} bare size="1.2em" />
                     {e.name}
                   </span>
                   <span>{e.effects.filter((x) => x.id === 'equip').map((x) => describeEffect(x, e, { noTiming: true })).join('')}</span>
@@ -206,7 +207,7 @@ export function NoiseDetailBody({ cost }: { cost: number }) {
   return (
     <div className="cdetail cdetail--noise">
       <p>
-        📛 <b>ノイズ</b>：何もしないカード。エナジー{cost}を払うと除外できます。
+        <CardArt icon={NOISE_ART} curse size={40} /> <b>ノイズ</b>：何もしないカード。エナジー{cost}を払うと除外できます。
       </p>
     </div>
   );

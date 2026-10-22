@@ -13,18 +13,21 @@ export type FieldId = (typeof FIELD_IDS)[number];
 export interface FieldInfo {
   id: FieldId;
   name: string;
+  /** 文字の中（ログ・説明）に出す絵文字 */
   icon: string;
+  /** 札に描く絵（game-icons。UI の CardArt が描く。決定事項 #105） */
+  art: string;
   /** 1行の説明（数字は balance.ts から） */
   description: string;
 }
 
 export const FIELDS: Record<FieldId, FieldInfo> = {
-  volcano: { id: 'volcano', name: '火山', icon: '🌋', description: `すべてのモンスターの攻撃力+${F.volcano.attack}` },
-  library: { id: 'library', name: '大図書館', icon: '🏛', description: `ターン開始時に${F.library.draw}枚多く引く` },
-  sanctuary: { id: 'sanctuary', name: '聖域', icon: '⛲', description: `ターン開始時にHPが${F.sanctuary.heal}回復する` },
-  arena: { id: 'arena', name: '闘技場', icon: '🏟', description: 'モンスターは場に出たターンから攻撃できる' },
-  market: { id: 'market', name: '市場', icon: '🏪', description: `各ターン最初に使うカードのコスト−${F.market.discount}` },
-  fog: { id: 'fog', name: '霧', icon: '🌫', description: `モンスターの攻撃で相手プレイヤーに与えるダメージ−${Math.round(F.fog.rate * 100)}%（切り捨て）` },
+  volcano: { id: 'volcano', name: '火山', icon: '🌋', art: 'gi:volcano', description: `すべてのモンスターの攻撃力+${F.volcano.attack}` },
+  library: { id: 'library', name: '大図書館', icon: '🏛', art: 'gi:bookshelf', description: `ターン開始時に${F.library.draw}枚多く引く` },
+  sanctuary: { id: 'sanctuary', name: '聖域', icon: '⛲', art: 'gi:greek-temple', description: `ターン開始時にHPが${F.sanctuary.heal}回復する` },
+  arena: { id: 'arena', name: '闘技場', icon: '🏟', art: 'gi:arena', description: 'モンスターは場に出たターンから攻撃できる' },
+  market: { id: 'market', name: '市場', icon: '🏪', art: 'gi:shop', description: `各ターン最初に使うカードのコスト−${F.market.discount}` },
+  fog: { id: 'fog', name: '霧', icon: '🌫', art: 'gi:fog', description: `モンスターの攻撃で相手プレイヤーに与えるダメージ−${Math.round(F.fog.rate * 100)}%（切り捨て）` },
 };
 
 export function isFieldId(x: unknown): x is FieldId {

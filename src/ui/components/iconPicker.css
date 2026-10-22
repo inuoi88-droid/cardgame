@@ -1,0 +1,160 @@
+/* カードの絵の選択パネル（IconPicker.tsx。決定事項 #105） */
+.icon-sheet .sheet__body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+.sheet--bottom .icon-sheet {
+  height: min(88dvh, 720px);
+}
+.sheet--side .icon-sheet {
+  width: min(480px, 94vw);
+}
+.ip {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ip__tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.ip__tab {
+  min-height: 44px;
+  padding: 0 16px;
+  font: inherit;
+  font-weight: bold;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+}
+.ip__tab.is-active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.ip__now {
+  margin-left: auto;
+  padding-bottom: 4px;
+}
+.ip__panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ip__search {
+  padding: 10px 16px 6px;
+}
+.ip__search input {
+  width: 100%;
+  min-height: 44px;
+}
+.ip__chips {
+  display: flex;
+  gap: 6px;
+  padding: 4px 16px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: none;
+}
+.ip__chips::-webkit-scrollbar {
+  display: none;
+}
+.ip__chips .chip {
+  flex: none;
+  min-height: 40px;
+}
+.ip__chips .chip small {
+  font-size: var(--fs-xs);
+  opacity: 0.75;
+  font-weight: normal;
+}
+.ip__scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 12px 12px;
+  -webkit-overflow-scrolling: touch;
+}
+.ip__msg {
+  padding: 16px;
+}
+.ip__h {
+  margin: 10px 4px 6px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.ip__h small {
+  font-weight: normal;
+  font-size: var(--fs-xs);
+}
+.ip__rowgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 52px);
+  justify-content: center;
+  gap: 8px;
+}
+.ip__vgrid {
+  position: relative;
+  width: 100%;
+}
+.ip__vcell {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  will-change: transform;
+}
+.ip__cell {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  background: none;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast),
+    border-color var(--dur-fast),
+    transform var(--dur-fast);
+}
+.ip__cell:hover {
+  background: var(--panel-2, rgba(255, 255, 255, 0.06));
+  transform: translateY(-1px);
+}
+.ip__cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.ip__cell.is-selected {
+  border-color: var(--accent);
+  background: rgba(111, 141, 255, 0.16);
+}
+.ip__credit {
+  flex: none;
+  margin: 0;
+  padding: 6px 16px 10px;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.ip__credit a {
+  color: var(--muted);
+}
+.ip .emoji-pane {
+  padding-top: 4px;
+}

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { ai, LEADERS, type CardDef, type PlanarMode } from '../../engine/index.ts';
 import { PRESET_DECKS } from '../../presets.ts';
 import { CardView } from '../components/CardView.tsx';
+import { CardArtOf } from '../components/CardArt.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { Modal } from '../components/controls.tsx';
 import { DeckPicker } from '../battle/DeckPicker.tsx';
@@ -46,7 +47,7 @@ function DeckContents({ deck, cards, onCard }: { deck: Deck; cards: CardDef[]; o
       <div className="setup__cards">
         {b.cards.map(({ def, count }) => (
           <button key={def.id} type="button" className="setup__card" onClick={() => onCard(def)} aria-label={`${def.name}（${count}枚）を詳しく見る`}>
-            <span aria-hidden="true">{def.icon}</span>
+            <CardArtOf card={def} size="1.6em" />
             {def.name}
             <b>×{count}</b>
           </button>

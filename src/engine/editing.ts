@@ -31,7 +31,7 @@ export function newCard(id: string): CardDef {
     v: 1,
     id,
     name: '',
-    icon: '🔥',
+    icon: 'gi:small-fire',
     rarity: 'common',
     cost: 1,
     stats: null,

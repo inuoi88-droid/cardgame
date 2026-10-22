@@ -23,7 +23,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '突撃ウルフ',
-        icon: '🐺',
+        icon: 'gi:wolf-head',
         rarity: 'common',
         cost: 1,
         stats: { attack: 2, hp: 2, defense: 0 },
@@ -39,7 +39,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '岩の守り手',
-        icon: '🪨',
+        icon: 'gi:golem-head',
         rarity: 'common',
         cost: 2,
         stats: { attack: 1, hp: 6, defense: 1 },
@@ -55,7 +55,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '火の玉',
-        icon: '🔥',
+        icon: 'gi:fireball',
         rarity: 'common',
         cost: 1,
         stats: null,
@@ -74,7 +74,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '毒の霧',
-        icon: '☠️',
+        icon: 'gi:poison-cloud',
         rarity: 'common',
         cost: 1,
         stats: null,
@@ -93,7 +93,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '加速の詠唱',
-        icon: '⚡',
+        icon: 'gi:bolt-spell-cast',
         rarity: 'common',
         cost: 1,
         stats: null,
@@ -112,7 +112,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '血の代償',
-        icon: '🩸',
+        icon: 'gi:bleeding-heart',
         rarity: 'rare',
         cost: 1,
         stats: null,
@@ -129,7 +129,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '工房のからくり',
-        icon: '⚙️',
+        icon: 'gi:gears',
         rarity: 'common',
         cost: 1,
         stats: { attack: 1, hp: 1, defense: 0 },
@@ -149,7 +149,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '暴れ猪',
-        icon: '🐗',
+        icon: 'gi:boar',
         rarity: 'common',
         cost: 2,
         stats: { attack: 2, hp: 2, defense: 0 },
@@ -170,7 +170,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '援軍の旗手',
-        icon: '🚩',
+        icon: 'gi:knight-banner',
         rarity: 'common',
         cost: 2,
         stats: { attack: 2, hp: 2, defense: 0 },
@@ -187,7 +187,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '血気の狂戦士',
-        icon: '🪓',
+        icon: 'gi:war-axe',
         rarity: 'common',
         cost: 2,
         stats: { attack: 3, hp: 1, defense: 0 },
@@ -204,7 +204,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '大地の目覚め',
-        icon: '🌋',
+        icon: 'gi:earth-crack',
         rarity: 'common',
         cost: 3,
         stats: null,
@@ -224,7 +224,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '錬成の書',
-        icon: '📗',
+        icon: 'gi:book-aura',
         rarity: 'common',
         cost: 2,
         stats: null,
@@ -245,7 +245,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '火と氷',
-        icon: '☯️',
+        icon: 'gi:frostfire',
         rarity: 'common',
         cost: 2,
         stats: null,
@@ -266,7 +266,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '一閃の精霊',
-        icon: '🌬️',
+        icon: 'gi:spark-spirit',
         rarity: 'rare',
         cost: 4,
         stats: { attack: 4, hp: 4, defense: 0 },
@@ -283,7 +283,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '予言の雷',
-        icon: '🌩️',
+        icon: 'gi:lightning-storm',
         rarity: 'rare',
         cost: 4,
         stats: null,
@@ -300,7 +300,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
     build: (id) =>
       make(id, {
         name: '覆面の刺客',
-        icon: '🎭',
+        icon: 'gi:hooded-assassin',
         rarity: 'rare',
         cost: 3,
         stats: { attack: 3, hp: 3, defense: 0 },

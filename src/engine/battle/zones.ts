@@ -577,14 +577,14 @@ export function dispel(g: GameState, p: PlayerId, key: string, depth: number): v
 
 // ---------------------------------------------------------------- MTG 要素バッチ2
 
-/** トークンのカード定義（名前・アイコンは balance.ts。強さは CardInst.token が決める） */
+/** トークンのカード定義（名前・絵は balance.ts。強さは CardInst.token が決める） */
 export function tokenDef(): CardDef {
   const B = BALANCE.battle;
   return {
     v: 1,
     id: TOKEN_CARD_ID,
     name: B.tokenName,
-    icon: B.tokenIcon,
+    icon: B.tokenArt,
     rarity: 'common',
     cost: 0,
     stats: { attack: 0, hp: 1, defense: 0 },
@@ -602,13 +602,13 @@ export function tokenCount(g: GameState, p: PlayerId): number {
 /** 軍団（動員）のカード定義（MTG 要素 ○ バッチB） */
 export function armyDef(): CardDef {
   const B = BALANCE.battle;
-  return { ...tokenDef(), id: ARMY_CARD_ID, name: B.armyName, icon: B.armyIcon };
+  return { ...tokenDef(), id: ARMY_CARD_ID, name: B.armyName, icon: B.armyArt };
 }
 
 /** 卵（培養。MTG 要素 △ バッチA）のカード定義 */
 export function eggDef(): CardDef {
   const B = BALANCE.battle;
-  return { ...tokenDef(), id: EGG_CARD_ID, name: B.eggName, icon: B.eggIcon };
+  return { ...tokenDef(), id: EGG_CARD_ID, name: B.eggName, icon: B.eggArt };
 }
 
 /** 持ち主のターン開始時：孵化の時が来た卵を、攻撃力+N の小鬼にする（MTG 要素 △ バッチA。封印されていても孵化する） */
@@ -781,7 +781,7 @@ export function faceDownDef(ward: boolean): CardDef {
     v: 1,
     id: ward ? FACE_DOWN_WARD_CARD_ID : FACE_DOWN_CARD_ID,
     name: B.faceDownName,
-    icon: B.faceDownIcon,
+    icon: B.faceDownArt,
     rarity: 'common',
     cost: 0,
     stats: { attack: B.faceDownStats, hp: B.faceDownStats, defense: 0 },
@@ -794,7 +794,7 @@ export function faceDownDef(ward: boolean): CardDef {
 /** 砦のカード定義（強さは CardInst.token が決める） */
 export function siegeDef(): CardDef {
   const B = BALANCE.battle;
-  return { ...tokenDef(), id: SIEGE_CARD_ID, name: B.siegeName, icon: B.siegeIcon };
+  return { ...tokenDef(), id: SIEGE_CARD_ID, name: B.siegeName, icon: B.siegeArt };
 }
 
 /**

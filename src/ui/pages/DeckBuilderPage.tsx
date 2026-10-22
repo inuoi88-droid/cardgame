@@ -15,6 +15,7 @@ import {
   type RarityRow,
 } from '../../engine/index.ts';
 import { CardDetail } from '../components/CardDetail.tsx';
+import { CardArtOf } from '../components/CardArt.tsx';
 import { CostCurve } from '../components/CostCurve.tsx';
 import { Stepper, Violations } from '../components/controls.tsx';
 import { useToast } from '../components/Toast.tsx';
@@ -268,7 +269,9 @@ function Builder({ saved }: { saved: Deck | null }) {
 function CardRowInfo({ card, a, onPreview }: { card: CardDef; a: CardAnalysis; onPreview: () => void }) {
   return (
     <button type="button" className="card-row__info" onClick={onPreview} title="詳細を見る" aria-label={`${card.name || '（名前なし）'}の詳細を見る`}>
-      <span className={cx('card-row__icon', `frame--${card.rarity}`, a.isCurse && 'frame--curse')}>{card.icon}</span>
+      <span className="card-row__icon">
+        <CardArtOf card={card} analysis={a} />
+      </span>
       <span className="card-row__text">
         <b>{card.name}</b>
         <small>

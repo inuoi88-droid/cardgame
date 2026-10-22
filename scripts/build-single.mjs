@@ -6,7 +6,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const DIST = join(ROOT, 'dist');
+// mode single のビルド（vite build --mode single --outDir dist-single）を使う
+const DIST = join(ROOT, 'dist-single');
 const OUT_DIR = join(ROOT, 'release');
 const OUT = join(OUT_DIR, 'cardgame.html');
 

@@ -2,6 +2,7 @@
 import { useMemo } from 'react';
 import { analyzeCard, CARD_TYPE_LABEL, CURSE_LABEL, RARITY_LABEL, TRIBE_LABEL, type CardAnalysis, type CardDef } from '../../engine/index.ts';
 import { cx } from '../util.ts';
+import { CardArt } from './CardArt.tsx';
 import './cards.css';
 
 interface Props {
@@ -40,7 +41,7 @@ export function CardView({ card, analysis, size = 'lg', onClick, actionLabel }: 
         <span className="card__name">{name}</span>
       </div>
       <div className="card__art">
-        <span className="card__icon">{card.icon}</span>
+        <CardArt icon={card.icon} rarity={card.rarity} cardType={a.cardType} curse={a.isCurse} className="card__icon" size={size === 'sm' ? 'var(--card-art-sm, 52px)' : 'var(--card-art-lg, 92px)'} />
         {a.isCurse && <span className="card__curse-mark">呪</span>}
       </div>
       <div className="card__type">

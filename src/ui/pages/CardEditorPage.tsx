@@ -4,7 +4,7 @@
  * PC：左にフォーム、右に等倍プレビューと内訳（固定）。
  * 検証は入力欄の直下に出し、「理由を見る」で最初の違反へ飛ぶ。未保存で離れるときと、モンスターをやめるときは確認する。
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BALANCE,
   CARD_DESCRIPTION_MAX,
@@ -43,7 +43,8 @@ import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { Stepper, Violations } from '../components/controls.tsx';
 import { useIsPhone } from '../components/dialogUtil.ts';
 import { DrawbackRow, EffectRow } from '../components/EffectRow.tsx';
-import { EmojiPicker } from '../components/EmojiPicker.tsx';
+import { CardArt } from '../components/CardArt.tsx';
+import { iconLabel } from '../icons/ref.ts';
 import { PointPanel } from '../components/PointPanel.tsx';
 import { Sheet } from '../components/Sheet.tsx';
 import { useToast } from '../components/Toast.tsx';
@@ -57,6 +58,9 @@ import { effectRowViolations, effectSectionViolations, fieldId, findFieldElement
 import { navigate, setNavigationGuard } from '../router.ts';
 import { NEW_DRAFT, actions, cardDrafts, useStore } from '../store.ts';
 import { cx, uuid, stepOf } from '../util.ts';
+
+/** カードの絵の選択パネル（検索の辞書・分類を含むので、開くときに読む。決定事項 #105） */
+const IconPicker = lazy(() => import('../components/IconPicker.tsx').then((m) => ({ default: m.IconPicker })));
 
 /** 比べるときの形：説明は空白や空欄の違いを無視し、項目の順番にも左右されないように別に並べる */
 const comparable = (c: CardDef | null) => {
@@ -488,8 +492,8 @@ function Editor({ saved }: { saved: CardDef | null }) {
               </label>
               <div className="field ed-icon" id={fieldId('icon')}>
                 <span>アイコン</span>
-                <button type="button" className="icon-btn" onClick={() => setEmojiOpen(true)} aria-label={`アイコンを選ぶ（いま ${card.icon}）`}>
-                  {card.icon}
+                <button type="button" className="icon-btn" onClick={() => setEmojiOpen(true)} aria-label={`アイコンを選ぶ（いま ${iconLabel(card.icon)}）`}>
+                  <CardArt icon={card.icon} rarity={card.rarity} cardType={analysis.cardType} curse={analysis.isCurse} size={56} />
                 </button>
               </div>
             </div>
@@ -912,7 +916,11 @@ function Editor({ saved }: { saved: CardDef | null }) {
         </button>
       </div>
 
-      {emojiOpen && <EmojiPicker value={card.icon} onSelect={(icon) => update({ icon })} onClose={() => setEmojiOpen(false)} />}
+      {emojiOpen && (
+        <Suspense fallback={null}>
+          <IconPicker open card={card} analysis={analysis} onSelect={(icon) => update({ icon })} onClose={() => setEmojiOpen(false)} />
+        </Suspense>
+      )}
       {picker && (
         <EffectPicker
           mode={picker}
@@ -939,8 +947,8 @@ function Editor({ saved }: { saved: CardDef | null }) {
             return (
               <li key={t.id}>
                 <button type="button" className={cx('ed-tpl', a.isCurse && 'is-curse')} onClick={() => void applyTemplate(t)}>
-                  <span className={cx('ed-tpl__tile', `frame--${c.rarity}`, a.isCurse && 'frame--curse')} aria-hidden="true">
-                    {c.icon}
+                  <span className="ed-tpl__tile" aria-hidden="true">
+                    <CardArt icon={c.icon} rarity={c.rarity} cardType={a.cardType} curse={a.isCurse} size={60} />
                     <span className="ed-mini__cost">{c.cost}</span>
                   </span>
                   <span className="ed-tpl__main">

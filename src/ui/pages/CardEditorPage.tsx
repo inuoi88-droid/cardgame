@@ -44,6 +44,7 @@ import { Stepper, Violations } from '../components/controls.tsx';
 import { useIsPhone } from '../components/dialogUtil.ts';
 import { DrawbackRow, EffectRow } from '../components/EffectRow.tsx';
 import { CardArt } from '../components/CardArt.tsx';
+import { CostGem, frameClasses, StatMini } from '../components/cardParts.tsx';
 import { iconLabel } from '../icons/ref.ts';
 import { PointPanel } from '../components/PointPanel.tsx';
 import { Sheet } from '../components/Sheet.tsx';
@@ -942,21 +943,26 @@ function Editor({ saved }: { saved: CardDef | null }) {
         <p className="hint">予算をほどよく使った雛形です。読み込んだあと、名前・数値・効果を自由に変えられます。</p>
         <ul className="ed-tpls">
           {templateCards.map(({ t, card: c, a }) => {
-            const stats = c.stats ? `⚔${c.stats.attack} ❤${c.stats.hp} 🛡${c.stats.defense}` : null;
+
             const lines = [...a.text.keywords.map((k) => k.name), ...a.text.effects, ...a.text.drawbacks.map((d) => `☠ ${d}`)];
             return (
               <li key={t.id}>
-                <button type="button" className={cx('ed-tpl', a.isCurse && 'is-curse')} onClick={() => void applyTemplate(t)}>
+                <button type="button" className={cx('ed-tpl', frameClasses(c.rarity, a.cardType, a.isCurse), a.isCurse && 'is-curse')} onClick={() => void applyTemplate(t)}>
                   <span className="ed-tpl__tile" aria-hidden="true">
                     <CardArt icon={c.icon} rarity={c.rarity} cardType={a.cardType} curse={a.isCurse} size={60} />
-                    <span className="ed-mini__cost">{c.cost}</span>
+                    <CostGem cost={c.cost} className="ed-mini__gem" label={false} />
                   </span>
                   <span className="ed-tpl__main">
                     <b>{t.title}</b>
                     <span className={cx('ed-tpl__type', `text--${c.rarity}`)}>
                       {CARD_TYPE_LABEL[a.cardType]}・{RARITY_LABEL[c.rarity]}
                       {a.isCurse && `・${CURSE_LABEL}`}
-                      {stats && <span className="ed-tpl__stats"> {stats}</span>}
+                      {c.stats && (
+                        <span className="ed-tpl__stats">
+                          {' '}
+                          <StatMini attack={c.stats.attack} hp={c.stats.hp} defense={c.stats.defense} />
+                        </span>
+                      )}
                     </span>
                     <span className="ed-tpl__desc">{t.description}</span>
                     {lines.length > 0 && <span className="ed-tpl__text">{lines.join(' ')}</span>}

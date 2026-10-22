@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { BALANCE, battle, CARD_TYPE_LABEL, CONDITIONS, analyzeCard, describeEffect, getEffect, LEADERS, TIMINGS, toLeaderId, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
 import { CardArt, NOISE_ART } from '../components/CardArt.tsx';
+import { CostGem, Emblem, frameClasses, nameFit } from '../components/cardParts.tsx';
 import { Popover, type PopoverCard } from '../components/Popover.tsx';
 import { abilityGlossary, glossary, keywordGlossary, mechanicGlossary, type GlossaryEntry } from '../glossary.ts';
 import { cx } from '../util.ts';
@@ -77,7 +78,7 @@ export function Chips({ chips, className, passive }: { chips: Chip[]; className?
     return (
       <div className={cx('chips-row', className)}>
         {chips.map((c) => (
-          <span key={c.id} className={`st st--${c.tone}`} title={typeof c.card.title === 'string' ? c.card.title : undefined}>
+          <span key={c.id} className={cx('st', `st--${c.tone}`, isTauntChip(c.id) && 'st--taunt')} title={typeof c.card.title === 'string' ? c.card.title : undefined}>
             {c.label}
           </span>
         ))}
@@ -631,7 +632,7 @@ export function PowersList({
         const acts = emblem ? [] : (powerActivate?.(pw) ?? []);
         const dormant = pw.dormantFrom !== undefined && (ps.turnsTaken - pw.dormantFrom) % 2 === 1;
         return (
-          <li key={pw.uid} className={cx('pw-list__row', 'pw-chip', dormant && 'is-dormant', powerFlash?.[pw.uid])}>
+          <li key={pw.uid} className={cx('pw-list__row', 'pw-chip', def && frameClasses(def.rarity, 'power', analyzeCard(def).isCurse), dormant && 'is-dormant', powerFlash?.[pw.uid])}>
             <button type="button" className="pw-list__main" onClick={() => onPower?.(pw)} aria-label={`${emblem ? '紋章' : 'パワー'}「${pw.name}」の詳細`}>
               <span className="pw-list__icon" aria-hidden="true">
                 {emblem ? mechanicGlossary.emblem!.icon : def ? <CardArt icon={def.icon} rarity={def.rarity} cardType="power" curse={analyzeCard(def).isCurse} /> : '✦'}
@@ -1035,14 +1036,17 @@ export function MonsterTile({
   const briefChips = compact
     ? tileChipOrder(chips, m.defense !== 0 ? { id: 'def', label: `🛡${m.defense}`, tone: 'info', card: { title: `守備力 ${m.defense}`, description: '受けるダメージをこの数だけ減らす（最低ダメージあり）' } } : undefined)
     : [];
-  const taunt = compact && chips.some((c) => isTauntChip(c.id));
+  // 挑発：城壁の狭間（上の縁の石の凸凹）と石の縁（カードデザイン案A）
+  const taunt = chips.some((c) => isTauntChip(c.id));
   const label = def?.name ?? '？';
   // 護法（MTG 要素 ○ バッチB）：対象にすると増えるエナジーを「対象」の札に添える
-  const state = targetable ? (extraCost > 0 ? `対象 護法+${extraCost}⚡` : '対象') : selected ? '選択中' : ready ? '攻撃できる' : blockLabel ?? null;
+  const state = targetable ? '対象' : selected ? '選択中' : ready ? '攻撃できる' : blockLabel ?? null;
   // 休眠中（MTG 要素 △ バッチA）は半透明。一時蘇生・ワープ（△ バッチB・C）はターン終了時に場を離れるので点線の枠で薄く
   const dormant = m.counters.dormantFrom !== undefined && ownerTurns !== undefined && (ownerTurns - m.counters.dormantFrom) % 2 === 1;
   const fleeting = m.unearthed === true || m.warped === true;
   const curse = def ? analyzeCard(def).isCurse : false;
+  const atk = attackOf(m, attackNow);
+  const hurt = m.hp < m.maxHp;
   return (
     <div
       className={cx(
@@ -1050,8 +1054,9 @@ export function MonsterTile({
         compact && 'mt--compact',
         taunt && 'mt--taunt',
         isMine ? 'mt--me' : 'mt--opp',
-        `frame--${def?.rarity ?? 'common'}`,
-        curse && 'mt--curse',
+        frameClasses(def?.rarity, 'monster', curse),
+        m.faceDown && 'is-facedown',
+        m.card.token && 'is-token',
         ready && 'is-ready',
         selected && 'is-selected',
         targetable && 'is-targetable',
@@ -1067,7 +1072,7 @@ export function MonsterTile({
       )}
       role="button"
       tabIndex={dying ? -1 : 0}
-      aria-label={`${label}（攻撃力${attackOf(m, attackNow)}・体力${m.hp}・守備力${m.defense}）${state ? `・${state}` : ''}${targetable && extraCost > 0 ? `・護法でエナジー+${extraCost}` : ''}${compact && chips.length > 0 ? `・${chips.map((c) => c.label).join('・')}` : ''}。押すと詳細`}
+      aria-label={`${label}（攻撃力${atk}・体力${m.hp}${hurt ? `／${m.maxHp}` : ''}・守備力${m.defense}）${state ? `・${state}` : ''}${targetable && extraCost > 0 ? `・護法でエナジー+${extraCost}` : ''}${compact && chips.length > 0 ? `・${chips.map((c) => c.label).join('・')}` : ''}。押すと詳細`}
       aria-pressed={selected || undefined}
       data-fx={m.uid}
       data-drop={dying ? undefined : `m:${m.uid}`}
@@ -1082,11 +1087,16 @@ export function MonsterTile({
         onPointerDown?.(e);
       }}
     >
-      {state && <span className={cx('mt__state', targetable && 'mt__state--target', targetable && extraCost > 0 && 'mt__state--ward', selected && 'mt__state--sel', ready && !targetable && !selected && 'mt__state--ready')}>{state}</span>}
+      {state && (
+        <span className={cx('mt__state', targetable && 'mt__state--target', targetable && extraCost > 0 && 'mt__state--ward', selected && 'mt__state--sel', ready && !targetable && !selected && 'mt__state--ready')}>
+          {state}
+          {targetable && extraCost > 0 && <em>護法+{extraCost}⚡</em>}
+        </span>
+      )}
       <span className="mt__icon" aria-hidden="true">
         <CardArt icon={def?.icon} rarity={def?.rarity} cardType="monster" curse={curse} />
       </span>
-      <span className="mt__name">{label}</span>
+      <span className={cx('mt__name', nameFit(label))}>{label}</span>
       {realName && !compact && <span className="mt__real">（{realName}）</span>}
       {def?.tribe && !compact && (
         <span className="mt__tribe" title={`種族：${TRIBE_LABEL[def.tribe]}`}>
@@ -1094,19 +1104,15 @@ export function MonsterTile({
         </span>
       )}
       <span className="mt__stats" aria-hidden="true">
-        <span className={cx('mt__stat', attackOf(m, attackNow) > m.attack ? 'is-buffed' : undefined)}>
-          <small>⚔</small>
-          {attackOf(m, attackNow)}
-        </span>
-        <span className={cx('mt__stat', m.hp < m.maxHp && 'is-hurt')}>
-          <small>❤</small>
-          {m.hp}
-        </span>
-        <span className={cx('mt__stat', m.defense === 0 && 'is-zero')}>
-          <small>🛡</small>
-          {m.defense}
-        </span>
+        <Emblem kind="atk" value={atk} buffed={atk > m.attack} className="mt__stat" srLabel={false} />
+        <Emblem kind="hp" value={m.hp} hurt={hurt} className="mt__stat" srLabel={false} />
+        {!compact && m.defense !== 0 && <Emblem kind="def" value={m.defense} className="mt__stat" srLabel={false} />}
       </span>
+      {hurt && (
+        <span className="mt__hpbar" aria-hidden="true">
+          <i style={{ width: `${Math.max(0, Math.min(100, Math.round((m.hp / Math.max(1, m.maxHp)) * 100)))}%` }} />
+        </span>
+      )}
       {compact ? <BriefChips chips={briefChips} /> : <Chips chips={chips} className="mt__chips" passive />}
       {activate && activate.length > 0 && !dying && (
         <span className="mt__acts">
@@ -1168,8 +1174,10 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
   const dragCls = dragging === 'ghost' ? 'is-drag-src' : dragging === 'arrow' ? 'is-drag-aim' : null;
   if (!def) {
     return (
-      <div ref={ref} className={cx('hc', 'hc--noise', selected && 'is-selected', dim && 'is-dim', playable && 'is-playable', dragCls, fresh && 'is-fresh')} aria-label={`ノイズ（除外にエナジー${cost}）。押すと詳細`} {...interactive}>
-        <span className={cx('hc__cost', cost > energy && 'is-short')}>{cost}</span>
+      <div ref={ref} className={cx('hc', 'hc--noise', frameClasses('common', undefined, true), selected && 'is-selected', dim && 'is-dim', playable && 'is-playable', cost > energy && 'is-short', dragCls, fresh && 'is-fresh')} aria-label={`ノイズ（除外にエナジー${cost}）。押すと詳細`} {...interactive}>
+        <span className="hc__costwrap">
+          <CostGem cost={cost} tone={cost > energy ? 'short' : null} className="hc__cost" label={false} />
+        </span>
         <span className="hc__icon" aria-hidden="true">
           <CardArt icon={NOISE_ART} curse />
         </span>
@@ -1213,20 +1221,23 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
   ];
   const abil = marks.length > 0 ? { icon: marks.map((m) => m.icon).join(''), title: marks.map((m) => m.title).join('・') } : null;
   const costEl = (
-    <span className={cx('hc__cost', discounted && 'is-down', taxed && 'is-up', short && 'is-short')}>
-      {cost}
-      {info.kicker && <small className="hc__kick">(+{info.kicker.extra})</small>}
-    </span>
+    <CostGem cost={cost} tone={short ? 'short' : discounted ? 'down' : taxed ? 'up' : null} className="hc__cost" label={false}>
+      {info.kicker && <small className="hc__kick">+{info.kicker.extra}</small>}
+    </CostGem>
   );
+  const permAtk = def.stats ? def.stats.attack + (card.perm?.attack ?? 0) : 0;
+  const permHp = def.stats ? def.stats.hp + (card.perm?.hp ?? 0) : 0;
   return (
     <div
       ref={ref}
       className={cx(
         'hc',
-        `frame--${def.rarity}`,
+        frameClasses(def.rarity, a.cardType, a.isCurse),
         // 種類（スマホは種類の文字を出さないので、上の縁の色で見分ける）
         `hc--t-${a.cardType}`,
         a.isCurse && 'hc--curse',
+        def.stats && 'hc--monster',
+        quashed && 'is-quashed',
         playable && 'is-playable',
         selected && 'is-selected',
         dim && 'is-dim',
@@ -1236,7 +1247,7 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
         fresh && 'is-fresh',
         iced && 'is-iced',
       )}
-      aria-label={ghost ? undefined : `${def.name}（コスト${cost}）${grown > 0 ? `・成長+${grown}` : ''}${badge ? `・${badge}` : ''}${selected ? '・選択中' : ''}。押すと詳細${playable ? '、場へドラッグで使う' : ''}`}
+      aria-label={ghost ? undefined : `${def.name}（コスト${cost}${def.stats ? `・攻撃力${permAtk}・体力${permHp}` : ''}）${grown > 0 ? `・成長+${grown}` : ''}${badge ? `・${badge}` : ''}${selected ? '・選択中' : ''}。押すと詳細${playable ? '、場へドラッグで使う' : ''}`}
       aria-pressed={!ghost && selected ? true : undefined}
       onMouseEnter={onHover ? () => onHover(ref.current) : undefined}
       onMouseLeave={onHover ? () => onHover(null) : undefined}
@@ -1252,7 +1263,7 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
         </Popover>
       )}
       {badge && (
-        <span className={cx('hc__badge', (quashed || iced) && 'hc__badge--quash')} title={badge}>
+        <span className={cx('hc__badge', iced ? 'hc__badge--ice' : quashed && 'hc__badge--quash')} title={badge}>
           <span className="hc__badgetext">{badge}</span>
           <span className="hc__badgeicon" aria-hidden="true">
             {HAND_BADGE_ICON[badge] ?? '!'}
@@ -1267,7 +1278,7 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
       <span className="hc__icon" aria-hidden="true">
         <CardArt icon={def.icon} rarity={def.rarity} cardType={a.cardType} curse={a.isCurse} />
       </span>
-      <span className="hc__name">{def.name}</span>
+      <span className={cx('hc__name', nameFit(def.name))}>{def.name}</span>
       <span className="hc__type">
         {CARD_TYPE_LABEL[a.cardType]}
         {card.copy ? '・コピー' : ''}
@@ -1276,10 +1287,9 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
       <span className="hc__text">{summarizeCard(grownDef(def, grown))}</span>
       {def.stats && (
         <span className={cx('hc__stats', card.perm && 'is-perm')} aria-hidden="true">
-          {/* 永久強化（MTG 要素 △ バッチA）は数値に足して表示 */}
-          <span>⚔{def.stats.attack + (card.perm?.attack ?? 0)}</span>
-          <span>❤{def.stats.hp + (card.perm?.hp ?? 0)}</span>
-          <span>🛡{def.stats.defense}</span>
+          {/* 永久強化（MTG 要素 △ バッチA）は数値に足して表示（明るい緑）。守備力は詳細で */}
+          <Emblem kind="atk" value={permAtk} buffed={(card.perm?.attack ?? 0) > 0} srLabel={false} />
+          <Emblem kind="hp" value={permHp} buffed={(card.perm?.hp ?? 0) > 0} srLabel={false} />
         </span>
       )}
     </div>

@@ -1,0 +1,947 @@
+/* ============================================================ カードデザイン案A「王道ファンタジー」（決定事項 #107）
+   レアリティで額縁の金属が変わる（コモン鉄銀・レア サファイア・エピック アメジスト・レジェンド金。呪いは焼けた黒鉄と深紅の内線）。
+   コストは六角の宝石、名前は金属の銘板、絵はアーチ窓（CardArt の円盤はそのまま）、攻撃力・体力・守備力は剣・ハート・盾の紋章。
+   部品は cardParts.tsx。カードの面（.tcg）・手札（battle.css の .hc）・場のタイル（.mt）・デッキの行（.card-row）・ダイアログの行（.crow）で共通 */
+:root {
+  /* 額縁の金属（135° の面取り：明 → 中 → 暗 → 照り返し → 暗 → 明） */
+  --metal-common: linear-gradient(135deg, #f3f5f9 0%, #a3abb8 16%, #555e6d 36%, #d3d8e0 54%, #6c7584 74%, #e7eaef 100%);
+  --metal-rare: linear-gradient(135deg, #e4f1ff 0%, #74aef7 16%, #1b4598 37%, #a6ceff 54%, #2758b4 74%, #d8eaff 100%);
+  --metal-epic: linear-gradient(135deg, #f7ecff 0%, #bb8cf6 16%, #4a1d88 37%, #d8b3ff 54%, #6731ad 74%, #f0e0ff 100%);
+  --metal-legend: linear-gradient(135deg, #fff8d6 0%, #f2c65a 15%, #8a5a0c 36%, #ffe89c 53%, #a9740f 73%, #fff2bd 100%);
+  --metal-curse: linear-gradient(135deg, #8a2a48 0%, #3a0c1c 18%, #12040a 36%, #b02456 54%, #2a0812 74%, #6e1a36 100%);
+  --metal-iron: linear-gradient(135deg, #7d8594 0%, #3c434f 30%, #20252e 55%, #59616f 80%, #8a919e 100%);
+  /* 面（カードの地）と本文の欄 */
+  --face-0: #1d2338;
+  --face-1: #12162a;
+  --plate-0: #2b3252;
+  --plate-1: #181d32;
+  --textbox: #161b2d;
+  --ink: #ece9e0;
+  --ink-muted: #bdb6a3;
+  --ink-name: #fbf6e8;
+  /* 種類（円盤の縁と同じ色相。文字用は明るめ） */
+  --t-monster: #d9772f;
+  --t-monster-ink: #ffb36b;
+  --t-attack: #ff6b6b;
+  --t-attack-ink: #ff9a9a;
+  --t-skill: #4fd39a;
+  --t-skill-ink: #74e3b4;
+  --t-power: #b47cff;
+  --t-power-ink: #cfa8ff;
+  --t-curse-ink: #ff94b6;
+  /* 名前・説明文の書体：明朝があれば明朝（Mac・Windows）、なければゴシック */
+  --font-title: 'Hiragino Mincho ProN', 'Yu Mincho', 'YuMincho', 'Noto Serif JP', 'Noto Serif CJK JP', 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic UI', sans-serif;
+}
+
+/* 形の定義（cardParts.tsx の CardSymbols） */
+.card-symbols {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* 読み上げだけ（画面には出さない） */
+.sr {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------ レアリティ・種類の色（どの面でも同じ） */
+.rar--common {
+  --metal: var(--metal-common);
+  --rar: var(--common);
+}
+.rar--rare {
+  --metal: var(--metal-rare);
+  --rar: var(--rare);
+}
+.rar--epic {
+  --metal: var(--metal-epic);
+  --rar: var(--epic);
+}
+.rar--legend {
+  --metal: var(--metal-legend);
+  --rar: var(--legend);
+}
+[class*='rar--'] {
+  --frame: var(--metal);
+  --type: var(--t-monster);
+  --type-ink: var(--t-monster-ink);
+}
+.ty--monster {
+  --type: var(--t-monster);
+  --type-ink: var(--t-monster-ink);
+}
+.ty--attack {
+  --type: var(--t-attack);
+  --type-ink: var(--t-attack-ink);
+}
+.ty--skill {
+  --type: var(--t-skill);
+  --type-ink: var(--t-skill-ink);
+}
+.ty--power,
+.ty--powerAttack {
+  --type: var(--t-power);
+  --type-ink: var(--t-power-ink);
+}
+/* 呪い：額縁だけ焼けた黒鉄（レアリティは宝石と銘板の縁に残る） */
+.is-cursed {
+  --frame: var(--metal-curse);
+  --type: var(--curse);
+  --type-ink: var(--t-curse-ink);
+  --face-0: #2a1020;
+  --face-1: #10060c;
+  --plate-0: #3a1428;
+  --plate-1: #1d0912;
+  --textbox: #1a0c14;
+}
+
+/* ------------------------------------------------------------ コストの宝石（六角の結晶・縁はレアリティの金属） */
+.cgem {
+  --g: 40px;
+  position: absolute;
+  z-index: 3;
+  left: -9px;
+  top: -9px;
+  width: var(--g);
+  height: calc(var(--g) * 1.1);
+  display: grid;
+  place-items: center;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.65));
+  pointer-events: none;
+}
+.cgem::before,
+.cgem::after {
+  content: '';
+  position: absolute;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+.cgem::before {
+  inset: 0;
+  background: var(--metal, var(--metal-common));
+}
+.cgem::after {
+  inset: calc(var(--g) * 0.09);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 45%),
+    conic-gradient(from -30deg at 50% 52%, #6ea2ff 0 60deg, #2f5fe0 60deg 120deg, #18348f 120deg 180deg, #2448b8 180deg 240deg, #4f86ff 240deg 300deg, #a9c9ff 300deg 360deg);
+}
+.cgem i {
+  position: relative;
+  z-index: 1;
+  font-style: normal;
+  font-weight: 900;
+  font-size: max(12px, calc(var(--g) * 0.55));
+  line-height: 1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    0 1px 0 #061440,
+    0 -1px 0 #061440,
+    1px 0 0 #061440,
+    -1px 0 0 #061440,
+    1px 1px 0 #061440,
+    -1px -1px 0 #061440,
+    1px -1px 0 #061440,
+    -1px 1px 0 #061440,
+    0 2px 3px rgba(0, 0, 0, 0.6);
+}
+.cgem.is-short::after {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 45%),
+    conic-gradient(from -30deg at 50% 52%, #ff8a96 0 60deg, #d42a40 60deg 120deg, #7c0c1e 120deg 180deg, #a8162c 180deg 240deg, #f04a5e 240deg 300deg, #ffc0c7 300deg 360deg);
+}
+.cgem.is-short i {
+  text-shadow:
+    0 1px 0 #3a0610,
+    0 -1px 0 #3a0610,
+    1px 0 0 #3a0610,
+    -1px 0 0 #3a0610,
+    1px 1px 0 #3a0610,
+    -1px -1px 0 #3a0610,
+    1px -1px 0 #3a0610,
+    -1px 1px 0 #3a0610;
+}
+.cgem.is-down::after {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 45%),
+    conic-gradient(from -30deg at 50% 52%, #7ff0bf 0 60deg, #1f9e68 60deg 120deg, #0b5a3a 120deg 180deg, #137a4f 180deg 240deg, #3fd296 240deg 300deg, #c2ffe4 300deg 360deg);
+}
+.cgem.is-down i {
+  text-shadow:
+    0 1px 0 #032a1a,
+    0 -1px 0 #032a1a,
+    1px 0 0 #032a1a,
+    -1px 0 0 #032a1a,
+    1px 1px 0 #032a1a,
+    -1px -1px 0 #032a1a,
+    1px -1px 0 #032a1a,
+    -1px 1px 0 #032a1a;
+}
+.cgem.is-up::after {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 45%),
+    conic-gradient(from -30deg at 50% 52%, #ffc58a 0 60deg, #d9772f 60deg 120deg, #7a3608 120deg 180deg, #a8501a 180deg 240deg, #f0a04a 240deg 300deg, #ffe0bd 300deg 360deg);
+}
+.cgem.is-up i {
+  text-shadow:
+    0 1px 0 #3a1a04,
+    0 -1px 0 #3a1a04,
+    1px 0 0 #3a1a04,
+    -1px 0 0 #3a1a04,
+    1px 1px 0 #3a1a04,
+    -1px -1px 0 #3a1a04,
+    1px -1px 0 #3a1a04,
+    -1px 1px 0 #3a1a04;
+}
+
+/* ------------------------------------------------------------ レアリティの小さな宝石 */
+.rgem {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  vertical-align: -1px;
+}
+
+/* ------------------------------------------------------------ 紋章（剣・ハート・盾） */
+.emb {
+  --e: 46px;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--e);
+  height: var(--e);
+  flex: none;
+}
+.emb svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.emb b {
+  position: relative;
+  font-weight: 900;
+  font-size: max(12px, calc(var(--e) * 0.38));
+  line-height: 1;
+  color: #fff;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    0 1px 0 #1a0802,
+    0 -1px 0 #1a0802,
+    1px 0 0 #1a0802,
+    -1px 0 0 #1a0802,
+    1px 1px 0 #1a0802,
+    -1px -1px 0 #1a0802,
+    1px -1px 0 #1a0802,
+    -1px 1px 0 #1a0802,
+    0 2px 3px rgba(0, 0, 0, 0.55);
+}
+.emb--atk b {
+  transform: translateY(1px);
+}
+.emb--hp b {
+  transform: translateY(-2px);
+}
+.emb--def {
+  --e: 38px;
+}
+.emb--def b {
+  transform: translateY(-1px);
+  font-size: max(12px, calc(var(--e) * 0.4));
+}
+/* 強化された攻撃力は明るい緑、減った体力は薄い赤（どちらも黒い縁取りで紋章の上でも読める） */
+.emb.is-buffed b {
+  color: #9dffb4;
+}
+.emb.is-hurt b {
+  color: #ffd0d0;
+}
+.emb.is-hurt svg {
+  opacity: 0.8;
+}
+/* 紋章の列（下の角） */
+.tcg-stats {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+/* 小さな行の中のステータス（剣・ハート・盾の小さな印＋数字） */
+.smini {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  vertical-align: middle;
+}
+.smini__s {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.smini__s svg {
+  width: 1.15em;
+  height: 1.15em;
+  flex: none;
+  overflow: visible;
+}
+.smini__s--atk {
+  color: #ffd08a;
+}
+.smini__s--hp {
+  color: #ffb0b8;
+}
+.smini__s--def {
+  color: #cfe0f5;
+}
+
+/* ============================================================ カードの面（CardView） */
+.tcg {
+  position: relative;
+  flex: none;
+  width: 240px;
+  min-height: 336px;
+  padding: 7px;
+  border-radius: 14px;
+  background: var(--frame);
+  box-shadow:
+    0 0 0 1px #05060a,
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+    0 12px 26px rgba(0, 0, 0, 0.5);
+  display: flex;
+  color: var(--ink);
+  text-align: left;
+  /* 宝石・紋章の重なりはカードの中だけ（詳細のシートで下の固定ボタン列に重ならない） */
+  isolation: isolate;
+}
+.tcg__face {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 9px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 60% at 50% 0%, color-mix(in srgb, var(--type) 14%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--face-0), var(--face-1));
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.85),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+/* 名前の銘板（コストの宝石の右から） */
+.tcg__banner {
+  position: relative;
+  margin: 6px 6px 0 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border-radius: 4px;
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(180deg, var(--plate-0) 0%, var(--plate-1) 100%) padding-box,
+    var(--metal) border-box;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+}
+.tcg__name {
+  min-width: 0;
+  font-family: var(--font-title);
+  font-weight: 800;
+  font-size: 16px;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  color: var(--ink-name);
+  text-shadow:
+    0 1px 0 #000,
+    0 0 6px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tcg__name.is-mid {
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+.tcg__name.is-long {
+  font-size: 13px;
+  letter-spacing: 0;
+}
+/* 絵のアーチ窓（地は種類の色の光と細い放射線） */
+.tcg__art {
+  position: relative;
+  height: 118px;
+  margin: 6px 7px 0;
+  display: grid;
+  place-items: center;
+  border: 2px solid transparent;
+  border-radius: 46% 46% 6px 6px / 30% 30% 6px 6px;
+  background:
+    radial-gradient(closest-side at 50% 50%, color-mix(in srgb, var(--type) 42%, transparent) 0%, transparent 100%) padding-box,
+    repeating-conic-gradient(from 0deg at 50% 50%, rgba(255, 255, 255, 0.045) 0 5deg, transparent 5deg 12deg) padding-box,
+    linear-gradient(180deg, #222944 0%, #0c0f1c 100%) padding-box,
+    var(--metal) border-box;
+  box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.7);
+}
+.is-cursed .tcg__art {
+  background:
+    radial-gradient(closest-side, rgba(224, 56, 111, 0.4), transparent) padding-box,
+    repeating-conic-gradient(from 0deg at 50% 50%, rgba(255, 120, 160, 0.05) 0 5deg, transparent 5deg 12deg) padding-box,
+    linear-gradient(180deg, #2c0f1f, #0d0408) padding-box,
+    var(--metal) border-box;
+}
+/* 種類の帯（左に種類、右にレアリティの宝石） */
+.tcg__type {
+  position: relative;
+  z-index: 1;
+  margin: -7px 10px 0;
+  min-height: 22px;
+  padding: 0 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, var(--plate-0), var(--plate-1)) padding-box,
+    var(--metal) border-box;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  line-height: 1.2;
+}
+.tcg__tl {
+  min-width: 0;
+  color: var(--type-ink);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tcg__rar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  color: color-mix(in srgb, var(--rar) 75%, #fff);
+  white-space: nowrap;
+}
+.tcg__rar .rgem {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--rar) 60%, transparent));
+}
+/* 本文の欄 */
+.tcg__text {
+  line-break: strict;
+  overflow-wrap: anywhere;
+  flex: 1;
+  margin: 6px 7px 7px;
+  padding: 8px 9px 9px;
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, rgba(240, 228, 200, 0.06), rgba(240, 228, 200, 0.02)),
+    var(--textbox);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 240, 210, 0.1),
+    inset 0 2px 8px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+.is-cursed .tcg__text {
+  background:
+    linear-gradient(180deg, rgba(255, 120, 160, 0.06), rgba(255, 120, 160, 0.02)),
+    var(--textbox);
+  box-shadow:
+    inset 0 0 0 1px rgba(224, 56, 111, 0.28),
+    inset 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.tcg--monster .tcg__text {
+  padding-bottom: 22px;
+}
+.tcg__text p {
+  margin: 0 0 3px;
+}
+.tcg__kws {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 5px;
+}
+/* キーワード：金の札（菱形の印）。能力：銀青の札（輪の印） */
+.tkw {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  line-height: 1.5;
+  padding: 0 6px 0 5px;
+  border-radius: 3px;
+  color: #ffe6a3;
+  background: linear-gradient(180deg, rgba(246, 196, 69, 0.2), rgba(246, 196, 69, 0.08));
+  box-shadow: inset 0 0 0 1px rgba(246, 196, 69, 0.5);
+  white-space: nowrap;
+}
+.tkw::before {
+  content: '';
+  flex: none;
+  width: 5px;
+  height: 5px;
+  transform: rotate(45deg);
+  background: #f6c445;
+}
+.tkw--ability {
+  color: #d3e4ff;
+  background: linear-gradient(180deg, rgba(130, 170, 255, 0.2), rgba(130, 170, 255, 0.07));
+  box-shadow: inset 0 0 0 1px rgba(150, 185, 255, 0.55);
+}
+.tkw--ability::before {
+  width: 6px;
+  height: 6px;
+  transform: none;
+  border-radius: 50%;
+  background: none;
+  box-shadow: inset 0 0 0 1.5px #9cc0ff;
+}
+.tcg__abs {
+  margin: 5px 0 4px;
+}
+/* モード：A・B・C の小さな金の丸い紋 */
+.tcg__text .tcg__modehead {
+  margin-bottom: 2px;
+}
+.tcg__text .tcg__mode {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 2px 2px;
+}
+.mk {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  margin-top: 2px;
+  border-radius: 50%;
+  font-style: normal;
+  font-weight: 900;
+  font-size: 12px;
+  line-height: 1;
+  color: #2a1800;
+  background: radial-gradient(circle at 35% 30%, #fff1b8, #f2c65a 55%, #a9740f);
+  box-shadow:
+    0 0 0 1px #2a1800,
+    0 1px 2px rgba(0, 0, 0, 0.5);
+}
+/* デメリット：赤い行に ☠ */
+.tcg__db {
+  position: relative;
+  padding-left: 15px;
+  color: #ffa9c2;
+}
+.tcg__db::before {
+  content: '☠';
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--curse);
+}
+/* 説明文：飾り罫の下に、温かい灰色の明朝で */
+.tcg__text .tcg__desc {
+  position: relative;
+  text-wrap: balance;
+  margin-top: 8px;
+  padding-top: 8px;
+  font-family: var(--font-title);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  text-align: center;
+  color: var(--ink-muted);
+  background: linear-gradient(90deg, transparent, rgba(255, 230, 180, 0.35) 30%, rgba(255, 230, 180, 0.35) 70%, transparent) top / 100% 1px no-repeat;
+}
+.tcg__desc::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: calc(50% - 3.5px);
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: #1a1f31;
+  box-shadow: inset 0 0 0 1px rgba(255, 230, 180, 0.55);
+}
+/* 紋章は額縁の下の角に半分かかる */
+.tcg > .tcg-stats {
+  left: -5px;
+  right: -5px;
+  bottom: -12px;
+}
+.tcg .emb svg {
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.6));
+}
+.tcg-stats .emb--def {
+  margin-bottom: 2px;
+}
+
+/* --- 呪い：黒く焼けた金属と深紅の内線、「呪」の印 */
+.tcg.is-cursed {
+  box-shadow:
+    0 0 0 1px #05060a,
+    inset 0 1px 0 rgba(255, 120, 160, 0.35),
+    0 0 18px rgba(224, 56, 111, 0.35),
+    0 12px 26px rgba(0, 0, 0, 0.5);
+}
+.tcg.is-cursed .tcg__face {
+  background:
+    radial-gradient(120% 55% at 50% 0%, rgba(224, 56, 111, 0.22), transparent 70%),
+    linear-gradient(180deg, var(--face-0) 0%, var(--face-1) 100%);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.85),
+    inset 0 0 0 1px rgba(224, 56, 111, 0.45);
+}
+.tcg__seal {
+  position: absolute;
+  right: 8px;
+  top: 10px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  transform: rotate(-8deg);
+  background: radial-gradient(circle at 40% 35%, #f0507f, #a3123f);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 210, 225, 0.75),
+    0 2px 4px rgba(0, 0, 0, 0.6);
+  font-family: var(--font-title);
+  font-weight: 900;
+  font-size: 15px;
+  line-height: 1;
+  color: #fff;
+}
+
+/* --- エピック・レジェンドの額縁の光。大きいカードだけ箔押しの光がゆっくり通る（一覧の小さいカードは止めた照りだけ） */
+.tcg.rar--epic:not(.is-cursed) {
+  box-shadow:
+    0 0 0 1px #05060a,
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 0 16px rgba(181, 109, 255, 0.3),
+    0 12px 26px rgba(0, 0, 0, 0.5);
+}
+.tcg.rar--legend:not(.is-cursed) {
+  box-shadow:
+    0 0 0 1px #05060a,
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 0 20px rgba(246, 196, 69, 0.35),
+    0 12px 26px rgba(0, 0, 0, 0.5);
+}
+.tcg.rar--epic .tcg__face::after,
+.tcg.rar--legend .tcg__face::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.09) 46%, rgba(255, 245, 220, 0.16) 50%, rgba(255, 255, 255, 0.08) 54%, transparent 62%);
+  background-size: 300% 100%;
+  background-position: 30% 0;
+  mix-blend-mode: screen;
+}
+.tcg--lg.rar--epic .tcg__face::after,
+.tcg--lg.rar--legend .tcg__face::after {
+  background-position: 100% 0;
+  animation: tcg-foil 9s ease-in-out infinite;
+}
+.tcg.rar--legend:not(.is-cursed)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  padding: 7px;
+  background: conic-gradient(from 200deg, rgba(255, 120, 120, 0.28), rgba(255, 230, 120, 0.28), rgba(120, 255, 190, 0.22), rgba(120, 180, 255, 0.28), rgba(220, 140, 255, 0.28), rgba(255, 120, 120, 0.28));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  mix-blend-mode: overlay;
+}
+@keyframes tcg-foil {
+  0%,
+  55% {
+    background-position: 100% 0;
+  }
+  85%,
+  100% {
+    background-position: 0% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tcg--lg.rar--epic .tcg__face::after,
+  .tcg--lg.rar--legend .tcg__face::after {
+    animation: none;
+    background-position: 30% 0;
+  }
+}
+
+/* --- 押せるカード（一覧・ドラフト） */
+.tcg--clickable {
+  cursor: pointer;
+  transition: transform var(--dur-fast);
+}
+@media (hover: hover) and (pointer: fine) {
+  .tcg--clickable:hover {
+    transform: translateY(-2px);
+  }
+}
+.tcg--clickable:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* ============================================================ 一覧の小さいカード */
+.tcg--sm {
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: 5 / 7;
+  padding: 5px;
+  border-radius: 11px;
+}
+.tcg--sm .tcg__face {
+  border-radius: 7px;
+}
+.tcg--sm .cgem {
+  --g: 30px;
+  left: -7px;
+  top: -7px;
+}
+.tcg--sm .tcg__banner {
+  margin: 4px 4px 0 22px;
+  height: 24px;
+  padding: 0 5px;
+}
+.tcg--sm .tcg__name {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+.tcg--sm .tcg__name.is-mid,
+.tcg--sm .tcg__name.is-long {
+  font-size: 12px;
+  letter-spacing: -0.03em;
+}
+.tcg--sm .tcg__art {
+  flex: none;
+  height: 22%;
+  min-height: 62px;
+  margin: 4px 5px 0;
+}
+.tcg--sm .tcg__type {
+  margin: -6px 8px 0;
+  min-height: 19px;
+  padding: 0 5px;
+}
+.tcg--sm .tcg__seal {
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  right: 5px;
+  top: 6px;
+}
+.tcg--sm.rar--legend::after {
+  padding: 5px;
+}
+/* 本文欄は残りの高さに合わせ、行数（--lines）は高さ÷行の高さで決める（CardView の useClamp）。行の途中では切らない */
+.tcg--sm .tcg__text {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  margin: 4px 5px 5px;
+  padding: 5px 6px;
+  overflow: hidden;
+}
+.tcg--sm.tcg--monster .tcg__text {
+  padding-bottom: 30px;
+}
+.tcg__clampwrap {
+  position: relative;
+}
+.tcg__clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--lines, 5);
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  line-height: 18px;
+  line-break: strict;
+  overflow-wrap: anywhere;
+}
+.tcg__clamp .tkw {
+  display: inline;
+  line-height: 16px;
+  margin-right: 3px;
+  padding: 0 4px;
+}
+.tcg__clamp .tkw::before {
+  display: inline-block;
+  margin-right: 3px;
+  vertical-align: 1px;
+}
+.tcg__clamp .mk {
+  display: inline-grid;
+  width: 15px;
+  height: 15px;
+  margin: 0 4px 0 0;
+  vertical-align: -2px;
+}
+.tcg__cdb {
+  color: #ffa9c2;
+}
+.tcg__cdb::before {
+  content: '☠ ';
+  color: var(--curse);
+}
+/* はみ出したとき：最後の行を右へ薄くして「全文 ›」の札に受け渡す（押すと CardDetail） */
+.tcg--sm.is-clamped .tcg__clamp {
+  -webkit-mask:
+    linear-gradient(#000, #000) top / 100% calc(100% - 18px) no-repeat,
+    linear-gradient(90deg, #000 35%, rgba(0, 0, 0, 0.2) 92%) bottom / 100% 18px no-repeat;
+  mask:
+    linear-gradient(#000, #000) top / 100% calc(100% - 18px) no-repeat,
+    linear-gradient(90deg, #000 35%, rgba(0, 0, 0, 0.2) 92%) bottom / 100% 18px no-repeat;
+}
+.tcg__more {
+  display: none;
+  position: absolute;
+  right: -2px;
+  bottom: 0;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  line-height: 17px;
+  color: #ffe6a3;
+  background: #232a45;
+  box-shadow:
+    inset 0 0 0 1px rgba(246, 196, 69, 0.55),
+    -6px 0 8px var(--textbox);
+}
+.tcg--sm.is-clamped .tcg__more {
+  display: block;
+}
+.tcg--sm.is-cursed .tcg__more {
+  background: #2a1020;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 148, 182, 0.55),
+    -6px 0 8px var(--textbox);
+  color: #ffc2d5;
+}
+.tcg--sm > .tcg-stats {
+  left: 1px;
+  right: 1px;
+  bottom: 1px;
+}
+.tcg--sm .emb {
+  --e: 32px;
+}
+.tcg--sm .emb--def {
+  --e: 26px;
+}
+/* 要修正：絵の窓の下に赤い札、内線も赤く */
+.tcg__invalid {
+  position: absolute;
+  left: 5px;
+  bottom: 5px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  line-height: 19px;
+  white-space: nowrap;
+  color: #fff;
+  background: linear-gradient(180deg, #e2475a, #a8182e);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 200, 205, 0.6),
+    0 2px 5px rgba(0, 0, 0, 0.6);
+}
+.tcg__invalid::before {
+  content: '!';
+  display: inline-grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: #fff;
+  color: #a8182e;
+  font-size: 11px;
+  font-weight: 900;
+  vertical-align: -1px;
+}
+.tcg.is-invalid .tcg__face {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.85),
+    inset 0 0 0 2px rgba(255, 93, 110, 0.75);
+}
+
+/* とても狭い小さいカード（スマホのドラフトの3枚並び）：本文は下の要約と詳細に任せ、絵を大きく */
+.tcg--sm {
+  container-type: inline-size;
+}
+@container (max-width: 130px) {
+  .tcg--sm .tcg__banner {
+    margin-left: 18px;
+  }
+  .tcg--sm .tcg__name,
+  .tcg--sm .tcg__name.is-mid,
+  .tcg--sm .tcg__name.is-long {
+    font-size: var(--fs-xs);
+    letter-spacing: -0.04em;
+  }
+  .tcg--sm .tcg__art {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+  }
+  .tcg--sm .tcg__text {
+    display: none;
+  }
+  .tcg--sm .tcg__type {
+    margin-bottom: 6px;
+    padding: 0 4px;
+  }
+  .tcg--sm .tcg__tl {
+    letter-spacing: -0.04em;
+  }
+  .tcg--sm.tcg--monster .tcg__type {
+    margin-bottom: 30px;
+  }
+}
+
+/* 大きいカードを置く場所は、はみ出す宝石と紋章のぶん余白を取る */
+.tcg-stage {
+  display: flex;
+  justify-content: center;
+  padding: 10px 10px 14px;
+}

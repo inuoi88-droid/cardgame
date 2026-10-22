@@ -5,6 +5,7 @@ import {
   CARD_TYPE_LABEL,
   RARITIES,
   RARITY_LABEL,
+  TRIBE_LABEL,
   analyzeCard,
   analyzeDeck,
   normalizeName,
@@ -16,6 +17,7 @@ import {
 } from '../../engine/index.ts';
 import { CardDetail } from '../components/CardDetail.tsx';
 import { CardArtOf } from '../components/CardArt.tsx';
+import { CostGem, frameClasses, RarityGem, StatMini } from '../components/cardParts.tsx';
 import { CostCurve } from '../components/CostCurve.tsx';
 import { Stepper, Violations } from '../components/controls.tsx';
 import { useToast } from '../components/Toast.tsx';
@@ -209,7 +211,7 @@ function Builder({ saved }: { saved: Deck | null }) {
               const perName = BALANCE.rarity[c.rarity].perNameLimit;
               const nameCount = nameCounts.get(normalizeName(c.name)) ?? 0;
               return (
-                <li key={c.id} className={cx('card-row', !ca.valid && 'is-invalid', count > 0 && 'is-in')}>
+                <li key={c.id} className={cx('card-row', frameClasses(c.rarity, ca.cardType, ca.isCurse), !ca.valid && 'is-invalid', count > 0 && 'is-in')}>
                   <CardRowInfo card={c} a={ca} onPreview={() => setPreviewId(c.id)} />
                   <span className={cx('card-row__limit', perName !== null && nameCount > perName && 'text-ng')}>
                     {!ca.valid ? '要修正' : perName !== null ? `同名 ${nameCount}/${perName}` : ''}
@@ -227,7 +229,7 @@ function Builder({ saved }: { saved: Deck | null }) {
           <ul className="card-rows">
             {deckRows.map(({ entry, card }) =>
               card ? (
-                <li key={entry.cardId} className={cx('card-row', !analyses.get(card.id)?.valid && 'is-invalid')}>
+                <li key={entry.cardId} className={cx('card-row', frameClasses(card.rarity, analyses.get(card.id)?.cardType, analyses.get(card.id)?.isCurse), !analyses.get(card.id)?.valid && 'is-invalid')}>
                   <CardRowInfo card={card} a={analyses.get(card.id)!} onPreview={() => setPreviewId(card.id)} />
                   <span />
                   <CountControl count={entry.count} onChange={(n) => setCount(card.id, n)} />
@@ -267,16 +269,25 @@ function Builder({ saved }: { saved: Deck | null }) {
 }
 
 function CardRowInfo({ card, a, onPreview }: { card: CardDef; a: CardAnalysis; onPreview: () => void }) {
+  const name = card.name || '（名前なし）';
   return (
-    <button type="button" className="card-row__info" onClick={onPreview} title="詳細を見る" aria-label={`${card.name || '（名前なし）'}の詳細を見る`}>
-      <span className="card-row__icon">
-        <CardArtOf card={card} analysis={a} />
+    <button type="button" className="card-row__info" onClick={onPreview} title="詳細を見る" aria-label={`${name}（コスト${card.cost}・${CARD_TYPE_LABEL[a.cardType]}・${RARITY_LABEL[card.rarity]}${a.isCurse ? '・呪い' : ''}）の詳細を見る`}>
+      <CostGem cost={card.cost} label={false} />
+      <span className="card-row__icon" aria-hidden="true">
+        <CardArtOf card={card} analysis={a} size={38} />
       </span>
       <span className="card-row__text">
-        <b>{card.name}</b>
+        <span className="card-row__name">
+          <b>{name}</b>
+          <RarityGem rarity={card.rarity} />
+        </span>
         <small>
-          コスト{card.cost}・{CARD_TYPE_LABEL[a.cardType]}・{RARITY_LABEL[card.rarity]}
-          {a.isCurse && '・呪い'}
+          <span>
+            {CARD_TYPE_LABEL[a.cardType]}
+            {a.isCurse && '・呪い'}
+            {card.tribe && TRIBE_LABEL[card.tribe] ? `・${TRIBE_LABEL[card.tribe]}` : ''}
+          </span>
+          {card.stats && <StatMini attack={card.stats.attack} hp={card.stats.hp} defense={card.stats.defense} />}
         </small>
       </span>
     </button>

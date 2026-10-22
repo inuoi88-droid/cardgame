@@ -2,6 +2,7 @@
 import { CARD_TYPE_LABEL, CURSE_LABEL, RARITY_LABEL, type CardAnalysis, type CardDef } from '../../engine/index.ts';
 import { cx } from '../util.ts';
 import { CardArt } from '../components/CardArt.tsx';
+import { CostGem, frameClasses } from '../components/cardParts.tsx';
 import type { BudgetModel } from './budget.ts';
 import { BudgetMeterCompact } from './BudgetMeter.tsx';
 
@@ -17,10 +18,10 @@ interface Props {
 export function MiniPreview({ card, analysis: a, budget, invalidCount, flash, onOpen }: Props) {
   const name = card.name.trim() || '（名前なし）';
   return (
-    <button type="button" className={cx('ed-mini', a.isCurse && 'is-curse')} onClick={onOpen} aria-label={`${name} のプレビューと内訳を見る`}>
+    <button type="button" className={cx('ed-mini', frameClasses(card.rarity, a.cardType, a.isCurse), a.isCurse && 'is-curse')} onClick={onOpen} aria-label={`${name}（コスト${card.cost}）のプレビューと内訳を見る`}>
       <span className="ed-mini__icon" aria-hidden="true">
         <CardArt icon={card.icon} rarity={card.rarity} cardType={a.cardType} curse={a.isCurse} size={52} />
-        <span className="ed-mini__cost">{card.cost}</span>
+        <CostGem cost={card.cost} className="ed-mini__gem" label={false} />
       </span>
       <span className="ed-mini__main">
         <span className="ed-mini__top">

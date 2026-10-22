@@ -693,257 +693,23 @@ select:disabled {
   background: var(--curse);
 }
 
-/* ------------------------------------------------------------ カード */
-.card {
-  --frame: var(--common);
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 250px;
-  min-height: 350px;
-  padding: 9px;
-  border-radius: 16px;
-  border: 4px solid var(--frame);
-  background: linear-gradient(160deg, #2b3356 0%, #1a1f36 100%);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.5),
-    0 8px 20px rgba(0, 0, 0, 0.4);
-  color: var(--text);
-  overflow: hidden;
-}
-.card--common {
-  --frame: var(--common);
-}
-.card--rare {
-  --frame: var(--rare);
-}
-.card--epic {
-  --frame: var(--epic);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.5),
-    0 0 14px rgba(181, 109, 255, 0.35);
-}
-.card--legend {
-  --frame: var(--legend);
-  background: linear-gradient(160deg, #3a3350 0%, #1d1a30 100%);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.5),
-    0 0 18px rgba(246, 196, 69, 0.45);
-}
-/* 呪いカード：黒地に赤紫の外枠。元のレアリティの色は内枠に残す */
-.card--curse {
-  background:
-    radial-gradient(circle at 50% 25%, rgba(224, 56, 111, 0.28), transparent 60%),
-    linear-gradient(160deg, #2a0d22 0%, #0d070f 100%);
-  outline: 3px solid var(--curse);
-  outline-offset: -11px;
-  box-shadow:
-    0 0 0 3px var(--curse),
-    0 0 22px rgba(224, 56, 111, 0.55);
-}
-.card--clickable {
-  cursor: pointer;
-  transition:
-    transform var(--dur-fast),
-    box-shadow var(--dur-fast);
-}
-.card--clickable:hover {
-  transform: translateY(-2px);
-}
-.card--clickable:focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.card__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  position: relative;
-  z-index: 1;
-}
-.card__cost {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #8fb0ff, #2c4fd6);
-  border: 2px solid #c9d7ff;
-  color: #fff;
-  font-weight: bold;
-  font-size: 1.05rem;
-}
-.card__name {
-  font-weight: bold;
-  font-size: 1rem;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-.card__art {
-  position: relative;
-  display: grid;
-  place-items: center;
-  height: 104px;
-  border-radius: 10px;
-  background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.14), rgba(0, 0, 0, 0.25));
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-.card__icon {
-  font-size: 60px;
-  line-height: 1;
-}
-.card__curse-mark {
-  position: absolute;
-  right: 6px;
-  top: 6px;
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  background: var(--curse);
-  color: #fff;
-  font-weight: bold;
-  font-size: 0.85rem;
-}
-.card__type {
-  text-align: center;
-  font-size: var(--fs-xs);
-  font-weight: bold;
-  color: var(--frame);
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 6px;
-  padding: 1px 4px;
-}
-.card--curse .card__type {
-  color: #ff9ab9;
-}
-.card__text {
-  flex: 1;
-  font-size: 13px;
-  line-height: 1.5;
-  background: rgba(255, 255, 255, 0.07);
-  border-radius: 8px;
-  padding: 6px 8px;
-  position: relative;
-  z-index: 1;
-}
-.card__text p {
-  margin: 0 0 4px;
-}
-.card__keywords {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 4px;
-}
-.kw {
-  font-size: var(--fs-xs);
-  font-weight: bold;
-  background: rgba(111, 141, 255, 0.25);
-  border: 1px solid rgba(111, 141, 255, 0.6);
-  border-radius: 4px;
-  padding: 0 5px;
-}
-.card__drawback {
-  color: #ff9ab9;
-}
-.card__drawback::before {
-  content: '☠ ';
-}
-.card__stats {
-  display: flex;
-  justify-content: space-around;
-  font-weight: bold;
-  font-size: 0.95rem;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 8px;
-  padding: 2px 0;
-  position: relative;
-  z-index: 1;
-}
-.card__invalid {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--ng);
-  color: #fff;
-  text-align: center;
-  font-size: var(--fs-xs);
-  font-weight: bold;
-  z-index: 2;
-}
-
-/* 小さいカード（一覧） */
-.card--sm {
-  width: 100%;
-  min-height: 0;
-  aspect-ratio: 5 / 7;
-  padding: 6px;
-  gap: 4px;
-  border-width: 3px;
-  border-radius: 12px;
-}
-.card--sm.card--curse {
-  outline-width: 2px;
-  outline-offset: -8px;
-  box-shadow:
-    0 0 0 2px var(--curse),
-    0 0 12px rgba(224, 56, 111, 0.5);
-}
-.card--sm .card__cost {
-  width: 24px;
-  height: 24px;
-  font-size: 0.85rem;
-}
-.card--sm .card__name {
-  font-size: 13px;
-}
-.card--sm .card__art {
-  height: 22%;
-  min-height: 44px;
-}
-.card--sm .card__icon {
-  font-size: 34px;
-}
-.card--sm .card__curse-mark {
-  width: 20px;
-  height: 20px;
-  font-size: var(--fs-xs);
-}
-.card--sm .card__type {
-  font-size: var(--fs-xs);
-}
-/* 一覧の小さいカードの本文は 12px を下限にし、入りきらない分はフェードで切る（全文は開いて読む） */
-.card--sm .card__text {
-  font-size: var(--fs-xs);
-  line-height: 1.4;
-  padding: 4px 5px;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, #000 80%, transparent);
-  mask-image: linear-gradient(to bottom, #000 80%, transparent);
-}
-.card--sm .kw {
-  font-size: var(--fs-xs);
-  padding: 0 4px;
-}
-.card--sm .card__stats {
-  font-size: var(--fs-xs);
-}
-
+/* ------------------------------------------------------------ カード（カードの面は components/cardFrame.css） */
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 22px 18px;
+  padding: 8px 4px 0 6px;
+}
+@media (max-width: 600px) {
+  .card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px 14px;
+  }
 }
 .card-grid__item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
 }
 .card-grid__actions {
   display: flex;
@@ -1400,21 +1166,49 @@ select:disabled {
 .card-rows {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 4px 0 0;
+  display: grid;
+  gap: 8px;
 }
+/* デッキ構築の行（カードデザイン案A）：額縁の金属の細い縁、左端にコストの宝石、名前の右にレアリティの宝石 */
 .card-row {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
-  padding: 6px 0;
-  min-height: 56px;
-  border-bottom: 1px solid var(--line);
+  min-height: 58px;
+  padding: 4px 8px 4px 36px;
+  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  background: var(--panel-2);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+}
+.card-row[class*='rar--'] {
+  border-color: transparent;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--rar) 12%, #1d2338) 0%, #181d31 45%, #151a2c 100%) padding-box,
+    var(--frame) border-box;
+}
+.card-row.is-cursed {
+  background:
+    linear-gradient(90deg, #3a1428 0%, #1d0d16 50%, #170b12 100%) padding-box,
+    var(--frame) border-box;
+}
+.card-row:not([class*='rar--']) {
+  padding-left: 12px;
+}
+.card-row .cgem {
+  --g: 28px;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 .card-row.is-in .card-row__text b {
-  color: var(--accent);
+  color: #ffe6a3;
 }
-.card-row.is-invalid .card-row__text {
+.card-row.is-invalid .card-row__text,
+.card-row.is-invalid .card-row__icon {
   opacity: 0.6;
 }
 .card-row__info {
@@ -1430,41 +1224,69 @@ select:disabled {
   min-height: var(--tap);
   text-align: left;
   cursor: pointer;
+  border-radius: 6px;
+}
+.card-row__info:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .card-row__icon {
   flex: none;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  font-size: 33px;
-}
-.frame--rare {
-  border-color: var(--rare);
-}
-.frame--epic {
-  border-color: var(--epic);
-}
-.frame--legend {
-  border-color: var(--legend);
-}
-.frame--curse {
-  background: #2a0d22;
-  box-shadow: 0 0 0 2px var(--curse);
+  line-height: 0;
 }
 .card-row__text {
   display: grid;
   min-width: 0;
-  line-height: 1.3;
+  line-height: 1.35;
+}
+.card-row__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 .card-row__text b {
+  min-width: 0;
+  font-family: var(--font-title);
+  font-size: 15px;
+  color: var(--ink-name);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.card-row__name .rgem {
+  width: 14px;
+  height: 14px;
+}
 .card-row__text small {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 10px;
   color: var(--muted);
   font-size: var(--fs-xs);
+}
+/* 狭い画面：「同名 N/M」・要修正は名前の下の行へ（名前を切りすぎないように） */
+@media (max-width: 480px) {
+  .card-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0;
+  }
+  .card-row > :nth-child(2) {
+    grid-column: 1;
+    grid-row: 2;
+    padding-left: 48px;
+    margin-top: -4px;
+  }
+  .card-row > :nth-child(2):empty {
+    display: none;
+  }
+  .card-row > :nth-child(3) {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
 }
 .card-row__limit {
   font-size: var(--fs-xs);
@@ -1572,7 +1394,7 @@ select:disabled {
 .preview-modal {
   display: flex;
   justify-content: center;
-  padding: 8px 0;
+  padding: 14px 0 18px;
 }
 .emoji-group h3 {
   margin: 8px 0 6px;
@@ -1650,10 +1472,6 @@ select:disabled {
 @media (max-width: 480px) {
   :root {
     --gutter: 16px;
-  }
-  .card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
   }
   .savebar .btn {
     padding: 8px 10px;

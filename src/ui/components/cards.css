@@ -1,19 +1,4 @@
-/* カードの説明文（CardView）とカードの詳細（CardDetail） */
-
-/* ------------------------------------------------------------ 説明文 */
-.card__desc {
-  margin: 6px 0 0;
-  padding-top: 5px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.18);
-  font-style: italic;
-  color: var(--muted);
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-.card__text p.card__desc {
-  margin: 6px 0 0;
-}
+/* カードの詳細（CardDetail）。カードの面は cardFrame.css */
 
 /* ------------------------------------------------------------ 詳細 */
 .cd {
@@ -25,6 +10,8 @@
 .cd__card {
   display: flex;
   justify-content: center;
+  /* はみ出すコストの宝石と紋章のぶん */
+  padding: 10px 8px 14px;
 }
 .cd__info {
   display: grid;
@@ -155,10 +142,4 @@
     background: var(--panel);
     border-top: 1px solid var(--line);
   }
-}
-
-/* モード選択の「A：…」の行（MTG 要素 ○ バッチC2） */
-.card__text .card__mode {
-  padding-left: 0.8em;
-  border-left: 2px solid var(--accent);
 }

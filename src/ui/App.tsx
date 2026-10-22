@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { CardSymbols } from './components/cardParts.tsx';
 import { ConfirmProvider } from './components/ConfirmDialog.tsx';
 import { ToastProvider } from './components/Toast.tsx';
 import { CardEditorPage } from './pages/CardEditorPage.tsx';
@@ -56,6 +57,7 @@ export function App() {
   return (
     <ToastProvider>
       <ConfirmProvider>
+        <CardSymbols />
         <div className="app">
           <header className="topbar">
             <div className="topbar__title">{APP_TITLE}</div>

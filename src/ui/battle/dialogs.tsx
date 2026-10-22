@@ -2,6 +2,7 @@
 import { useState, type ReactNode } from 'react';
 import { analyzeCard, BALANCE, battle, CARD_TYPE_LABEL, describeEffect, getDrawback, getEffect, type CardDef } from '../../engine/index.ts';
 import { CardArt, NOISE_ART } from '../components/CardArt.tsx';
+import { CostGem, frameClasses, RarityGem, StatMini } from '../components/cardParts.tsx';
 import { Modal, Stepper } from '../components/controls.tsx';
 import { Sheet } from '../components/Sheet.tsx';
 import { cx } from '../util.ts';
@@ -46,21 +47,22 @@ export function CardRow({
   }
   const a = analyzeCard(def);
   return (
-    <div className={cx('crow', picked && 'is-picked', a.isCurse && 'crow--curse')}>
+    <div className={cx('crow', frameClasses(def.rarity, a.cardType, a.isCurse), picked && 'is-picked', a.isCurse && 'crow--curse')}>
       <button type="button" className="crow__main" onClick={onToggle} aria-pressed={picked}>
         <span className="crow__icon">
           <CardArt icon={def.icon} rarity={def.rarity} cardType={a.cardType} curse={a.isCurse} />
+          <CostGem cost={def.cost} className="crow__gem" />
         </span>
         <span className="crow__text">
           <span className="crow__head">
-            <span className="crow__cost">{def.cost}</span>
             <b>{def.name}</b>
+            <RarityGem rarity={def.rarity} withLabel="sr" />
             <small className="crow__type">{CARD_TYPE_LABEL[a.cardType]}</small>
             {/* スマホは効果を短く切るので、ステータスは見出しの行に */}
             {def.stats && (
               <small className="crow__hstats" aria-hidden="true">
-                ⚔{def.stats.attack} ❤{def.stats.hp}
-                {def.stats.defense > 0 ? ` 🛡${def.stats.defense}` : ''}
+                {/* スマホの見出しの行は名前を残すため守備力を出さない（🔍の詳細で見る） */}
+                <StatMini attack={def.stats.attack} hp={def.stats.hp} defense={0} />
               </small>
             )}
           </span>
@@ -74,7 +76,7 @@ export function CardRow({
             {a.text.abilities.map((x) => `✦${x.name}`).join('')}
             {def.stats && (
               <span className="crow__stats">
-                ⚔{def.stats.attack} ❤{def.stats.hp} 🛡{def.stats.defense}
+                <StatMini attack={def.stats.attack} hp={def.stats.hp} defense={def.stats.defense} />
               </span>
             )}
           </span>

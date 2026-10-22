@@ -89,20 +89,10 @@
   width: 56px;
   height: 56px;
 }
-.ed-mini__cost {
-  position: absolute;
-  left: -8px;
-  top: -8px;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #8fb0ff, #2c4fd6);
-  border: 2px solid #c9d7ff;
-  color: #fff;
-  font-size: var(--fs-xs);
-  font-weight: bold;
+.ed-mini__gem.cgem {
+  --g: 26px;
+  left: -9px;
+  top: -9px;
 }
 .ed-mini__main {
   display: grid;
@@ -837,15 +827,22 @@
   position: relative;
   display: flex;
   justify-content: center;
-  padding: 6px 0 10px;
+  /* はみ出すコストの宝石と紋章のぶん */
+  padding: 14px 0 18px;
+}
+/* 要修正の札はカードの上（銘板に重ねない） */
+.ed-preview:has(.ed-preview__ribbon) {
+  padding-top: 36px;
 }
 .ed-preview__ribbon {
   position: absolute;
-  top: 14px;
-  right: calc(50% - 125px + 8px);
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
   padding: 2px 10px;
   border-radius: 6px;
-  background: var(--ng);
+  background: var(--danger-strong);
   color: #fff;
   font-size: var(--fs-xs);
   font-weight: bold;
@@ -1042,6 +1039,23 @@
 }
 .ed-tpl.is-curse {
   border-color: rgba(224, 56, 111, 0.45);
+}
+/* 額縁の金属の細い縁（カードデザイン案A） */
+.ed-tpl[class*='rar--'],
+.ed-mini[class*='rar--'] {
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--rar) 12%, #1d2338) 0%, #181d31 45%, #151a2c 100%) padding-box,
+    var(--frame) border-box;
+}
+.ed-tpl.is-cursed,
+.ed-mini.is-cursed {
+  background:
+    linear-gradient(90deg, #3a1428 0%, #1d0d16 50%, #170b12 100%) padding-box,
+    var(--frame) border-box;
+}
+.ed-tpl[class*='rar--']:hover {
+  box-shadow: 0 0 0 2px var(--accent);
 }
 .ed-tpl__tile {
   position: relative;

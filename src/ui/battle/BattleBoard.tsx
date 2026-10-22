@@ -1977,8 +1977,9 @@ function ActivateAction({ info, onUse }: { info: battle.ActivateInfo; onUse: () 
 /** PC でカードにマウスを乗せたとき、手札の上に全文のカードを出す */
 function HoverPreview({ anchor, def }: { anchor: HTMLElement; def: CardDef }) {
   const r = anchor.getBoundingClientRect();
+  // 大きいカード（cardFrame.css の .tcg--lg：240×336 と、はみ出す宝石・紋章）
   const W = 250;
-  const H = 350;
+  const H = 356;
   const left = Math.max(8, Math.min(window.innerWidth - W - 8, r.left + r.width / 2 - W / 2));
   const top = Math.max(8, r.top - H - 10);
   return (

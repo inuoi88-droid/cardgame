@@ -1613,15 +1613,16 @@ button.lt-card:focus-visible {
   .board--dense .mt {
     --cols: 7;
   }
-  .mt__icon {
-    font-size: 30px;
+  /* カードの絵は見分ける決め手なので大きく（決定事項 #106） */
+  .mt__icon .cart {
+    --cart-size: 50px;
   }
   .hc {
     width: 136px;
     min-height: 160px;
   }
-  .hc__icon {
-    font-size: 30px;
+  .hc__icon .cart {
+    --cart-size: 60px;
   }
   .hand {
     min-height: 178px;
@@ -3449,6 +3450,9 @@ button.lt-card:focus-visible {
     font-size: 22px;
     line-height: 1.1;
   }
+  .hc__icon .cart {
+    --cart-size: 32px;
+  }
   .hc__name {
     grid-area: name;
     align-self: center;
@@ -3561,8 +3565,8 @@ button.lt-card:focus-visible {
     height: 80px;
     padding-top: 8px;
   }
-  .hc__icon {
-    font-size: 20px;
+  .hc__icon .cart {
+    --cart-size: 28px;
   }
 }
 /* 縦に余裕のあるスマホ：直近の出来事を操作バーの上に1行、案内はいつも出す */

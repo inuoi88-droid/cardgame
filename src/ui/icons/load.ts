@@ -1,97 +1,165 @@
 /**
- * game-icons の形（path の d）と選択パネルの索引を、必要になったときだけ読む（決定事項 #105）。
+ * game-icons の形（path の d）と選択パネルの索引を、必要になったときだけ読む（決定事項 #105・#106）。
  *
- * - 本体に入るのは generated/info.ts（各シャードの最初の名前など数 KB）だけ。
- * - 形は名前順で約 24KB ずつのシャード（public/icons/<stamp>/sNNN.json）。1枚の絵を出すときは、その名前のシャード1つだけを fetch する
- *   （読み方は shardSource.ts。本体には URL の作り方しか入らない）。
+ * - 本体に入るのは generated/info.ts（数十バイトの定数）と読み方（iconSource.ts）だけ。
+ * - 形はアイコン1つずつ（public/icons/<stamp>/<名前>.txt）。同時に読むのは MAX_ACTIVE 本まで。
+ *   読む順は「いま画面にある絵（新しく出たものから）」→「選択パネルの少し先」→「対戦の始めに先読みしたもの」。
+ *   画面から消えて誰も待っていない名前は、読む前なら列から外す（パネルを速く流しても、通り過ぎた分は読まない）。
+ * - 読めなかったもの（オフライン・電波の弱い所）は 'error'（CardArt は種類の絵文字を出す）にして、
+ *   2秒・4秒・8秒…（最大30秒）おきと、ブラウザがオンラインに戻ったときに読み直す。読めたら描き直す。
  * - 索引（名前の一覧と日本語の辞書）は選択パネルを開いたときに読む。
- * - 1ファイル版（npm run build:single）ではすべてが1つの JS に入る（読み込みは即座に終わる）。
+ * - 1ファイル版（npm run build:single）は HTML に埋め込んだ JSON から読む（iconSource.single.ts）。
  */
-import { useEffect, useState } from 'react';
-import { ICON_SHARD_STARTS } from './generated/info.ts';
-import { pathFromShard, shardIndexOf } from './ref.ts';
-import { fetchShard, type Shard } from './shardSource.ts';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { fetchIconIndex, fetchIconPath } from './iconSource.ts';
+import { parseIconRef } from './ref.ts';
 
-const shards = new Map<number, Shard>();
-const pending = new Map<number, Promise<Shard | undefined>>();
+/** 同時に読む本数 */
+const MAX_ACTIVE = 8;
+/** 読み直しの間隔（ミリ秒。失敗のたびに倍、上限あり） */
+const RETRY_BASE = 2000;
+const RETRY_MAX = 30_000;
+
+export type IconPathState = string | null | 'loading' | 'error';
+
+const paths = new Map<string, string | null>();
+const failed = new Map<string, number>();
+const active = new Set<string>();
+/** 読む列（後ろほど新しい） */
+let queue: string[] = [];
+/** いま画面にある絵の数（名前ごと） */
+const mounted = new Map<string, number>();
+/** 選択パネルの「少し先」（最新の1組だけ） */
+let wish = new Set<string>();
+/** 先読み（読めるまで残す） */
+const keep = new Set<string>();
 const listeners = new Set<() => void>();
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let notifyQueued = false;
 
-function loadShard(i: number): Promise<Shard | undefined> {
-  const have = shards.get(i);
-  if (have) return Promise.resolve(have);
-  const wait = pending.get(i);
-  if (wait) return wait;
-  if (i < 0 || i >= ICON_SHARD_STARTS.length) return Promise.resolve(undefined);
-  const p = fetchShard(i)
-    .then((s) => {
-      pending.delete(i);
-      if (!s) return undefined;
-      shards.set(i, s);
-      for (const f of listeners) f();
-      return s;
-    })
-    .catch(() => {
-      // 読めなかった（オフラインなど）。次に必要になったらもう一度読む
-      pending.delete(i);
-      return undefined;
-    });
-  pending.set(i, p);
-  return p;
+function notify(): void {
+  if (notifyQueued) return;
+  notifyQueued = true;
+  queueMicrotask(() => {
+    notifyQueued = false;
+    for (const f of listeners) f();
+  });
 }
 
-/** いま手元にある形。'loading' はまだ読んでいない、null はそんな名前のアイコンは無い */
-export function peekIconPath(name: string): string | null | 'loading' {
-  const i = shardIndexOf(name, ICON_SHARD_STARTS);
-  if (i < 0) return null;
-  const s = shards.get(i);
-  return s ? pathFromShard(s, name) : 'loading';
+function wanted(name: string): boolean {
+  return (mounted.get(name) ?? 0) > 0 || wish.has(name) || keep.has(name);
 }
 
-/** 形を読む（無い名前は null） */
-export async function loadIconPath(name: string): Promise<string | null> {
-  const i = shardIndexOf(name, ICON_SHARD_STARTS);
-  if (i < 0) return null;
-  return pathFromShard(await loadShard(i), name);
-}
-
-/** まとめて先に読む（選択パネルで見えている範囲など） */
-export function prefetchIcons(names: readonly string[]): void {
-  const want = new Set<number>();
-  for (const n of names) {
-    const i = shardIndexOf(n, ICON_SHARD_STARTS);
-    if (i >= 0 && !shards.has(i)) want.add(i);
+/** 次に読む名前（画面にあるもの → パネルの先 → 先読み。それぞれ新しいものから）。誰も待っていない名前は列から外す */
+function nextName(): string | undefined {
+  queue = queue.filter((n) => wanted(n) && !paths.has(n) && !active.has(n));
+  for (const test of [(n: string) => (mounted.get(n) ?? 0) > 0, (n: string) => wish.has(n), () => true]) {
+    for (let i = queue.length - 1; i >= 0; i--) {
+      const n = queue[i]!;
+      if (test(n)) {
+        queue.splice(i, 1);
+        return n;
+      }
+    }
   }
-  for (const i of want) void loadShard(i);
+  return undefined;
 }
 
-/** アイコンの形。読み込み中は 'loading'（読み終わると描き直す） */
-export function useIconPath(name: string | null): string | null | 'loading' {
-  const [, bump] = useState(0);
-  const now = name ? peekIconPath(name) : null;
-  useEffect(() => {
-    if (!name || now !== 'loading') return;
-    let live = true;
-    void loadIconPath(name).then(() => {
-      if (live) bump((x) => x + 1);
-    });
-    return () => {
-      live = false;
-    };
-  }, [name, now]);
-  return now;
+function pump(): void {
+  while (active.size < MAX_ACTIVE) {
+    const name = nextName();
+    if (!name) return;
+    active.add(name);
+    fetchIconPath(name).then(
+      (d) => {
+        active.delete(name);
+        paths.set(name, d);
+        failed.delete(name);
+        keep.delete(name);
+        notify();
+        pump();
+      },
+      () => {
+        active.delete(name);
+        failed.set(name, (failed.get(name) ?? 0) + 1);
+        notify();
+        scheduleRetry();
+        pump();
+      },
+    );
+  }
 }
 
-/** シャードが読み終わるたびに描き直す（選択パネルのグリッド用） */
-export function useShardVersion(): number {
-  const [v, setV] = useState(0);
+function request(name: string): void {
+  if (paths.has(name) || active.has(name)) return;
+  // 失敗したものは読み直しの時（タイマー・オンライン）まで待つ
+  if (failed.has(name) && retryTimer !== null) return;
+  queue = queue.filter((n) => n !== name);
+  queue.push(name);
+  pump();
+}
+
+function retryFailed(): void {
+  if (retryTimer !== null) clearTimeout(retryTimer);
+  retryTimer = null;
+  for (const name of failed.keys()) if (wanted(name)) request(name);
+}
+
+function scheduleRetry(): void {
+  if (retryTimer !== null) return;
+  const tries = Math.max(1, ...failed.values());
+  retryTimer = setTimeout(retryFailed, Math.min(RETRY_MAX, RETRY_BASE * 2 ** (tries - 1)));
+}
+
+if (typeof window !== 'undefined') window.addEventListener('online', retryFailed);
+
+/** いま手元にある形。'loading' はまだ読んでいない、'error' は読めなかった（読み直し待ち）、null はそんな名前のアイコンは無い */
+export function peekIconPath(name: string): IconPathState {
+  if (paths.has(name)) return paths.get(name)!;
+  return failed.has(name) ? 'error' : 'loading';
+}
+
+/** 選択パネルの「少し先」。前の組と入れ替わる（通り過ぎた分は読まない） */
+export function prefetchIcons(names: readonly string[]): void {
+  wish = new Set(names);
+  for (const n of names) request(n);
+}
+
+/** 対戦の始めなどに、これから出るカードの絵をまとめて先読みする（CardDef.icon の文字列。絵文字は無視） */
+export function preloadIcons(icons: Iterable<string | undefined>): void {
+  for (const icon of icons) {
+    const r = parseIconRef(icon);
+    if (r.kind !== 'gi' || paths.has(r.name)) continue;
+    keep.add(r.name);
+    request(r.name);
+  }
+}
+
+function subscribe(f: () => void): () => void {
+  listeners.add(f);
+  return () => {
+    listeners.delete(f);
+  };
+}
+
+/** アイコンの形。読み込み中は 'loading'、読めなかったら 'error'（読めたら描き直す） */
+export function useIconPath(name: string | null): IconPathState | null {
+  const state = useSyncExternalStore(
+    subscribe,
+    () => (name ? peekIconPath(name) : null),
+    () => (name ? peekIconPath(name) : null),
+  );
   useEffect(() => {
-    const f = () => setV((x) => x + 1);
-    listeners.add(f);
+    if (!name) return;
+    mounted.set(name, (mounted.get(name) ?? 0) + 1);
+    request(name);
     return () => {
-      listeners.delete(f);
+      const n = (mounted.get(name) ?? 1) - 1;
+      if (n > 0) mounted.set(name, n);
+      else mounted.delete(name);
     };
-  }, []);
-  return v;
+  }, [name]);
+  return state;
 }
 
 // ---------------------------------------------------------------- 索引（選択パネル用）
@@ -107,15 +175,10 @@ let indexPromise: Promise<IconIndex> | null = null;
 
 export function loadIconIndex(): Promise<IconIndex> {
   if (!indexPromise) {
-    indexPromise = import('./generated/index.json')
-      .then((m) => {
-        const data = (m as { default: { names: string[]; ja: Record<string, string> } }).default;
-        return { names: data.names, ja: data.ja };
-      })
-      .catch((e: unknown) => {
-        indexPromise = null;
-        throw e;
-      });
+    indexPromise = fetchIconIndex().catch((e: unknown) => {
+      indexPromise = null;
+      throw e;
+    });
   }
   return indexPromise;
 }

@@ -1,5 +1,5 @@
 // カードの絵（game-icons.net。決定事項 #105）：アイコン名の読み方・シャードの引き方・取り込み・分類・検索・おすすめ・使っている絵がすべてあること
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BALANCE, CARD_ICON_MAX, FIELDS, LEADERS, buildExport, parseImport } from '../src/engine/index.ts';
@@ -9,12 +9,14 @@ import { PRESET_DECKS as PRESETS } from '../src/presets.ts';
 import { SAMPLE_CARDS } from '../src/samples.ts';
 import { TEMPLATES } from '../src/ui/editor/templates.ts';
 import { CATEGORY_ORDER, categoryOf } from '../src/ui/icons/categories.ts';
-import { ICON_SHARD_DIGITS, ICON_SHARD_STARTS, ICON_TOTAL } from '../src/ui/icons/generated/info.ts';
+import { ICON_SHARD_DIGITS, ICON_SHARD_STARTS, ICON_STAMP, ICON_TOTAL } from '../src/ui/icons/generated/info.ts';
 import { GI_NAME_MAX, giIcon, iconLabel, iconText, isGiIcon, parseIconRef, pathFromShard, shardIndexOf } from '../src/ui/icons/ref.ts';
-import { buildSearchIndex, EFFECT_ICONS, fold, searchIcons, suggestIcons, tokensFromName, TRIBE_ICONS, TYPE_ICONS } from '../src/ui/icons/search.ts';
+import { buildSearchIndex, EFFECT_ICONS, fold, searchIcons, segmentWords, smartSearch, suggestIcons, tokensFromName, TRIBE_ICONS, TYPE_ICONS } from '../src/ui/icons/search.ts';
 import { EXAMPLES } from './helpers.ts';
 
-const GEN = join(__dirname, '..', 'src', 'ui', 'icons', 'generated');
+const ROOT = join(__dirname, '..');
+const GEN = join(ROOT, 'src', 'ui', 'icons', 'generated');
+const JA_FILE = join(ROOT, 'scripts', 'icons', 'ja.json');
 const index = JSON.parse(readFileSync(join(GEN, 'index.json'), 'utf8')) as { names: string[]; ja: Record<string, string> };
 const names = new Set(index.names);
 const shardFiles = readdirSync(join(GEN, 'shards')).sort();
@@ -72,6 +74,34 @@ describe('生成したデータ（scripts/gen-icons.mjs）', () => {
 
   it('シャードは小さく分かれている（1つ 40KB 未満）', () => {
     for (const f of shardFiles) expect(readFileSync(join(GEN, 'shards', f)).length, f).toBeLessThan(40_000);
+  });
+
+  it('ふつうの版の形はアイコン1つずつのファイル（public/icons/<stamp>/<名前>.txt）で、シャードと同じ形。いまの stamp も置く', () => {
+    const dir = join(ROOT, 'public', 'icons', ICON_STAMP);
+    expect(readFileSync(join(ROOT, 'public', 'icons', 'current.txt'), 'utf8')).toBe(ICON_STAMP);
+    for (const name of index.names) {
+      const file = join(dir, `${name}.txt`);
+      expect(existsSync(file), name).toBe(true);
+      expect(readFileSync(file, 'utf8')).toBe(pathFromShard(shards[shardIndexOf(name, ICON_SHARD_STARTS)], name));
+    }
+  });
+});
+
+describe('日本語の辞書（scripts/icons/ja.json）', () => {
+  const ja = JSON.parse(readFileSync(JA_FILE, 'utf8')) as Record<string, string>;
+  const tokens = new Set(index.names.flatMap((n) => n.split('-')));
+
+  it('アイコン名のすべての英単語に項目がある（訳さない単語は空でよい）。無い単語の項目は無い', () => {
+    expect([...tokens].filter((t) => !(t in ja))).toEqual([]);
+    expect(Object.keys(ja).filter((t) => !tokens.has(t))).toEqual([]);
+    for (const [t, words] of Object.entries(ja)) expect(typeof words, t).toBe('string');
+    // ほとんどの単語には訳がある（空は数字や固有の綴りなど）
+    expect(Object.values(ja).filter((w) => w.trim() !== '').length).toBeGreaterThan(tokens.size * 0.9);
+  });
+
+  it('索引（generated/index.json）に辞書がそのまま入る（空の項目は省く）', () => {
+    expect(Object.keys(index.ja).length).toBe(Object.values(ja).filter((w) => w.trim() !== '').length);
+    expect(index.ja.dragon).toContain('竜');
   });
 });
 
@@ -142,13 +172,18 @@ describe('分類（categories.ts）', () => {
     expect(categoryOf('wrench')).toBe('tool');
     expect(categoryOf('gems')).toBe('treasure');
     expect(categoryOf('yin-yang')).toBe('symbol');
+    expect(categoryOf('castle')).toBe('place');
+    expect(categoryOf('greek-temple')).toBe('place');
+    expect(categoryOf('pizza-slice')).toBe('food');
+    expect(categoryOf('ak47')).toBe('weapon');
+    expect(categoryOf('galleon')).toBe('tool');
   });
 
-  it('どの分類にもアイコンがあり、「その他」が半分を超えない', () => {
+  it('どの分類にもアイコンがあり、「その他」は15%未満（分類で絞る意味があるように）', () => {
     const count = new Map<string, number>();
     for (const n of index.names) count.set(categoryOf(n), (count.get(categoryOf(n)) ?? 0) + 1);
     for (const c of CATEGORY_ORDER) expect(count.get(c) ?? 0, c).toBeGreaterThan(20);
-    expect(count.get('other')!).toBeLessThan(index.names.length / 2);
+    expect(count.get('other')!).toBeLessThan(index.names.length * 0.15);
   });
 });
 
@@ -173,6 +208,43 @@ describe('検索とおすすめ（search.ts）', () => {
     expect(searchIcons(si, 'fire')[0]).toBe('fire');
   });
 
+  it('よく使う日本語の1語で、ふさわしいものが上に来る（竜・骸骨・剣・炎・狼）', () => {
+    const top = (q: string, n: number) => searchIcons(si, q).slice(0, n);
+    expect(top('竜', 10)).toContain('dragon-head');
+    expect(top('竜', 10).every((x) => /dragon|hydra|wyvern|drake/.test(x))).toBe(true);
+    expect(top('骸骨', 3)).toContain('skeleton');
+    expect(top('骸骨', 10).every((x) => /skull|skeleton|bone/.test(x))).toBe(true);
+    expect(top('剣', 15).every((x) => /sword|blade|gladius|saber|sabre|katana|rapier/.test(x))).toBe(true);
+    expect(top('剣', 30)).toEqual(expect.arrayContaining(['crossed-swords', 'rune-sword']));
+    expect(top('炎', 2)).toEqual(['flame', expect.stringMatching(/flame|fire/)]);
+    expect(top('炎', 10).every((x) => /flame|fire|ifrit|burn/.test(x))).toBe(true);
+    expect(top('狼', 1)).toEqual(['wolf-head']);
+    expect(searchIcons(si, '狼')).toEqual(expect.arrayContaining(['direwolf', 'wolf-howl', 'werewolf']));
+  });
+
+  it('全部に当たるものが無ければ、語に切り分けて「近いもの」を出す（炎の剣・氷の竜・剣 炎）', () => {
+    expect(searchIcons(si, '炎の剣')).toEqual([]);
+    for (const q of ['炎の剣', '剣 炎']) {
+      const r = smartSearch(si, q);
+      expect(new Set(r.near), q).toEqual(new Set(['炎', '剣']));
+      const top = r.names.slice(0, 30);
+      expect(top.some((x) => /flame|fire/.test(x)), q).toBe(true);
+      expect(top.some((x) => /sword/.test(x)), q).toBe(true);
+    }
+    const ice = smartSearch(si, '氷の竜');
+    expect(ice.near).toEqual(['氷', '竜']);
+    expect(ice.names.slice(0, 40)).toEqual(expect.arrayContaining(['dragon-head', 'ice-bolt']));
+    // 当たるならふつうの検索のまま（near は null）。知らない語だけなら空
+    expect(smartSearch(si, '竜').near).toBeNull();
+    expect(smartSearch(si, 'zzzzqqq')).toEqual({ names: [], near: null });
+  });
+
+  it('語の切り分けは、長い語の中の短い語（とかげ の中の かげ）を使わない', () => {
+    expect(segmentWords(si, '火吹きトカゲ').map((x) => x.word)).not.toContain('かげ');
+    expect(segmentWords(si, '火吹きトカゲ').map((x) => x.word)).toContain('とかげ');
+    expect(segmentWords(si, '吸血鬼の王').map((x) => x.word)).toEqual(['吸血鬼', '王']);
+  });
+
   it('分類で絞れる。空の検索は分類の全部（名前順）', () => {
     const undead = searchIcons(si, '', 'undead');
     expect(undead.length).toBeGreaterThan(20);
@@ -185,6 +257,23 @@ describe('検索とおすすめ（search.ts）', () => {
     expect(t).toContain('poison');
     expect(t.indexOf('blade')).toBeGreaterThanOrEqual(0);
     expect(t.indexOf('blade')).toBeLessThan(t.indexOf('poison'));
+  });
+
+  it('名前からのおすすめは、どの語の絵も入り、数字や短い語の取り違えを出さない', () => {
+    const sug = (name: string) => suggestIcons(si, { name }).slice(0, 10);
+    // 吸血鬼の王：王（crown・king）だけで埋まらず、吸血鬼も入る
+    expect(sug('吸血鬼の王').some((x) => /vampire|dracula/.test(x))).toBe(true);
+    expect(sug('吸血鬼の王').some((x) => /king/.test(x))).toBe(true);
+    expect(sug('氷の女王').some((x) => /ice/.test(x))).toBe(true);
+    expect(sug('氷の女王').some((x) => /queen/.test(x))).toBe(true);
+    expect(sug('ゴブリンの群れ').slice(0, 4).some((x) => /goblin/.test(x))).toBe(true);
+    expect(sug('雷鳴の一撃').some((x) => /-1$|-one$|^one-/.test(x))).toBe(false);
+    expect(sug('雷鳴の一撃').some((x) => /thunder|lightning/.test(x))).toBe(true);
+    expect(sug('火吹きトカゲ').some((x) => /shadow/.test(x))).toBe(false);
+    expect(sug('火吹きトカゲ').some((x) => /lizard|gecko/.test(x))).toBe(true);
+    expect(sug('炎の剣').some((x) => /flame|fire/.test(x))).toBe(true);
+    expect(sug('炎の剣').some((x) => /sword/.test(x))).toBe(true);
+    expect(sug('竜')[0]).toBe('dragon-head');
   });
 
   it('おすすめは名前・種族・効果・種類から、あるアイコンだけ・重複なし', () => {

@@ -7,16 +7,17 @@
  *
  * キーボード：Tab でタブ・検索欄・チップ・一覧へ。一覧の中は矢印キー・Home・End・PageUp・PageDown で動き、Enter で決定。
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { CardAnalysis, CardDef } from '../../engine/index.ts';
 import { CATEGORY_LABEL, CATEGORY_ORDER, type IconCategory } from '../icons/categories.ts';
 import { ICON_TOTAL } from '../icons/generated/info.ts';
 import { prefetchIcons, useIconIndex } from '../icons/load.ts';
 import { giIcon, parseIconRef } from '../icons/ref.ts';
-import { buildSearchIndex, displayName, searchIcons, suggestIcons, type IconSearchIndex } from '../icons/search.ts';
+import { buildSearchIndex, displayName, smartSearch, suggestIcons, type IconSearchIndex } from '../icons/search.ts';
 import { cx } from '../util.ts';
 import { CardArt } from './CardArt.tsx';
 import { EmojiGrid } from './EmojiPicker.tsx';
+import { useIsPhone } from './dialogUtil.ts';
 import { Sheet } from './Sheet.tsx';
 import './iconPicker.css';
 
@@ -58,12 +59,49 @@ function readTab(): 'gi' | 'emoji' {
   }
 }
 
+/**
+ * スマホのキーボード：見えている高さ（visualViewport）と、キーボードで隠れている下の高さを CSS 変数にする。
+ * シートをその上に収めるため（iOS はキーボードが出てもページの高さが変わらない）
+ */
+function useVisualViewportVars(active: boolean): void {
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    if (!active || !vv) return;
+    const root = document.documentElement;
+    const update = () => {
+      root.style.setProperty('--ip-vvh', `${Math.round(vv.height)}px`);
+      root.style.setProperty('--ip-kb', `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))}px`);
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+      root.style.removeProperty('--ip-vvh');
+      root.style.removeProperty('--ip-kb');
+    };
+  }, [active]);
+}
+
 export function IconPicker({ open, card, analysis, onSelect, onClose }: Props) {
   const [tab, setTab] = useState<'gi' | 'emoji'>(() => (parseIconRef(card.icon).kind === 'emoji' ? 'emoji' : readTab()));
+  const [typing, setTyping] = useState(false);
+  const phone = useIsPhone();
+  useVisualViewportVars(open && phone);
   const choose = (icon: string) => {
     onSelect(icon);
     onClose();
   };
+  const chooseRef = useRef(choose);
+  useEffect(() => {
+    chooseRef.current = choose;
+  });
+  // 一覧のマスを描き直さないように、決めたときの処理は変わらない関数にする
+  const onPickIcon = useCallback((name: string) => {
+    pushRecent(name);
+    chooseRef.current(giIcon(name));
+  }, []);
   const switchTab = (t: 'gi' | 'emoji') => {
     setTab(t);
     try {
@@ -79,42 +117,42 @@ export function IconPicker({ open, card, analysis, onSelect, onClose }: Props) {
     switchTab(next);
     (e.currentTarget.parentElement?.querySelector(`[data-tab="${next}"]`) as HTMLElement | null)?.focus();
   };
+  // タブといまの絵はシートの見出しの行に置く（検索結果に使える高さを増やす）
+  const actions = (
+    <div className="ip__tabs" role="tablist" aria-label="絵の種類">
+      {(
+        [
+          ['gi', 'アイコン'],
+          ['emoji', '絵文字'],
+        ] as const
+      ).map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          role="tab"
+          data-tab={id}
+          id={`ip-tab-${id}`}
+          aria-selected={tab === id}
+          aria-controls={`ip-panel-${id}`}
+          tabIndex={tab === id ? 0 : -1}
+          className={cx('ip__tab', tab === id && 'is-active')}
+          onClick={() => switchTab(id)}
+          onKeyDown={onTabKey}
+        >
+          {label}
+        </button>
+      ))}
+      <span className="ip__now" aria-label="いまの絵">
+        <CardArt icon={card.icon} rarity={card.rarity} cardType={analysis.cardType} curse={analysis.isCurse} size={32} />
+      </span>
+    </div>
+  );
   return (
-    <Sheet open={open} title="カードの絵を選ぶ" onClose={onClose} className="icon-sheet">
-      <div className="ip">
-        <div className="ip__tabs" role="tablist" aria-label="絵の種類">
-          {(
-            [
-              ['gi', 'アイコン'],
-              ['emoji', '絵文字'],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              data-tab={id}
-              id={`ip-tab-${id}`}
-              aria-selected={tab === id}
-              aria-controls={`ip-panel-${id}`}
-              tabIndex={tab === id ? 0 : -1}
-              className={cx('ip__tab', tab === id && 'is-active')}
-              onClick={() => switchTab(id)}
-              onKeyDown={onTabKey}
-            >
-              {label}
-            </button>
-          ))}
-          <span className="ip__now" aria-label="いまの絵">
-            <CardArt icon={card.icon} rarity={card.rarity} cardType={analysis.cardType} curse={analysis.isCurse} size={36} />
-          </span>
-        </div>
+    <Sheet open={open} title="カードの絵" onClose={onClose} className="icon-sheet" actions={actions}>
+      <div className={cx('ip', typing && 'is-typing')}>
         {tab === 'gi' ? (
           <div className="ip__panel" role="tabpanel" id="ip-panel-gi" aria-labelledby="ip-tab-gi">
-            <GiPane card={card} analysis={analysis} onPick={(name) => {
-              pushRecent(name);
-              choose(giIcon(name));
-            }} />
+            <GiPane card={card} analysis={analysis} onPick={onPickIcon} onTyping={setTyping} />
           </div>
         ) : (
           <div className="ip__panel ip__scroll" role="tabpanel" id="ip-panel-emoji" aria-labelledby="ip-tab-emoji">
@@ -143,7 +181,7 @@ const CELL = 60;
 /** 見えている行の前後に余分に描く行 */
 const OVERSCAN = 3;
 
-function GiPane({ card, analysis, onPick }: { card: CardDef; analysis: CardAnalysis; onPick: (name: string) => void }) {
+function GiPane({ card, analysis, onPick, onTyping }: { card: CardDef; analysis: CardAnalysis; onPick: (name: string) => void; onTyping: (typing: boolean) => void }) {
   const index = useIconIndex();
   const si = useMemo(() => (index && index !== 'error' ? buildSearchIndex(index.names, index.ja) : null), [index]);
   const [query, setQuery] = useState('');
@@ -152,7 +190,10 @@ function GiPane({ card, analysis, onPick }: { card: CardDef; analysis: CardAnaly
   const current = parseIconRef(card.icon);
   const currentName = current.kind === 'gi' ? current.name : null;
 
-  const results = useMemo(() => (si ? searchIcons(si, query, category) : []), [si, query, category]);
+  // 日本語の入力の途中（け → けん → 剣）で毎回探し直さないように、少し遅れて追いかける値で探す
+  const deferredQuery = useDeferredValue(query);
+  const result = useMemo(() => (si ? smartSearch(si, deferredQuery, category) : { names: [], near: null }), [si, deferredQuery, category]);
+  const results = result.names;
   const counts = useMemo(() => {
     const m = new Map<IconCategory, number>();
     if (si) for (const c of si.categories) m.set(c, (m.get(c) ?? 0) + 1);
@@ -164,9 +205,9 @@ function GiPane({ card, analysis, onPick }: { card: CardDef; analysis: CardAnaly
     [si, card.name, card.tribe, analysis.cardType, analysis.isCurse, effectIds],
   );
   const recentOk = useMemo(() => (si ? recent.filter((n) => si.nameSet.has(n)) : []), [si, recent]);
-  const browsing = query.trim() === '' && category === null;
+  const browsing = deferredQuery.trim() === '' && category === null;
 
-  const art = { rarity: card.rarity, cardType: analysis.cardType, curse: analysis.isCurse };
+  const art = useMemo(() => ({ rarity: card.rarity, cardType: analysis.cardType, curse: analysis.isCurse }), [card.rarity, analysis.cardType, analysis.isCurse]);
 
   if (index === 'error') return <p className="hint ip__msg">アイコンの一覧を読み込めませんでした。通信を確かめて開き直すか、「絵文字」タブを使ってください。</p>;
 
@@ -180,6 +221,8 @@ function GiPane({ card, analysis, onPick }: { card: CardDef; analysis: CardAnaly
           aria-label="アイコンをさがす（日本語・英語）"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => onTyping(true)}
+          onBlur={() => onTyping(false)}
           enterKeyHint="search"
         />
       </div>
@@ -200,7 +243,7 @@ function GiPane({ card, analysis, onPick }: { card: CardDef; analysis: CardAnaly
         </div>
       ) : (
         <VirtualGrid
-          key={`${query}|${category ?? ''}`}
+          key={`${deferredQuery}|${category ?? ''}`}
           si={si}
           names={results}
           selected={currentName}
@@ -217,7 +260,11 @@ function GiPane({ card, analysis, onPick }: { card: CardDef; analysis: CardAnaly
               </>
             ) : (
               <h3 className="ip__h" aria-live="polite">
-                {results.length > 0 ? `${results.length}件` : '見つかりません。別のことば（日本語か英語）でさがしてください'}
+                {results.length === 0
+                  ? '見つかりません。別のことば（日本語か英語）でさがしてください'
+                  : result.near
+                    ? `近いもの（${result.near.join('・')}）${results.length}件`
+                    : `${results.length}件`}
               </h3>
             )
           }
@@ -233,7 +280,7 @@ interface ArtStyle {
   curse: boolean;
 }
 
-function IconCell({
+const IconCell = memo(function IconCell({
   si,
   name,
   selected,
@@ -241,7 +288,7 @@ function IconCell({
   onPick,
   tabIndex,
   idx,
-  onFocus,
+  onFocusIdx,
 }: {
   si: IconSearchIndex;
   name: string;
@@ -250,7 +297,7 @@ function IconCell({
   onPick: (n: string) => void;
   tabIndex?: number;
   idx?: number;
-  onFocus?: () => void;
+  onFocusIdx?: (idx: number) => void;
 }) {
   const label = displayName(si, name);
   return (
@@ -262,13 +309,13 @@ function IconCell({
       aria-pressed={selected}
       tabIndex={tabIndex}
       data-idx={idx}
-      onFocus={onFocus}
+      onFocus={idx === undefined || !onFocusIdx ? undefined : () => onFocusIdx(idx)}
       onClick={() => onPick(name)}
     >
       <CardArt icon={giIcon(name)} {...art} size={44} />
     </button>
   );
-}
+});
 
 function IconRow({ title, hint, si, names, selected, art, onPick }: { title: string; hint?: string; si: IconSearchIndex; names: readonly string[]; selected: string | null; art: ArtStyle; onPick: (n: string) => void }) {
   return (
@@ -285,6 +332,9 @@ function IconRow({ title, hint, si, names, selected, art, onPick }: { title: str
     </section>
   );
 }
+
+/** 先読みを始めるまでの待ち（速く流したとき・入力の途中で、通り過ぎる分を読まない） */
+const PREFETCH_DELAY = 150;
 
 function VirtualGrid({
   si,
@@ -303,7 +353,8 @@ function VirtualGrid({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
-  const [vp, setVp] = useState({ top: 0, height: 480, width: 320, gridTop: 0 });
+  // 見えている最初の行（スクロールのたびではなく、行が変わったときだけ描き直す）
+  const [vp, setVp] = useState({ row: 0, height: 480, width: 320, gridTop: 0 });
   const [focusIdx, setFocusIdx] = useState(0);
   const wantFocus = useRef(false);
 
@@ -311,7 +362,8 @@ function VirtualGrid({
     const el = scrollRef.current;
     const grid = gridRef.current;
     if (!el || !grid) return;
-    setVp({ top: el.scrollTop, height: el.clientHeight, width: grid.clientWidth, gridTop: grid.offsetTop });
+    const next = { row: Math.floor((el.scrollTop - grid.offsetTop) / CELL), height: el.clientHeight, width: grid.clientWidth, gridTop: grid.offsetTop };
+    setVp((v) => (v.row === next.row && v.height === next.height && v.width === next.width && v.gridTop === next.gridTop ? v : next));
   }, []);
   useLayoutEffect(() => {
     measure();
@@ -325,17 +377,18 @@ function VirtualGrid({
 
   const cols = Math.max(1, Math.floor(vp.width / CELL));
   const rows = Math.ceil(names.length / cols);
-  const first = Math.max(0, Math.floor((vp.top - vp.gridTop) / CELL) - OVERSCAN);
-  const last = Math.min(rows, Math.ceil((vp.top - vp.gridTop + vp.height) / CELL) + OVERSCAN);
+  const first = Math.max(0, vp.row - OVERSCAN);
+  const last = Math.min(rows, vp.row + Math.ceil(vp.height / CELL) + 1 + OVERSCAN);
   const visible = useMemo(() => names.slice(first * cols, last * cols), [names, first, last, cols]);
   // Tab で入れる1マス（矢印キーで動いた先。描いていなければ見えている最初のマス）
   const tabbable = focusIdx >= first * cols && focusIdx < last * cols ? focusIdx : first * cols;
   const left = Math.max(0, Math.floor((vp.width - cols * CELL) / 2));
 
-  // 見えている範囲と少し先のシャードをまとめて読む（1枚ずつ待たない）
+  // 見えている範囲の少し先を、止まってから読む（見えているマスは CardArt が自分で読む）
   useEffect(() => {
-    prefetchIcons(names.slice(first * cols, (last + OVERSCAN * 2) * cols));
-  }, [names, first, last, cols]);
+    const t = setTimeout(() => prefetchIcons(names.slice(last * cols, (last + OVERSCAN * 2) * cols)), PREFETCH_DELAY);
+    return () => clearTimeout(t);
+  }, [names, last, cols]);
 
   // 矢印キーで動いたら、その1マスが見えるようにしてからフォーカスする
   useEffect(() => {
@@ -383,7 +436,7 @@ function VirtualGrid({
           const c = idx % cols;
           return (
             <div key={n} className="ip__vcell" style={{ transform: `translate(${left + c * CELL}px, ${r * CELL}px)` }}>
-              <IconCell si={si} name={n} selected={n === selected} art={art} onPick={onPick} idx={idx} tabIndex={idx === tabbable ? 0 : -1} onFocus={() => setFocusIdx(idx)} />
+              <IconCell si={si} name={n} selected={n === selected} art={art} onPick={onPick} idx={idx} tabIndex={idx === tabbable ? 0 : -1} onFocusIdx={setFocusIdx} />
             </div>
           );
         })}

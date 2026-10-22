@@ -83,6 +83,10 @@ export function shardIndexOf(name: string, starts: readonly string[]): number {
 export function pathFromShard(shard: Readonly<Record<string, unknown>> | undefined, name: string): string | null {
   if (!shard || !Object.prototype.hasOwnProperty.call(shard, name)) return null;
   const d = shard[name];
-  // path の d に使える文字だけ（数字・コマンド・区切り）。自分たちのデータだが、念のため
-  return typeof d === 'string' && /^[MmLlHhVvCcSsQqTtAaZz0-9eE.,\s+-]+$/.test(d) ? d : null;
+  return isPathData(d) ? d : null;
+}
+
+/** path の d に使える文字だけ（数字・コマンド・区切り）か。自分たちのデータだが、念のため（開発サーバーが返す HTML などをはじく） */
+export function isPathData(d: unknown): d is string {
+  return typeof d === 'string' && d.length > 0 && /^[MmLlHhVvCcSsQqTtAaZz0-9eE.,\s+-]+$/.test(d);
 }

@@ -6,7 +6,20 @@
   padding: 0;
 }
 .sheet--bottom .icon-sheet {
-  height: min(88dvh, 720px);
+  /* キーボードが出たら、見えている高さに収めて、キーボードの上に置く（IconPicker.tsx の useVisualViewportVars） */
+  height: min(88dvh, 720px, calc(var(--ip-vvh, 100dvh) - 8px));
+  max-height: min(88dvh, 720px, calc(var(--ip-vvh, 100dvh) - 8px));
+  bottom: var(--ip-kb, 0px);
+}
+.sheet--bottom .icon-sheet .sheet__handle {
+  height: 18px;
+}
+.icon-sheet .sheet__head {
+  padding-bottom: 0;
+}
+.icon-sheet .sheet__head h2 {
+  font-size: var(--fs-md, 1rem);
+  white-space: nowrap;
 }
 .sheet--side .icon-sheet {
   width: min(480px, 94vw);
@@ -20,13 +33,11 @@
 .ip__tabs {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 8px 16px 0;
-  border-bottom: 1px solid var(--line);
+  gap: 2px;
 }
 .ip__tab {
   min-height: 44px;
-  padding: 0 16px;
+  padding: 0 10px;
   font: inherit;
   font-weight: bold;
   color: var(--muted);
@@ -40,8 +51,8 @@
   border-bottom-color: var(--accent);
 }
 .ip__now {
-  margin-left: auto;
-  padding-bottom: 4px;
+  margin: 0 4px 0 6px;
+  display: inline-grid;
 }
 .ip__panel {
   flex: 1;
@@ -65,6 +76,19 @@
   flex: none;
 }
 .ip__chips::-webkit-scrollbar {
+  display: none;
+}
+/* PC の右のパネル：チップは折り返して全部見せる（横に流すと、マウスでは続きがあることに気づけない） */
+.sheet--side .ip__chips {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+.sheet--side .ip__chips .chip {
+  min-height: 34px;
+}
+/* スマホで検索欄に打っている間（キーボードが出ている）は、分類とクレジットを隠して結果に高さを回す */
+.sheet--bottom .ip.is-typing .ip__chips,
+.sheet--bottom .ip.is-typing .ip__credit {
   display: none;
 }
 .ip__chips .chip {

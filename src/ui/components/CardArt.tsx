@@ -5,7 +5,8 @@
  *   レアリティのグラデーション（コモン銀・レア青・エピック紫・レジェンド金）で塗り、暗い円盤にのせる。
  * - 円盤の縁の色は種類（アタック赤・スキル緑・パワー紫・モンスター橙・呪い深紅）。
  * - 絵文字のカードは同じ円盤に絵文字をのせる（古いカード・取り込んだカード）。
- * - 形のシャードを読んでいる間は同じ大きさの空の円盤（レイアウトがずれない）。知らない名前は「？」。
+ * - 形を読んでいる間は同じ大きさの空の円盤（レイアウトがずれない）。読めなかったとき（オフラインなど）は種類の絵文字を出し、
+ *   読み直せたら絵に替わる（load.ts。決定事項 #106）。知らない名前は「？」。
  *
  * 大きさは size（px の数か CSS の長さ）。省略すると 1.3em（置き場所の文字の大きさに合わせる）。
  */
@@ -44,7 +45,7 @@ export const CardArt = memo(function CardArt({ icon, rarity = 'common', cardType
       {...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true })}
     >
       {ref.kind === 'gi' ? (
-        <GiGlyph name={ref.name} />
+        <GiGlyph name={ref.name} fallback={curse ? FALLBACK.curse : FALLBACK[cardType ?? 'none']} />
       ) : ref.kind === 'emoji' ? (
         <span className="cart__emoji">{ref.text}</span>
       ) : (
@@ -60,10 +61,22 @@ export function CardArtOf({ card, analysis, ...rest }: { card: CardDef; analysis
   return <CardArt icon={card.icon} rarity={card.rarity} cardType={a.cardType} curse={a.isCurse} {...rest} />;
 }
 
-function GiGlyph({ name }: { name: string }) {
+/** 形を読めなかったときの代わり（種類で見分けがつくように） */
+const FALLBACK: Record<CardType | 'curse' | 'none', string> = {
+  monster: '🐾',
+  attack: '⚔️',
+  skill: '✨',
+  power: '🔮',
+  powerAttack: '💥',
+  curse: '💀',
+  none: '🃏',
+};
+
+function GiGlyph({ name, fallback }: { name: string; fallback: string }) {
   const d = useIconPath(name);
   const gid = `cart-g${useId().replace(/[^A-Za-z0-9_-]/g, '')}`;
   if (d === 'loading') return <span className="cart__loading" />;
+  if (d === 'error') return <span className="cart__emoji cart__fallback">{fallback}</span>;
   if (d === null) return <span className="cart__unknown">？</span>;
   return (
     <svg className="cart__svg" viewBox="0 0 512 512" focusable="false">

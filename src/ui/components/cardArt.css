@@ -22,7 +22,9 @@
   background:
     radial-gradient(circle at 50% 30%, var(--cart-bg0) 0%, var(--cart-bg1) 72%) padding-box,
     linear-gradient(145deg, var(--cart-rim) 0%, color-mix(in srgb, var(--cart-rim2) 70%, #000) 100%) border-box;
+  /* 1本目：縁と円盤の間の暗い線（レジェンドの金の絵が縁に溶けないように） */
   box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.6),
     inset 0 calc(var(--cart-size) * -0.07) calc(var(--cart-size) * 0.14) rgba(0, 0, 0, 0.55),
     inset 0 calc(var(--cart-size) * 0.04) calc(var(--cart-size) * 0.08) rgba(255, 255, 255, 0.1),
     0 1px 3px rgba(0, 0, 0, 0.45);
@@ -42,13 +44,13 @@
 .cart--rare {
   --cart-g0: #eaf5ff;
   --cart-g1: #86c6ff;
-  --cart-g2: #2f78dc;
+  --cart-g2: #4a90ec;
   --cart-glow: rgba(90, 170, 255, 0.45);
 }
 .cart--epic {
   --cart-g0: #f7ecff;
   --cart-g1: #cf9bff;
-  --cart-g2: #8740e0;
+  --cart-g2: #9d5cf0;
   --cart-glow: rgba(190, 120, 255, 0.5);
 }
 .cart--legend {
@@ -60,7 +62,9 @@
 
 /* 種類：縁の色 */
 .cart--t-monster {
-  --cart-rim: #f0a54a;
+  /* 銅色（レジェンドの金と見分けがつくように） */
+  --cart-rim: #d9772f;
+  --cart-rim2: #8a3f12;
 }
 .cart--t-attack {
   --cart-rim: #ff6b6b;
@@ -83,8 +87,8 @@
 }
 
 .cart__svg {
-  width: 72%;
-  height: 72%;
+  width: 81%;
+  height: 81%;
   display: block;
   overflow: visible;
   filter: drop-shadow(0 0 calc(var(--cart-size) * 0.04) var(--cart-glow)) drop-shadow(0 calc(var(--cart-size) * 0.02) 0 rgba(0, 0, 0, 0.55));
@@ -110,6 +114,9 @@
 }
 .cart--bare .cart__emoji {
   font-size: calc(var(--cart-size) * 0.85);
+}
+.cart__fallback {
+  opacity: 0.85;
 }
 .cart__unknown {
   font-size: calc(var(--cart-size) * 0.45);

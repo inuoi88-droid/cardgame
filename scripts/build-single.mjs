@@ -30,7 +30,8 @@ let html = readFileSync(join(DIST, 'index.html'), 'utf8');
 const js = readFileSync(join(DIST, 'assets', jsFiles[0]), 'utf8').replace(/<\/script/gi, '<\\/script');
 const scriptTag = new RegExp(`<script type="module"[^>]*src="\\./assets/${jsFiles[0].replace('.', '\\.')}"[^>]*></script>`);
 if (!scriptTag.test(html)) fail('index.html に JS の読み込みが見つかりません');
-html = html.replace(scriptTag, () => `<script type="module">\n${js}\n</script>`);
+// JS は本文の最後（#root のあと・カードの絵のデータの前）に async で置く（下の説明）。まず head から外す
+html = html.replace(scriptTag, '');
 
 if (cssFiles.length === 1) {
   const css = readFileSync(join(DIST, 'assets', cssFiles[0]), 'utf8').replace(/<\/style/gi, '<\\/style');
@@ -40,6 +41,23 @@ if (cssFiles.length === 1) {
 }
 
 if (/(src|href)="\.?\/?assets\//.test(html)) fail('埋め込めなかったファイルの参照が残っています');
+
+// カードの絵の形（シャード）と選択パネルの索引を JSON のまま埋め込む（決定事項 #106）。JS としては解析されないので起動は重くならず、
+// src/ui/icons/iconSource.single.ts が要るシャードだけをそのとき JSON.parse する
+const GEN = join(ROOT, 'src', 'ui', 'icons', 'generated');
+const jsonTag = (id, file) => `<script type="application/json" id="${id}">${readFileSync(file, 'utf8').replace(/</g, '\\u003c')}</script>`;
+const iconTags = [
+  jsonTag('gi-index', join(GEN, 'index.json')),
+  ...readdirSync(join(GEN, 'shards'))
+    .filter((f) => /^s\d+\.json$/.test(f))
+    .sort()
+    .map((f) => jsonTag(`gi-${f.replace(/\.json$/, '')}`, join(GEN, 'shards', f))),
+];
+// 埋め込んだ絵のデータ（約 6MB）を読み終わるのを待たずに画面を出すため、JS は async のモジュールにして絵のデータより前に置く
+// （ふつうのモジュールは文書を全部読み終えてから動く）。絵のデータは iconSource.single.ts が DOMContentLoaded を待ってから読む
+const bodyEnd = html.lastIndexOf('</body>');
+if (bodyEnd < 0) fail('index.html に </body> が見つかりません');
+html = `${html.slice(0, bodyEnd)}<script type="module" async>\n${js}\n</script>\n${iconTags.join('\n')}\n${html.slice(bodyEnd)}`;
 
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(OUT, html);

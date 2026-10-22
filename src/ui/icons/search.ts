@@ -1,9 +1,10 @@
 /**
  * アイコン選択パネルの検索とおすすめ（決定事項 #105）。純粋関数（テスト：tests/icons.test.ts）。
  *
- * - 検索は英単語（アイコン名をハイフンで分けたもの）と、日本語の辞書（英単語 → 日本語の語。scripts/icons/ja-*.json）の両方を見る。
+ * - 検索は英単語（アイコン名をハイフンで分けたもの）と、日本語の辞書（英単語 → 日本語の語。scripts/icons/ja.json）の両方を見る。
  *   ひらがな・カタカナ、全角・半角、大文字・小文字の違いはならす。空白で区切ると「どれも含む」。
- * - おすすめはカードの名前（辞書を逆に引く）・種族・種類・おもな効果から。
+ *   1つも当たらなければ、辞書の語に切り分けて（「炎の剣」→ 炎・剣）当たった語の多い順に「近いもの」を出す（smartSearch）。
+ * - おすすめはカードの名前（辞書の語に切り分け、後ろの語から順に1つずつ）・種族・種類・おもな効果から。
  */
 import { categoryOf, type IconCategory } from './categories.ts';
 
@@ -16,170 +17,53 @@ export function fold(s: string): string {
     .trim();
 }
 
-/**
- * 辞書が無いとき（や足りないとき）の最低限の日本語。辞書があれば両方を使う。
- * カード名によく出る語だけ（おすすめと「竜」などの検索のため）
- */
-export const BUILTIN_JA: Readonly<Record<string, string>> = {
-  dragon: '竜 龍 ドラゴン',
-  wolf: '狼 オオカミ ウルフ',
-  fire: '火 炎 ほのお ファイア',
-  flame: '炎 火炎',
-  fireball: '火の玉 火球',
-  ice: '氷 こおり アイス',
-  frost: '霜 凍',
-  lightning: '雷 稲妻 いかずち',
-  thunder: '雷 いかずち',
-  poison: '毒 どく',
-  skull: '骸骨 髑髏 どくろ ドクロ',
-  skeleton: '骸骨 スケルトン',
-  ghost: '幽霊 亡霊 ゴースト',
-  zombie: 'ゾンビ 屍',
-  sword: '剣 つるぎ ソード',
-  dagger: '短剣 ナイフ 刃',
-  blade: '刃 やいば',
-  axe: '斧 おの',
-  bow: '弓 ゆみ',
-  arrow: '矢 や',
-  spear: '槍 やり',
-  shield: '盾 たて シールド',
-  helmet: '兜 かぶと',
-  armor: '鎧 よろい',
-  potion: '薬 ポーション',
-  heart: '心臓 ハート 心',
-  book: '本 書 魔導書',
-  scroll: '巻物 書',
-  crown: '王冠 冠 王',
-  king: '王 キング',
-  queen: '女王 クイーン',
-  knight: '騎士 ナイト',
-  wizard: '魔術師 魔法使い',
-  witch: '魔女',
-  demon: '悪魔 デーモン',
-  devil: '悪魔',
-  angel: '天使',
-  snake: '蛇 へび',
-  rat: '鼠 ネズミ',
-  bat: '蝙蝠 コウモリ',
-  spider: '蜘蛛 クモ',
-  lion: '獅子 ライオン',
-  bear: '熊 クマ',
-  boar: '猪 イノシシ',
-  eagle: '鷲 ワシ',
-  hawk: '鷹 タカ',
-  bird: '鳥 とり',
-  fish: '魚 さかな',
-  tree: '木 樹',
-  leaf: '葉 は',
-  flower: '花 はな',
-  sun: '太陽 日 光',
-  moon: '月 つき',
-  star: '星 ほし',
-  water: '水 みず',
-  wave: '波 なみ',
-  wind: '風 かぜ',
-  rock: '岩 いわ 石',
-  stone: '石 いし 岩',
-  golem: 'ゴーレム 巨人',
-  giant: '巨人',
-  robot: 'ロボット 機械',
-  gear: '歯車 ギア',
-  cog: '歯車',
-  clock: '時計 時',
-  hourglass: '砂時計 時',
-  chain: '鎖 くさり',
-  key: '鍵 かぎ',
-  coin: '硬貨 コイン 金',
-  gem: '宝石',
-  castle: '城 しろ',
-  tower: '塔 とう',
-  wall: '壁 城壁',
-  blood: '血 ち',
-  bleeding: '血 出血',
-  eye: '目 眼',
-  hand: '手 て',
-  magic: '魔法 まほう',
-  spell: '呪文 魔法',
-  aura: 'オーラ 気',
-  portal: '門 ゲート',
-  coffin: '棺 ひつぎ',
-  grave: '墓 はか',
-  cauldron: '釜 大釜',
-  egg: '卵 たまご',
-  imp: '小鬼',
-  goblin: 'ゴブリン 小鬼',
-  troll: 'トロール',
-  ogre: '鬼 オーガ',
-  horse: '馬 うま',
-  cat: '猫 ねこ',
-  dog: '犬 いぬ',
-  fox: '狐 きつね',
-  hammer: '槌 ハンマー',
-  cannon: '大砲',
-  bomb: '爆弾',
-  explosion: '爆発',
-  prayer: '祈り',
-  holy: '聖 神聖',
-  cross: '十字',
-  fountain: '泉 噴水',
-  swamp: '沼 沼地',
-  mountain: '山 やま',
-  volcano: '火山',
-  cloud: '雲 くも',
-  storm: '嵐 あらし',
-  tornado: '竜巻',
-  mask: '仮面 覆面',
-  hood: 'フード 覆面',
-  assassin: '暗殺者 刺客',
-  ninja: '忍者',
-  samurai: '侍',
-  pirate: '海賊',
-  ship: '船 ふね',
-};
-
 export interface IconSearchIndex {
   names: readonly string[];
   /** 各アイコンの英単語 */
   tokens: readonly (readonly string[])[];
-  /** 各アイコンの検索語（英単語と、その日本語。fold 済み） */
-  words: readonly (readonly string[])[];
-  /** 各アイコンの主な語（英単語と、各単語の最初の訳語。fold 済み）。ここに完全一致すると順位が上がる */
-  primary: readonly (readonly string[])[];
+  /** 各アイコンの「主役」の単語の位置（ふつうは最後。"dragon-head" のような -head・-face などは1つ前） */
+  heads: readonly number[];
   categories: readonly IconCategory[];
-  /** 日本語の語（fold 済み） → 英単語（カード名からのおすすめ用） */
+  /** 英単語 → 日本語の語（fold 済み。最初が主な訳語） */
+  jaFold: ReadonlyMap<string, readonly string[]>;
+  /** 日本語の語（fold 済み） → 英単語（その語が訳語の前にある単語・よく使われる単語の順） */
   jaToTokens: ReadonlyMap<string, readonly string[]>;
   /** 英単語 → 日本語の語（表示用。最初の語を見出しに使う） */
   ja: ReadonlyMap<string, readonly string[]>;
+  /** 英単語 → それを含むアイコンの数 */
+  tokenCount: ReadonlyMap<string, number>;
   nameSet: ReadonlySet<string>;
 }
 
+/** 名前の最後にあっても主役にならない単語（"wolf-head" の主役は wolf） */
+const MINOR_TAIL = new Set(['head', 'heads', 'face', 'profile', 'silhouette', 'emblem', 'symbol', 'icon', 'outline', 'print', 'mask']);
+
 export function buildSearchIndex(names: readonly string[], dictionary: Readonly<Record<string, string>>): IconSearchIndex {
   const ja = new Map<string, string[]>();
-  const add = (token: string, text: string) => {
-    const list = ja.get(token) ?? [];
-    for (const w of text.split(/\s+/)) if (w && !list.includes(w)) list.push(w);
-    ja.set(token, list);
-  };
-  for (const [t, text] of Object.entries(dictionary)) add(t, text);
-  for (const [t, text] of Object.entries(BUILTIN_JA)) add(t, text);
-  const jaToTokens = new Map<string, string[]>();
-  for (const [t, list] of ja) {
-    for (const w of list) {
-      const k = fold(w);
-      if (!k) continue;
-      const ts = jaToTokens.get(k) ?? [];
-      if (!ts.includes(t)) ts.push(t);
-      jaToTokens.set(k, ts);
-    }
+  for (const [t, text] of Object.entries(dictionary)) {
+    const list = [...new Set(text.split(/\s+/).filter(Boolean))];
+    if (list.length > 0) ja.set(t, list);
   }
+  const jaFold = new Map<string, string[]>();
+  for (const [t, list] of ja) jaFold.set(t, [...new Set(list.map(fold).filter(Boolean))]);
   const tokens = names.map((n) => n.split('-'));
-  const words = tokens.map((ts) => {
-    const out = new Set<string>(ts);
-    for (const t of ts) for (const w of ja.get(t) ?? []) out.add(fold(w));
-    return [...out];
-  });
-  const primary = tokens.map((ts) => [...ts, ...ts.map((t) => fold(ja.get(t)?.[0] ?? '')).filter(Boolean)]);
-  return { names, tokens, words, primary, categories: names.map(categoryOf), jaToTokens, ja, nameSet: new Set(names) };
+  const tokenCount = new Map<string, number>();
+  for (const ts of tokens) for (const t of new Set(ts)) tokenCount.set(t, (tokenCount.get(t) ?? 0) + 1);
+  const heads = tokens.map((ts) => (ts.length > 1 && MINOR_TAIL.has(ts[ts.length - 1]!) ? ts.length - 2 : ts.length - 1));
+  const ranked = new Map<string, { t: string; rank: number }[]>();
+  for (const [t, list] of jaFold) {
+    list.forEach((w, rank) => {
+      const xs = ranked.get(w) ?? [];
+      xs.push({ t, rank });
+      ranked.set(w, xs);
+    });
+  }
+  const jaToTokens = new Map<string, string[]>();
+  for (const [w, xs] of ranked) {
+    xs.sort((a, b) => a.rank - b.rank || (tokenCount.get(b.t) ?? 0) - (tokenCount.get(a.t) ?? 0) || (a.t < b.t ? -1 : 1));
+    jaToTokens.set(w, xs.map((x) => x.t));
+  }
+  return { names, tokens, heads, categories: names.map(categoryOf), jaFold, jaToTokens, ja, tokenCount, nameSet: new Set(names) };
 }
 
 /** 表示用の日本語の名前（辞書にある単語の最初の語をつなぐ。無ければ英語） */
@@ -188,16 +72,30 @@ export function displayName(si: IconSearchIndex, name: string): string {
   return parts.some(Boolean) ? parts.filter(Boolean).join('・') : name.replace(/-/g, ' ');
 }
 
-/** 1語の当たり方（0 は当たらない）。主な語に完全一致 4・完全一致 3・前方一致 2・部分一致 1 */
-function termScore(words: readonly string[], primary: readonly string[], term: string): number {
-  if (primary.includes(term)) return 4;
+/**
+ * 1語の当たり方（0 は当たらない）。英単語か主な訳語に完全一致 4・ほかの訳語に完全一致 3・前方一致 2・部分一致 1。
+ * 完全一致が名前の主役の単語なら +1（「剣」なら "sword-tie" より "rune-sword"）
+ */
+function termScore(si: IconSearchIndex, i: number, term: string): number {
+  const ts = si.tokens[i]!;
   let best = 0;
-  for (const w of words) {
-    if (w === term) return 3;
-    if (best < 2 && w.startsWith(term)) best = 2;
-    else if (best < 1 && w.includes(term)) best = 1;
+  for (let k = 0; k < ts.length; k++) {
+    const t = ts[k]!;
+    const ws = si.jaFold.get(t) ?? [];
+    let s = 0;
+    if (t === term || ws[0] === term) s = 4;
+    else if (ws.includes(term)) s = 3;
+    else if (t.startsWith(term) || ws.some((w) => w.startsWith(term))) s = 2;
+    else if (t.includes(term) || ws.some((w) => w.includes(term))) s = 1;
+    if (s >= 3 && k === si.heads[i]) s += 1;
+    if (s > best) best = s;
   }
   return best;
+}
+
+/** 同じ当たりなら、単語の少ない名前（"dragon-head" より "dragon"）、短い名前、名前順 */
+function tieBreak(a: string, b: string): number {
+  return a.split('-').length - b.split('-').length || a.length - b.length || (a < b ? -1 : 1);
 }
 
 /**
@@ -212,7 +110,7 @@ export function searchIcons(si: IconSearchIndex, query: string, category?: IconC
     let score = 0;
     let ok = true;
     for (const t of terms) {
-      const s = termScore(si.words[i]!, si.primary[i]!, t);
+      const s = termScore(si, i, t);
       if (s === 0) {
         ok = false;
         break;
@@ -222,10 +120,73 @@ export function searchIcons(si: IconSearchIndex, query: string, category?: IconC
     if (ok) out.push({ name: si.names[i]!, score });
   }
   if (terms.length === 0) return out.map((x) => x.name);
-  // 同じ当たりなら、単語の少ない名前（"dragon-head" より "dragon"）、短い名前、名前順
-  const parts = (n: string) => n.split('-').length;
-  out.sort((a, b) => b.score - a.score || parts(a.name) - parts(b.name) || a.name.length - b.name.length || (a.name < b.name ? -1 : 1));
+  out.sort((a, b) => b.score - a.score || tieBreak(a.name, b.name));
   return out.map((x) => x.name);
+}
+
+/** 文の中に出てくる辞書の語。もっと長い語の中にある語（「とかげ」の中の「かげ」）は外す。並びは文の中の順 */
+export interface Segment {
+  word: string;
+  at: number;
+  end: number;
+  /** 当たる英単語（主な訳語の単語・よく使われる単語の順） */
+  tokens: readonly string[];
+}
+
+export function segmentWords(si: IconSearchIndex, text: string): Segment[] {
+  const t = fold(text);
+  if (!t) return [];
+  const found: Segment[] = [];
+  for (const [word, tokens] of si.jaToTokens) {
+    if (!usableWord(word)) continue;
+    for (let at = t.indexOf(word); at >= 0; at = t.indexOf(word, at + 1)) found.push({ word, at, end: at + word.length, tokens });
+  }
+  // 英字の語（"Dragon" など）はそのまま英単語として
+  for (const m of t.matchAll(/[a-z0-9]+/g)) {
+    const w = m[0];
+    if (w.length >= 3 && !found.some((f) => f.word === w && f.at === m.index)) found.push({ word: w, at: m.index, end: m.index + w.length, tokens: si.tokenCount.has(w) ? [w] : [] });
+  }
+  const kept = found.filter((f) => f.tokens.length > 0 && !found.some((g) => g !== f && g.tokens.length > 0 && g.at <= f.at && g.end >= f.end && g.end - g.at > f.end - f.at));
+  kept.sort((a, b) => a.at - b.at || b.end - a.end);
+  // 同じ語が2回出ても1つに
+  return kept.filter((f, i) => kept.findIndex((g) => g.word === f.word) === i);
+}
+
+export interface SmartResult {
+  names: string[];
+  /** 「近いもの」を出したときの、当たった語（そのまま全部に当たるものが無かったとき）。ふつうの検索なら null */
+  near: string[] | null;
+}
+
+/**
+ * ふつうの検索（searchIcons）で1つも無ければ、語に切り分けて「どれかに当たる」ものを、当たった語の多い順に出す。
+ * 「炎の剣」「氷の竜」「剣 炎」のような言い方でも空にしない
+ */
+export function smartSearch(si: IconSearchIndex, query: string, category?: IconCategory | null): SmartResult {
+  const names = searchIcons(si, query, category);
+  if (names.length > 0 || fold(query) === '') return { names, near: null };
+  const words: string[] = [];
+  for (const term of fold(query).split(/\s+/).filter(Boolean)) {
+    const segs = segmentWords(si, term);
+    for (const w of segs.length > 0 ? segs.map((x) => x.word) : []) if (!words.includes(w)) words.push(w);
+  }
+  if (words.length === 0) return { names: [], near: null };
+  const out: { name: string; hit: number; score: number }[] = [];
+  for (let i = 0; i < si.names.length; i++) {
+    if (category && si.categories[i] !== category) continue;
+    let hit = 0;
+    let score = 0;
+    for (const w of words) {
+      const s = termScore(si, i, w);
+      if (s > 0) {
+        hit++;
+        score += s;
+      }
+    }
+    if (hit > 0) out.push({ name: si.names[i]!, hit, score });
+  }
+  out.sort((a, b) => b.hit - a.hit || b.score - a.score || tieBreak(a.name, b.name));
+  return { names: out.map((x) => x.name), near: words };
 }
 
 // ---------------------------------------------------------------- おすすめ
@@ -301,32 +262,36 @@ export interface SuggestInput {
   effectIds?: readonly string[];
 }
 
-/** 名前の中に出てくる辞書の語（長い語から）に当たる英単語 */
+/** 数字だけの単語（"rank-1" の 1 など）はおすすめに使わない */
+const NUMERIC = /^\d+$/;
+
+/** 名前の語ごとの英単語（後ろの語ほど名前の主役なので先。1語につき主な単語 2つまで） */
+function nameWordTokens(si: IconSearchIndex, name: string): string[][] {
+  return segmentWords(si, name)
+    .sort((a, b) => b.end - a.end || b.end - b.at - (a.end - a.at))
+    .map((seg) => seg.tokens.filter((t) => !NUMERIC.test(t)).slice(0, 2))
+    .filter((ts) => ts.length > 0);
+}
+
+/** 名前の中に出てくる辞書の語に当たる英単語（後ろの語から。1語につき2つまで） */
 export function tokensFromName(si: IconSearchIndex, name: string): string[] {
-  const text = fold(name);
-  if (!text) return [];
-  const found: { word: string; at: number; tokens: readonly string[] }[] = [];
-  for (const [word, tokens] of si.jaToTokens) {
-    if (!usableWord(word)) continue;
-    const at = text.indexOf(word);
-    if (at >= 0) found.push({ word, at, tokens });
-  }
-  // 英字の名前（"Dragon" など）はそのまま英単語として
-  for (const w of text.split(/[^a-z0-9]+/)) if (w.length >= 3) found.push({ word: w, at: text.indexOf(w), tokens: [w] });
-  // 後ろにある語ほど名前の主役（「毒の刃」なら刃）。同じ位置なら長い語から
-  found.sort((a, b) => b.at + b.word.length - (a.at + a.word.length) || b.word.length - a.word.length);
   const out: string[] = [];
-  for (const f of found) for (const t of f.tokens) if (!out.includes(t)) out.push(t);
+  for (const ts of nameWordTokens(si, name)) for (const t of ts) if (!out.includes(t)) out.push(t);
   return out;
 }
 
-/** 英単語を含むアイコン（その単語だけの名前・「〜-head」を先に） */
+/** 英単語を含むアイコン（その単語だけの名前・「〜-head」・その単語が主役の名前を先に） */
 function iconsForToken(si: IconSearchIndex, token: string, max: number): string[] {
-  const hits: string[] = [];
-  for (let i = 0; i < si.names.length; i++) if (si.tokens[i]!.includes(token)) hits.push(si.names[i]!);
-  const rank = (n: string) => (n === token ? 0 : n === `${token}-head` ? 1 : n.startsWith(`${token}-`) || n.endsWith(`-${token}`) ? 2 : 3);
-  hits.sort((a, b) => rank(a) - rank(b) || a.length - b.length || (a < b ? -1 : 1));
-  return hits.slice(0, max);
+  const hits: { n: string; rank: number }[] = [];
+  for (let i = 0; i < si.names.length; i++) {
+    const ts = si.tokens[i]!;
+    const k = ts.indexOf(token);
+    if (k < 0) continue;
+    const n = si.names[i]!;
+    hits.push({ n, rank: n === token ? 0 : n === `${token}-head` ? 1 : k === si.heads[i] ? 2 : 3 });
+  }
+  hits.sort((a, b) => a.rank - b.rank || tieBreak(a.n, b.n));
+  return hits.slice(0, max).map((h) => h.n);
 }
 
 /** カードに合いそうなアイコン（名前 → 種族 → 効果 → 種類の順。重複なし・あるものだけ） */
@@ -335,8 +300,19 @@ export function suggestIcons(si: IconSearchIndex, input: SuggestInput, limit = 1
   const push = (n: string) => {
     if (out.length < limit && si.nameSet.has(n) && !out.includes(n)) out.push(n);
   };
-  const fromName = tokensFromName(si, input.name);
-  fromName.slice(0, 4).forEach((t, i) => iconsForToken(si, t, i === 0 ? 6 : 3).forEach(push));
+  // 名前：語ごとの候補を、後ろの語から1つずつ順番に（どの語の絵も入るように）
+  const lists = nameWordTokens(si, input.name)
+    .slice(0, 4)
+    .map((ts) => {
+      const per = ts.map((t) => iconsForToken(si, t, 6));
+      const merged: string[] = [];
+      for (let k = 0; k < 6; k++) for (const xs of per) if (xs[k] && !merged.includes(xs[k]!)) merged.push(xs[k]!);
+      return merged;
+    });
+  const nameSlots = Math.min(10, lists.length * 5);
+  for (let k = 0; out.length < nameSlots && lists.some((xs) => k < xs.length); k++) {
+    for (const xs of lists) if (xs[k] && out.length < nameSlots) push(xs[k]!);
+  }
   if (input.tribe) (TRIBE_ICONS[input.tribe] ?? []).slice(0, 4).forEach(push);
   for (const id of (input.effectIds ?? []).slice(0, 3)) (EFFECT_ICONS[id] ?? []).forEach(push);
   (TYPE_ICONS[input.curse ? 'curse' : (input.cardType ?? '')] ?? []).forEach(push);

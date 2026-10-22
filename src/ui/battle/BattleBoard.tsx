@@ -8,7 +8,7 @@
  *   詳細の「使う」「攻撃する」からは、候補ボタンで対象を選ぶ（キーボード・ドラッグしにくいとき用）
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BALANCE, battle, describeEffect, getEffect, type CardDef } from '../../engine/index.ts';
+import { BALANCE, FIELDS, LEADERS, battle, describeEffect, getEffect, type CardDef } from '../../engine/index.ts';
 import { abilityGlossary, mechanicGlossary } from '../glossary.ts';
 import { CardView } from '../components/CardView.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
@@ -18,6 +18,7 @@ import { Sheet } from '../components/Sheet.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { navigate } from '../router.ts';
 import { cx } from '../util.ts';
+import { preloadIcons } from '../icons/load.ts';
 import { iconText } from '../icons/ref.ts';
 import './battle.css';
 import { CardDetailBody, CardDetailSheet, NoiseDetailBody } from './CardDetail.tsx';
@@ -137,6 +138,24 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
   const phone = useIsPhone(919);
   const canHover = useMediaQuery('(hover: hover) and (pointer: fine)');
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  // カードの絵を先に読んでおく（両方のデッキのうち見えているカード・トークンなどの特別なカード・リーダー・フィールド）。
+  // 相手のカードやトークンが初めて出る演出の途中で、絵が空の円盤にならないように（決定事項 #106）
+  const cardCount = Object.keys(view.cards).length;
+  useEffect(() => {
+    const b = BALANCE.battle;
+    preloadIcons([
+      ...Object.values(view.cards).map((c) => c.icon),
+      b.tokenArt,
+      b.armyArt,
+      b.eggArt,
+      b.faceDownArt,
+      b.siegeArt,
+      ...Object.values(LEADERS).map((l) => l.art),
+      ...Object.values(FIELDS).map((f) => f.art),
+    ]);
+    // view.cards は手番ごとに作り直されるので、カードの数が変わったときだけ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardCount]);
   const [sel, setSel] = useState<Selection>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [pile, setPile] = useState<{ player: battle.PlayerId; kind: 'discard' | 'exile' } | null>(null);

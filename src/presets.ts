@@ -57,7 +57,7 @@ const stats = (attack: number, hp: number, defense = 0): Stats => ({ attack, hp,
 
 // ---------------------------------------------------------------- 毒（状態異常）
 const poison = preset('poison', '毒沼の魔女', '毒をばらまいてじわじわ削り、毒の回った相手にとどめを刺す', [
-  [c('dokubari', '毒針', 'gi:triple-needle', 'common', 1, { effects: [fx({ id: 'damage', value: 1 }), fx({ id: 'poison', value: 3 })] }), 5],
+  [c('dokubari', '毒針', 'gi:scorpion-tail', 'common', 1, { effects: [fx({ id: 'damage', value: 1 }), fx({ id: 'poison', value: 3 })] }), 5],
   [c('nezumi', '毒牙ネズミ', 'gi:rat', 'common', 1, { stats: stats(1, 2), effects: [fx({ id: 'poison', value: 1, timing: 'attack' })] }), 1],
   [c('hebi', '腐食の蛇', 'gi:snake', 'common', 2, { stats: stats(3, 5), effects: [fx({ id: 'poison', value: 1, timing: 'attack' })] }), 3],
   [
@@ -270,7 +270,7 @@ const fortress = preset('fortress', '鉄壁の砦', '挑発の壁と石の巨人
     }),
     1,
   ],
-  [c('touseki', '投石', 'gi:sling', 'common', 1, { effects: [fx({ id: 'damage', value: 5 })] }), 9],
+  [c('touseki', '投石', 'gi:stone-pile', 'common', 1, { effects: [fx({ id: 'damage', value: 5 })] }), 9],
   [
     c('izumi', '癒しの泉', 'gi:fountain', 'common', 1, {
       effects: [fx({ id: 'heal', value: 2, target: 'self' }), fx({ id: 'shield', value: 2, target: 'self' })],

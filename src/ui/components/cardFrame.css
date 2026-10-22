@@ -446,6 +446,18 @@
   color: color-mix(in srgb, var(--rar) 75%, #fff);
   white-space: nowrap;
 }
+/* 種類の文字が長いカードのレアリティの文字：種類の帯が広い（詳細・エディターの大きいカード）ときだけ出す */
+.tcg:not(.tcg--sm) .tcg__type {
+  container: tcgtype / inline-size;
+}
+.tcg__rarl {
+  display: none;
+}
+@container tcgtype (min-width: 230px) {
+  .tcg__rarl {
+    display: inline;
+  }
+}
 .tcg__rar .rgem {
   filter: drop-shadow(0 0 3px color-mix(in srgb, var(--rar) 60%, transparent));
 }

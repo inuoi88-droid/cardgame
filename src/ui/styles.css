@@ -721,6 +721,10 @@ select:disabled {
   color: var(--muted);
   font-size: var(--fs-xs);
 }
+.card-grid__pts.is-over {
+  color: var(--ng);
+  font-weight: 700;
+}
 
 /* ------------------------------------------------------------ エディター */
 .editor {
@@ -1207,7 +1211,8 @@ select:disabled {
 .card-row.is-in .card-row__text b {
   color: #ffe6a3;
 }
-.card-row.is-invalid .card-row__text,
+.card-row.is-invalid .card-row__text b,
+.card-row.is-invalid .card-row__text small,
 .card-row.is-invalid .card-row__icon {
   opacity: 0.6;
 }
@@ -1264,9 +1269,35 @@ select:disabled {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0 10px;
+  gap: 0 8px;
+  min-width: 0;
   color: var(--muted);
   font-size: var(--fs-xs);
+}
+/* 種類（呪い・種族つきは長い）は1行で切り、ステータスはまとめて次の行へ（数字の途中で折り返さない） */
+.card-row__type {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-row__text small .smini {
+  flex: none;
+  flex-wrap: nowrap;
+  gap: 0 6px;
+}
+.card-row__bad {
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 93, 110, 0.6);
+  background: rgba(255, 93, 110, 0.16);
+  color: #ffadb6;
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  line-height: 1.5;
 }
 /* 狭い画面：「同名 N/M」・要修正は名前の下の行へ（名前を切りすぎないように） */
 @media (max-width: 480px) {

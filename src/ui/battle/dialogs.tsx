@@ -58,17 +58,15 @@ export function CardRow({
             <b>{def.name}</b>
             <RarityGem rarity={def.rarity} withLabel="sr" />
             <small className="crow__type">{CARD_TYPE_LABEL[a.cardType]}</small>
-            {/* スマホは効果を短く切るので、ステータスは見出しの行に */}
-            {def.stats && (
-              <small className="crow__hstats" aria-hidden="true">
-                {/* スマホの見出しの行は名前を残すため守備力を出さない（🔍の詳細で見る） */}
-                <StatMini attack={def.stats.attack} hp={def.stats.hp} defense={0} />
-              </small>
-            )}
           </span>
           <span className="crow__body">
-            {/* スマホは種類を本文の頭に（見出しの行は名前とステータスだけにして1行に収める） */}
+            {/* スマホは種類とステータスを本文の頭に（見出しの行は名前だけにして、名前を切らない） */}
             <span className="crow__btype">{CARD_TYPE_LABEL[a.cardType]} </span>
+            {def.stats && (
+              <span className="crow__bstats">
+                <StatMini attack={def.stats.attack} hp={def.stats.hp} defense={def.stats.defense} />{' '}
+              </span>
+            )}
             {a.text.keywords.map((k) => k.name).join('・')}
             {a.text.keywords.length > 0 && ' '}
             {a.text.effects.join('')}

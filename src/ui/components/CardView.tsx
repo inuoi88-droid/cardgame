@@ -66,8 +66,19 @@ export function CardView({ card, analysis, size = 'lg', onClick, actionLabel }: 
         <div className="tcg__type">
           <span className="tcg__tl">{sm ? CARD_TYPE_LABEL[a.cardType] : typeLabel}</span>
           <span className="tcg__rar">
-            {/* 種類の文字が長いとき（呪い・種族つき）はレアリティを宝石だけにする */}
-            <RarityGem rarity={card.rarity} withLabel={sm || [...typeLabel].length + RARITY_LABEL[card.rarity].length > 13 ? 'sr' : 'visible'} />
+            {/* 種類の文字が長いとき（呪い・種族つき）は、種類の帯が狭ければレアリティを宝石だけにする（帯の幅はコンテナクエリ。cardFrame.css） */}
+            {sm ? (
+              <RarityGem rarity={card.rarity} withLabel="sr" />
+            ) : [...typeLabel].length + RARITY_LABEL[card.rarity].length > 13 ? (
+              <>
+                <RarityGem rarity={card.rarity} withLabel="sr" />
+                <span className="tcg__rarl" aria-hidden="true">
+                  {RARITY_LABEL[card.rarity]}
+                </span>
+              </>
+            ) : (
+              <RarityGem rarity={card.rarity} withLabel="visible" />
+            )}
             {sm && a.isCurse && <span className="sr">・{CURSE_LABEL}</span>}
           </span>
         </div>

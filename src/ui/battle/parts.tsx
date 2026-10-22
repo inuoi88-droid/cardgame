@@ -1,5 +1,5 @@
 /** 対戦画面の部品：プレイヤー情報、モンスター、手札、ログ、状態異常の札（説明はポップオーバー） */
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { BALANCE, battle, CARD_TYPE_LABEL, CONDITIONS, analyzeCard, describeEffect, getEffect, LEADERS, TIMINGS, toLeaderId, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
 import { CardArt, NOISE_ART } from '../components/CardArt.tsx';
 import { CostGem, Emblem, frameClasses, nameFit } from '../components/cardParts.tsx';
@@ -71,20 +71,8 @@ export function statusChips(s: Statuses, isPlayer: boolean): Chip[] {
   return out;
 }
 
-/** passive：札を押せない飾りにする（モンスターの札。押すとタイルの詳細が開き、説明はそこにまとめて出る） */
-export function Chips({ chips, className, passive }: { chips: Chip[]; className?: string; passive?: boolean }) {
+export function Chips({ chips, className }: { chips: Chip[]; className?: string }) {
   if (chips.length === 0) return null;
-  if (passive) {
-    return (
-      <div className={cx('chips-row', className)}>
-        {chips.map((c) => (
-          <span key={c.id} className={cx('st', `st--${c.tone}`, isTauntChip(c.id) && 'st--taunt')} title={typeof c.card.title === 'string' ? c.card.title : undefined}>
-            {c.label}
-          </span>
-        ))}
-      </div>
-    );
-  }
   return (
     <div className={cx('chips-row', className)}>
       {chips.map((c) => (
@@ -1005,6 +993,55 @@ function BriefChips({ chips }: { chips: Chip[] }) {
   );
 }
 
+/** PC のタイルの札は2行まで（それより多いとタイルが場からはみ出し、下の角の紋章が切れる）。低い場は1行（battle.css の --tile-chip-lines） */
+const TILE_CHIP_LINES = 2;
+
+/**
+ * PC のタイルの札：入るだけ出して、残りは「+N」（押すとタイルの詳細にすべて出る）。
+ * 札の幅は文字で変わるので、並べてみて行数を測り、2行に収まるまで1つずつ減らす（札・幅が変わったら測り直す）
+ */
+function TileChips({ chips }: { chips: Chip[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const key = chips.map((c) => c.id + c.label).join('|');
+  const [width, setWidth] = useState(0);
+  const [fit, setFit] = useState<{ key: string; width: number; n: number } | null>(null);
+  const n = fit && fit.key === key && fit.width === width ? fit.n : chips.length;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((es) => setWidth(Math.round(es[0]?.contentRect.width ?? 0)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || n === 0) return;
+    const tops: number[] = [];
+    for (const k of Array.from(el.children) as HTMLElement[]) {
+      if (!tops.some((t) => Math.abs(t - k.offsetTop) < 3)) tops.push(k.offsetTop);
+    }
+    // 低い場（PC の狭い高さ）は battle.css が --tile-chip-lines で1行にする
+    const lines = parseInt(getComputedStyle(el).getPropertyValue('--tile-chip-lines'), 10) || TILE_CHIP_LINES;
+    if (tops.length > lines) setFit({ key, width, n: n - 1 });
+  });
+  if (chips.length === 0) return null;
+  const { shown, more } = overflowItems(chips, n);
+  return (
+    <div ref={ref} className="chips-row mt__chips">
+      {shown.map((c) => (
+        <span key={c.id} className={cx('st', `st--${c.tone}`, isTauntChip(c.id) && 'st--taunt')} title={typeof c.card.title === 'string' ? c.card.title : undefined}>
+          {c.label}
+        </span>
+      ))}
+      {more > 0 && (
+        <span className="mt__cmore" title={chips.slice(n).map((c) => c.label).join('・')}>
+          +{more}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function MonsterTile({
   m,
   def,
@@ -1031,14 +1068,15 @@ export function MonsterTile({
   compact,
 }: MonsterTileProps) {
   const press = useLongPress(onDetail);
-  const chips = monsterChips(def, m, flags, ownerTurns, attackNow, realName);
+  // 裏向き：銘板が「裏向き」、絵は「？」の紋なので、「裏向き」の札は出さない（詳細には出る）
+  const chips = monsterChips(def, m, flags, ownerTurns, attackNow, realName).filter((c) => !(m.faceDown && c.id === 'faceDown'));
   // スマホ：挑発を先頭に、守備力（0でなければ）はステータスの行から札へ移す（狭いタイルで数字がくっつかないように）
   const briefChips = compact
     ? tileChipOrder(chips, m.defense !== 0 ? { id: 'def', label: `🛡${m.defense}`, tone: 'info', card: { title: `守備力 ${m.defense}`, description: '受けるダメージをこの数だけ減らす（最低ダメージあり）' } } : undefined)
     : [];
   // 挑発：城壁の狭間（上の縁の石の凸凹）と石の縁（カードデザイン案A）
   const taunt = chips.some((c) => isTauntChip(c.id));
-  const label = def?.name ?? '？';
+  const label = m.faceDown ? '裏向き' : def?.name ?? '？';
   // 護法（MTG 要素 ○ バッチB）：対象にすると増えるエナジーを「対象」の札に添える
   const state = targetable ? '対象' : selected ? '選択中' : ready ? '攻撃できる' : blockLabel ?? null;
   // 休眠中（MTG 要素 △ バッチA）は半透明。一時蘇生・ワープ（△ バッチB・C）はターン終了時に場を離れるので点線の枠で薄く
@@ -1089,12 +1127,18 @@ export function MonsterTile({
     >
       {state && (
         <span className={cx('mt__state', targetable && 'mt__state--target', targetable && extraCost > 0 && 'mt__state--ward', selected && 'mt__state--sel', ready && !targetable && !selected && 'mt__state--ready')}>
-          {state}
+          <span className="mt__stxt">{state}</span>
           {targetable && extraCost > 0 && <em>護法+{extraCost}⚡</em>}
         </span>
       )}
       <span className="mt__icon" aria-hidden="true">
-        <CardArt icon={def?.icon} rarity={def?.rarity} cardType="monster" curse={curse} />
+        {m.faceDown ? (
+          <span className="mt__back">
+            <b>?</b>
+          </span>
+        ) : (
+          <CardArt icon={def?.icon} rarity={def?.rarity} cardType="monster" curse={curse} />
+        )}
       </span>
       <span className={cx('mt__name', nameFit(label))}>{label}</span>
       {realName && !compact && <span className="mt__real">（{realName}）</span>}
@@ -1104,7 +1148,7 @@ export function MonsterTile({
         </span>
       )}
       <span className="mt__stats" aria-hidden="true">
-        <Emblem kind="atk" value={atk} buffed={atk > m.attack} className="mt__stat" srLabel={false} />
+        <Emblem kind="atk" value={atk} buffed={atk > m.attack} className="mt__stat" srLabel={false} mini={compact} />
         <Emblem kind="hp" value={m.hp} hurt={hurt} className="mt__stat" srLabel={false} />
         {!compact && m.defense !== 0 && <Emblem kind="def" value={m.defense} className="mt__stat" srLabel={false} />}
       </span>
@@ -1113,7 +1157,7 @@ export function MonsterTile({
           <i style={{ width: `${Math.max(0, Math.min(100, Math.round((m.hp / Math.max(1, m.maxHp)) * 100)))}%` }} />
         </span>
       )}
-      {compact ? <BriefChips chips={briefChips} /> : <Chips chips={chips} className="mt__chips" passive />}
+      {compact ? <BriefChips chips={briefChips} /> : <TileChips chips={chips} />}
       {activate && activate.length > 0 && !dying && (
         <span className="mt__acts">
           {activate.map((a) => (

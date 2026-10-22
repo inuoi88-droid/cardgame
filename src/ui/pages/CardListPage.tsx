@@ -143,9 +143,17 @@ export function CardListPage() {
             <div key={card.id} className="card-grid__item">
               <CardView card={card} analysis={a} size="sm" onClick={() => setDetailId(card.id)} actionLabel={`${card.name || '（名前なし）'}の詳細を見る`} />
               <div className="card-grid__actions">
-                <span className="card-grid__pts">
-                  {formatPoints(budgetOf(a, card).used)}/{budgetOf(a, card).budget}pt
-                </span>
+                {(() => {
+                  const b = budgetOf(a, card);
+                  // 予算超過・要修正は赤く太く（呪いのカードどうしでも見分けられるように）
+                  const over = b.used > b.budget || !a.valid;
+                  return (
+                    <span className={cx('card-grid__pts', over && 'is-over')}>
+                      {formatPoints(b.used)}/{b.budget}pt
+                      {!a.valid && <span className="sr">（要修正）</span>}
+                    </span>
+                  );
+                })()}
                 <button type="button" className="btn btn--small" onClick={() => edit(card)} aria-label={`${card.name || '（名前なし）'}を編集`}>
                   編集
                 </button>

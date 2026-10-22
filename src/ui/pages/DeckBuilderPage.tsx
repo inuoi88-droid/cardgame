@@ -214,7 +214,7 @@ function Builder({ saved }: { saved: Deck | null }) {
                 <li key={c.id} className={cx('card-row', frameClasses(c.rarity, ca.cardType, ca.isCurse), !ca.valid && 'is-invalid', count > 0 && 'is-in')}>
                   <CardRowInfo card={c} a={ca} onPreview={() => setPreviewId(c.id)} />
                   <span className={cx('card-row__limit', perName !== null && nameCount > perName && 'text-ng')}>
-                    {!ca.valid ? '要修正' : perName !== null ? `同名 ${nameCount}/${perName}` : ''}
+                    {ca.valid && perName !== null ? `同名 ${nameCount}/${perName}` : ''}
                   </span>
                   <CountControl count={count} disabled={!ca.valid && count === 0} onChange={(n) => setCount(c.id, n)} />
                 </li>
@@ -280,9 +280,11 @@ function CardRowInfo({ card, a, onPreview }: { card: CardDef; a: CardAnalysis; o
         <span className="card-row__name">
           <b>{name}</b>
           <RarityGem rarity={card.rarity} />
+          {/* 要修正は名前の横の赤い札（狭い画面でも行を増やさない） */}
+          {!a.valid && <span className="card-row__bad">要修正</span>}
         </span>
         <small>
-          <span>
+          <span className="card-row__type">
             {CARD_TYPE_LABEL[a.cardType]}
             {a.isCurse && '・呪い'}
             {card.tribe && TRIBE_LABEL[card.tribe] ? `・${TRIBE_LABEL[card.tribe]}` : ''}

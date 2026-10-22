@@ -755,9 +755,23 @@ body:has(.battle) .toast__action {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
+/* 沈める幕（::after）：額縁ごと暗い幕をかける。コストの宝石（z-index 3）と注意の札は幕の上なので、エナジー不足の赤い宝石ははっきり残る。
+   封殺の鎖目も同じ幕に重ねる（--hc-quash）。親に filter をかけると宝石まで色がくすむので使わない */
+.hc::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 4px solid transparent;
+  border-radius: 11px;
+  background:
+    var(--hc-quash, none) padding-box,
+    linear-gradient(var(--hc-scrim, transparent), var(--hc-scrim, transparent)) border-box;
+  pointer-events: none;
+  z-index: 2;
+}
 /* 今は使えない（エナジーは足りる）：少し沈める */
 .hc:not(.is-playable):not(.is-selected) {
-  filter: brightness(0.8) saturate(0.75);
+  --hc-scrim: rgba(8, 10, 20, 0.24);
 }
 .hc.is-playable {
   box-shadow:
@@ -767,16 +781,22 @@ body:has(.battle) .toast__action {
     0 0 16px 2px rgba(80, 150, 255, 0.5);
 }
 /* 相手のターン */
-.hc.is-dim,
-.hc.is-dim.is-playable {
-  filter: brightness(0.7);
+.hc.is-dim:not(.is-selected) {
+  --hc-scrim: rgba(8, 10, 20, 0.32);
 }
-/* エナジー不足：色を抜いて暗く（コストの宝石だけは赤くはっきり） */
-.hc.is-short:not(.is-selected) {
-  filter: saturate(0.35) brightness(0.72);
+/* エナジー不足（ほかの払い方でも使えない）：色を抜いて暗く。コストの宝石だけは赤くはっきり。
+   払い方しだいで使えるカード（is-playable）は沈めない（宝石だけ赤い） */
+.hc.is-short:not(.is-playable):not(.is-selected) {
+  --hc-scrim: rgba(8, 10, 20, 0.46);
 }
-.hc.is-short .cgem {
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.65)) saturate(2.4) brightness(1.35);
+.hc.is-short:not(.is-playable):not(.is-selected)::after {
+  -webkit-backdrop-filter: saturate(0.3);
+  backdrop-filter: saturate(0.3);
+}
+/* キーボードの焦点：使える印（青い光）と見分けられるよう、外側に明るい金の輪 */
+.hc:focus-visible {
+  outline: 3px solid #fff6d8;
+  outline-offset: 5px;
 }
 .hc.is-selected {
   transform: translateY(-10px) scale(1.04);
@@ -806,14 +826,9 @@ body:has(.battle) .toast__action {
     repeating-linear-gradient(45deg, #222 0 6px, #2c2c2c 6px 12px) padding-box,
     var(--metal-iron) border-box;
 }
-/* 封殺：紫の斜めの鎖目を重ねて沈める（札は沈めない） */
-.hc.is-quashed::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 7px;
-  background: repeating-linear-gradient(135deg, rgba(161, 115, 255, 0.24) 0 5px, transparent 5px 12px);
-  pointer-events: none;
+/* 封殺：紫の斜めの鎖目を重ねて沈める（札は沈めない）。幕は上の .hc::after */
+.hc.is-quashed {
+  --hc-quash: repeating-linear-gradient(135deg, rgba(161, 115, 255, 0.24) 0 5px, transparent 5px 12px);
 }
 /* Popover の .popover__anchor（position: relative）に負けないよう .hc を付ける */
 .hc .hc__costwrap {
@@ -1912,9 +1927,9 @@ button.lt-card:focus-visible {
   box-shadow: none;
 }
 .hc.is-drag-aim {
+  --hc-scrim: transparent;
   opacity: 1;
   transform: translateY(-12px) scale(1.05);
-  filter: none;
   box-shadow:
     0 0 0 3px var(--warn),
     0 10px 22px rgba(0, 0, 0, 0.55);
@@ -3772,8 +3787,10 @@ button.lt-card:focus-visible {
   .hc--t-powerAttack {
     --hc-type: linear-gradient(90deg, #c08bff, #ff7a7a);
   }
-  .hc.is-quashed::after {
-    border-radius: 6px;
+  .hc::after {
+    inset: -2px;
+    border-width: 2px;
+    border-radius: 8px;
   }
   .hc__type,
   .hc__text,
@@ -3982,7 +3999,7 @@ button.lt-card:focus-visible {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.crow__hstats,
+.crow__bstats,
 .crow__btype {
   display: none;
 }
@@ -3993,7 +4010,7 @@ button.lt-card:focus-visible {
     min-width: 36px;
     justify-content: center;
   }
-  /* マリガン・選択の行：効果は2行まで（全文は 🔍）、ステータスは見出しの行に。5枚が1画面に入るように */
+  /* マリガン・選択の行：効果は2行まで（全文は 🔍）、種類とステータスは本文の頭に（見出しの行は名前だけ）。5枚が1画面に入るように */
   .crow-list {
     gap: 5px;
     margin: 6px 0 8px;
@@ -4019,8 +4036,9 @@ button.lt-card:focus-visible {
   .crow__head .crow__type {
     display: none;
   }
-  .crow__hstats {
+  .crow__bstats {
     display: inline;
+    color: var(--text);
     font-weight: bold;
     white-space: nowrap;
   }
@@ -4072,5 +4090,191 @@ button.lt-card:focus-visible {
   .hint.dlg__lead {
     font-size: var(--fs-xs);
     margin: 4px 0;
+  }
+}
+
+/* ============================================================ カードデザイン案A：レビューの直し（決定事項 #108） */
+/* PC のタイルの札が2行に入らないときの「+N」（TileChips。押すとタイルの詳細にすべて出る） */
+.mt__cmore {
+  flex: none;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong);
+  background: rgba(10, 12, 24, 0.75);
+  color: #e6e9f5;
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  line-height: 1.4;
+}
+/* 対象のタイル：脈打つ光とは別に動かない黄色の輪（動きを減らす設定でも見える）。攻撃できる・挑発の輪より上に置く */
+.board .mt.is-targetable:not(.is-drop-hover) {
+  box-shadow:
+    0 0 0 1px #05060a,
+    0 0 0 3px var(--warn),
+    0 0 12px rgba(255, 207, 110, 0.6);
+}
+.board .mt--taunt.is-targetable:not(.is-drop-hover) {
+  box-shadow:
+    0 0 0 1px #05060a,
+    0 0 0 4px #6d7382,
+    0 0 0 6px var(--warn),
+    0 0 12px rgba(255, 207, 110, 0.6);
+}
+/* 落とし先のタイルは上の札（「対象 護法+N⚡」）を動かさずに大きくする（場の上の縁で札が切れないように） */
+.mt.is-drop-hover {
+  transform-origin: 50% -12px;
+}
+/* 裏向き：絵の窓に「？」の紋、銘板は「裏向き」（正体は持ち主の詳細に） */
+.mt__back {
+  display: inline-grid;
+  place-items: center;
+  width: 1.3em;
+  height: 1.3em;
+  border-radius: 50%;
+  border: 2px solid #8a919e;
+  background: radial-gradient(circle at 50% 35%, #2c3350, #0e111d);
+  color: #f2d27a;
+  text-shadow: 0 0 8px rgba(246, 196, 69, 0.5);
+  font-family: var(--font-title);
+  line-height: 1;
+}
+.mt__back b {
+  font-size: max(12px, 0.62em);
+  font-weight: 900;
+}
+.mt.is-facedown .mt__name {
+  background:
+    linear-gradient(180deg, #2b3040, #191c26) padding-box,
+    var(--metal-iron) border-box;
+  color: #d5d9e2;
+}
+.mt__real {
+  font-size: var(--fs-xs);
+}
+@media (min-width: 920px) {
+  .mt__icon .mt__back {
+    width: 50px;
+    height: 50px;
+  }
+  .mt__icon .mt__back b {
+    font-size: 26px;
+  }
+}
+@media (max-width: 919px) {
+  /* 詰めた札の「対象」は右上の角に小さく（左の絵と名前の書き出しを隠さない）。護法は「護法+N⚡」だけ（対象は黄色の輪でわかる） */
+  .mt--compact .mt__state {
+    left: auto;
+    right: 4px;
+    transform: none;
+    top: -8px;
+    line-height: 13px;
+    padding: 0 5px;
+    max-width: calc(100% - 4px);
+  }
+  .mt--compact .mt__state--ward {
+    padding: 0;
+    background: #2b1d00;
+    box-shadow:
+      0 0 0 1px var(--warn),
+      0 2px 4px rgba(0, 0, 0, 0.5);
+  }
+  .mt--compact .mt__state--ward .mt__stxt {
+    display: none;
+  }
+  .mt--compact .mt__state em {
+    margin: 0;
+    line-height: 13px;
+  }
+  .mt--compact.is-drop-hover {
+    transform: scale(1.06);
+    transform-origin: 50% -8px;
+  }
+  /* 混んだ低い場：上の余白が4pxなので札を下げる */
+  @container (max-height: 160px) {
+    .board--many .mt--compact .mt__state {
+      top: -5px;
+    }
+    .board--many .mt--compact.is-drop-hover {
+      transform-origin: 50% -5px;
+    }
+  }
+}
+/* PC で場が低い（狭い高さの画面）：タイルを低くして、下の角の紋章が場の下で切れないようにする（絵を小さく・札は1行） */
+@media (min-width: 920px) {
+  .battle:not(.is-bo-empty) .battle__board--opp,
+  .battle:not(.is-bm-empty) .battle__board--me {
+    container-type: size;
+  }
+  @container (max-height: 200px) {
+    .board .mt {
+      --tile-chip-lines: 1;
+      min-height: 0;
+      padding-bottom: 33px;
+    }
+    .board .mt__icon {
+      height: 44px;
+    }
+    .board .mt__icon .cart {
+      --cart-size: 38px;
+    }
+    .board .mt__icon .mt__back {
+      width: 38px;
+      height: 38px;
+    }
+    .board .mt .emb {
+      --e: 29px;
+    }
+  }
+  /* さらに低い（1100×640 など）：絵をもっと小さく */
+  @container (max-height: 150px) {
+    .board .mt {
+      gap: 2px;
+      padding-bottom: 31px;
+    }
+    .board .mt__icon {
+      height: 32px;
+    }
+    .board .mt__icon .cart {
+      --cart-size: 28px;
+    }
+    .board .mt__icon .mt__back {
+      width: 28px;
+      height: 28px;
+    }
+    .board .mt__icon .mt__back b {
+      font-size: 16px;
+    }
+  }
+  /* 場が狭い（タイルが細い。1100px 幅など）：紋章を小さくして3つが重ならないように（タイル自身をコンテナにすると最小幅が0になって潰れるので、場の幅で見る） */
+  @container (max-width: 520px) {
+    .board .mt .emb {
+      --e: 24px;
+    }
+    .board .mt .emb--def {
+      --e: 18px;
+      margin-bottom: 4px;
+    }
+    /* 紋章は額縁の縁まで使う（3つで66px） */
+    .board .mt__stats {
+      left: -2px;
+      right: -2px;
+    }
+    .mt__hpbar {
+      left: 22px;
+      right: 22px;
+    }
+  }
+  /* とても狭い場（920px 幅など）：3列にする（6列だとタイルが紋章3つより細くなる。入らない分は場のスクロール） */
+  @container (max-width: 360px) {
+    .board .mt,
+    .board--dense .mt {
+      --cols: 3;
+      min-width: 0;
+    }
+    .board .mt .st {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
 }

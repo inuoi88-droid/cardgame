@@ -45,11 +45,28 @@ export function RarityGem({ rarity, withLabel }: { rarity: Rarity; withLabel?: '
 const STAT_LABEL = { atk: '攻撃力', hp: '体力', def: '守備力' } as const;
 
 /** 紋章（剣＝攻撃力・ハート＝体力・盾＝守備力）。is-buffed は明るい緑、is-hurt は薄い赤 */
-export function Emblem({ kind, value, buffed, hurt, className, srLabel = true }: { kind: 'atk' | 'hp' | 'def'; value: number; buffed?: boolean; hurt?: boolean; className?: string; srLabel?: boolean }) {
+export function Emblem({
+  kind,
+  value,
+  buffed,
+  hurt,
+  className,
+  srLabel = true,
+  mini,
+}: {
+  kind: 'atk' | 'hp' | 'def';
+  value: number;
+  buffed?: boolean;
+  hurt?: boolean;
+  className?: string;
+  srLabel?: boolean;
+  /** 小さく描く（攻撃力は小さい印 #emb-atk-mini） */
+  mini?: boolean;
+}) {
   return (
     <span className={cx('emb', `emb--${kind}`, buffed && 'is-buffed', hurt && 'is-hurt', className)}>
       <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-        <use href={`#emb-${kind}`} />
+        <use href={`#emb-${kind}${mini && kind === 'atk' ? '-mini' : ''}`} />
       </svg>
       {srLabel && <span className="sr">{STAT_LABEL[kind]}</span>}
       <b>{value}</b>
@@ -63,7 +80,7 @@ export function StatMini({ attack, hp, defense }: { attack: number; hp: number; 
     <span className="smini">
       <span className="smini__s smini__s--atk">
         <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-          <use href="#emb-atk" />
+          <use href="#emb-atk-mini" />
         </svg>
         <span className="sr">攻撃力</span>
         {attack}
@@ -159,6 +176,12 @@ export const CardSymbols = memo(function CardSymbols() {
           <use href="#emb-sword" transform="translate(24 24) scale(.86) translate(-24 -24) rotate(45 24 24)" />
           <circle cx="24" cy="24.5" r="14.2" fill="url(#eg-atk)" stroke="#2a1204" strokeWidth="1.8" />
           <circle cx="24" cy="24.5" r="11.6" fill="none" stroke="rgba(255,230,170,.55)" strokeWidth="1" />
+        </symbol>
+        {/* 小さい印（12〜14px：デッキの行・ダイアログの行・スマホのタイル）：円盤を小さくし、刃を太く長くして交差した剣と読めるように */}
+        <symbol id="emb-atk-mini" viewBox="0 0 48 48" overflow="visible">
+          <use href="#emb-sword" transform="rotate(-45 24 24) translate(24 24) scale(1.45 1.02) translate(-24 -24)" />
+          <use href="#emb-sword" transform="rotate(45 24 24) translate(24 24) scale(1.45 1.02) translate(-24 -24)" />
+          <circle cx="24" cy="24.5" r="6.8" fill="url(#eg-atk)" stroke="#2a1204" strokeWidth="1.8" />
         </symbol>
         <symbol id="emb-hp" viewBox="0 0 48 48" overflow="visible">
           <path d="M24 44.5C10.5 35.2 3 27 3 16.6 3 9.3 8.4 4 14.8 4c4.3 0 7.4 2.3 9.2 5.6C25.8 6.3 28.9 4 33.2 4 39.6 4 45 9.3 45 16.6 45 27 37.5 35.2 24 44.5Z" fill="url(#eg-hp)" stroke="#2a050b" strokeWidth="1.8" strokeLinejoin="round" />

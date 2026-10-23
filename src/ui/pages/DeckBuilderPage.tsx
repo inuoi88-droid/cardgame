@@ -212,30 +212,37 @@ function Builder({ saved }: { saved: Deck | null }) {
       )}
 
       <section className="panel deck-summary">
-        <label className="field">
+        <label className="field deck-summary__name">
           <span>デッキ名</span>
-          <input type="text" value={deck.name} placeholder="例：毒デッキ" onChange={(e) => setDeck({ ...deck, name: e.target.value })} />
+          <input type="text" className="u-name-input" value={deck.name} placeholder="例：毒デッキ" onChange={(e) => setDeck({ ...deck, name: e.target.value })} />
         </label>
-        <div className="deck-summary__counts">
-          <div className={cx('deck-summary__total', a.total !== a.size && 'is-ng')}>
-            <b>{a.total}</b> / {a.size}枚
-          </div>
-          <ul className="rarity-rows">
-            {a.rarityRows.map((r) => (
-              <li key={r.rarity} className={cx(r.limit !== null && r.count > r.limit && 'is-ng')}>
-                <span className={cx('dot', `dot--${r.rarity}`)} />
-                {RARITY_LABEL[r.rarity]} {r.count}
-                {r.limit !== null ? ` / ${r.limit}` : '（制限なし）'}
+        {/* PC は「枚数とレアリティ」「コスト分布」「要修正」の3列、スマホは縦に積む */}
+        <div className="deck-summary__grid">
+          <div className="deck-summary__counts">
+            <div className={cx('deck-summary__total', a.total !== a.size && 'is-ng')}>
+              <b>{a.total}</b> / {a.size}枚
+            </div>
+            <ul className="rarity-rows">
+              {a.rarityRows.map((r) => (
+                <li key={r.rarity} className={cx(r.limit !== null && r.count > r.limit && 'is-ng')}>
+                  <RarityGem rarity={r.rarity} />
+                  <span>
+                    {RARITY_LABEL[r.rarity]} <b>{r.count}</b>
+                    {r.limit !== null ? ` / ${r.limit}` : '（制限なし）'}
+                  </span>
+                </li>
+              ))}
+              <li>
+                <i className="curse-mark" aria-hidden="true" />
+                <span>
+                  うち呪い <b>{a.curseCount}</b>
+                </span>
               </li>
-            ))}
-            <li>
-              <span className="dot dot--curse" />
-              うち呪い {a.curseCount}
-            </li>
-          </ul>
+            </ul>
+          </div>
+          <div className="deck-summary__curve">{a.total > 0 ? <CostCurve deck={deck} cards={cards} /> : <p className="hint">カードを入れると、ここにコスト分布が出ます。</p>}</div>
+          <div className="deck-summary__check">{a.valid ? <p className="ok-msg">✓ このデッキは保存できます</p> : <Violations items={a.violations} />}</div>
         </div>
-        {a.total > 0 && <CostCurve deck={deck} cards={cards} />}
-        {a.valid ? <p className="ok-msg">✓ このデッキは保存できます</p> : <Violations items={a.violations} />}
       </section>
 
       <div className="tabs tabs--mobile">

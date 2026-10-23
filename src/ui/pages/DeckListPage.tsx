@@ -1,13 +1,19 @@
-/** デッキ一覧 */
+/**
+ * デッキ一覧。UI2「黒鉄と金の卓」（決定事項 #111 の D）：管理画面の板と文字ボタンの並びをやめ、デッキ箱のタイルを並べる。
+ * - タイル（押せば編集）：鉄の板。代表カードの絵と枚数、銘板にデッキ名（人の入力なので --font-title）、レアリティの宝石の数、
+ *   ミニのコスト分布（鉄の柱）、1行の注記。要修正は深紅の封蝋を押して最後に並べる
+ * - 複製・書き出し・削除はタイルの右上の「⋯」のメニュー（削除は深紅）。取り込みは見出しの行の形のボタン
+ */
 import { useMemo, useState } from 'react';
 import { BALANCE, analyzeDeck, exportDeck, type Deck, type ExportBundle } from '../../engine/index.ts';
+import { DeckBox } from '../components/DeckBox.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { ExportDialog, ImportDialog } from '../components/ImportExport.tsx';
 import { useToast } from '../components/Toast.tsx';
+import { UiIcon } from '../components/UiIcon.tsx';
 import { navigate } from '../router.ts';
 import { actions, getState, useStore } from '../store.ts';
-import { cx, todayStamp, uuid } from '../util.ts';
-import { UiIcon } from '../components/UiIcon.tsx';
+import { todayStamp, uuid } from '../util.ts';
 
 export function DeckListPage() {
   const { cards, decks } = useStore();
@@ -16,6 +22,11 @@ export function DeckListPage() {
   const cardsById = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState<{ bundle: ExportBundle; name: string } | null>(null);
+  // 使えるデッキが先、要修正は最後（同じ中では保存の順）
+  const rows = useMemo(() => {
+    const all = decks.map((deck) => ({ deck, a: analyzeDeck(deck, cardsById) }));
+    return [...all.filter((r) => r.a.valid), ...all.filter((r) => !r.a.valid)];
+  }, [decks, cardsById]);
 
   const remove = async (deck: Deck) => {
     const ok = await confirm({
@@ -47,48 +58,41 @@ export function DeckListPage() {
             <UiIcon name="quill-ink" />
             新しいデッキ
           </button>
-          <button type="button" className="btn" onClick={() => setImporting(true)}>
-            取り込み
+          <button type="button" className="btn page-head__iconbtn" onClick={() => setImporting(true)} aria-label="デッキを取り込む" title="取り込み">
+            <UiIcon name="files" />
+            <span className="page-head__lbl">取り込み</span>
           </button>
         </div>
       </div>
 
       {decks.length === 0 ? (
-        <div className="empty">
-          <p>まだデッキがありません。</p>
-          <p>「＋ 新しいデッキ」から、作ったカードを{BALANCE.deck.size}枚選んでデッキにしましょう。</p>
+        <div className="empty empty--hero">
+          <UiIcon name="open-chest" />
+          <p className="empty__title">まだデッキがありません</p>
+          <p>作ったカードを{BALANCE.deck.size}枚選んで、最初のデッキを組みましょう。</p>
+          <div className="btn-row">
+            <button type="button" className="btn btn--primary btn--small" onClick={() => navigate('/decks/new')}>
+              デッキを組む
+            </button>
+            <button type="button" className="btn btn--small" onClick={() => setImporting(true)}>
+              ファイルから取り込む
+            </button>
+          </div>
         </div>
       ) : (
-        <ul className="deck-list">
-          {decks.map((deck) => {
-            const a = analyzeDeck(deck, cardsById);
-            return (
-              <li key={deck.id} className={cx('panel deck-list__item', !a.valid && 'is-ng')}>
-                <button type="button" className="deck-list__main" onClick={() => navigate(`/decks/${encodeURIComponent(deck.id)}`)}>
-                  <b>{deck.name || '（名前なし）'}</b>
-                  <span className="deck-list__meta">
-                    {a.total} / {a.size}枚
-                    {a.valid ? <span className="text-ok">　✓ 使用できます</span> : <span className="text-ng">　✗ 要修正 {a.violations.length}件</span>}
-                  </span>
-                  {!a.valid && <span className="deck-list__reason">{a.violations[0]?.message}</span>}
-                </button>
-                <div className="btn-row">
-                  <button type="button" className="btn btn--small" onClick={() => navigate(`/decks/${encodeURIComponent(deck.id)}`)}>
-                    編集
-                  </button>
-                  <button type="button" className="btn btn--small" onClick={() => duplicate(deck)}>
-                    複製
-                  </button>
-                  <button type="button" className="btn btn--small" onClick={() => setExporting({ bundle: exportDeck(deck, cardsById), name: deck.name })}>
-                    書き出し
-                  </button>
-                  <button type="button" className="btn btn--small btn--danger" onClick={() => void remove(deck)}>
-                    削除
-                  </button>
-                </div>
-              </li>
-            );
-          })}
+        <ul className="dboxes">
+          {rows.map(({ deck, a }) => (
+            <DeckBox
+              key={deck.id}
+              deck={deck}
+              a={a}
+              cards={cards}
+              onOpen={() => navigate(`/decks/${encodeURIComponent(deck.id)}`)}
+              onDuplicate={() => duplicate(deck)}
+              onExport={() => setExporting({ bundle: exportDeck(deck, cardsById), name: deck.name })}
+              onRemove={() => void remove(deck)}
+            />
+          ))}
         </ul>
       )}
 

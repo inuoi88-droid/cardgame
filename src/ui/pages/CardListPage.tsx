@@ -27,6 +27,7 @@ import '../collection/collection.css';
 import { SAMPLE_CARDS } from '../../samples.ts';
 import { cx, todayStamp, uuid } from '../util.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
+import { MoreDots } from '../components/TileMenu.tsx';
 
 type GroupDialogState = { kind: 'create'; cardIds?: string[]; initialName?: string; initialMemo?: string; then?: (g: CardGroup) => void } | { kind: 'edit'; group: CardGroup };
 
@@ -319,8 +320,8 @@ export function CardListPage() {
             新しいカード
           </button>
           {phone ? (
-            <button type="button" className="btn" onClick={() => setDialog('menu')} aria-label="サンプル・書き出し・取り込み">
-              ⋯
+            <button type="button" className="btn" onClick={() => setDialog('menu')} aria-label="サンプル・書き出し・取り込み" title="管理">
+              <MoreDots />
             </button>
           ) : (
             <>
@@ -347,14 +348,21 @@ export function CardListPage() {
         </div>
       )}
       {cards.length === 0 ? (
-        <div className="empty">
-          <p>まだカードがありません。</p>
-          <p>「＋ 新しいカード」で作るか、「サンプルを追加」で作成例と見本の{SAMPLE_CARDS.length}枚を入れてみてください。</p>
-          {phone && (
-            <button type="button" className="btn" onClick={addSamples}>
+        <div className="empty empty--hero">
+          <UiIcon name="card-play" />
+          <p className="empty__title">まだカードがありません</p>
+          <p>「新しいカード」で1枚目を作るか、作成例と見本の{SAMPLE_CARDS.length}枚を入れて、どんなカードが作れるか見てみましょう。</p>
+          <div className="btn-row">
+            <button type="button" className="btn btn--primary btn--small" onClick={() => navigate('/cards/new')}>
+              カードを作る
+            </button>
+            <button type="button" className="btn btn--small" onClick={addSamples}>
               サンプルを追加
             </button>
-          )}
+            <button type="button" className="btn btn--small" onClick={() => setDialog('import')}>
+              ファイルから取り込む
+            </button>
+          </div>
         </div>
       ) : (
         <div className={cx('collection', wide && 'collection--wide')}>
@@ -384,7 +392,7 @@ export function CardListPage() {
               {countLabel}
               {invalidCount > 0 && !filters.invalidOnly && (
                 <button type="button" className="cwarn" onClick={() => setFilters({ ...filters, invalidOnly: true })} title="編集して直すまでデッキでは使えません" aria-label={`要修正のカードが${invalidCount}枚あります（直すまでデッキで使えません）。要修正だけを見る`}>
-                  ⚠ 要修正 {invalidCount}枚
+                  要修正 {invalidCount}枚
                 </button>
               )}
               <FilterChipsRow filters={filters} decks={decks} onChange={setFilters}>
@@ -533,15 +541,19 @@ export function CardListPage() {
         <Sheet open title="カードの管理" onClose={() => setDialog(null)}>
           <div className="menu-list">
             <button type="button" className="btn" onClick={() => (setDialog(null), addSamples())}>
+              <UiIcon name="spell-book" />
               サンプルを追加
             </button>
             <button type="button" className="btn" disabled={cards.length === 0} onClick={() => (setDialog(null), setExporting({ bundle: buildExport(cards, decks, groups), title: 'カードとデッキを書き出す', filename: `cardgame-${todayStamp()}.json` }))}>
+              <UiIcon name="share" />
               書き出し（グループも入ります）
             </button>
             <button type="button" className="btn" onClick={() => setDialog('import')}>
+              <UiIcon name="files" />
               取り込み
             </button>
             <button type="button" className="btn" onClick={() => setDialog('manage')}>
+              <UiIcon name="cog" />
               グループの管理
             </button>
           </div>

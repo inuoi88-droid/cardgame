@@ -423,9 +423,7 @@ export function CardCollection(props: Props) {
       >
         <div className="csec__bar">
           <button type="button" className="csec__toggle" aria-expanded={!row.collapsed} onClick={() => props.onToggleSection(s.key)}>
-            <span className="csec__caret" aria-hidden="true">
-              ▸
-            </span>
+            <span className="csec__caret" aria-hidden="true" />
             {s.group && <span className="gdot" aria-hidden="true" style={{ background: color }} />}
             <b className="csec__label">{s.label}</b>
             <span className="csec__count">{s.entries.length}枚</span>

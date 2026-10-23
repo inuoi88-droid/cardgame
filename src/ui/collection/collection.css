@@ -166,12 +166,16 @@
   color: var(--text);
 }
 
-/* 表示の密度（3つの切り替え） */
+/* 表示の密度（3つの切り替え）：井戸の溝の中で、選んだものだけ鉄の板が浮く（タブと同じ語彙。サファイアで塗らない） */
 .vseg {
   display: inline-flex;
-  border: 1px solid var(--line-strong);
+  gap: 3px;
+  padding: 3px;
   border-radius: var(--radius-sm);
-  overflow: hidden;
+  background: linear-gradient(180deg, var(--u-well-0), #10132a);
+  border: 1px solid #2a2f3c;
+  border-bottom-color: #4a5163;
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.5);
   flex: none;
 }
 .vseg__btn {
@@ -180,21 +184,37 @@
   justify-content: center;
   gap: 6px;
   min-width: 42px;
-  min-height: var(--tap);
-  padding: 0 10px;
+  min-height: calc(var(--tap) - 8px);
+  padding: 0 9px;
   font: inherit;
   font-size: 19px;
-  color: var(--muted);
-  background: var(--panel);
-  border: none;
+  color: var(--placeholder);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
   cursor: pointer;
+  position: relative;
 }
-.vseg__btn + .vseg__btn {
-  border-left: 1px solid var(--line-strong);
+/* 当たりは 44px に広げる */
+.vseg__btn::after {
+  content: '';
+  position: absolute;
+  inset: -4px -1px;
+}
+.vseg__btn:hover {
+  color: var(--text);
 }
 .vseg__btn.is-active {
-  color: #fff;
-  background: var(--accent-strong);
+  color: var(--u-ink);
+  background:
+    linear-gradient(180deg, #353c55, #20253a) padding-box,
+    var(--u-rim-iron) border-box;
+  box-shadow:
+    var(--u-bevel),
+    0 1px 0 rgba(0, 0, 0, 0.6);
+}
+.vseg__btn.is-active svg {
+  color: var(--u-sap-hi);
 }
 .vseg__label {
   font-size: var(--fs-sm);
@@ -254,10 +274,15 @@
   padding: 2px 10px;
   font: inherit;
   font-size: var(--fs-xs);
+  font-weight: 700;
   color: var(--text);
-  background: var(--accent-bg);
-  border: 1px solid rgba(111, 141, 255, 0.55);
-  border-radius: var(--radius-pill);
+  /* 掛かっている絞り込み＝選んだ札：サファイアの縁の小さな鉄の板 */
+  background:
+    linear-gradient(180deg, #24345e, #172447) padding-box,
+    var(--u-rim-sapphire) border-box;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
   cursor: pointer;
 }
 .fchip::after {
@@ -269,7 +294,7 @@
   color: var(--muted);
 }
 .fchip:hover {
-  border-color: var(--accent);
+  filter: brightness(1.15);
 }
 .ctip {
   margin: -4px 0 10px;
@@ -324,6 +349,15 @@
 .menu-list {
   display: grid;
   gap: 8px;
+}
+/* 管理のメニュー：形を左に揃えた鉄の板の行 */
+.menu-list > .btn {
+  justify-content: flex-start;
+  gap: 12px;
+  padding-left: 14px;
+}
+.menu-list > .btn > .gi {
+  color: var(--u-ink-2);
 }
 
 /* ------------------------------------------------------------ グループ */
@@ -703,9 +737,13 @@ body.is-dragging-cards .gbar--side .gitem[style] {
   font: inherit;
   font-size: var(--fs-sm);
   color: var(--muted);
-  background: var(--panel);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-pill);
+  /* 押せる札：鉄の小さな板（入っているグループは、その色の縁と左の印） */
+  background:
+    linear-gradient(180deg, var(--u-plate-0), var(--u-plate-2)) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
   cursor: pointer;
 }
 .gtoggle::after {
@@ -715,29 +753,44 @@ body.is-dragging-cards .gbar--side .gitem[style] {
 }
 .gtoggle.is-on {
   color: var(--text);
-  border-color: var(--gc);
-  background: color-mix(in srgb, var(--gc) 22%, var(--panel));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--gc) 26%, #262b40), color-mix(in srgb, var(--gc) 14%, #171b2b)) padding-box,
+    linear-gradient(170deg, color-mix(in srgb, var(--gc) 80%, #fff), var(--gc) 45%, color-mix(in srgb, var(--gc) 50%, #000)) border-box;
   font-weight: bold;
 }
+.gtoggle__on {
+  width: 1em;
+  height: 1em;
+  color: var(--u-ink);
+}
 .gtoggle--add {
-  color: var(--accent);
-  border-style: dashed;
+  color: var(--u-sap-hi);
+  background: transparent;
+  border: 1px dashed #5c6474;
+  box-shadow: none;
 }
 .ttag {
   display: inline-flex;
   align-items: center;
   min-height: 26px;
   padding: 0 9px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--line-strong);
-  background: var(--panel-2);
-  color: var(--muted);
+  /* 押せない札は刻印（暗い溝に控えの字）。押せるもの（--btn）だけが縁と影を持つ */
+  border-radius: var(--radius-xs);
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: 0 1px 0 rgba(154, 162, 178, 0.14);
+  color: var(--u-ink-2);
   font: inherit;
   font-size: var(--fs-xs);
 }
 .ttag--btn {
   position: relative;
   cursor: pointer;
+  background:
+    linear-gradient(180deg, var(--u-plate-0), var(--u-plate-2)) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  border-color: transparent;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
 }
 .ttag--btn::after {
   content: '';
@@ -746,7 +799,7 @@ body.is-dragging-cards .gbar--side .gitem[style] {
 }
 .ttag--btn:hover {
   color: var(--text);
-  border-color: var(--accent);
+  filter: brightness(1.15);
 }
 
 /* ------------------------------------------------------------ 一覧（窓の中だけ描く） */
@@ -796,7 +849,9 @@ body.is-dragging-cards .gbar--side .gitem[style] {
   display: flex;
   align-items: center;
   gap: 6px;
-  border-bottom: 1px solid var(--line);
+  /* 彫った線（暗い1px＋明るい1px） */
+  border-bottom: 1px solid rgba(0, 0, 0, 0.6);
+  box-shadow: 0 1px 0 rgba(154, 162, 178, 0.16);
 }
 .csec__toggle {
   flex: 1;
@@ -813,15 +868,17 @@ body.is-dragging-cards .gbar--side .gitem[style] {
   cursor: pointer;
   text-align: left;
 }
+/* 羊皮紙の山形（開いているとき下向き、畳むと右向き） */
 .csec__caret {
   display: inline-block;
-  color: var(--muted);
-  font-size: 12px;
-  transform: rotate(90deg);
+  flex: none;
+  width: 12px;
+  height: 8px;
+  background: var(--u-chev) center / contain no-repeat;
   transition: transform var(--dur-fast);
 }
 .csec__toggle[aria-expanded='false'] .csec__caret {
-  transform: none;
+  transform: rotate(-90deg);
 }
 .csec__label {
   font-family: var(--font-title);
@@ -839,8 +896,9 @@ body.is-dragging-cards .gbar--side .gitem[style] {
 }
 .csec__count {
   flex: none;
-  color: var(--muted);
+  color: var(--u-ink-3);
   font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
 }
 .csec__memo {
   margin: 4px 0 0 26px;
@@ -851,7 +909,7 @@ body.is-dragging-cards .gbar--side .gitem[style] {
   white-space: nowrap;
 }
 
-/* 選択のしるし（右上の丸） */
+/* 選択のしるし（右上）：鉄の台座の井戸。選ぶとサファイアの宝石に白いレ点（ラジオ・チェックと同じ語彙） */
 .selmark {
   position: absolute;
   z-index: 4;
@@ -860,27 +918,30 @@ body.is-dragging-cards .gbar--side .gitem[style] {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.85);
-  background: rgba(8, 10, 20, 0.55);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  border: 2px solid #8d95a5;
+  background: radial-gradient(circle at 50% 40%, #0b0d18, #1b2034);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.75),
+    inset 0 2px 0 rgba(0, 0, 0, 0.6),
+    0 1px 3px rgba(0, 0, 0, 0.6);
   pointer-events: none;
 }
 .is-selected .selmark,
 .is-selected > .selmark,
 [aria-checked='true'] > .selmark {
-  background: var(--accent-strong);
-  border-color: #fff;
+  background: radial-gradient(circle at 35% 30%, #a9cbff 0%, #4f86ee 40%, #1d3f9a 100%);
+  border-color: #d8eaff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.75),
+    0 0 10px 2px rgba(111, 160, 255, 0.5);
 }
 .is-selected .selmark::after,
 [aria-checked='true'] > .selmark::after {
-  content: '✓';
+  content: '';
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-size: 13px;
-  font-weight: bold;
+  inset: 2px;
+  background: var(--u-check) center / contain no-repeat;
+  filter: drop-shadow(0 1px 0 rgba(0, 20, 60, 0.8));
 }
 
 /* --- カード（大きいカード） */
@@ -1249,9 +1310,14 @@ body.is-dragging-cards .gbar--side .gitem[style] {
   display: grid;
   gap: 6px;
   padding: 8px max(var(--gutter), env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, #22283e, #151a2b);
-  border-top: 1px solid #3d74d6;
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+  /* 卓の縁（保存バーと同じ）：暗い板＋上に鉄の線、選択中を示すサファイアの細い光 */
+  background:
+    linear-gradient(90deg, transparent, rgba(111, 160, 255, 0.55) 30%, rgba(111, 160, 255, 0.55) 70%, transparent) top / 100% 1px no-repeat,
+    linear-gradient(180deg, #1b1f32, #0c0e1a);
+  border-top: 1px solid #000;
+  box-shadow:
+    inset 0 2px 0 #3a404d,
+    0 -10px 24px rgba(0, 0, 0, 0.45);
 }
 .bulkbar__top,
 .bulkbar__acts {
@@ -1266,6 +1332,8 @@ body.is-dragging-cards .gbar--side .gitem[style] {
   margin-right: auto;
   font-size: var(--fs-sm);
   white-space: nowrap;
+  color: var(--u-ink);
+  font-variant-numeric: tabular-nums;
 }
 .bulkbar__top b small {
   margin-left: 6px;
@@ -1342,21 +1410,33 @@ body:has(.bulkbar) .main {
 }
 
 /* 要修正の知らせ（小さな札。押すと要修正だけを見る） */
+/* 深紅の縁の小さな板に深紅の菱形（⚠ の絵文字はやめた） */
 .cwarn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   min-height: 30px;
-  padding: 2px 10px;
+  padding: 2px 10px 2px 9px;
   font: inherit;
   font-size: var(--fs-xs);
   font-weight: bold;
   color: #ffc2c9;
-  background: var(--ng-bg);
-  border: 1px solid rgba(255, 93, 110, 0.6);
-  border-radius: var(--radius-pill);
+  background:
+    linear-gradient(180deg, #2a1420, #1a0c15) padding-box,
+    var(--u-rim-crimson) border-box;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
   cursor: pointer;
   position: relative;
+}
+.cwarn::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, #ff9fb0, #e04a63 55%, #8f1b31);
 }
 .cwarn::after {
   content: '';
@@ -1364,7 +1444,7 @@ body:has(.bulkbar) .main {
   inset: -7px -2px;
 }
 .cwarn:hover {
-  border-color: var(--ng);
+  filter: brightness(1.15);
 }
 
 /* 速いスクロールの間の仮の行（VirtualRows の renderLight）。高さは本物と同じ */

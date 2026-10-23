@@ -1,9 +1,14 @@
-/** JSON の書き出し（ファイル保存・コピー）と取り込み */
+/**
+ * JSON の書き出し（ファイル保存・コピー）と取り込み。
+ * UI2（決定事項 #111 の D）：取り込みのファイル欄はブラウザの既定の「ファイルを選択」をやめ、鉄の点線の受け皿（押すか、ファイルを落とす）
+ */
 import { useState } from 'react';
 import { mergeImport, parseImport, type ExportBundle, type MergeResult } from '../../engine/index.ts';
 import { actions, getState } from '../store.ts';
 import { downloadText, uuid } from '../util.ts';
 import { Modal } from './controls.tsx';
+import { UiIcon } from './UiIcon.tsx';
+import { cx } from '../util.ts';
 import { useToast } from './Toast.tsx';
 
 interface ExportProps {
@@ -60,9 +65,13 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ merge: MergeResult; warnings: string[] } | null>(null);
+  /** 読み込んだファイルの名前（受け皿に出す） */
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
+    setFileName(file.name);
     setText(await file.text());
     setError(null);
     setResult(null);
@@ -133,9 +142,25 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
         </div>
       ) : (
         <>
-          <label className="field">
-            <span>ファイルから</span>
-            <input type="file" accept="application/json,.json" onChange={(e) => onFile(e.target.files?.[0])} />
+          <label
+            className={cx('filedrop', dragOver && 'is-over', fileName && 'has-file')}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              void onFile(e.dataTransfer.files?.[0]);
+            }}
+          >
+            <input type="file" className="filedrop__input" accept="application/json,.json" onChange={(e) => onFile(e.target.files?.[0])} />
+            <UiIcon name="files" />
+            <span className="filedrop__text">
+              <b>{fileName ?? 'ファイルを選ぶ'}</b>
+              <small>{fileName ? '読み込みました。下の「取り込む」で入れます' : '書き出した .json を選ぶか、ここに落とす'}</small>
+            </span>
           </label>
           <label className="field">
             <span>またはテキストを貼り付け</span>
@@ -145,6 +170,7 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
               placeholder='{"format":"cardgame-export", ...}'
               onChange={(e) => {
                 setText(e.target.value);
+                setFileName(null);
                 setError(null);
               }}
             />

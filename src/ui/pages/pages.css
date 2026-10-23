@@ -1,0 +1,769 @@
+/* UI2「黒鉄と金の卓」（決定事項 #111 の D）：デッキ一覧・デッキ構築・オンラインのロビー・ルール・クレジット・UI キットの規則。
+   色・角・影は styles.css の :root のトークン（--u-*）だけを使う。カードの部品（.tcg .hc .mt .card-row .lrow .crow）の規則は置かない
+   （tests/uiTheme.test.ts）。ノイズは使わない（パネルは styles.css の .panel のまま） */
+
+/* ------------------------------------------------------------ 見出しの行・共通の小物 */
+/* 見出しの行の形のボタン（取り込みなど）：スマホは形だけ、PC は形＋文字 */
+.page-head__iconbtn > .gi {
+  width: 1.3em;
+  height: 1.3em;
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .page-head__iconbtn {
+    padding: 4px 10px;
+  }
+  .page-head__lbl {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
+/* 「⋯」：鉄の菱形の鋲を3つ */
+.u-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.u-more > i {
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, #e6e9ef, #8d95a5 60%, #5c6474);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
+}
+
+/* 人が入力する名前の欄はカードと同じ書体 */
+input.u-name-input {
+  font-family: var(--u-font-name);
+  font-weight: 700;
+}
+
+/* 何もないとき（大きい版）：形・明朝の一言・説明・ボタン */
+.empty--hero {
+  padding: 40px 20px 32px;
+  gap: 10px;
+}
+.empty--hero > .gi {
+  font-size: 60px;
+  color: var(--u-iron-hi);
+  opacity: 0.9;
+  filter: drop-shadow(0 2px 0 #000);
+}
+.empty__title {
+  margin: 4px 0 0;
+  font-family: var(--u-font-display);
+  font-weight: 800;
+  font-feature-settings: 'palt';
+  font-size: 19px;
+  letter-spacing: 0.02em;
+  color: var(--u-ink);
+}
+.empty--hero p {
+  margin: 0;
+  max-width: 34em;
+}
+.empty--hero .btn-row {
+  justify-content: center;
+  margin-top: 8px;
+}
+
+/* 畳める節（ロビーの対戦のルールなど）：鉄の板の見出しに羊皮紙の山形、開くと中は井戸 */
+.fold {
+  border-radius: var(--radius-sm);
+}
+.fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  list-style: none;
+  background:
+    linear-gradient(180deg, var(--u-plate-0), var(--u-plate-2)) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 2px 0 rgba(0, 0, 0, 0.5);
+}
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+.fold > summary::after {
+  content: '';
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-left: auto;
+  background: var(--u-chev) center / contain no-repeat;
+  transition: transform var(--dur-fast);
+}
+.fold[open] > summary::after {
+  transform: rotate(180deg);
+}
+.fold > summary:hover {
+  filter: brightness(1.12);
+}
+.fold__title {
+  font-weight: 700;
+  color: var(--u-ink);
+}
+.fold__value {
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--u-sap-hi);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fold__body {
+  margin-top: 10px;
+}
+
+/* ------------------------------------------------------------ デッキ一覧：デッキ箱のタイル（押せば編集） */
+.dboxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+}
+@media (max-width: 600px) {
+  .dboxes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+.dbox {
+  position: relative;
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 10px 10px 9px;
+  border: 1.5px solid transparent;
+  border-radius: 7px;
+  color: var(--u-ink);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 40%) padding-box,
+    linear-gradient(180deg, #232840, #12162a) padding-box,
+    var(--u-rim-iron) border-box;
+  box-shadow:
+    var(--u-chamfer),
+    0 2px 0 rgba(0, 0, 0, 0.55);
+  transition: transform var(--dur-fast);
+}
+@media (hover: hover) {
+  .dbox:has(> .dbox__open:hover) {
+    transform: translateY(-2px);
+    background:
+      linear-gradient(180deg, rgba(111, 160, 255, 0.12), transparent 50%) padding-box,
+      linear-gradient(180deg, #1d2a4f, #121a35) padding-box,
+      var(--u-rim-sapphire) border-box;
+    box-shadow:
+      var(--u-chamfer),
+      0 4px 0 rgba(0, 0, 0, 0.55);
+  }
+}
+.dbox:has(> .dbox__open:active) {
+  transform: translateY(1px);
+}
+/* 押せる面はタイル全体（⋯ だけは上に重ねる） */
+.dbox__open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 0;
+  padding: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.dbox__open:focus-visible {
+  outline: 2px solid var(--u-sap-hi);
+  outline-offset: 3px;
+}
+.dbox.is-ng > .dbox__art,
+.dbox.is-ng > .dbox__name,
+.dbox.is-ng > .dbox__meta {
+  filter: saturate(0.45) brightness(0.72);
+}
+.dbox__art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 84px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 30%, #2b3150, #0b0d18 80%);
+  box-shadow:
+    inset 0 0 0 1px #000,
+    inset 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+.dbox__art .cart {
+  --cart-size: 64px;
+}
+.dbox__crest {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  color: #d5dae3;
+  background: radial-gradient(circle at 50% 35%, #31384f, #0b0d18 75%);
+  box-shadow:
+    0 0 0 2px #0b0d18,
+    0 0 0 3.5px #5c6474;
+}
+.dbox__crest > .gi {
+  width: 36px;
+  height: 36px;
+}
+.dbox__count {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--u-ink-2);
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    0 1px 0 #000,
+    0 0 4px #000;
+}
+/* 銘板：人が入力したデッキ名なので --font-title（カードの名前と同じ書体） */
+.dbox__name {
+  display: block;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-family: var(--u-font-name);
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.3;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: linear-gradient(180deg, #0a0c16, #161a2c);
+  box-shadow: inset 0 0 0 1px rgba(154, 162, 178, 0.35);
+}
+.dbox__meta {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 22px;
+}
+.dbox__gems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--u-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.dbox__gems > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+/* ミニのコスト分布：平らな鉄の柱に上辺の光だけ */
+.dbox__curve {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 20px;
+  flex: none;
+}
+.dbox__curve > i {
+  width: 6px;
+  min-height: 2px;
+  border-radius: 1px 1px 0 0;
+  background: linear-gradient(180deg, #c3c9d4 0 2px, #7d8595 2px);
+}
+.dbox__note {
+  font-size: 12px;
+  color: var(--u-ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dbox__note.is-ng {
+  color: #ffb0bc;
+}
+/* 要修正：深紅の封蝋（絵の左下に押す。絵は隠さない） */
+.dbox__seal {
+  position: absolute;
+  top: 60px;
+  left: 4px;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  transform: rotate(-10deg);
+  color: #ffe6ea;
+  font-weight: 900;
+  font-size: 12px;
+  line-height: 1.1;
+  text-align: center;
+  background: radial-gradient(circle at 40% 35%, #e0566f, #9b1c35 55%, #5a0b1d);
+  box-shadow:
+    0 0 0 3px rgba(90, 11, 29, 0.6),
+    0 2px 0 rgba(0, 0, 0, 0.6),
+    inset 0 0 0 2px rgba(255, 170, 185, 0.35);
+}
+@media (max-width: 600px) {
+  .dbox__art {
+    height: 72px;
+  }
+  .dbox__art .cart {
+    --cart-size: 54px;
+  }
+  .dbox__seal {
+    top: 50px;
+  }
+  .dbox__name {
+    font-size: 15px;
+  }
+}
+
+/* タイルの ⋯ とメニュー（components/TileMenu.tsx） */
+.tmenu__btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: 40px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background:
+    linear-gradient(180deg, rgba(36, 41, 62, 0.92), rgba(16, 19, 33, 0.92)) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+}
+.tmenu__btn::after {
+  content: '';
+  position: absolute;
+  inset: -4px -6px -4px -4px;
+}
+.tmenu__btn:hover,
+.tmenu__btn.is-open {
+  filter: brightness(1.25);
+}
+.tmenu__btn:focus-visible {
+  outline: 2px solid var(--u-sap-hi);
+  outline-offset: 2px;
+}
+.tmenu {
+  position: absolute;
+  top: 50px;
+  right: 6px;
+  z-index: 5;
+  display: grid;
+  min-width: 168px;
+  padding: 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, #252b44, #161a2c) padding-box,
+    var(--u-rim-iron) border-box;
+  box-shadow:
+    var(--u-chamfer),
+    0 14px 30px rgba(0, 0, 0, 0.6);
+}
+.tmenu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  padding: 6px 12px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  font: inherit;
+  font-weight: 700;
+  color: var(--u-ink);
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+.tmenu__item > .gi {
+  width: 1.2em;
+  height: 1.2em;
+  color: var(--u-ink-2);
+}
+.tmenu__item:hover,
+.tmenu__item:focus-visible {
+  outline: none;
+  background: linear-gradient(90deg, rgba(111, 160, 255, 0.2), rgba(111, 160, 255, 0.06));
+  box-shadow: inset 2px 0 0 var(--u-sap);
+}
+.tmenu__item.is-danger {
+  margin-top: 4px;
+  color: #ffb0bc;
+  box-shadow: 0 -1px 0 rgba(154, 162, 178, 0.18);
+}
+.tmenu__item.is-danger > .gi {
+  color: var(--u-crim);
+}
+.tmenu__item.is-danger:hover,
+.tmenu__item.is-danger:focus-visible {
+  background: linear-gradient(90deg, rgba(224, 74, 99, 0.25), rgba(224, 74, 99, 0.06));
+  box-shadow:
+    inset 2px 0 0 var(--u-crim),
+    0 -1px 0 rgba(154, 162, 178, 0.18);
+}
+
+/* ------------------------------------------------------------ デッキ構築の上の板 */
+/* デッキ名（--font-title）、PC は「枚数とレアリティ」「コスト分布」「要修正」の3列、スマホは縦に積む */
+.deck-summary__name input {
+  font-size: 18px;
+}
+.deck-summary__grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 6px;
+}
+@media (min-width: 920px) {
+  .deck-summary__grid {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 22px;
+  }
+}
+.deck-summary__grid > * {
+  min-width: 0;
+}
+.deck-summary__check .violations,
+.deck-summary__check .ok-msg {
+  margin-top: 0;
+}
+.deck-summary__counts {
+  display: grid;
+  gap: 10px;
+}
+.deck-summary__total {
+  font-size: 1.05rem;
+  color: var(--u-ink-2);
+}
+.deck-summary__total b {
+  font-family: var(--u-font-display);
+  font-feature-settings: 'palt';
+  font-size: 2.3rem;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--u-ink);
+  font-variant-numeric: tabular-nums;
+}
+.deck-summary__total.is-ng,
+.deck-summary__total.is-ng b {
+  color: var(--u-crim-hi);
+}
+.rarity-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: var(--fs-sm);
+  color: var(--u-ink-2);
+}
+.rarity-rows li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.rarity-rows b {
+  color: var(--u-ink);
+  font-variant-numeric: tabular-nums;
+}
+.rarity-rows .is-ng,
+.rarity-rows .is-ng b {
+  color: var(--u-crim-hi);
+  font-weight: bold;
+}
+@media (min-width: 920px) {
+  .rarity-rows {
+    display: grid;
+    grid-template-columns: repeat(2, max-content);
+    gap: 6px 18px;
+  }
+}
+/* うち呪い：深紅の菱形（カードの「呪」の色） */
+.curse-mark {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin: 0 3px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, #ff9fb0, #c8344f 55%, #6c1124);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+
+/* ------------------------------------------------------------ オンラインのロビー */
+.lobby__you-grid {
+  display: grid;
+  gap: 4px 16px;
+}
+@media (min-width: 720px) {
+  .lobby__you-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+.lobby__you-grid > * {
+  min-width: 0;
+}
+.lobby__tabs {
+  margin-bottom: 14px;
+}
+.lobby__pane > .hint:first-child {
+  margin-top: 0;
+}
+/* 部屋コード：井戸に大きな等幅の字 */
+.lobby__code input {
+  width: 100%;
+  max-width: 340px;
+  min-height: 60px;
+  text-align: center;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  color: var(--u-ink);
+}
+.lobby__code input::placeholder {
+  color: #4d5466;
+}
+/* 下に固定した主ボタンの列（保存バーと同じ卓の縁）：左にだれのどのデッキか、右に金の主ボタン */
+.lobby-bar {
+  justify-content: space-between;
+}
+.lobby-bar__sum {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.lobby-bar__sum > .gi {
+  font-size: 26px;
+  color: var(--u-sap-hi);
+}
+.lobby-bar__sum > span {
+  display: grid;
+  min-width: 0;
+  line-height: 1.3;
+}
+.lobby-bar__sum b,
+.lobby-bar__sum small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lobby-bar__sum small {
+  font-size: var(--fs-xs);
+  color: var(--u-ink-3);
+}
+.lobby-bar .btn--big {
+  flex: none;
+  min-width: 132px;
+}
+@media (max-width: 480px) {
+  .lobby-bar .btn--big {
+    min-width: 0;
+    padding: 10px 18px;
+  }
+}
+
+/* ------------------------------------------------------------ ルール：目次は鉄の札の格子、節の印は丸い鉄の台座に UiIcon */
+.rules__toc {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(224px, 1fr));
+  gap: 8px;
+  margin-bottom: 18px;
+}
+@media (max-width: 600px) {
+  .rules__toc {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+}
+.rules__tocitem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--u-ink);
+  text-decoration: none;
+  background:
+    linear-gradient(180deg, var(--u-plate-0), var(--u-plate-1) 52%, var(--u-plate-2)) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 2px 0 rgba(0, 0, 0, 0.55);
+}
+.rules__tocitem > .gi {
+  font-size: 20px;
+  color: var(--u-iron-hi);
+}
+.rules__tocitem:hover {
+  filter: brightness(1.15);
+}
+.rules__tocitem:hover > .gi {
+  color: var(--u-sap-hi);
+}
+.rules__tocitem:active {
+  transform: translateY(1px);
+}
+.rules__tocitem:focus-visible {
+  outline: 2px solid var(--u-sap-hi);
+  outline-offset: 2px;
+}
+@media (max-width: 600px) {
+  .rules__tocitem {
+    gap: 6px;
+    padding: 5px 8px;
+    font-size: 13px;
+  }
+  .rules__tocitem > .gi {
+    font-size: 18px;
+  }
+}
+.rules__summary .rules__icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 20px;
+  color: #d5dae3;
+  background: radial-gradient(circle at 50% 35%, #31384f, #0b0d18 75%);
+  box-shadow:
+    0 0 0 1.5px #0b0d18,
+    0 0 0 2.5px #5c6474;
+}
+.rules__section[open] .rules__icon {
+  color: #fff;
+  background: radial-gradient(circle at 50% 35%, #2f4f9a, #0b1430 75%);
+  box-shadow:
+    0 0 0 1.5px #0b0d18,
+    0 0 0 2.5px #6fa6f5;
+}
+.rules__title {
+  font-family: var(--u-font-display);
+  font-feature-settings: 'palt';
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: 0.02em;
+  color: var(--u-ink);
+}
+.rules__rarity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.term__icon--gi {
+  display: inline-grid;
+  place-items: center;
+  font-size: 1.15em;
+  line-height: 1;
+  padding-top: 0.15em;
+}
+
+/* ------------------------------------------------------------ 取り込みのファイルの受け皿（components/ImportExport.tsx） */
+.filedrop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1.5px dashed #5c6474;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: linear-gradient(180deg, var(--u-well-0), var(--u-well-1));
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+.filedrop > .gi {
+  flex: none;
+  font-size: 30px;
+  color: var(--u-iron-hi);
+}
+.filedrop:hover,
+.filedrop.is-over {
+  border-color: var(--u-sap);
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(111, 160, 255, 0.14), transparent 70%),
+    linear-gradient(180deg, var(--u-well-0), var(--u-well-1));
+}
+.filedrop:hover > .gi,
+.filedrop.is-over > .gi,
+.filedrop.has-file > .gi {
+  color: var(--u-sap-hi);
+}
+.filedrop.has-file {
+  border-style: solid;
+  border-color: rgba(111, 160, 255, 0.6);
+}
+.filedrop:has(.filedrop__input:focus-visible) {
+  outline: 2px solid var(--u-sap-hi);
+  outline-offset: 2px;
+}
+/* 本物の入力は見えないように重ねる（押せる・読み上げられる） */
+.filedrop__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.filedrop__text {
+  display: grid;
+  min-width: 0;
+  line-height: 1.35;
+}
+.filedrop__text b {
+  color: var(--u-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.filedrop__text small {
+  font-size: var(--fs-xs);
+  color: var(--u-ink-3);
+}
+
+/* 切り替えのタブ（ロビー・デッキ構築のスマホ）：当たりを井戸の縁まで広げて 44px に */
+.lobby__tabs .tab,
+.tabs--mobile .tab {
+  position: relative;
+}
+.lobby__tabs .tab::after,
+.tabs--mobile .tab::after {
+  content: '';
+  position: absolute;
+  inset: -4px -2px;
+}

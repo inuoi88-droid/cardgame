@@ -10,7 +10,7 @@
 import { memo, type CSSProperties } from 'react';
 import { UI_ICON_PATHS, type UiIconName } from '../icons/generated/uiIcons.ts';
 import { useIconPath } from '../icons/load.ts';
-import { GI_PREFIX, isGiName } from '../icons/ref.ts';
+import { GI_PREFIX, isGiName, isPathData } from '../icons/ref.ts';
 import { cx } from '../util.ts';
 
 export type { UiIconName };
@@ -38,7 +38,8 @@ export const UiIcon = memo(function UiIcon({ name, size, className, label, style
   const isBundled = bundled(n);
   // 同梱していない形だけを読み込む（フックは毎回呼ぶ）
   const loaded = useIconPath(!isBundled && isGiName(n) ? n : null);
-  const d = isBundled ? UI_ICON_PATHS[n] : typeof loaded === 'string' ? loaded : null;
+  // 読み込み中（'loading'）・失敗（'error'）は形を描かない
+  const d = isBundled ? UI_ICON_PATHS[n] : isPathData(loaded) ? loaded : null;
   const s = size === undefined ? undefined : typeof size === 'number' ? `${size}px` : size;
   return (
     <svg

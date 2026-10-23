@@ -31,34 +31,41 @@ import {
 import { abilityGlossary, glossary, keywordGlossary, mechanicGlossary, MTG_GUIDE, modifierGlossary, type StatusId } from '../glossary.ts';
 import { TEMPLATES } from '../editor/templates.ts';
 import { cx } from '../util.ts';
+import { RarityGem } from '../components/cardParts.tsx';
+import { UiIcon, type UiIconProps } from '../components/UiIcon.tsx';
 
 const B = BALANCE.battle;
 
-function Section({ id, icon, title, open, children }: { id: string; icon: string; title: string; open?: boolean; children: ReactNode }) {
+function Section({ id, icon, title, open, children }: { id: string; icon: SectionIcon; title: string; open?: boolean; children: ReactNode }) {
   return (
     <details className="rules__section" id={id} open={open}>
       <summary className="rules__summary">
         <span className="rules__icon" aria-hidden="true">
-          {icon}
+          <UiIcon name={icon} />
         </span>
         <span className="rules__title">{title}</span>
-        <span className="rules__chevron" aria-hidden="true">
-          ▾
-        </span>
+        <span className="rules__chevron" aria-hidden="true" />
       </summary>
       <div className="rules__body">{children}</div>
     </details>
   );
 }
 
-function Term({ name, children, icon, tone }: { name: ReactNode; children: ReactNode; icon?: string; tone?: 'bad' | 'good' | 'info' }) {
+/** 用語の印：game-icons の名前（gi）があれば UiIcon、無ければ絵文字のまま */
+function Term({ name, children, icon, gi, tone }: { name: ReactNode; children: ReactNode; icon?: string; gi?: string; tone?: 'bad' | 'good' | 'info' }) {
   return (
     <div className="term">
       <dt className={cx('term__name', tone && `term__name--${tone}`)}>
-        {icon && (
-          <span className="term__icon" aria-hidden="true">
-            {icon}
+        {gi ? (
+          <span className="term__icon term__icon--gi" aria-hidden="true">
+            <UiIcon name={`gi:${gi}`} />
           </span>
+        ) : (
+          icon && (
+            <span className="term__icon" aria-hidden="true">
+              {icon}
+            </span>
+          )
         )}
         {name}
       </dt>
@@ -67,22 +74,27 @@ function Term({ name, children, icon, tone }: { name: ReactNode; children: React
   );
 }
 
-const SECTIONS: { id: string; icon: string; title: string }[] = [
-  { id: 'win', icon: '🏆', title: '勝敗' },
-  { id: 'turn', icon: '🔁', title: 'ターンの流れ' },
-  { id: 'cards', icon: '🃏', title: 'カードの種類と使い方' },
-  { id: 'monster', icon: '🐻', title: 'モンスターの戦闘' },
-  { id: 'status', icon: '☠', title: '状態異常・持続効果' },
-  { id: 'keywords', icon: '⚡', title: 'キーワード一覧' },
-  { id: 'effects', icon: '✨', title: '効果一覧' },
-  { id: 'options', icon: '⏱', title: 'タイミング・対象・条件・オプション' },
-  { id: 'drawbacks', icon: '😈', title: 'デメリット一覧' },
-  { id: 'create', icon: '✏️', title: 'カード作成のルール' },
-  { id: 'match', icon: '🗺', title: 'リーダー・フィールド・昼と夜' },
-  { id: 'mtg', icon: '📖', title: 'MTG の仕組みの作り方（対応表）' },
-  { id: 'limits', icon: '🔧', title: '安全装置（1ターンの上限）' },
-  { id: 'online', icon: '🌐', title: 'オンライン対戦' },
+/** 節の印（画面の枠の記号＝UiIcon。絵文字は使わない）。同梱していない形（キーワード・状態異常）は読み込んで描く */
+type SectionIcon = UiIconProps['name'];
+const SECTIONS: { id: string; icon: SectionIcon; title: string }[] = [
+  { id: 'win', icon: 'trophy-cup', title: '勝敗' },
+  { id: 'turn', icon: 'cycle', title: 'ターンの流れ' },
+  { id: 'cards', icon: 'card-play', title: 'カードの種類と使い方' },
+  { id: 'monster', icon: 'battle-gear', title: 'モンスターの戦闘' },
+  { id: 'status', icon: 'gi:bubbling-flask', title: '状態異常・持続効果' },
+  { id: 'keywords', icon: 'gi:rune-sword', title: 'キーワード一覧' },
+  { id: 'effects', icon: 'fairy-wand', title: '効果一覧' },
+  { id: 'options', icon: 'pocket-watch', title: 'タイミング・対象・条件・オプション' },
+  { id: 'drawbacks', icon: 'broken-shield', title: 'デメリット一覧' },
+  { id: 'create', icon: 'quill-ink', title: 'カード作成のルール' },
+  { id: 'match', icon: 'treasure-map', title: 'リーダー・フィールド・昼と夜' },
+  { id: 'mtg', icon: 'open-book', title: 'MTG の仕組みの作り方（対応表）' },
+  { id: 'limits', icon: 'hazard-sign', title: '安全装置（1ターンの上限）' },
+  { id: 'online', icon: 'world', title: 'オンライン対戦' },
 ];
+
+/** glossary の項目の形（UI2 の B が glossary に gi を足す。無ければ絵文字） */
+const giOf = (g: object | undefined): string | undefined => (g as { gi?: string } | undefined)?.gi;
 
 export function RulesPage() {
   const sec = (id: string) => SECTIONS.find((s) => s.id === id)!;
@@ -110,8 +122,9 @@ export function RulesPage() {
       </p>
       <nav className="rules__toc" aria-label="目次">
         {SECTIONS.map((s) => (
-          <a key={s.id} href={`#/rules/${s.id}`} className="chip" onClick={(e) => jumpTo(e, s.id)}>
-            {s.icon} {s.title}
+          <a key={s.id} href={`#/rules/${s.id}`} className="rules__tocitem" onClick={(e) => jumpTo(e, s.id)}>
+            <UiIcon name={s.icon} />
+            {s.title}
           </a>
         ))}
       </nav>
@@ -345,7 +358,7 @@ export function RulesPage() {
           {statusOrder.map((id) => {
             const g = glossary[id];
             return (
-              <Term key={id} name={g.name} icon={g.icon} tone={g.tone}>
+              <Term key={id} name={g.name} icon={g.icon} gi={giOf(g)} tone={g.tone}>
                 {g.short}
               </Term>
             );
@@ -357,7 +370,7 @@ export function RulesPage() {
         <p className="hint">モンスターに付けられる性質です。封印されると働きません。</p>
         <dl className="terms">
           {listKeywords().map((def) => (
-            <Term key={def.id} name={def.name} icon={keywordGlossary[def.id]?.icon}>
+            <Term key={def.id} name={def.name} icon={keywordGlossary[def.id]?.icon} gi={giOf(keywordGlossary[def.id])}>
               {keywordGlossary[def.id]?.short ?? def.summary}
             </Term>
           ))}
@@ -483,8 +496,10 @@ export function RulesPage() {
               return (
                 <tr key={r}>
                   <td>
-                    <span className={cx('dot', `dot--${r}`)} />
-                    {RARITY_LABEL[r]}
+                    <span className="rules__rarity">
+                      <RarityGem rarity={r} />
+                      {RARITY_LABEL[r]}
+                    </span>
                   </td>
                   <td>{R.cap}pt</td>
                   <td>{R.maxEffects}つまで</td>

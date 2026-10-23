@@ -1,0 +1,112 @@
+/* コスト分布（CostCurve.tsx。UI2 の D）：平らな金属の柱に上辺の光、床は彫った線、目盛りは鉄の六角。数字は羊皮紙 */
+.curve {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  max-width: 440px;
+}
+.curve__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-size: var(--fs-sm);
+  color: var(--u-ink-3);
+}
+.curve__head b {
+  color: var(--u-ink);
+}
+.curve__avg {
+  font-variant-numeric: tabular-nums;
+}
+.curve__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--u-ink-2);
+}
+.curve__swatch {
+  display: inline-block;
+  width: 9px;
+  height: 12px;
+  margin-left: 6px;
+  border-radius: 1px 1px 0 0;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.5),
+    0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+.curve__swatch--monster {
+  background: linear-gradient(90deg, #5f8fe8, #1d3f9a);
+}
+.curve__swatch--other {
+  background: linear-gradient(90deg, #b9c0cc, #4b5261);
+}
+.curve__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.curve--compact .curve__svg {
+  max-height: 96px;
+}
+.curve__rim {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.7);
+  stroke-width: 1;
+}
+.curve__cap {
+  fill: rgba(255, 255, 255, 0.7);
+}
+.curve__axis {
+  stroke: #05060c;
+  stroke-width: 1;
+}
+.curve__axis-hi {
+  stroke: rgba(154, 162, 178, 0.35);
+  stroke-width: 1;
+}
+.curve__hex {
+  fill: #20253a;
+  stroke: #7d8595;
+  stroke-width: 1.2;
+}
+.curve__hex.is-zero {
+  fill: #141826;
+  stroke: #4b5261;
+}
+.curve__num,
+.curve__cost {
+  font-size: 12.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.curve__num {
+  fill: var(--u-ink);
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.75);
+  stroke-width: 2.5px;
+}
+.curve__cost {
+  fill: var(--u-ink-2);
+}
+.curve__hex.is-zero + .curve__cost {
+  fill: var(--u-ink-3);
+}
+.curve__advice {
+  margin: 0;
+  padding-left: 16px;
+  position: relative;
+  font-size: var(--fs-sm);
+  color: #ffd98a;
+}
+.curve__advice::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.55em;
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: #e0a838;
+}

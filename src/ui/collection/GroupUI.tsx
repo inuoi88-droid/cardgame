@@ -7,6 +7,7 @@ import { useId, useRef, useState, type CSSProperties, type DragEvent } from 'rea
 import { createPortal } from 'react-dom';
 import { GROUP_MEMO_MAX, GROUP_NAME_MAX, type CardGroup } from '../../engine/index.ts';
 import { Modal } from '../components/controls.tsx';
+import { UiIcon } from '../components/UiIcon.tsx';
 import { Sheet } from '../components/Sheet.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { actions, getState } from '../store.ts';
@@ -360,7 +361,7 @@ export function CardMembership({ cardId, groups, tags, onNewGroup, onTag }: Memb
             >
               <span className="gdot" aria-hidden="true" />
               {g.name}
-              {on && <span aria-hidden="true">✓</span>}
+              {on && <UiIcon name="check-mark" className="gtoggle__on" />}
             </button>
           );
         })}

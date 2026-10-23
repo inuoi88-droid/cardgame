@@ -11,6 +11,11 @@ import { useToast } from '../components/Toast.tsx';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { UI_ICON_PATHS, type UiIconName } from '../icons/generated/uiIcons.ts';
 import { glossary, keywordGlossary, STATUS_IDS } from '../glossary.ts';
+import { analyzeDeck } from '../../engine/index.ts';
+import { PRESET_DECKS } from '../../presets.ts';
+import { CostCurve } from '../components/CostCurve.tsx';
+import { DeckBox } from '../components/DeckBox.tsx';
+import { MoreDots } from '../components/TileMenu.tsx';
 
 export function UiKitPage() {
   const toast = useToast();
@@ -227,6 +232,45 @@ export function UiKitPage() {
         <div className="notice notice--ng">エラー（.notice--ng）</div>
         <div className="notice notice--warn">注意（.notice--warn）</div>
         <div className="notice notice--ok">成功（.notice--ok）</div>
+      </section>
+
+      <section className="panel">
+        <h2>デッキ・置き場・ルールの部品</h2>
+        <p className="hint">デッキ箱（DeckBox。押せば編集・⋯ で操作・要修正は封蝋）、コスト分布（CostCurve）、畳める節（.fold）、要修正の札（.cwarn）、ルールの目次（.rules__tocitem）、何もないとき（.empty--hero）。</p>
+        <ul className="dboxes">
+          {PRESET_DECKS.slice(0, 2).map((p, i) => {
+            const byId = new Map(p.cards.map((c) => [c.id, c]));
+            const deck = i === 0 ? p.deck : { ...p.deck, entries: p.deck.entries.map((e, k) => (k === 0 ? { ...e, count: e.count + 9 } : e)) };
+            return <DeckBox key={p.id} deck={deck} a={analyzeDeck(deck, byId)} cards={p.cards} onOpen={() => toast({ text: `「${p.name}」を開く`, kind: 'info' })} onDuplicate={() => undefined} onExport={() => undefined} onRemove={() => undefined} />;
+          })}
+        </ul>
+        <div style={{ marginTop: 16 }}>
+          <CostCurve deck={PRESET_DECKS[0]!.deck} cards={PRESET_DECKS[0]!.cards} />
+        </div>
+        <div className="btn-row" style={{ marginTop: 12 }}>
+          <button type="button" className="cwarn">
+            要修正 8枚
+          </button>
+          <button type="button" className="btn" aria-label="その他の操作">
+            <MoreDots />
+          </button>
+          <a href="#/rules/win" className="rules__tocitem">
+            <UiIcon name="trophy-cup" />
+            勝敗
+          </a>
+        </div>
+        <details className="fold" style={{ marginTop: 12 }}>
+          <summary>
+            <span className="fold__title">対戦のルール</span>
+            <span className="fold__value">基本ルール</span>
+          </summary>
+          <div className="fold__body hint">畳んだ中身（MatchOptionsForm など）</div>
+        </details>
+        <div className="empty empty--hero" style={{ marginTop: 12 }}>
+          <UiIcon name="open-chest" />
+          <p className="empty__title">まだデッキがありません</p>
+          <p>何もないときは、形・明朝の一言・説明・ボタンを並べる。</p>
+        </div>
       </section>
 
       <section className="panel">

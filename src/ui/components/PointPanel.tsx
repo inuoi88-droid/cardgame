@@ -3,6 +3,8 @@ import { BALANCE, CARD_TYPE_LABEL, CONDITIONS, CURSE_LABEL, MODE_LABEL, modeSumm
 import type { BudgetModel } from '../editor/budget.ts';
 import { BudgetMeter } from '../editor/BudgetMeter.tsx';
 import { cx, signed } from '../util.ts';
+import { RarityGem } from './cardParts.tsx';
+import { UiIcon } from './UiIcon.tsx';
 
 interface Props {
   card: CardDef;
@@ -24,14 +26,20 @@ export function PointPanel({ card, analysis: a, budget, violations, onJump, deta
     <section className="panel point-panel" aria-label="ポイントと判定">
       <div className="point-panel__badges">
         <span className="badge">{CARD_TYPE_LABEL[a.cardType]}</span>
-        <span className={cx('badge', `badge--${card.rarity}`)}>{RARITY_LABEL[card.rarity]}</span>
+        <span className={cx('badge', `badge--${card.rarity}`)}>
+          <RarityGem rarity={card.rarity} />
+          {RARITY_LABEL[card.rarity]}
+        </span>
         {a.isCurse && <span className="badge badge--curse">{CURSE_LABEL}</span>}
       </div>
 
       <BudgetMeter m={budget} rarity={card.rarity} cost={card.cost} id={meterId} flash={flash} />
 
       {violations.length === 0 ? (
-        <p className="ok-msg">✓ このカードは作成できます</p>
+        <p className="ok-msg ed-ok">
+          <UiIcon name="check-mark" />
+          このカードは作成できます
+        </p>
       ) : (
         <div className="ed-vlist" aria-live="polite">
           <p className="ed-vlist__head">要修正 {violations.length}件</p>
@@ -41,7 +49,7 @@ export function PointPanel({ card, analysis: a, budget, violations, onJump, deta
                 {onJump && v.path ? (
                   <button type="button" className="ed-vlist__btn" onClick={() => onJump(v.path!)}>
                     {v.message}
-                    <span className="ed-vlist__go">→ 直す</span>
+                    <span className="ed-vlist__go">直す</span>
                   </button>
                 ) : (
                   v.message

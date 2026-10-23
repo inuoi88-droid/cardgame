@@ -34,9 +34,7 @@ export function MiniPreview({ card, analysis: a, budget, invalidCount, flash, on
         </span>
         <BudgetMeterCompact m={budget} flash={flash} />
       </span>
-      <span className="ed-mini__chev" aria-hidden="true">
-        ▾
-      </span>
+      <span className="ed-mini__chev" aria-hidden="true" />
     </button>
   );
 }

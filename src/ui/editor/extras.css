@@ -4,24 +4,37 @@
   min-height: 64px;
   resize: vertical;
   line-height: 1.5;
+  /* 人が入力した字：カードと同じ書体（決定事項 #111 の7章） */
+  font-family: var(--u-font-name);
 }
 .ed-desc.field--invalid textarea {
-  border-color: var(--ng);
+  border-color: var(--u-crim);
 }
 .ed-desc .field__count {
   font-variant-numeric: tabular-nums;
 }
 
-/* ------------------------------------------------------------ カードの能力の行（MTG 要素 ○ バッチB） */
+/* ------------------------------------------------------------ カードの能力の行（MTG 要素 ○ バッチB）：鉄の板に紫の縁の印 */
 .ed-row--ability {
-  padding: 0 10px 8px;
+  padding: 4px 12px 10px;
 }
 .ed-row--ability .ed-row__head {
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
+  gap: 12px;
+  min-height: 56px;
 }
 .ed-row--ability .ed-row__head b {
   flex: 1;
   min-width: 0;
+  font-size: var(--fs-md);
+}
+.ed-row--ability .ed-row__summary {
+  margin-top: 2px;
+}
+
+/* 内訳のバッジ：種類・レアリティ（カードの RarityGem）・呪い */
+.point-panel__badges .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }

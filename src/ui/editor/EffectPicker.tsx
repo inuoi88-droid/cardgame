@@ -30,23 +30,15 @@ import {
   type EffectGroup,
 } from '../../engine/index.ts';
 import { Sheet } from '../components/Sheet.tsx';
+import { UiIcon } from '../components/UiIcon.tsx';
+import { EffectIcon } from './EffectIcon.tsx';
+import { GROUP_GI } from './effectIcons.ts';
 import { cx } from '../util.ts';
 
 export type PickerMode = 'effect' | 'drawback' | 'keyword' | 'ability';
 
-export const GROUP_ICON: Record<EffectGroup, string> = {
-  damage: '💥',
-  defense: '🛡️',
-  status: '☠️',
-  buff: '💪',
-  resource: '🃏',
-  disrupt: '🌀',
-  special: '✨',
-};
-
 interface Item {
   id: string;
-  icon: string;
   name: string;
   summary: string;
   group?: EffectGroup;
@@ -95,7 +87,6 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
       const ok = new Set(availableEffects(card.rarity).map((d) => d.id));
       return listEffects().map((d) => ({
         id: d.id,
-        icon: GROUP_ICON[d.group],
         name: d.name,
         summary: d.summary,
         group: d.group,
@@ -116,7 +107,6 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
       const ctx = abilityContext(card);
       return abilityChoices(card).map(({ def, blocked }) => ({
         id: def.id,
-        icon: '✦',
         name: def.name,
         summary: def.summary,
         points: abilityPoints(createAbility(def.id), ctx).value,
@@ -129,7 +119,6 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
       const used = new Set(card.drawbacks.map((d) => d.id));
       return listDrawbacks().map((d) => ({
         id: d.id,
-        icon: '☠',
         name: d.name,
         summary: d.summary,
         points: drawbackPoints(createDrawback(d.id, base), card).value,
@@ -149,7 +138,7 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
     const stats = card.stats ?? { attack: 0, hp: 0, defense: 0 };
     return listKeywords().map((d) => {
       const inst = card.keywords.find((k) => k.id === d.id) ?? (d.value ? { id: d.id, value: d.value.default } : { id: d.id });
-      return { id: d.id, icon: '◆', name: d.name, summary: d.summary, points: d.points(inst, stats), active: card.keywords.some((k) => k.id === d.id) };
+      return { id: d.id, name: d.name, summary: d.summary, points: d.points(inst, stats), active: card.keywords.some((k) => k.id === d.id) };
     });
   }, [mode, card, base]);
 
@@ -182,7 +171,8 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
             </button>
             {EFFECT_GROUPS.map((g) => (
               <button key={g.id} type="button" className={cx('chip', group === g.id && 'is-active')} aria-pressed={group === g.id} onClick={() => setGroup(g.id)}>
-                {GROUP_ICON[g.id]} {g.label}
+                <UiIcon name={`gi:${GROUP_GI[g.id]}`} />
+                {g.label}
               </button>
             ))}
           </div>
@@ -223,16 +213,14 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
                     if (mode !== 'keyword') onClose();
                   }}
                 >
-                  <span className="pk-row__icon" aria-hidden="true">
-                    {it.icon}
-                  </span>
+                  <EffectIcon kind={mode} id={it.id} group={it.group} className="pk-row__icon" />
                   <span className="pk-row__main">
                     <span className="pk-row__name">
                       {it.name}
                       {it.active && <span className="badge badge--ok badge--sm">付いている</span>}
                     </span>
                     <span className="pk-row__sum">{it.summary}</span>
-                    {it.locked && <span className="pk-row__reason">🔒 {it.locked}</span>}
+                    {it.locked && <span className="pk-row__reason">{it.locked}</span>}
                   </span>
                   <span className={cx('pk-row__pts', mode !== 'drawback' && !it.active && (it.points <= remaining ? 'is-fit' : 'is-tight'))}>
                     <b>

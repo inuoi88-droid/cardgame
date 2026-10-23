@@ -30,28 +30,48 @@
   display: flex;
   flex-direction: column;
 }
+/* タブ：井戸の溝の中で、選んだものだけ鉄の板が浮く（UI2 の切り替え。決定事項 #111） */
 .ip__tabs {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, var(--u-well-0), #10132a);
+  border: 1px solid #2a2f3c;
+  border-bottom-color: #4a5163;
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.5);
 }
 .ip__tab {
-  min-height: 44px;
+  min-height: 38px;
   padding: 0 10px;
   font: inherit;
+  font-size: var(--fs-sm);
   font-weight: bold;
-  color: var(--muted);
+  color: var(--placeholder);
   background: none;
-  border: 0;
-  border-bottom: 3px solid transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
   cursor: pointer;
+}
+.ip__tab:hover {
+  color: var(--muted);
 }
 .ip__tab.is-active {
   color: var(--text);
-  border-bottom-color: var(--accent);
+  background:
+    linear-gradient(180deg, #353c55, #20253a) padding-box,
+    var(--u-rim-iron) border-box;
+  box-shadow:
+    var(--u-bevel),
+    0 1px 0 rgba(0, 0, 0, 0.6);
+}
+.ip__tab:focus-visible {
+  outline: 2px solid var(--u-sap-hi);
+  outline-offset: 1px;
 }
 .ip__now {
-  margin: 0 4px 0 6px;
+  margin: 0 2px 0 6px;
   display: inline-grid;
 }
 .ip__panel {
@@ -112,10 +132,25 @@
 .ip__msg {
   padding: 16px;
 }
+/* 一覧の見出し：羊皮紙の小さな字、左に鉄の菱形、下に彫った線 */
 .ip__h {
-  margin: 10px 4px 6px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 12px 4px 8px;
+  padding-bottom: 5px;
   font-size: var(--fs-sm);
   color: var(--muted);
+  border-bottom: 1px solid #2c3243;
+  box-shadow: var(--u-groove);
+}
+.ip__h::before {
+  content: '';
+  flex: none;
+  align-self: center;
+  width: 9px;
+  height: 9px;
+  background: var(--u-diamond-iron) center / contain no-repeat;
 }
 .ip__h small {
   font-weight: normal;
@@ -149,7 +184,7 @@
   padding: 0;
   background: none;
   border: 2px solid transparent;
-  border-radius: 14px;
+  border-radius: var(--radius);
   cursor: pointer;
   transition:
     background-color var(--dur-fast),
@@ -157,22 +192,26 @@
     transform var(--dur-fast);
 }
 .ip__cell:hover {
-  background: var(--panel-2, rgba(255, 255, 255, 0.06));
+  background: radial-gradient(circle at 50% 45%, rgba(154, 162, 178, 0.18), transparent 70%);
   transform: translateY(-1px);
 }
 .ip__cell:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--u-sap-hi);
   outline-offset: 1px;
 }
+/* 選んだ絵：サファイアの縁と光（選択の色） */
 .ip__cell.is-selected {
-  border-color: var(--accent);
-  background: rgba(111, 141, 255, 0.16);
+  border-color: var(--u-sap-hi);
+  background: radial-gradient(circle at 50% 45%, rgba(47, 95, 224, 0.4), rgba(47, 95, 224, 0.1) 70%);
+  box-shadow: 0 0 10px rgba(111, 160, 255, 0.45);
 }
 .ip__credit {
   flex: none;
   margin: 0;
   padding: 6px 16px 10px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid #000;
+  box-shadow: inset 0 1px 0 #3a404d;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), transparent);
   font-size: var(--fs-xs);
   color: var(--muted);
 }
@@ -181,4 +220,45 @@
 }
 .ip .emoji-pane {
   padding-top: 4px;
+}
+/* 絵文字のタブ（EmojiPicker）：見出しは一覧と同じ、マスは井戸、選んだものはサファイアの縁 */
+.ip .emoji-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 4px 8px;
+  padding-bottom: 5px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  border-bottom: 1px solid #2c3243;
+  box-shadow: var(--u-groove);
+}
+.ip .emoji-group h3::before {
+  content: '';
+  flex: none;
+  width: 9px;
+  height: 9px;
+  background: var(--u-diamond-iron) center / contain no-repeat;
+}
+.ip .emoji-grid {
+  gap: 6px;
+}
+.ip .emoji-btn {
+  border-color: #2c3241;
+  border-bottom-color: #4a5163;
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.5);
+  transition: transform var(--dur-fast);
+}
+.ip .emoji-btn:hover {
+  border-color: var(--u-iron-hi);
+}
+.ip .emoji-btn:focus-visible {
+  outline: 2px solid var(--u-sap-hi);
+  outline-offset: 1px;
+}
+.ip .emoji-btn--active {
+  border-color: var(--u-sap-hi);
+  box-shadow:
+    inset 0 0 0 2px var(--u-sap),
+    0 0 10px rgba(111, 160, 255, 0.45);
 }

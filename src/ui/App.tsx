@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { CardSymbols } from './components/cardParts.tsx';
+import { UiIcon, type UiIconName } from './components/UiIcon.tsx';
 import { ConfirmProvider } from './components/ConfirmDialog.tsx';
 import { ToastProvider } from './components/Toast.tsx';
 import { CardEditorPage } from './pages/CardEditorPage.tsx';
@@ -22,12 +23,12 @@ export const APP_TITLE = '自作カードバトル';
 
 type Section = 'cards' | 'decks' | 'battle' | 'online' | 'rules';
 
-const NAV: { id: Section; icon: string; label: string; path: string }[] = [
-  { id: 'cards', icon: '🃏', label: 'カード', path: '/cards' },
-  { id: 'decks', icon: '📚', label: 'デッキ', path: '/decks' },
-  { id: 'battle', icon: '🤖', label: 'CPU戦', path: '/battle' },
-  { id: 'online', icon: '🌐', label: 'オンライン', path: '/online' },
-  { id: 'rules', icon: '📖', label: 'ルール', path: '/rules' },
+const NAV: { id: Section; icon: UiIconName; label: string; path: string }[] = [
+  { id: 'cards', icon: 'card-play', label: 'カード', path: '/cards' },
+  { id: 'decks', icon: 'chest', label: 'デッキ', path: '/decks' },
+  { id: 'battle', icon: 'crossed-swords', label: 'CPU戦', path: '/battle' },
+  { id: 'online', icon: 'world', label: 'オンライン', path: '/online' },
+  { id: 'rules', icon: 'rule-book', label: 'ルール', path: '/rules' },
 ];
 
 export function App() {
@@ -60,7 +61,12 @@ export function App() {
         <CardSymbols />
         <div className="app">
           <header className="topbar">
-            <div className="topbar__title">{APP_TITLE}</div>
+            <div className="topbar__title">
+              <span className="topbar__crest" aria-hidden="true">
+                <UiIcon name="swords-emblem" />
+              </span>
+              {APP_TITLE}
+            </div>
             <nav className="topbar__nav" aria-label="メニュー">
               {NAV.map((n) => (
                 <button
@@ -71,7 +77,7 @@ export function App() {
                   onClick={() => navigate(n.path)}
                 >
                   <span className="nav-btn__icon" aria-hidden="true">
-                    {n.icon}
+                    <UiIcon name={n.icon} />
                   </span>
                   <span className="nav-btn__label">{n.label}</span>
                 </button>

@@ -59,6 +59,7 @@ import { effectRowViolations, effectSectionViolations, fieldId, findFieldElement
 import { navigate, setNavigationGuard } from '../router.ts';
 import { NEW_DRAFT, actions, cardDrafts, useStore } from '../store.ts';
 import { cx, uuid, stepOf } from '../util.ts';
+import { UiIcon } from '../components/UiIcon.tsx';
 
 /** カードの絵の選択パネル（検索の辞書・分類を含むので、開くときに読む。決定事項 #105） */
 const IconPicker = lazy(() => import('../components/IconPicker.tsx').then((m) => ({ default: m.IconPicker })));
@@ -442,7 +443,8 @@ function Editor({ saved }: { saved: CardDef | null }) {
         <h1>{saved ? 'カードを編集' : '新しいカード'}</h1>
         {!saved && (
           <button type="button" className="btn btn--secondary" onClick={() => setSheet('templates')}>
-            ✨ テンプレートから作る
+            <UiIcon name="spell-book" />
+            テンプレートから作る
           </button>
         )}
       </div>

@@ -7,6 +7,7 @@ import { useToast } from '../components/Toast.tsx';
 import { navigate } from '../router.ts';
 import { actions, getState, useStore } from '../store.ts';
 import { cx, todayStamp, uuid } from '../util.ts';
+import { UiIcon } from '../components/UiIcon.tsx';
 
 export function DeckListPage() {
   const { cards, decks } = useStore();
@@ -43,7 +44,8 @@ export function DeckListPage() {
         </h1>
         <div className="btn-row">
           <button type="button" className="btn btn--primary" onClick={() => navigate('/decks/new')}>
-            ＋ 新しいデッキ
+            <UiIcon name="quill-ink" />
+            新しいデッキ
           </button>
           <button type="button" className="btn" onClick={() => setImporting(true)}>
             取り込み

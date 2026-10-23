@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "gen": "node scripts/gen-registry.mjs && node scripts/gen-icons.mjs",
+    "gen:font": "node scripts/gen-display-font.mjs",
     "predev": "npm run gen",
     "dev": "vite",
     "pretest": "npm run gen",

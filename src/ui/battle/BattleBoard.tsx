@@ -1635,7 +1635,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               </button>
             ) : (
               !sel && (
-                <button type="button" className={cx('btn btn--primary battle-bar__end', nothingLeft && 'is-pulse')} disabled={!myTurn} onClick={() => void endTurn()}>
+                <button type="button" className={cx('btn btn--primary btn--end battle-bar__end', nothingLeft && 'is-pulse')} disabled={!myTurn} onClick={() => void endTurn()}>
                   ターン終了
                   {myTurn && <span className="battle-bar__energy">⚡{mine.energy}</span>}
                 </button>

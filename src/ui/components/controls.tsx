@@ -72,6 +72,28 @@ export function Stepper({ label, value, min, max, onChange, invalid, step = 1, s
   );
 }
 
+/**
+ * 見出しの中の「」で囲んだ部分（カード名・デッキ名など人が入力した名前）を、カードと同じ書体（.u-name）で包む。
+ * 見出しの明朝は UI の固定の文字だけを同梱しているので、名前の字が書体の抜けで混ざらないようにする（決定事項 #111）
+ */
+export function TitleText({ text }: { text: string }) {
+  const parts = text.split(/(「[^「」]*」)/);
+  if (parts.length === 1) return <>{text}</>;
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.startsWith('「') && p.endsWith('」') && p.length > 2 ? (
+          <span key={i}>
+            「<span className="u-name">{p.slice(1, -1)}</span>」
+          </span>
+        ) : (
+          p
+        ),
+      )}
+    </>
+  );
+}
+
 interface ModalProps {
   title: string;
   onClose: () => void;
@@ -117,7 +139,9 @@ export function Modal({ title, onClose, children, closable = true, size = 'md', 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal__head">
-          <h2 id={titleId}>{title}</h2>
+          <h2 id={titleId}>
+            <TitleText text={title} />
+          </h2>
           {closable && (
             <button type="button" className="btn btn--ghost btn--icon" onClick={onClose} aria-label="閉じる">
               ✕

@@ -7,6 +7,7 @@
 import { useEffect, useId, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { cx } from '../util.ts';
+import { TitleText } from './controls.tsx';
 import { useFocusTrap, useIsPhone, useScrollLock } from './dialogUtil.ts';
 
 interface Props {
@@ -79,7 +80,9 @@ function SheetBody({ phone, title, onClose, children, desktop, actions, classNam
           </div>
         )}
         <div className="sheet__head">
-          <h2 id={titleId}>{title}</h2>
+          <h2 id={titleId}>
+            <TitleText text={title} />
+          </h2>
           {actions}
           <button type="button" className="btn btn--ghost btn--icon" onClick={onClose} aria-label="閉じる">
             ✕

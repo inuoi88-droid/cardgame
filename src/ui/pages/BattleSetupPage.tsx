@@ -17,6 +17,7 @@ import '../battle/battle.css';
 import { navigate } from '../router.ts';
 import { cx } from '../util.ts';
 import type { Deck } from '../../engine/index.ts';
+import { UiIcon } from '../components/UiIcon.tsx';
 
 /** CPU の強さの選択肢（決定事項 #82）。説明は1行 */
 const LEVEL_HINT: Record<ai.CpuLevel, string> = {
@@ -125,7 +126,8 @@ export function BattleSetupPage() {
       <div className="page-head">
         <h1>CPU と対戦</h1>
         <button type="button" className="btn" onClick={() => navigate('/battle/draft')}>
-          🎴 ドラフト戦
+          <UiIcon name="card-pick" />
+          ドラフト戦
         </button>
       </div>
       {ongoing && (

@@ -46,6 +46,20 @@ export function CreditsPage() {
         </p>
       </section>
       <section className="panel credits__sec">
+        <h2>見出しの書体</h2>
+        <p>
+          見出しとボタンの明朝は <b>しっぽり明朝 B1</b>（Shippori Mincho B1、FONTDASU）を使っています。ライセンスは{' '}
+          <a href="https://openfontlicense.org" target="_blank" rel="noreferrer">
+            SIL Open Font License 1.1
+          </a>{' '}
+          です。画面に使う文字だけを切り出してアプリに同梱しています（外から読み込みません）。
+        </p>
+      </section>
+      <section className="panel credits__sec">
+        <h2>画面の記号</h2>
+        <p>メニューやボタンの記号も、カードの絵と同じ game-icons.net のアイコン（CC BY 3.0）を単色で使っています。</p>
+      </section>
+      <section className="panel credits__sec">
         <h2>絵文字</h2>
         <p>絵文字のアイコンは、お使いの端末のフォントで表示しています。</p>
       </section>

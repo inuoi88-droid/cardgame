@@ -10,6 +10,7 @@ import { cx } from '../util.ts';
 import { COST_VALUES, EMPTY_FILTERS, SECTION_BYS, SECTION_LABEL, VIEW_LABEL, VIEW_MODES, filterChips, type Filters, type SectionBy, type SortKey, type ViewMode } from './query.ts';
 import { ViewIcon } from './icons.tsx';
 import { ALL_TAGS, tagHint, tagLabel, type TagId } from './tags.ts';
+import { UiIcon } from '../components/UiIcon.tsx';
 
 // ---------------------------------------------------------------- 検索
 
@@ -17,7 +18,7 @@ export function SearchBox({ value, onChange, placeholder = '名前・効果・�
   return (
     <div className="csearch">
       <span className="csearch__icon" aria-hidden="true">
-        🔍
+        <UiIcon name="magnifying-glass" />
       </span>
       <input type="search" value={value} placeholder={placeholder} aria-label="カードを探す（ひらがな・カタカナどちらでも。-語 で除外）" onChange={(e) => onChange(e.target.value)} enterKeyHint="search" />
       {value !== '' && (

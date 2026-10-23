@@ -26,6 +26,7 @@ import { NEW_DRAFT, actions, cardDrafts, getState, useStore } from '../store.ts'
 import '../collection/collection.css';
 import { SAMPLE_CARDS } from '../../samples.ts';
 import { cx, todayStamp, uuid } from '../util.ts';
+import { UiIcon } from '../components/UiIcon.tsx';
 
 type GroupDialogState = { kind: 'create'; cardIds?: string[]; initialName?: string; initialMemo?: string; then?: (g: CardGroup) => void } | { kind: 'edit'; group: CardGroup };
 
@@ -314,7 +315,8 @@ export function CardListPage() {
         <h1>カード</h1>
         <div className="btn-row">
           <button type="button" className="btn btn--primary" onClick={() => navigate('/cards/new')}>
-            ＋ 新しいカード
+            <UiIcon name="quill-ink" />
+            新しいカード
           </button>
           {phone ? (
             <button type="button" className="btn" onClick={() => setDialog('menu')} aria-label="サンプル・書き出し・取り込み">

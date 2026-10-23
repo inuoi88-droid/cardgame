@@ -15,21 +15,25 @@
   font-size: var(--fs-md);
   color: var(--text);
   text-align: left;
-  background: var(--field);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  /* 入力欄と同じ井戸（決定事項 #111） */
+  background: linear-gradient(180deg, var(--u-well-0) 0%, var(--u-well-1) 100%);
+  border: 1px solid #2c3241;
+  border-top-color: #181c27;
+  border-bottom-color: #4a5163;
+  border-radius: var(--radius-xs);
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.5);
   cursor: pointer;
   transition: border-color var(--dur-fast);
 }
 .opk-trigger:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: var(--u-iron-hi);
 }
 .opk-trigger.is-open {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
 .opk-trigger.is-invalid {
-  border-color: var(--ng);
+  border-color: var(--u-crim);
 }
 .opk-trigger:disabled {
   cursor: default;
@@ -45,15 +49,20 @@
   flex: none;
   font-size: var(--fs-xs);
   color: var(--muted);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(154, 162, 178, 0.32);
+  border-radius: var(--radius-xs);
   padding: 1px 8px;
   font-variant-numeric: tabular-nums;
 }
+/* 山形：プルダウンと同じ羊皮紙の山形（中の文字は隠す） */
 .opk-trigger__chev {
   flex: none;
-  color: var(--muted);
+  width: 12px;
+  height: 8px;
+  overflow: hidden;
+  color: transparent;
+  background: var(--u-chev) center / contain no-repeat;
   transition: transform var(--dur-fast);
 }
 .opk-trigger.is-open .opk-trigger__chev {

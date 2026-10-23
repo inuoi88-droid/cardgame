@@ -7,6 +7,7 @@ import { memo, type ReactNode } from 'react';
 import { RARITY_LABEL, type CardType, type Rarity } from '../../engine/index.ts';
 import { cx } from '../util.ts';
 import './cardFrame.css';
+import './cardTokens.css';
 
 /** レアリティと種類の色の class（額縁の金属・種類の光）。呪いは額縁だけ黒鉄にする */
 export function frameClasses(rarity: Rarity | undefined, cardType?: CardType, curse?: boolean): string {

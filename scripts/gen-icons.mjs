@@ -6,6 +6,7 @@
 //   public/icons/current.txt    … いまの stamp（デプロイの前から開いていたタブが古い置き場所を引いたとき、新しい置き場所を知るため）
 //   generated/shards/sNNN.json  … 同じ形を名前順に約 24KB ずつまとめたもの。1ファイル版（HTML に JSON として埋め込む）とテストが読む
 //   generated/index.json        … 選択パネル用の索引（名前の一覧と、英単語 → 日本語の辞書）。パネルを開いたときだけ読む
+//   generated/uiIcons.ts        … 画面の枠の形（src/ui/icons/uiIcons.json の名前だけ。約50個）。UiIcon が同期で描く（決定事項 #111）
 //
 // stamp はアイコンの版と形式だけで決まる（辞書を直しても変わらない）。変わるのはアイコンの版を上げたときだけ。
 // 日本語の辞書は scripts/icons/ja*.json（英単語 → 「空白区切りの日本語」。すべての英単語に項目がある：tests/icons.test.ts）。
@@ -22,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'src', 'ui', 'icons', 'generated');
 const PUBLIC_OUT = join(ROOT, 'public', 'icons');
+const UI_ICONS = join(ROOT, 'src', 'ui', 'icons', 'uiIcons.json');
 const JA_DIRS = [join(ROOT, 'scripts', 'icons'), ...(process.env.ICON_JA_DIR ? [resolve(process.env.ICON_JA_DIR)] : [])];
 /** 1つのシャードの path の合計の目安（バイト）。小さいほど1枚を出すときの読み込みが軽く、ファイルは増える */
 const SHARD_BYTES = 24_000;
@@ -70,9 +72,9 @@ export function generate() {
   const { files: jaFiles, ja } = readJa();
   const stamp = createHash('sha256').update(pkg.version).update(FORMAT).digest('hex').slice(0, 16);
   // 作り直すかどうかは中身（辞書・このスクリプト）でも決める
-  const content = createHash('sha256').update(stamp).update(readFileSync(fileURLToPath(import.meta.url))).update(JSON.stringify(ja)).digest('hex').slice(0, 16);
+  const content = createHash('sha256').update(stamp).update(readFileSync(fileURLToPath(import.meta.url))).update(JSON.stringify(ja)).update(readFileSync(UI_ICONS)).digest('hex').slice(0, 16);
   const stampPath = join(OUT, 'stamp.txt');
-  if (existsSync(stampPath) && readFileSync(stampPath, 'utf8') === content && existsSync(join(OUT, 'info.ts')) && existsSync(join(PUBLIC_OUT, stamp))) return { changed: false };
+  if (existsSync(stampPath) && readFileSync(stampPath, 'utf8') === content && existsSync(join(OUT, 'info.ts')) && existsSync(join(OUT, 'uiIcons.ts')) && existsSync(join(PUBLIC_OUT, stamp))) return { changed: false };
 
   const set = JSON.parse(readFileSync(iconsPath, 'utf8'));
   const paths = new Map();
@@ -127,6 +129,20 @@ export function generate() {
       `export const ICON_SHARD_DIGITS = ${width};`,
       `/** 各シャードの最初のアイコン名（名前順）。名前からシャードを決める（ref.ts の shardIndexOf。1ファイル版だけが使う） */`,
       `export const ICON_SHARD_STARTS: readonly string[] = ${JSON.stringify(shards.map((s) => s.start))};`,
+      '',
+    ].join('\n'),
+  );
+  // 画面の枠の形（UiIcon）。名前の無いものは止める（綴りの誤り）
+  const uiNames = Object.keys(JSON.parse(readFileSync(UI_ICONS, 'utf8'))).filter((n) => n !== '_');
+  for (const n of uiNames) if (!paths.has(n)) throw new Error(`gen-icons: uiIcons.json の ${n} は game-icons にありません`);
+  writeFileSync(
+    join(OUT, 'uiIcons.ts'),
+    [
+      '// 自動生成ファイル。手で編集しないこと（scripts/gen-icons.mjs が src/ui/icons/uiIcons.json から生成する）',
+      `export type UiIconName = ${uiNames.map((n) => JSON.stringify(n)).join(' | ')};`,
+      `export const UI_ICON_PATHS: Readonly<Record<UiIconName, string>> = {`,
+      ...uiNames.map((n) => `  ${JSON.stringify(n)}: ${JSON.stringify(paths.get(n))},`),
+      '};',
       '',
     ].join('\n'),
   );

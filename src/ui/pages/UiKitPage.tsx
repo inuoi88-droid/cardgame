@@ -8,6 +8,8 @@ import { Modal } from '../components/controls.tsx';
 import { Popover } from '../components/Popover.tsx';
 import { Sheet } from '../components/Sheet.tsx';
 import { useToast } from '../components/Toast.tsx';
+import { UiIcon } from '../components/UiIcon.tsx';
+import { UI_ICON_PATHS, type UiIconName } from '../icons/generated/uiIcons.ts';
 import { glossary, keywordGlossary, STATUS_IDS } from '../glossary.ts';
 
 export function UiKitPage() {
@@ -16,6 +18,9 @@ export function UiKitPage() {
   const [sheet, setSheet] = useState(false);
   const [modal, setModal] = useState(false);
   const [answer, setAnswer] = useState<string>('');
+  const [tab, setTab] = useState(0);
+  const [rarity, setRarity] = useState(1);
+  const [radio, setRadio] = useState('normal');
 
   return (
     <>
@@ -65,6 +70,131 @@ export function UiKitPage() {
           <button type="button" className="btn btn--big btn--primary">
             大きい主ボタン
           </button>
+        </div>
+        <div className="btn-row" style={{ marginTop: 8 }}>
+          <button type="button" className="btn btn--primary">
+            <UiIcon name="quill-ink" />
+            新しいカード
+          </button>
+          <button type="button" className="btn btn--icon" aria-label="ログ">
+            <UiIcon name="scroll-unfurled" />
+          </button>
+          <button type="button" className="btn btn--icon" aria-label="メニュー">
+            <UiIcon name="cog" />
+          </button>
+          <button type="button" className="btn btn--danger">
+            <UiIcon name="trash-can" />
+            削除
+          </button>
+          <button type="button" className="btn btn--primary btn--end is-pulse">
+            ターン終了
+          </button>
+          <button type="button" className="btn btn--primary btn--end" disabled>
+            相手のターン
+          </button>
+        </div>
+        <p className="hint" style={{ marginTop: 8 }}>
+          金の主ボタンは1画面に1つ（h1・手番の銘板と合わせて金は3か所まで）。何度も出る小さな主ボタンは .btn--primary.btn--small（サファイアの縁の鉄）。ターン終了は
+          .btn--end（.is-pulse で脈動）。
+        </p>
+      </section>
+
+      <section className="panel">
+        <h2>板・銘板・帯・区切り</h2>
+        <div className="btn-row">
+          <span className="u-hex">1</span>
+          <span className="u-plate">銘板（.u-plate）</span>
+          <span className="u-plate u-plate--name">鬱蒼の鶫</span>
+        </div>
+        <hr className="u-divider" />
+        <div className="u-banner">帯（.u-banner）</div>
+        <div className="u-banner u-banner--gold" style={{ marginTop: 8 }}>
+          勝利
+        </div>
+        <div className="u-banner u-banner--crimson" style={{ marginTop: 8 }}>
+          敗北
+        </div>
+        <div className="panel panel--drawback" style={{ marginTop: 16, marginBottom: 0 }}>
+          危険の板（.panel--drawback）
+        </div>
+        <div className="empty" style={{ marginTop: 16 }}>
+          <UiIcon name="chest" />
+          <span>まだデッキがありません（.empty）</span>
+        </div>
+      </section>
+
+      <section className="panel">
+        <h2>入力・切り替え</h2>
+        <label className="field">
+          <span>カード名</span>
+          <input type="text" defaultValue="白銀の騎士" />
+        </label>
+        <label className="field">
+          <span>探す</span>
+          <input type="search" placeholder="名前・効果・種族で探す" />
+        </label>
+        <label className="field">
+          <span>並べ替え</span>
+          <select defaultValue="cost">
+            <option value="cost">コストが低い順</option>
+            <option value="name">名前（あ→ん）</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>説明（任意）</span>
+          <textarea rows={2} placeholder="例：序盤に出して毒をためる。" />
+        </label>
+        <div className="btn-row">
+          <label className="check">
+            <input type="checkbox" defaultChecked /> モンスターにする
+          </label>
+          <label className="check">
+            <input type="checkbox" /> 昼と夜
+          </label>
+          <label className="switch">
+            <input type="checkbox" className="u-toggle" defaultChecked /> 演出
+          </label>
+        </div>
+        <div className="btn-row" role="radiogroup" aria-label="強さ">
+          {['weak', 'normal', 'strong'].map((v) => (
+            <label key={v} className="check">
+              <input type="radio" name="kit-radio" checked={radio === v} onChange={() => setRadio(v)} />
+              {v === 'weak' ? 'よわい' : v === 'normal' ? 'ふつう' : 'つよい'}
+            </label>
+          ))}
+        </div>
+        <div className="seg" style={{ marginTop: 8 }}>
+          {(['', '--rare', '--epic', '--legend'] as const).map((m, i) => (
+            <button key={m} type="button" className={`seg__btn${m ? ` seg__btn${m}` : ''}${rarity === i ? ' is-active' : ''}`} onClick={() => setRarity(i)}>
+              {['コモン', 'レア', 'エピック', 'レジェンド'][i]}
+              <small>上限 {[100, 160, 240, 360][i]}</small>
+            </button>
+          ))}
+        </div>
+        <div className="tabs" role="tablist" style={{ marginTop: 12 }}>
+          {['カード', 'コンパクト', 'リスト'].map((t, i) => (
+            <button key={t} type="button" role="tab" aria-selected={tab === i} className={`tab${tab === i ? ' is-active' : ''}`} onClick={() => setTab(i)}>
+              {t}
+            </button>
+          ))}
+        </div>
+        <ul className="violations">
+          <li>デッキは30枚にしてください（今 28枚）</li>
+          <li>レジェンドは2枚までです</li>
+        </ul>
+        <p className="ok-msg">✓ このカードは作成できます</p>
+      </section>
+
+      <section className="panel">
+        <h2>画面の枠の記号（UiIcon）</h2>
+        <p className="hint">game-icons.net の形を単色で。1つの形は1つの意味だけ（src/ui/icons/uiIcons.json）。</p>
+        <div className="kit-icons">
+          {(Object.keys(UI_ICON_PATHS) as UiIconName[]).map((n) => (
+            <span key={n} className="kit-icons__item" title={n}>
+              <UiIcon name={n} size={24} />
+              <small>{n}</small>
+            </span>
+          ))}
         </div>
       </section>
 

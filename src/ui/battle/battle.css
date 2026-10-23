@@ -984,7 +984,7 @@ body:has(.battle) .toast__action {
   gap: 4px;
   margin: 0 calc(-1 * var(--gutter));
   padding: 4px max(var(--gutter), env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom));
-  background: rgba(17, 21, 42, 0.96);
+  background: rgba(13, 16, 32, 0.96);
   backdrop-filter: blur(6px);
   border-top: 1px solid var(--line);
 }
@@ -1055,11 +1055,14 @@ body:has(.battle) .toast__action {
   gap: 8px;
 }
 .battle-bar__energy {
-  font-weight: normal;
-  color: #ffe066;
+  font-family: var(--u-font-body);
+  font-weight: 800;
+  color: var(--u-gold-ink);
+  text-shadow: none;
   font-variant-numeric: tabular-nums;
 }
-.battle-bar__end.is-pulse:not(:disabled) {
+/* 脈動は .btn--end の ::after の opacity（styles.css。決定事項 #111） */
+.battle-bar__end.is-pulse:not(:disabled):not(.btn--end) {
   animation: end-pulse 1.4s ease-in-out infinite;
 }
 @media (max-width: 400px) {
@@ -1815,10 +1818,11 @@ button.lt-card:focus-visible {
     border-radius: var(--radius);
     padding: 10px;
   }
+  /* 見出しは明朝（16px 以上・字間 0.02em。決定事項 #111） */
   .battle__log h2 {
     margin: 0 0 6px;
-    font-size: var(--fs-sm);
-    color: var(--muted);
+    font-size: var(--fs-md);
+    color: var(--text);
   }
   .battle__log .log {
     flex: 1;
@@ -2018,7 +2022,7 @@ button.lt-card:focus-visible {
 .play-zone__label {
   padding: 8px 16px;
   border-radius: var(--radius-pill);
-  background: rgba(17, 21, 42, 0.92);
+  background: rgba(13, 16, 32, 0.92);
   border: 1px solid var(--line-strong);
   font-weight: bold;
   font-size: var(--fs-md);
@@ -2106,7 +2110,7 @@ button.lt-card:focus-visible {
   transform: translate(-50%, calc(-100% - var(--lift, 34px)));
   padding: 3px 10px;
   border-radius: var(--radius-pill);
-  background: rgba(17, 21, 42, 0.94);
+  background: rgba(13, 16, 32, 0.94);
   border: 1px solid var(--line-strong);
   color: var(--text);
   font-size: var(--fs-xs);
@@ -3703,7 +3707,7 @@ button.lt-card:focus-visible {
     margin: 0;
     padding: 4px 12px;
     border-radius: var(--radius-pill);
-    background: rgba(17, 21, 42, 0.94);
+    background: rgba(13, 16, 32, 0.94);
     border: 1px solid var(--warn);
   }
   .hand {

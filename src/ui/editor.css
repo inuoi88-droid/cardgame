@@ -34,9 +34,11 @@
   z-index: 15;
   margin: 0 calc(-1 * var(--gutter)) 12px;
   padding: 6px var(--gutter) 8px;
-  background: rgba(17, 21, 42, 0.96);
-  backdrop-filter: blur(6px);
-  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #1b1f32, #0e111f);
+  border-bottom: 1px solid #000;
+  box-shadow:
+    0 1px 0 #3a404d,
+    0 8px 20px rgba(0, 0, 0, 0.45);
 }
 @media (min-width: 920px) {
   .ed-sticky {
@@ -145,9 +147,13 @@
   display: grid;
   gap: 8px;
   padding: 12px;
-  border-radius: 10px;
-  background: var(--ok-bg);
-  border: 1px solid rgba(60, 207, 145, 0.45);
+  /* 石の井戸：足りている＝サファイアの縁、超過＝深紅の縁（決定事項 #111） */
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, #10142a, #0b0e1c);
+  border: 1px solid #3d74d6;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 1px 0 rgba(0, 0, 0, 0.5);
   outline: 0 solid transparent;
   transition:
     background-color var(--dur),
@@ -155,8 +161,8 @@
     box-shadow var(--dur);
 }
 .bm.is-over {
-  background: var(--ng-bg);
-  border-color: var(--ng);
+  background: linear-gradient(180deg, #24121c, #170b14);
+  border-color: #c8344f;
 }
 .bm.is-flash {
   box-shadow: 0 0 0 4px var(--warn);
@@ -166,6 +172,7 @@
   padding: 0;
   background: transparent;
   border: none;
+  box-shadow: none;
   border-radius: 6px;
 }
 .bm--compact.is-flash {
@@ -188,7 +195,8 @@
 }
 .bm__big {
   font-size: 1.9rem;
-  font-weight: bold;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
   color: var(--text);
   line-height: 1;
   margin: 0 2px;
@@ -203,10 +211,10 @@
   white-space: nowrap;
 }
 .bm__remain.is-ok {
-  color: var(--ok);
+  color: var(--u-sap-hi);
 }
 .bm__remain.is-over {
-  color: var(--ng);
+  color: var(--u-crim-hi);
 }
 .bm--compact .bm__used {
   font-size: var(--fs-xs);
@@ -221,9 +229,11 @@
 .bm__bar {
   position: relative;
   height: 12px;
-  border-radius: 999px;
-  background: var(--field);
-  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: linear-gradient(180deg, #05060c, #10132a);
+  box-shadow:
+    inset 0 2px 0 rgba(0, 0, 0, 0.6),
+    0 0 0 1px #3a4050;
   overflow: hidden;
 }
 .bm__bar--sm {

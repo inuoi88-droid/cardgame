@@ -5,6 +5,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { cx } from '../util.ts';
+import { UiIcon } from './UiIcon.tsx';
 
 export type ToastKind = 'ok' | 'ng' | 'info';
 
@@ -75,7 +76,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {items.map((t) => (
           <div key={t.id} className={cx('toast', `toast--${t.kind ?? 'info'}`)} role="status">
             <span className="toast__icon" aria-hidden="true">
-              {t.kind === 'ok' ? '✓' : t.kind === 'ng' ? '!' : 'i'}
+              {t.kind === 'ok' ? <UiIcon name="check-mark" /> : t.kind === 'ng' ? '!' : 'i'}
             </span>
             <span className="toast__text">{t.text}</span>
             {t.action && (

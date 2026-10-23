@@ -1,40 +1,46 @@
 /* ------------------------------------------------------------ デザイントークン
    色・間隔・文字・角丸・影・動きの決まりはここだけに置く。画面側は変数を使う。
-   コントラストは WCAG AA（4.5:1）を満たす組み合わせにしてある：
-   白文字 on --accent-strong 6.0 / --muted on --panel-2 6.5 / 白文字 on --danger-strong 5.3 */
-:root {
-  /* 面 */
-  --bg: #11152a;
-  --panel: #1a2038;
-  --panel-2: #222a47;
-  --panel-3: #2a3357;
-  --field: #0d1122;
-  --line: #2f3860;
-  --line-strong: #3f4a78;
-  --overlay: rgba(5, 7, 16, 0.64);
+   UI2「黒鉄と金の卓」（決定事項 #111）：カード（案A。#107・#108）の金属の額縁・六角の宝石・明朝の銘板の語彙を画面全体に広げる。
+     鉄銀＝ふつう・中立／金＝主役だけ（画面の主ボタン1つ・ターン終了・手番の銘板・ページの h1）／
+     サファイア＝選択・情報・フォーカス・自分／深紅＝危険・削除・相手／アメジスト＝エピックとパワーだけ。
+   コントラストは WCAG AA（4.5:1）以上：羊皮紙 --text on 石の板 14.5 / --muted 9.4 / --placeholder 5.2（12px 以上だけ）/
+   白文字 on --accent-strong 5.3 / 暗い茶 on 金の板 9.8 / 白文字 on --danger-strong 5.3
+   カードの面（.tcg .hc .mt .card-row .lrow .crow）はここのトークンの影響を受けない（components/cardTokens.css で元の値に固定） */
+@import './theme/theme.css';
 
-  /* 文字 */
-  --text: #e9ecf7;
-  --muted: #a6afcf;
-  --placeholder: #7f88a8;
+:root {
+  /* 面（夜の石卓・石の板・はめ込みの井戸） */
+  --bg: #0d1020;
+  --panel: #151a2b;
+  --panel-2: #20263b;
+  --panel-3: #283049;
+  --field: #080a13;
+  --line: #2c3243;
+  --line-strong: #454c5e;
+  --overlay: rgba(4, 5, 10, 0.72);
+
+  /* 文字（羊皮紙の白。カードの --ink と同じ系統） */
+  --text: #f1ebdc;
+  --muted: #c7bea9;
+  --placeholder: #948c77;
 
   /* 意味の色 */
-  --accent: #6f8dff; /* 線・文字用（on 暗い面 5.3:1） */
-  --accent-strong: #3556d9; /* 塗りつぶしのボタン用（白文字 6.0:1） */
-  --accent-bg: rgba(111, 141, 255, 0.14);
+  --accent: #6fa0ff; /* サファイア：線・文字用 */
+  --accent-strong: #2f5fe0; /* サファイアの塗り（白文字 5.3:1） */
+  --accent-bg: rgba(111, 160, 255, 0.14);
   --ok: #3ccf91;
   --ok-bg: rgba(60, 207, 145, 0.12);
   --ng: #ff5d6e;
   --ng-bg: rgba(255, 93, 110, 0.1);
-  --danger-strong: #c92d42; /* 塗りつぶしの危険ボタン用（白文字 5.3:1） */
+  --danger-strong: #b8263f; /* 深紅の塗り（白文字 5.9:1） */
   --warn: #ffcf6e;
   --warn-bg: rgba(255, 207, 110, 0.12);
-  --info: #6f8dff;
+  --info: #6fa0ff;
 
   /* 自分と相手（対戦画面の左罫線・枠・演出に使う） */
-  /* コスト分布のグラフ（2系列。暗い面で色覚の違いでも見分けられる組：validate_palette で確認） */
-  --curve-monster: #3d86d9;
-  --curve-other: #b58a1f;
+  /* コスト分布のグラフ（モンスター＝サファイア、それ以外＝鉄銀） */
+  --curve-monster: #4a86e8;
+  --curve-other: #9aa2b2;
   --mine: #5aa9ff;
   --mine-bg: rgba(90, 169, 255, 0.14);
   --enemy: #ff6e5e;
@@ -62,16 +68,17 @@
   --fs-lg: 20px;
   --fs-xl: 24px;
 
-  /* 角丸 */
-  --radius-sm: 8px;
-  --radius: 12px;
-  --radius-lg: 16px;
+  /* 角：3px（札・入力）・5px（ボタン・行）・8px（パネル・場）・10px（シート）。丸い錠剤は使わない（--radius-pill は古い部品のため残す） */
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius: 8px;
+  --radius-lg: 10px;
   --radius-pill: 999px;
 
-  /* 影（面の高さ） */
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.4);
-  --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.55);
+  /* 影（面の高さ）。行・ボタン・札はぼかし0の2段まで（--u-lift-1）。ぼかしはパネルとダイアログだけ */
+  --shadow-1: 0 1px 0 rgba(0, 0, 0, 0.6), 0 2px 0 rgba(0, 0, 0, 0.25);
+  --shadow-2: 0 2px 0 rgba(0, 0, 0, 0.55), 0 10px 24px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 24px 60px rgba(0, 0, 0, 0.7);
 
   /* 動き */
   --dur-fast: 120ms;
@@ -84,6 +91,69 @@
 
   --gutter: 16px;
   color-scheme: dark;
+
+  /* ---- UI2 の素材（決定事項 #111） */
+  /* 地（夜の石卓）・板（石・黒鉄）・井戸 */
+  --u-night-0: #131729;
+  --u-night-1: #0d1020;
+  --u-slate-0: #1d2236;
+  --u-slate-1: #151a2b;
+  --u-well-0: #06070e;
+  --u-well-1: #0f1222;
+  --u-plate-0: #30364c; /* 鉄の板（ボタン）の上 */
+  --u-plate-1: #20253a;
+  --u-plate-2: #181c2c;
+  /* 金属の線（border-box に塗るグラデーション） */
+  --u-iron-hi: #9aa2b2;
+  --u-iron: #5c6474;
+  --u-iron-lo: #262b36;
+  --u-rim-iron: linear-gradient(170deg, #8d95a5 0%, #4b5261 22%, #262a34 55%, #3d4350 78%, #7d8595 100%);
+  --u-rim-iron-soft: linear-gradient(170deg, #5c6474, #2a2f3b);
+  --u-rim-gold: linear-gradient(170deg, #fff0bd 0%, #d6a945 22%, #7a5310 52%, #c9952f 78%, #fbe6a0 100%);
+  --u-rim-bronze: linear-gradient(170deg, #fff4c8 0%, #8a5d14 30%, #4d3208 60%, #b9862a 100%);
+  --u-rim-sapphire: linear-gradient(170deg, #d8eaff 0%, #6fa6f5 24%, #1d438f 55%, #3d74d6 80%, #cfe4ff 100%);
+  --u-rim-crimson: linear-gradient(170deg, #ffb3c0 0%, #c8344f 25%, #5a0b1d 55%, #a3203a 80%, #ff9fb0 100%);
+  --u-rim-amethyst: linear-gradient(170deg, #f0e0ff 0%, #9b5de5 28%, #3d1670 58%, #7a3fc0 80%, #e3cbff 100%);
+  /* 金（主役だけ） */
+  --u-gold-hi: #fff0c2;
+  --u-gold: #e9c46a;
+  --u-gold-fill: linear-gradient(180deg, #fbe7a4 0%, #efc45f 38%, #c48f2c 72%, #a97520 100%);
+  --u-gold-ink: #2a1804;
+  --u-gold-text: linear-gradient(180deg, #fff3cc 0%, #f0cf78 45%, #b88a2c 100%);
+  /* サファイア */
+  --u-sap-hi: #a9cbff;
+  --u-sap: #6fa0ff;
+  --u-sap-mid: #2f5fe0;
+  --u-sap-fill: linear-gradient(180deg, #3d6fd8, #1d3f9a);
+  --u-sap-deep: linear-gradient(180deg, #213462, #172447);
+  /* 深紅 */
+  --u-crim-hi: #ffadb9;
+  --u-crim: #e04a63;
+  --u-crim-fill: linear-gradient(180deg, #c3354f 0%, #8f1b31 55%, #6c1124 100%);
+  /* 文字（羊皮紙） */
+  --u-ink: #f1ebdc;
+  --u-ink-2: #c7bea9;
+  --u-ink-3: #948c77;
+  /* 書体：明朝は「ビルドのときに分かっている UI の固定の文字」だけ（16px 以上・太さ 600 以上・palt・字間 0〜0.04em）。
+     人が入力した名前（デッキ名・カード名・グループ名・プレイヤー名）はカードと同じ --font-title */
+  --u-font-display: 'UI Mincho', 'UI Mincho Fallback', 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, 'Noto Serif JP', serif;
+  --u-font-name: var(--font-title);
+  --u-font-body: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic UI', Meiryo, system-ui, sans-serif;
+  /* 飾り：鉄の菱形の鋲・サファイアの菱形・羊皮紙の山形（プルダウン） */
+  --u-diamond-iron: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M5 0L10 5L5 10L0 5Z' fill='%23a3abba'/><path d='M5 2.2L7.8 5L5 7.8L2.2 5Z' fill='%23363c4a'/></svg>");
+  --u-diamond-sap: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M5 0L10 5L5 10L0 5Z' fill='%23a9cbff'/><path d='M5 2.2L7.8 5L5 7.8L2.2 5Z' fill='%232f5fe0'/></svg>");
+  --u-diamond-gold: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M5 0L10 5L5 10L0 5Z' fill='%23f0cf78'/><path d='M5 2.2L7.8 5L5 7.8L2.2 5Z' fill='%237a5310'/></svg>");
+  --u-chev: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1.5L6 6.5L11 1.5' fill='none' stroke='%23c7bea9' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  --u-check: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M5 12.5l4.5 4.5L19 7' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  /* 影と縁 */
+  --u-lift-1: 0 1px 0 rgba(0, 0, 0, 0.6), 0 2px 0 rgba(0, 0, 0, 0.25);
+  --u-lift-2: 0 2px 0 rgba(0, 0, 0, 0.55), 0 10px 24px rgba(0, 0, 0, 0.45);
+  --u-lift-3: 0 24px 60px rgba(0, 0, 0, 0.7);
+  --u-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+  /* 面取りした鉄の縁：外の黒・内の暗い段＋内側の1px の光（カードの額縁と同じ作り） */
+  --u-chamfer: 0 0 0 1px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(0, 0, 0, 0.45), inset 0 1px 0 1px rgba(255, 255, 255, 0.07);
+  /* 彫った細い線（暗い 1px＋明るい 1px）：節の区切り */
+  --u-groove: 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -106,15 +176,32 @@
   box-sizing: border-box;
 }
 
-html,
-body {
+/* 地：html は単色、質感は body::before の固定の1枚の層（background-attachment: fixed はスクロールのたびに全面を描き直すので使わない） */
+html {
   margin: 0;
   background: var(--bg);
+}
+body {
+  margin: 0;
+  background: transparent;
   color: var(--text);
-  font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic UI', Meiryo, system-ui, sans-serif;
+  font-family: var(--u-font-body);
   font-size: 15px;
   line-height: 1.6;
   -webkit-text-size-adjust: 100%;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    var(--u-noise),
+    radial-gradient(110% 60% at 50% -12%, rgba(233, 196, 106, 0.06), transparent 62%),
+    radial-gradient(80% 50% at 50% 112%, rgba(47, 95, 224, 0.1), transparent 60%),
+    var(--u-noise-dark),
+    linear-gradient(180deg, #121628 0%, #0c0f1d 55%, #0a0c17 100%);
 }
 
 h1,
@@ -123,11 +210,27 @@ h3 {
   line-height: 1.3;
   margin: 0 0 10px;
 }
+/* 見出しの明朝：palt（字形の余白を詰める）を必ず付け、字間は 0〜0.04em。16px 未満の h3 はゴシックのまま */
+h1,
+h2,
+.u-display {
+  font-family: var(--u-font-display);
+  font-weight: 800;
+  font-feature-settings: 'palt';
+  letter-spacing: 0.04em;
+}
+/* ページの見出しは金の箔押し（金を使う3か所の1つ） */
 h1 {
-  font-size: 1.35rem;
+  font-size: 1.6rem;
+  color: var(--u-gold);
+  background: var(--u-gold-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 h2 {
-  font-size: 1.1rem;
+  font-size: 1.12rem;
+  color: var(--text);
 }
 h3 {
   font-size: 0.98rem;
@@ -135,29 +238,61 @@ h3 {
 }
 h1 small,
 h2 small {
+  color: var(--placeholder);
+  -webkit-text-fill-color: var(--placeholder);
+  font-family: var(--u-font-body);
+  font-feature-settings: normal;
+  letter-spacing: 0;
+  font-weight: 600;
+  font-size: 0.7em;
+}
+h2 small {
   color: var(--muted);
+  -webkit-text-fill-color: var(--muted);
   font-weight: normal;
   font-size: 0.8em;
 }
 p {
   margin: 0 0 8px;
 }
+a {
+  color: var(--u-sap-hi);
+}
+/* 人が入力した名前（デッキ名・カード名など）：カードと同じ書体。明朝の見出しの中で名前の部分を包む */
+.u-name {
+  font-family: var(--u-font-name);
+  font-feature-settings: normal;
+  letter-spacing: 0;
+}
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--u-sap-hi);
   outline-offset: 2px;
 }
-/* ボタン類は中の文字と区別がつくように、少し太い輪で */
+/* ボタン類は中の文字と区別がつくように、輪の外に暗い縁とサファイアの光 */
 button:focus-visible,
 [role='button']:focus-visible,
 a:focus-visible,
 summary:focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 2px solid var(--u-sap-hi);
   outline-offset: 2px;
-  box-shadow: 0 0 0 5px var(--bg);
+  box-shadow:
+    0 0 0 4px rgba(10, 12, 22, 0.9),
+    0 0 14px 4px rgba(111, 160, 255, 0.55);
+}
+
+/* 画面の枠の記号（UiIcon）。大きさは em、色は文字の色 */
+.gi {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex: none;
+  fill: currentColor;
+  vertical-align: -0.15em;
 }
 
 /* ------------------------------------------------------------ 入力部品 */
+/* テキスト・数・検索・説明：はめ込みの井戸（上が暗く、下の縁が明るい）。フォーカスはサファイアの縁と輪 */
 input[type='text'],
 input[type='search'],
 input[type='number'],
@@ -167,27 +302,78 @@ textarea {
   font: inherit;
   font-size: 16px; /* iOS で拡大されないように */
   color: var(--text);
-  background: var(--field);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  background-color: var(--field);
+  background-image: linear-gradient(180deg, var(--u-well-0) 0%, var(--u-well-1) 100%);
+  border: 1px solid #2c3241;
+  border-top-color: #181c27;
+  border-bottom-color: #4a5163;
+  border-radius: var(--radius-xs);
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.5);
   padding: 8px 12px;
   min-height: var(--tap);
   max-width: 100%;
+  transition:
+    border-color var(--dur-fast),
+    box-shadow var(--dur-fast);
+}
+input[type='text']:focus,
+input[type='search']:focus,
+input[type='number']:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--u-sap);
+  box-shadow:
+    inset 0 2px 0 rgba(0, 0, 0, 0.5),
+    0 0 0 3px rgba(111, 160, 255, 0.28);
+}
+input[type='text']:focus-visible,
+input[type='search']:focus-visible,
+input[type='number']:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--u-sap-hi);
+  outline-offset: 1px;
 }
 ::placeholder {
   color: var(--placeholder);
   opacity: 1;
 }
+/* プルダウン：鉄の板＋羊皮紙の山形（選択パネル・IconPicker の引き金も同じ形） */
 select {
-  padding-right: 28px;
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 34px;
+  background-image: var(--u-chev), linear-gradient(180deg, #232839 0%, #171b2b 100%);
+  background-repeat: no-repeat, no-repeat;
+  background-position:
+    right 12px center,
+    0 0;
+  background-size:
+    12px 8px,
+    100% 100%;
+  border: 1px solid var(--line-strong);
+  border-top-color: #6a7283;
+  border-bottom-color: #222631;
+  box-shadow: var(--u-bevel);
+  font-weight: 600;
+  cursor: pointer;
 }
 select:disabled {
-  opacity: 0.75;
+  color: #9c968a;
+  cursor: not-allowed;
+}
+select option {
+  background: #171b2b;
+  color: var(--text);
 }
 
-/* ボタン：.btn ＋ 種類（--primary / --secondary / --ghost / --danger / --danger-filled）＋ 大きさ（--small / --big / --icon）
+/* ボタン：.btn ＋ 種類（--primary / --secondary / --ghost / --danger / --danger-filled）＋ 大きさ（--small / --big / --icon / --end）
+   鉄の板（上が明るい面＋鉄の縁＋上辺の光＋ぼかし0の影）。押すと 1px 沈む、ホバーは金属が明るく。角は 5px。
    小さいボタンも、見えない ::after で 44px のタップ領域を確保する */
 .btn {
+  --b-fill: linear-gradient(180deg, var(--u-plate-0) 0%, var(--u-plate-1) 52%, var(--u-plate-2) 100%);
+  --b-rim: var(--u-rim-iron);
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -195,10 +381,18 @@ select:disabled {
   gap: 6px;
   font: inherit;
   font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: 0;
   color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--line-strong);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
+  background:
+    var(--b-fill) padding-box,
+    var(--b-rim) border-box;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 2px 0 rgba(0, 0, 0, 0.55);
   padding: 8px 16px;
   min-height: var(--tap);
   min-width: var(--tap);
@@ -206,58 +400,112 @@ select:disabled {
   white-space: nowrap;
   text-decoration: none;
   transition:
-    background-color var(--dur-fast),
-    border-color var(--dur-fast),
+    filter var(--dur-fast),
     transform var(--dur-fast);
 }
 .btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--panel-3);
+  filter: brightness(1.18);
 }
 .btn:active:not(:disabled) {
   transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 0 rgba(0, 0, 0, 0.35),
+    0 1px 0 rgba(0, 0, 0, 0.55);
 }
+/* 無効：透明度で薄めず、金属の色を抜く（文字は 4.6:1 以上） */
 .btn:disabled {
-  opacity: 0.45;
+  --b-fill: linear-gradient(180deg, #23273a, #1a1e2d);
+  --b-rim: linear-gradient(170deg, #4a505d, #2a2f39);
+  color: #a39e8e;
+  text-shadow: none;
+  box-shadow: none;
   cursor: not-allowed;
 }
+.btn > .gi {
+  width: 1.15em;
+  height: 1.15em;
+  margin-left: -2px;
+}
+/* 主役：金の板（暗い茶の字・明朝）。1画面に1つ */
 .btn--primary {
-  background: var(--accent-strong);
-  border-color: var(--accent-strong);
-  color: #fff;
-  font-weight: bold;
+  --b-fill: var(--u-gold-fill);
+  --b-rim: var(--u-rim-bronze);
+  color: var(--u-gold-ink);
+  font-family: var(--u-font-display);
+  font-weight: 800;
+  font-feature-settings: 'palt';
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 0 rgba(255, 244, 208, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 2px 0 rgba(0, 0, 0, 0.55);
 }
 .btn--primary:hover:not(:disabled) {
-  background: #2f4fd0;
-  border-color: #2f4fd0;
+  filter: brightness(1.08);
 }
+.btn--primary:disabled {
+  --b-fill: linear-gradient(180deg, #4a4130, #352e22);
+  --b-rim: linear-gradient(170deg, #7a6a45, #3a3222);
+  color: #cbbd97;
+}
+/* 小さな主ボタン（1画面にいくつも出るもの）は金にしない：鉄の板＋サファイアの縁・ゴシック */
+.btn--primary.btn--small {
+  --b-fill: linear-gradient(180deg, var(--u-plate-0) 0%, var(--u-plate-1) 52%, var(--u-plate-2) 100%);
+  --b-rim: var(--u-rim-sapphire);
+  color: var(--text);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
+  font-family: inherit;
+  font-weight: 700;
+  font-feature-settings: normal;
+  letter-spacing: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 2px 0 rgba(0, 0, 0, 0.55);
+}
+.btn--primary.btn--small:disabled {
+  --b-fill: linear-gradient(180deg, #23273a, #1a1e2d);
+  --b-rim: linear-gradient(170deg, #4a505d, #2a2f39);
+  color: #a39e8e;
+  box-shadow: none;
+}
+/* 控え：鉄の板を暗く */
 .btn--secondary {
-  background: transparent;
-  border-color: var(--line-strong);
+  --b-fill: linear-gradient(180deg, #262b3f 0%, #1a1e2f 100%);
+  --b-rim: var(--u-rim-iron-soft);
 }
-.btn--danger {
-  color: #ffb3bc;
-}
-.btn--danger:hover:not(:disabled) {
-  border-color: var(--ng);
-  background: var(--ng-bg);
-}
-.btn--danger-filled {
-  background: var(--danger-strong);
-  border-color: var(--danger-strong);
-  color: #fff;
-  font-weight: bold;
-}
-.btn--danger-filled:hover:not(:disabled) {
-  background: #b42539;
-  border-color: #b42539;
-}
+/* ゴースト：枠なし */
 .btn--ghost {
-  background: transparent;
-  border-color: transparent;
+  --b-fill: transparent;
+  --b-rim: transparent;
+  box-shadow: none;
+  color: var(--muted);
 }
 .btn--ghost:hover:not(:disabled) {
-  background: var(--panel-2);
+  --b-fill: radial-gradient(ellipse at 50% 60%, rgba(255, 255, 255, 0.09), transparent 75%);
+  color: var(--text);
+  filter: none;
+}
+.btn--ghost:disabled {
+  --b-fill: transparent;
+  --b-rim: transparent;
+}
+/* 危険：鉄の板に桃色の字（ホバーで深紅の縁）／塗り：深紅の板 */
+.btn--danger {
+  color: #ffb0bc;
+}
+.btn--danger:hover:not(:disabled) {
+  --b-rim: var(--u-rim-crimson);
+  --b-fill: linear-gradient(180deg, #3a1a28, #241320);
+  filter: none;
+}
+.btn--danger-filled {
+  --b-fill: var(--u-crim-fill);
+  --b-rim: var(--u-rim-crimson);
+  color: #fff4f4;
+  text-shadow: 0 1px 0 rgba(60, 0, 10, 0.7);
+}
+.btn--danger-filled:hover:not(:disabled) {
+  filter: brightness(1.12);
 }
 .btn--small {
   min-height: 36px;
@@ -271,15 +519,79 @@ select:disabled {
 }
 .btn--big {
   min-height: 52px;
-  padding: 12px 24px;
-  font-size: var(--fs-lg);
+  padding: 12px 28px;
+  font-size: 19px;
+  letter-spacing: 0.02em;
 }
 .btn--icon {
   min-width: var(--tap);
   padding: 4px 8px;
+  font-size: 18px;
+}
+.btn--icon > .gi {
+  margin: 0;
+  width: 1.2em;
+  height: 1.2em;
 }
 .btn--icon.btn--small {
   min-width: 36px;
+}
+/* ターン終了の形（大きな金の板・明朝 18px・右にエナジーの宝石）。.is-pulse で脈動（::after の opacity。box-shadow を動かさない）。
+   「動きを減らす」では脈動せず、光ったまま */
+.btn--end {
+  --b-fill: var(--u-gold-fill);
+  --b-rim: var(--u-rim-bronze);
+  min-height: 50px;
+  padding: 6px 14px 6px 20px;
+  gap: 10px;
+  border-radius: 6px;
+  color: var(--u-gold-ink);
+  font-family: var(--u-font-display);
+  font-weight: 800;
+  font-feature-settings: 'palt';
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 0 rgba(255, 244, 208, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 2px 0 rgba(0, 0, 0, 0.55);
+}
+.btn--end:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.btn--end:disabled {
+  --b-fill: linear-gradient(180deg, #4a4130, #352e22);
+  --b-rim: linear-gradient(170deg, #7a6a45, #3a3222);
+  color: #cbbd97;
+}
+.btn--end.is-pulse:not(:disabled)::after,
+.btn--pulse:not(:disabled)::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 9px;
+  box-shadow:
+    0 0 0 2px rgba(255, 233, 160, 0.6),
+    0 0 16px 3px rgba(233, 196, 106, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  animation: u-pulse 1.4s ease-in-out infinite;
+}
+@keyframes u-pulse {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn--end.is-pulse:not(:disabled)::after,
+  .btn--pulse:not(:disabled)::after {
+    animation: none;
+    opacity: 0.7;
+  }
 }
 .btn-row {
   display: flex;
@@ -297,13 +609,14 @@ select:disabled {
 .field > span {
   color: var(--muted);
   font-size: var(--fs-sm);
+  font-weight: 700;
 }
 .field__help {
   color: var(--muted);
   font-size: var(--fs-xs);
 }
 .field__error {
-  color: var(--ng);
+  color: var(--u-crim-hi);
   font-size: var(--fs-sm);
   font-weight: bold;
 }
@@ -314,14 +627,16 @@ select:disabled {
 }
 .field--invalid input,
 .field--invalid select {
-  border-color: var(--ng);
+  border-color: var(--u-crim);
 }
 .field__count {
   color: var(--muted);
   font-size: var(--fs-xs);
   justify-self: end;
+  font-variant-numeric: tabular-nums;
 }
 
+/* ステッパー：両端の鉄の板と真ん中の井戸 */
 .stepper {
   display: inline-grid;
   gap: 4px;
@@ -329,6 +644,7 @@ select:disabled {
 .stepper__label {
   color: var(--muted);
   font-size: var(--fs-sm);
+  font-weight: 700;
 }
 .stepper__box {
   display: inline-flex;
@@ -337,26 +653,39 @@ select:disabled {
 .stepper__box button {
   font: inherit;
   font-size: var(--fs-lg);
+  font-weight: 800;
   width: var(--tap);
   min-height: var(--tap);
   color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--line-strong);
+  background:
+    linear-gradient(180deg, var(--u-plate-0), var(--u-plate-2)) padding-box,
+    var(--u-rim-iron) border-box;
+  border: 1px solid transparent;
+  box-shadow: var(--u-bevel);
   cursor: pointer;
+  transition: filter var(--dur-fast);
+}
+.stepper__box button:hover:not(:disabled) {
+  filter: brightness(1.18);
 }
 .stepper__box button:first-child {
-  border-radius: 8px 0 0 8px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
 }
 .stepper__box button:last-child {
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 .stepper__box button:disabled {
-  opacity: 0.4;
+  color: #77746a;
   cursor: default;
+  background:
+    linear-gradient(180deg, #23273a, #1a1e2d) padding-box,
+    linear-gradient(170deg, #4a505d, #2a2f39) border-box;
 }
 .stepper__box input {
   width: 58px;
   text-align: center;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
   border-radius: 0;
   border-left: none;
   border-right: none;
@@ -369,10 +698,11 @@ select:disabled {
   margin: 0;
 }
 .stepper--invalid input {
-  border-color: var(--ng);
-  color: var(--ng);
+  border-color: var(--u-crim);
+  color: var(--u-crim-hi);
 }
 
+/* チェックボックス：井戸の四角、入るとサファイアの板に白いレ点（金にしない） */
 .check {
   display: inline-flex;
   align-items: center;
@@ -380,13 +710,57 @@ select:disabled {
   min-height: var(--tap);
   cursor: pointer;
 }
-.check input,
-.switch input {
+input[type='checkbox']:not(.u-toggle) {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  flex: none;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(180deg, var(--u-well-0), #12162a);
+  border: 1px solid #4a5163;
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+input[type='checkbox']:not(.u-toggle):checked {
+  border-color: var(--u-sap-hi);
+  background:
+    var(--u-check) center / 18px no-repeat,
+    linear-gradient(180deg, #4f86ff, #1d3f9a);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+input[type='checkbox']:not(.u-toggle):disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+/* ラジオ：鉄の台座、入るとサファイアの宝石 */
+input[type='radio'] {
+  -webkit-appearance: none;
+  appearance: none;
   width: 22px;
   height: 22px;
   margin: 0;
-  accent-color: var(--accent);
   flex: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, #1a1f30, var(--u-well-0) 70%);
+  border: 1px solid var(--u-iron);
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+input[type='radio']:checked {
+  border-color: var(--u-iron-hi);
+  background:
+    radial-gradient(circle at 42% 36%, #ffffff 0 8%, transparent 9%),
+    radial-gradient(circle at 50% 50%, #8fc0ff 0 22%, #2f5fe0 46%, #142a6a 58%, transparent 60%),
+    radial-gradient(circle at 50% 40%, #1a1f30, var(--u-well-0) 70%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+input[type='radio']:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 .switch {
   display: flex;
@@ -395,6 +769,42 @@ select:disabled {
   min-height: var(--tap);
   cursor: pointer;
   font-weight: bold;
+}
+/* 切り替え（オン・オフ）：井戸の溝の中を鉄の玉が動き、オンでサファイア。<input type="checkbox" class="u-toggle"> */
+input[type='checkbox'].u-toggle {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  width: 46px;
+  height: 26px;
+  margin: 0;
+  flex: none;
+  border-radius: 13px;
+  background: linear-gradient(180deg, var(--u-well-0), #12162a);
+  border: 1px solid #4a5163;
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+input[type='checkbox'].u-toggle::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 30%, #e6e9ef, #8d95a5 55%, #3d4350);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  transition: transform var(--dur-fast) var(--ease);
+}
+input[type='checkbox'].u-toggle:checked {
+  border-color: var(--u-sap-hi);
+  background: linear-gradient(180deg, #2a5bd0, #163a8f);
+}
+input[type='checkbox'].u-toggle:checked::before {
+  transform: translateX(20px);
+  background: radial-gradient(circle at 40% 30%, #ffffff, #cfe2ff 55%, #6fa0ff);
 }
 
 .hint {
@@ -408,25 +818,45 @@ select:disabled {
 .text-ng {
   color: var(--ng);
 }
+/* 作れる／保存できる：羊皮紙の字にサファイアの印 */
 .ok-msg {
-  color: var(--ok);
+  color: var(--text);
   font-weight: bold;
   margin: 8px 0 0;
 }
+.ok-msg::first-letter {
+  color: var(--u-sap-hi);
+}
+/* 違反の一覧：深紅の縁の板に羊皮紙の字、行頭は深紅の菱形 */
 .violations {
-  margin: 8px 0 0;
-  padding: 0;
   list-style: none;
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, #24121c, #170b14);
+  border: 1px solid #a3203a;
+  box-shadow: var(--u-bevel);
+  color: var(--text);
 }
 .violations li {
-  color: var(--ng);
-  font-weight: bold;
+  position: relative;
+  padding-left: 16px;
+  font-weight: 600;
   font-size: var(--fs-sm);
-  padding-left: 1.3em;
-  text-indent: -1.3em;
+  color: var(--text);
+}
+.violations li + li {
+  margin-top: 2px;
 }
 .violations li::before {
-  content: '✗ ';
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: 0.62em;
+  width: 7px;
+  height: 7px;
+  background: var(--u-crim);
+  transform: rotate(45deg);
 }
 
 /* ------------------------------------------------------------ 画面の枠 */
@@ -435,6 +865,7 @@ select:disabled {
   margin: 0 auto;
   padding: 0 var(--gutter);
 }
+/* ヘッダー：黒鉄の帯（金は使わない）。ロゴは PC だけ */
 .topbar {
   position: sticky;
   top: 0;
@@ -443,16 +874,33 @@ select:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 6px var(--gutter);
-  margin: 0 calc(-1 * var(--gutter)) 12px;
-  background: rgba(17, 21, 42, 0.94);
-  backdrop-filter: blur(6px);
-  border-bottom: 1px solid var(--line);
+  padding: 4px var(--gutter);
+  margin: 0 calc(-1 * var(--gutter)) 14px;
+  background: linear-gradient(180deg, #1b1f32, #0e111f);
+  border-bottom: 1px solid #000;
+  box-shadow:
+    0 1px 0 #3a404d,
+    0 8px 20px rgba(0, 0, 0, 0.45);
 }
 .topbar__title {
-  font-weight: bold;
-  font-size: var(--fs-md);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
+  color: var(--text);
+  font-family: var(--u-font-display);
+  font-weight: 800;
+  font-feature-settings: 'palt';
+  font-size: 19px;
+  letter-spacing: 0.02em;
+}
+.topbar__crest {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--u-iron-hi);
+  font-size: 26px;
 }
 .topbar__title small {
   color: var(--muted);
@@ -460,40 +908,59 @@ select:disabled {
 }
 .topbar__nav {
   display: flex;
-  gap: 4px;
+  gap: 2px;
 }
+/* ナビ：錠剤をやめ、今の画面は下にサファイアの線と菱形 */
 .nav-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 7px;
   white-space: nowrap;
   font: inherit;
   font-size: var(--fs-sm);
-  color: var(--muted);
+  font-weight: 700;
+  color: var(--placeholder);
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-pill);
-  padding: 6px 14px;
-  min-height: var(--tap);
+  border: none;
+  border-radius: 0;
+  padding: 6px 16px;
+  min-height: 52px;
   cursor: pointer;
-  transition:
-    background-color var(--dur-fast),
-    color var(--dur-fast);
+  transition: color var(--dur-fast);
 }
 .nav-btn:hover {
   color: var(--text);
-  background: var(--panel);
+}
+.nav-btn__icon {
+  display: inline-grid;
+  place-items: center;
+  font-size: 22px;
+  line-height: 1;
+  color: #8f8a7b;
+  transition: color var(--dur-fast);
+}
+.nav-btn:hover .nav-btn__icon {
+  color: var(--muted);
 }
 .nav-btn.is-active {
   color: var(--text);
-  background: var(--panel-2);
-  border-color: var(--line);
-  font-weight: bold;
+  background: radial-gradient(ellipse 70% 90% at 50% 100%, rgba(111, 160, 255, 0.16), transparent 75%);
 }
-.nav-btn__icon {
-  font-size: 18px;
-  line-height: 1;
+.nav-btn.is-active .nav-btn__icon {
+  color: var(--text);
+}
+.nav-btn.is-active::after {
+  content: '';
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: -1px;
+  height: 8px;
+  background:
+    var(--u-diamond-sap) 50% 50% / 8px 8px no-repeat,
+    linear-gradient(90deg, transparent, var(--u-sap) 30%, var(--u-sap) 70%, transparent) 50% 50% / 100% 2px no-repeat;
 }
 .main {
   padding-bottom: 110px; /* 保存バーの分 */
@@ -504,61 +971,225 @@ select:disabled {
   scroll-margin-top: 72px;
 }
 
+/* ページの見出し：h1（金の箔押しの明朝）と操作ボタンを1行に。飾り線は無し（スマホの縦を食うため） */
 .page-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 12px;
+  min-height: 44px;
+  margin-bottom: 14px;
 }
 .page-head h1 {
   margin: 0;
 }
 
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--line);
+/* 石の板（パネル）：ノイズ＋面取りした鉄の縁＋上辺の中央に鉄の菱形の鋲を1つ */
+.panel,
+.u-panel {
+  position: relative;
+  background:
+    var(--u-noise) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 120px) padding-box,
+    linear-gradient(180deg, var(--u-slate-0), var(--u-slate-1)) padding-box,
+    var(--u-rim-iron) border-box;
+  border: 1px solid transparent;
   border-radius: var(--radius);
   padding: var(--sp-4);
-  margin-bottom: var(--sp-3);
-  box-shadow: var(--shadow-1);
+  margin-bottom: var(--sp-4);
+  box-shadow: var(--u-chamfer), var(--u-lift-2);
 }
+.panel::before,
+.u-panel::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
+  background: var(--u-diamond-iron) center / contain no-repeat;
+  filter: drop-shadow(0 1px 0 #000);
+  pointer-events: none;
+}
+/* デメリットの節などの危険の板：深紅の縁 */
 .panel--drawback {
-  border-color: rgba(224, 56, 111, 0.35);
+  background:
+    var(--u-noise) padding-box,
+    linear-gradient(180deg, rgba(224, 74, 99, 0.07), transparent 140px) padding-box,
+    linear-gradient(180deg, #22182a, #171223) padding-box,
+    var(--u-rim-crimson) border-box;
+}
+/* パネルの中の節の見出し：明朝・下に彫った細い線 */
+.panel > h2:first-child,
+.u-section-title {
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--u-groove);
 }
 
+/* 銘板：暗い板に細い鉄の縁（カードの名前の板と同じ作り）。<span class="u-plate">名前</span> */
+.u-plate {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(180deg, #0a0c16, #161a2c);
+  box-shadow:
+    inset 0 0 0 1px rgba(154, 162, 178, 0.35),
+    0 1px 0 rgba(0, 0, 0, 0.6);
+  color: var(--text);
+  font-weight: 700;
+}
+.u-plate--name {
+  font-family: var(--u-font-name);
+}
+/* 帯（バナー）：見出しの帯。中央に明朝、両端に鉄の菱形。<div class="u-banner"><span>勝利</span></div> */
+.u-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 6px 24px;
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 50%) padding-box,
+    linear-gradient(180deg, #232840, #12162a) padding-box,
+    var(--u-rim-iron) border-box;
+  border: 1px solid transparent;
+  box-shadow: var(--u-chamfer), var(--u-lift-1);
+  color: var(--text);
+  font-family: var(--u-font-display);
+  font-weight: 800;
+  font-feature-settings: 'palt';
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+.u-banner::before,
+.u-banner::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  flex: none;
+  background: var(--u-diamond-iron) center / contain no-repeat;
+}
+.u-banner--gold {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 50%) padding-box,
+    linear-gradient(180deg, #2a2618, #15130c) padding-box,
+    var(--u-rim-gold) border-box;
+  color: var(--u-gold-hi);
+}
+.u-banner--gold::before,
+.u-banner--gold::after {
+  background-image: var(--u-diamond-gold);
+}
+.u-banner--crimson {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 50%) padding-box,
+    linear-gradient(180deg, #2a1420, #170b14) padding-box,
+    var(--u-rim-crimson) border-box;
+  color: #ffe6ea;
+}
+/* 区切り線：彫った細い線＋中央に鉄の菱形。<hr class="u-divider"> */
+.u-divider {
+  position: relative;
+  height: 2px;
+  margin: 16px 0;
+  border: 0;
+  background: linear-gradient(90deg, transparent, #2c3243 12%, #2c3243 88%, transparent);
+  box-shadow: var(--u-groove);
+  overflow: visible;
+}
+.u-divider::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  background: var(--u-diamond-iron) center / contain no-repeat;
+}
+/* 鉄の六角（節の番号。カードのコストの宝石と同じ形、色は鉄）。<span class="u-hex">1</span> */
+.u-hex {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 31px;
+  flex: none;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 50%),
+    linear-gradient(180deg, #8d95a5, #3d4350);
+  color: #0d1020;
+  font-weight: 900;
+  font-size: var(--fs-sm);
+  line-height: 1;
+}
+
+/* 知らせ：情報＝サファイア、注意＝琥珀、危険＝深紅、成功＝エメラルドの縁と暗い地 */
 .notice {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  background: rgba(111, 141, 255, 0.12);
-  border: 1px solid rgba(111, 141, 255, 0.45);
-  border-radius: 10px;
+  background: linear-gradient(180deg, #172242, #121a33);
+  border: 1px solid #3d74d6;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--u-bevel);
   padding: 10px 12px;
   margin-bottom: 12px;
   font-size: var(--fs-sm);
+  color: var(--text);
 }
 .notice--ng {
-  background: var(--ng-bg);
-  border-color: rgba(255, 93, 110, 0.5);
-  color: #ffc2c9;
+  background: linear-gradient(180deg, #2a1420, #1e0f19);
+  border-color: #a3203a;
+  color: #ffd3da;
 }
 .notice--warn {
-  background: var(--warn-bg);
-  border-color: rgba(255, 207, 110, 0.5);
+  background: linear-gradient(180deg, #2a2112, #1e180d);
+  border-color: #b8862a;
   color: #ffe2a8;
 }
 .notice--ok {
-  background: var(--ok-bg);
-  border-color: rgba(60, 207, 145, 0.5);
+  background: linear-gradient(180deg, #122a22, #0d1e18);
+  border-color: #1f9e68;
 }
 
+/* 何もないとき：彫った地に鉄の菱形と控えの文字 */
 .empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
   text-align: center;
   color: var(--muted);
-  padding: 40px 10px;
+  padding: 36px 16px;
+  margin: 8px 0;
+  border-radius: var(--radius);
+  background: radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.035), transparent 70%), linear-gradient(180deg, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.1));
+  box-shadow:
+    inset 0 0 0 1px rgba(154, 162, 178, 0.14),
+    inset 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+.empty::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  background: var(--u-diamond-iron) center / contain no-repeat;
+  opacity: 0.85;
+}
+.empty > .gi {
+  font-size: 40px;
+  color: var(--u-iron-hi);
+  opacity: 0.8;
+}
+.empty:has(> .gi)::before {
+  display: none;
 }
 
 .filters {
@@ -573,7 +1204,7 @@ select:disabled {
   flex-wrap: wrap;
   gap: 6px;
 }
-/* チップ：絞り込みなどの押せる丸いラベル（.is-active で選択中）。36px ＋ ::after で 44px のタップ領域 */
+/* チップ：押せる絞り込みは鉄の小さな板、選ぶとサファイア（.is-active）。36px ＋ ::after で 44px のタップ領域 */
 .chip {
   position: relative;
   display: inline-flex;
@@ -581,16 +1212,24 @@ select:disabled {
   gap: 4px;
   font: inherit;
   font-size: var(--fs-sm);
+  font-weight: 600;
   color: var(--muted);
-  background: var(--panel);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-pill);
+  background:
+    linear-gradient(180deg, #1d2233, #141827) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 0 rgba(0, 0, 0, 0.5);
   padding: 4px 14px;
   min-height: 36px;
+  min-width: 40px;
+  justify-content: center;
   cursor: pointer;
   text-decoration: none;
   transition:
-    background-color var(--dur-fast),
+    filter var(--dur-fast),
     color var(--dur-fast);
 }
 .chip::after {
@@ -600,73 +1239,82 @@ select:disabled {
 }
 .chip:hover {
   color: var(--text);
-  border-color: var(--accent);
+  filter: brightness(1.15);
 }
 .chip.is-active {
   color: #fff;
-  background: var(--accent-strong);
-  border-color: var(--accent-strong);
+  background:
+    var(--u-sap-fill) padding-box,
+    var(--u-rim-sapphire) border-box;
+  text-shadow: 0 1px 0 rgba(0, 20, 60, 0.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 1px 0 rgba(0, 0, 0, 0.5);
   font-weight: bold;
 }
+.chip > .gi {
+  font-size: 1.15em;
+}
 
-/* バッジ：押せない小さなラベル（種類・レアリティ・状態） */
+/* バッジ：押せない小さなラベル（種類・レアリティ・状態）＝刻印。縁と影は押せるものだけが持つ */
 .badge {
   display: inline-block;
   font-size: var(--fs-xs);
   font-weight: bold;
   line-height: 1.4;
-  padding: 3px 10px;
-  border-radius: var(--radius-pill);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(154, 162, 178, 0.32);
+  color: var(--text);
   vertical-align: middle;
 }
 .badge--sm {
-  padding: 1px 8px;
+  padding: 1px 6px;
   margin-left: 6px;
   font-weight: normal;
   color: var(--muted);
 }
 .badge--ok {
   color: var(--ok);
-  border-color: var(--ok);
+  border-color: rgba(60, 207, 145, 0.7);
 }
 .badge--ng {
-  color: var(--ng);
-  border-color: var(--ng);
+  color: #ff8f9c;
+  border-color: rgba(224, 74, 99, 0.85);
 }
 .badge--warn {
   color: var(--warn);
-  border-color: var(--warn);
+  border-color: rgba(255, 207, 110, 0.7);
 }
 .badge--mine {
   color: var(--mine);
-  border-color: var(--mine);
+  border-color: rgba(90, 169, 255, 0.75);
 }
 .badge--enemy {
   color: var(--enemy);
-  border-color: var(--enemy);
+  border-color: rgba(255, 110, 94, 0.75);
 }
 .badge--common {
   color: var(--common);
-  border-color: var(--common);
+  border-color: rgba(169, 178, 191, 0.7);
 }
 .badge--rare {
   color: var(--rare);
-  border-color: var(--rare);
+  border-color: rgba(74, 160, 255, 0.75);
 }
 .badge--epic {
-  color: var(--epic);
-  border-color: var(--epic);
+  color: #c99bff;
+  border-color: rgba(181, 109, 255, 0.75);
 }
 .badge--legend {
   color: var(--legend);
-  border-color: var(--legend);
+  border-color: rgba(246, 196, 69, 0.75);
 }
 .badge--curse {
   color: #fff;
-  background: var(--curse);
-  border-color: var(--curse);
+  background: linear-gradient(180deg, #c8344f, #8f1b31);
+  border-color: #e04a63;
 }
 
 .dot {
@@ -769,10 +1417,16 @@ select:disabled {
   line-height: 1;
   width: 64px;
   height: 64px;
-  border-radius: 12px;
-  background: var(--field);
-  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--u-well-0), var(--u-well-1));
+  border: 1px solid #2c3241;
+  border-bottom-color: #4a5163;
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.5);
   cursor: pointer;
+  transition: border-color var(--dur-fast);
+}
+.icon-btn:hover {
+  border-color: var(--u-iron-hi);
 }
 
 .seg {
@@ -780,19 +1434,34 @@ select:disabled {
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
 }
+/* レアリティの選択：4つとも各金属の額縁（コモン鉄銀・レア サファイア・エピック アメジスト・レジェンド金）。
+   選んでいないものは彩度と明るさを落とし、選ぶと 2px 浮いて縁の色で光る */
 .seg__btn {
   --frame: var(--common);
+  --u-m: var(--metal-common, var(--u-rim-iron));
   font: inherit;
   font-weight: bold;
   color: var(--frame);
-  background: var(--field);
-  border: 2px solid var(--line);
-  border-radius: 10px;
+  background:
+    linear-gradient(180deg, #181c2d, #10142a) padding-box,
+    var(--u-m) border-box;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(0, 0, 0, 0.5);
+  filter: saturate(0.55) brightness(0.8);
   padding: 6px 4px;
   min-height: var(--tap);
   cursor: pointer;
   display: grid;
   line-height: 1.3;
+  transition:
+    transform var(--dur-fast),
+    filter var(--dur-fast);
+}
+.seg__btn:hover {
+  filter: saturate(0.8) brightness(0.95);
 }
 .seg__btn small {
   color: var(--muted);
@@ -801,16 +1470,27 @@ select:disabled {
 }
 .seg__btn--rare {
   --frame: var(--rare);
+  --u-m: var(--metal-rare, var(--u-rim-sapphire));
 }
 .seg__btn--epic {
   --frame: var(--epic);
+  --u-m: var(--metal-epic, var(--u-rim-amethyst));
 }
 .seg__btn--legend {
   --frame: var(--legend);
+  --u-m: var(--metal-legend, var(--u-rim-gold));
 }
 .seg__btn.is-active {
-  border-color: var(--frame);
-  background: color-mix(in srgb, var(--frame) 18%, var(--field));
+  filter: none;
+  transform: translateY(-2px);
+  background:
+    radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--frame) 30%, transparent), transparent 70%) padding-box,
+    linear-gradient(180deg, #232941, #141829) padding-box,
+    var(--u-m) border-box;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 3px 0 rgba(0, 0, 0, 0.55),
+    0 0 14px color-mix(in srgb, var(--frame) 45%, transparent);
 }
 @media (max-width: 420px) {
   .seg {
@@ -830,13 +1510,18 @@ select:disabled {
   gap: 8px;
 }
 .kw-item {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  background:
+    linear-gradient(180deg, #21273c, #181c2d) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--u-bevel), 0 1px 0 rgba(0, 0, 0, 0.5);
   padding: 8px 10px;
 }
 .kw-item.is-on {
-  border-color: var(--accent);
+  background:
+    linear-gradient(180deg, #1f2c50, #162038) padding-box,
+    var(--u-rim-sapphire) border-box;
 }
 .kw-item small {
   color: var(--muted);
@@ -849,18 +1534,24 @@ select:disabled {
 }
 
 .row-card {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  background:
+    linear-gradient(180deg, #21273c, #181c2d) padding-box,
+    linear-gradient(170deg, #4f5666, #262a34) border-box;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--u-bevel), 0 1px 0 rgba(0, 0, 0, 0.5);
   padding: 10px;
   margin-bottom: 10px;
 }
 .row-card--drawback {
-  border-color: rgba(224, 56, 111, 0.45);
+  background:
+    linear-gradient(180deg, #2a1a28, #1c121f) padding-box,
+    linear-gradient(170deg, #7a3048, #2d1420) border-box;
 }
 .row-card--invalid {
-  border-color: var(--ng);
-  box-shadow: 0 0 0 1px var(--ng) inset;
+  background:
+    linear-gradient(180deg, #2a1a28, #1c121f) padding-box,
+    var(--u-rim-crimson) border-box;
 }
 .row-card__head {
   display: flex;
@@ -904,9 +1595,9 @@ select:disabled {
 .row-card__text {
   margin: 10px 0 2px;
   padding: 6px 10px;
-  border-left: 3px solid var(--accent);
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 0 6px 6px 0;
+  border-left: 2px solid var(--accent);
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
 }
 .row-card__text--drawback {
   border-left-color: var(--curse);
@@ -920,8 +1611,9 @@ select:disabled {
 .add-select {
   width: 100%;
   font-weight: bold;
-  color: var(--accent);
+  color: var(--muted);
   border-style: dashed;
+  border-color: #4a5163;
 }
 
 /* ポイント表示 */
@@ -931,33 +1623,38 @@ select:disabled {
   gap: 6px;
   margin-bottom: 10px;
 }
+/* 予算：石の井戸。足りている＝サファイアの縁、超過＝深紅の縁。数字は羊皮紙 */
 .point-panel__total {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
   padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(60, 207, 145, 0.1);
-  border: 1px solid rgba(60, 207, 145, 0.45);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, #10142a, #0b0e1c);
+  border: 1px solid #3d74d6;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 1px 0 rgba(0, 0, 0, 0.5);
   margin-bottom: 10px;
 }
 .point-panel__big {
   font-size: 1.8rem;
-  font-weight: bold;
+  font-weight: 900;
   font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 .point-panel__remain {
   font-weight: bold;
-  color: var(--ok);
+  color: var(--u-sap-hi);
 }
 .point-panel__total.is-over {
-  background: var(--ng-bg);
-  border-color: var(--ng);
+  background: linear-gradient(180deg, #24121c, #170b14);
+  border-color: #c8344f;
 }
 .point-panel__total.is-over .point-panel__remain,
 .point-panel__total.is-over .point-panel__big {
-  color: var(--ng);
+  color: var(--u-crim-hi);
 }
 .point-table {
   width: 100%;
@@ -1022,13 +1719,16 @@ select:disabled {
   align-items: center;
   gap: 8px;
   padding: 10px max(var(--gutter), env(safe-area-inset-left)) calc(10px + env(safe-area-inset-bottom));
-  background: rgba(17, 21, 42, 0.96);
-  backdrop-filter: blur(6px);
-  border-top: 1px solid var(--line);
+  /* 卓の縁：暗い板＋上に鉄の線 */
+  background: linear-gradient(180deg, #1b1f32, #0c0e1a);
+  border-top: 1px solid #000;
+  box-shadow:
+    inset 0 1px 0 #3a404d,
+    0 -10px 24px rgba(0, 0, 0, 0.45);
 }
 .savebar__pts {
   font: inherit;
-  color: var(--ok);
+  color: var(--text);
   background: transparent;
   border: none;
   padding: 0;
@@ -1040,12 +1740,14 @@ select:disabled {
 }
 .savebar__pts b {
   font-size: 1.25rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
 }
 .savebar__pts small {
   font-size: var(--fs-xs);
 }
 .savebar__pts.is-over {
-  color: var(--ng);
+  color: var(--u-crim-hi);
 }
 .savebar__status {
   flex: 1;
@@ -1054,7 +1756,7 @@ select:disabled {
   min-width: 0;
 }
 .savebar__status.is-ng {
-  color: var(--ng);
+  color: var(--u-crim-hi);
   font-weight: bold;
 }
 
@@ -1072,7 +1774,10 @@ select:disabled {
   justify-content: space-between;
 }
 .deck-list__item.is-ng {
-  border-color: rgba(255, 93, 110, 0.5);
+  background:
+    var(--u-noise) padding-box,
+    linear-gradient(180deg, #22182a, #171223) padding-box,
+    var(--u-rim-crimson) border-box;
 }
 .deck-list__main {
   font: inherit;
@@ -1091,9 +1796,13 @@ select:disabled {
   font-size: var(--fs-sm);
   color: var(--muted);
 }
+.deck-list__main b {
+  font-family: var(--u-font-name);
+  font-size: var(--fs-md);
+}
 .deck-list__reason {
   font-size: var(--fs-sm);
-  color: var(--ng);
+  color: var(--u-crim-hi);
 }
 
 .deck-summary__counts {
@@ -1104,13 +1813,15 @@ select:disabled {
 }
 .deck-summary__total {
   font-size: 1.1rem;
-  color: var(--ok);
+  color: var(--text);
 }
 .deck-summary__total b {
   font-size: 1.8rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
 }
 .deck-summary__total.is-ng {
-  color: var(--ng);
+  color: var(--u-crim-hi);
 }
 .rarity-rows {
   list-style: none;
@@ -1122,30 +1833,46 @@ select:disabled {
   font-size: var(--fs-sm);
 }
 .rarity-rows .is-ng {
-  color: var(--ng);
+  color: var(--u-crim-hi);
   font-weight: bold;
 }
 
+/* タブ・切り替え：井戸の溝の中で、選んだものだけ鉄の板が浮く */
 .tabs {
   display: flex;
-  gap: 6px;
+  gap: 3px;
+  padding: 3px;
   margin-bottom: 12px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, var(--u-well-0), #10132a);
+  border: 1px solid #2a2f3c;
+  border-bottom-color: #4a5163;
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.5);
 }
 .tab {
   flex: 1;
   font: inherit;
-  color: var(--muted);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 8px;
-  min-height: var(--tap);
+  font-weight: 700;
+  color: var(--placeholder);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  padding: 6px 8px;
+  min-height: 40px;
   cursor: pointer;
+  transition: color var(--dur-fast);
+}
+.tab:hover {
+  color: var(--text);
 }
 .tab.is-active {
   color: var(--text);
-  border-color: var(--accent);
-  font-weight: bold;
+  background:
+    linear-gradient(180deg, #353c55, #20253a) padding-box,
+    var(--u-rim-iron) border-box;
+  box-shadow:
+    var(--u-bevel),
+    0 1px 0 rgba(0, 0, 0, 0.6);
 }
 .builder {
   display: grid;
@@ -1174,6 +1901,7 @@ select:disabled {
   display: grid;
   gap: 8px;
 }
+/* @card-parts:start（カードの部品。UI のテーマの規則はここに置かない：tests/uiTheme.test.ts） */
 /* デッキ構築の行（カードデザイン案A）：額縁の金属の細い縁、左端にコストの宝石、名前の右にレアリティの宝石 */
 .card-row {
   position: relative;
@@ -1336,15 +2064,17 @@ select:disabled {
   min-height: var(--tap);
   padding: 4px;
 }
+/* @card-parts:end */
 
 /* ------------------------------------------------------------ モーダル */
+/* ダイアログ・シートは「額」：石の板＋面取りした鉄の縁＋深い影。暗幕は真ん中が少し明るい */
 .modal {
   position: fixed;
   inset: 0;
   z-index: 50;
   display: grid;
   place-items: center;
-  background: var(--overlay);
+  background: radial-gradient(ellipse at 50% 40%, rgba(4, 5, 10, 0.55), rgba(4, 5, 10, 0.85));
   padding: 12px;
   animation: fade-in var(--dur) var(--ease);
 }
@@ -1352,11 +2082,14 @@ select:disabled {
   width: min(640px, 100%);
   max-height: calc(100dvh - 24px);
   overflow-y: auto;
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background:
+    var(--u-noise) padding-box,
+    linear-gradient(180deg, #1b2033, #12162a) padding-box,
+    var(--u-rim-iron) border-box;
+  border: 1.5px solid transparent;
   border-radius: var(--radius);
   padding: 14px;
-  box-shadow: var(--shadow-3);
+  box-shadow: var(--u-chamfer), var(--u-lift-3);
   animation: pop-in var(--dur) var(--ease);
 }
 .modal__body--sm {
@@ -1367,10 +2100,15 @@ select:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--u-groove);
 }
 .modal__head h2 {
   margin: 0;
+  min-width: 0;
+  color: var(--text);
 }
 .modal__desc {
   color: var(--muted);
@@ -1440,13 +2178,13 @@ select:disabled {
 .emoji-btn {
   font-size: 26px;
   height: 46px;
-  background: var(--field);
+  background: linear-gradient(180deg, var(--u-well-0), var(--u-well-1));
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 .emoji-btn--active {
-  border-color: var(--accent);
+  border-color: var(--u-sap-hi);
   box-shadow: 0 0 0 2px var(--accent) inset;
 }
 .json-box {
@@ -1460,17 +2198,15 @@ select:disabled {
   margin: 0 0 8px;
 }
 
-/* 狭い画面：タイトルの下にメニューを5等分で並べる（アイコンの下に短いラベル。360px でも収まる） */
+/* 狭い画面：ロゴの段をなくし、メニュー1段（5等分・アイコンの下に短いラベル。360px でも収まる）＋見出しの1行で外枠を約115px に */
 @media (max-width: 600px) {
   .topbar {
-    flex-wrap: wrap;
-    row-gap: 0;
-    padding-top: 4px;
-    padding-bottom: 4px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    margin-bottom: 6px;
   }
   .topbar__title {
-    font-size: var(--fs-sm);
-    line-height: 1.4;
+    display: none;
   }
   .topbar__nav {
     display: grid;
@@ -1480,16 +2216,26 @@ select:disabled {
   }
   .nav-btn {
     flex-direction: column;
-    gap: 0;
-    padding: 3px 0;
+    gap: 1px;
+    padding: 3px 0 5px;
     min-height: 48px;
     font-size: var(--fs-xs);
-    border-radius: 10px;
     line-height: 1.2;
   }
   .nav-btn__icon {
-    font-size: 20px;
+    font-size: 22px;
     line-height: 1.1;
+  }
+  .nav-btn.is-active::after {
+    left: 14%;
+    right: 14%;
+  }
+  .page-head {
+    margin: 6px 0 10px;
+  }
+  .page-head h1 {
+    font-size: 21px;
+    line-height: 1.2;
   }
   /* 「オンライン」（5文字）が 360px の 1/5 列（約 64px）に収まるよう、字間を少し詰める */
   .nav-btn__label {
@@ -1509,14 +2255,15 @@ select:disabled {
   }
 }
 
-/* モーダルの下に固定するボタン列 */
+/* モーダルの下に固定するボタン列：暗い板＋上に鉄の線 */
 .modal__foot {
   position: sticky;
   bottom: -14px;
   margin: 0 -14px -14px;
   padding: 10px 14px;
-  background: var(--panel);
-  border-top: 1px solid var(--line);
+  background: linear-gradient(180deg, #161a2c, #10132a);
+  border-top: 1px solid #000;
+  box-shadow: inset 0 1px 0 #3a404d;
 }
 
 /* オンライン対戦 */
@@ -1534,6 +2281,7 @@ select:disabled {
 }
 .online-code-input {
   font-size: 1.4rem;
+  font-weight: 800;
   letter-spacing: 0.25em;
   text-transform: uppercase;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1561,9 +2309,9 @@ select:disabled {
 .online-chip {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(154, 162, 178, 0.32);
   color: var(--text);
   font-size: var(--fs-xs);
   font-weight: normal;
@@ -1592,45 +2340,48 @@ select:disabled {
 body:has(.savebar) .toasts {
   bottom: calc(84px + env(safe-area-inset-bottom));
 }
+/* トースト：鉄の小さな板、左の印は丸い宝石（情報＝サファイア・成功＝エメラルド・失敗＝深紅） */
 .toast {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 10px 10px 14px;
-  border-radius: var(--radius);
-  background: var(--panel-3);
-  border: 1px solid var(--line-strong);
-  border-left: 4px solid var(--info);
-  box-shadow: var(--shadow-2);
+  padding: 8px 8px 8px 12px;
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, #252b42, #181c2e) padding-box,
+    var(--u-rim-iron) border-box;
+  border: 1px solid transparent;
+  box-shadow: var(--u-chamfer), var(--u-lift-2);
   color: var(--text);
   font-size: var(--fs-sm);
   pointer-events: auto;
   animation: pop-in var(--dur) var(--ease);
 }
-.toast--ok {
-  border-left-color: var(--ok);
-}
-.toast--ng {
-  border-left-color: var(--ng);
-}
 .toast__icon {
   flex: none;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   font-size: var(--fs-xs);
-  font-weight: bold;
+  font-weight: 900;
   color: #fff;
-  background: var(--info);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+  background: radial-gradient(circle at 40% 35%, #cfe2ff, #2f5fe0 60%, #142a6a);
+  box-shadow:
+    0 0 0 2px #0a0c16,
+    0 0 0 3px var(--u-iron-hi);
+}
+.toast__icon .gi {
+  width: 14px;
+  height: 14px;
 }
 .toast--ok .toast__icon {
-  background: var(--ok);
-  color: #06281a;
+  background: radial-gradient(circle at 40% 35%, #d8ffec, #1f9e68 60%, #0b5a3a);
 }
 .toast--ng .toast__icon {
-  background: var(--ng);
+  background: radial-gradient(circle at 40% 35%, #ffd0d7, #c8344f 60%, #5a0b1d);
 }
 .toast__text {
   flex: 1;
@@ -1638,7 +2389,7 @@ body:has(.savebar) .toasts {
 }
 .toast__action {
   flex: none;
-  color: var(--accent);
+  color: var(--u-sap-hi);
   font-weight: bold;
 }
 .toast__close {
@@ -1655,7 +2406,7 @@ body:has(.savebar) .toasts {
 }
 .toast__close:hover {
   color: var(--text);
-  background: var(--panel-2);
+  background: rgba(255, 255, 255, 0.06);
 }
 @media (min-width: 720px) {
   .toasts {
@@ -1686,16 +2437,17 @@ body:has(.savebar) .toasts {
 .popover__anchor.is-open > * {
   filter: brightness(1.15);
 }
+/* ポップオーバー：鉄の縁の小さな板 */
 .popover {
   position: fixed;
   z-index: 70;
   width: max-content;
   max-width: min(320px, calc(100vw - 16px));
   padding: 10px 12px;
-  border-radius: var(--radius);
-  background: var(--panel-3);
-  border: 1px solid var(--line-strong);
-  box-shadow: var(--shadow-2);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, #252b42, #181c2e);
+  border: 1px solid #5c6474;
+  box-shadow: var(--u-chamfer), var(--u-lift-2);
   color: var(--text);
   font-size: var(--fs-sm);
   line-height: 1.5;
@@ -1707,8 +2459,8 @@ body:has(.savebar) .toasts {
   left: calc(var(--arrow-x, 50%) - 6px);
   width: 12px;
   height: 12px;
-  background: var(--panel-3);
-  border: 1px solid var(--line-strong);
+  background: #252b42;
+  border: 1px solid #5c6474;
   border-right: none;
   border-bottom: none;
   transform: rotate(45deg);
@@ -1719,10 +2471,12 @@ body:has(.savebar) .toasts {
 .popover--top::before {
   bottom: -7px;
   transform: rotate(225deg);
+  background: #181c2e;
 }
 .popover__title {
   font-weight: bold;
   margin-bottom: 2px;
+  color: var(--text);
 }
 .popover__desc {
   color: var(--text);
@@ -1741,16 +2495,19 @@ body:has(.savebar) .toasts {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: var(--overlay);
+  background: radial-gradient(ellipse at 50% 40%, rgba(4, 5, 10, 0.55), rgba(4, 5, 10, 0.85));
   animation: fade-in var(--dur) var(--ease);
 }
 .sheet__panel {
   position: absolute;
   display: flex;
   flex-direction: column;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-3);
+  background:
+    var(--u-noise) padding-box,
+    linear-gradient(180deg, #1b2033, #12162a) padding-box,
+    var(--u-rim-iron) border-box;
+  border: 1.5px solid transparent;
+  box-shadow: var(--u-chamfer), var(--u-lift-3);
   outline: none;
 }
 .sheet__panel.is-dragging {
@@ -1791,10 +2548,11 @@ body:has(.savebar) .toasts {
   touch-action: none;
 }
 .sheet__handle span {
-  width: 44px;
-  height: 5px;
-  border-radius: 3px;
-  background: var(--line-strong);
+  width: 54px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #3d4350, #9aa2b2, #3d4350);
+  box-shadow: 0 1px 0 #000;
 }
 .sheet__head {
   display: flex;
@@ -1802,6 +2560,7 @@ body:has(.savebar) .toasts {
   gap: 8px;
   padding: 4px 8px 8px 16px;
   border-bottom: 1px solid var(--line);
+  box-shadow: var(--u-groove);
 }
 .sheet--side .sheet__head,
 .sheet--modal .sheet__head {
@@ -1811,6 +2570,7 @@ body:has(.savebar) .toasts {
   flex: 1;
   margin: 0;
   min-width: 0;
+  color: var(--text);
 }
 .sheet__body {
   flex: 1;
@@ -1834,15 +2594,20 @@ body:has(.savebar) .toasts {
   margin-bottom: 16px;
 }
 .rules__section {
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, var(--u-slate-0), var(--u-slate-1)) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  border: 1px solid transparent;
   border-radius: var(--radius);
   margin-bottom: 10px;
-  box-shadow: var(--shadow-1);
+  box-shadow: var(--u-chamfer), var(--u-lift-1);
   scroll-margin-top: 110px;
 }
 .rules__section[open] {
-  border-color: var(--line-strong);
+  background:
+    var(--u-noise) padding-box,
+    linear-gradient(180deg, var(--u-slate-0), var(--u-slate-1)) padding-box,
+    var(--u-rim-iron) border-box;
 }
 .rules__summary {
   display: flex;
@@ -1861,11 +2626,12 @@ body:has(.savebar) .toasts {
   display: none;
 }
 .rules__summary:hover {
-  background: var(--panel-2);
+  background: rgba(255, 255, 255, 0.04);
 }
 .rules__section[open] .rules__summary {
   border-radius: var(--radius) var(--radius) 0 0;
   border-bottom: 1px solid var(--line);
+  box-shadow: var(--u-groove);
 }
 .rules__icon {
   font-size: 20px;
@@ -1877,7 +2643,13 @@ body:has(.savebar) .toasts {
   flex: 1;
 }
 .rules__chevron {
-  color: var(--muted);
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  height: 8px;
+  overflow: hidden;
+  color: transparent;
+  background: var(--u-chev) center / contain no-repeat;
   transition: transform var(--dur) var(--ease);
 }
 .rules__section[open] .rules__chevron {
@@ -1890,7 +2662,7 @@ body:has(.savebar) .toasts {
 }
 .rules__body h3 {
   font-size: var(--fs-sm);
-  color: var(--accent);
+  color: var(--u-sap-hi);
   margin: 14px 0 6px;
 }
 .rules__body ul,
@@ -1908,9 +2680,9 @@ body:has(.savebar) .toasts {
   display: inline-block;
   margin: 2px 8px 2px 0;
   padding: 0 8px;
-  border-radius: var(--radius-pill);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(154, 162, 178, 0.32);
   font-size: var(--fs-xs);
   white-space: nowrap;
 }
@@ -2012,8 +2784,9 @@ body:has(.savebar) .toasts {
   display: inline-block;
   width: 10px;
   height: 10px;
-  border-radius: 3px;
+  border-radius: 1px;
   margin-left: 6px;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35);
 }
 .curve__swatch--monster,
 .curve__bar--monster {
@@ -2044,6 +2817,7 @@ body:has(.savebar) .toasts {
 }
 .curve__num {
   fill: var(--text);
+  font-weight: 800;
 }
 .curve__advice {
   margin: 0;
@@ -2101,7 +2875,7 @@ body:has(.savebar) .toasts {
 .app-foot {
   padding: 12px var(--gutter) calc(96px + env(safe-area-inset-bottom));
   font-size: var(--fs-xs);
-  color: var(--muted);
+  color: var(--placeholder);
   text-align: center;
 }
 .app-foot a {
@@ -2121,4 +2895,26 @@ body:has(.savebar) .toasts {
   flex-wrap: wrap;
   gap: 12px;
   margin: 4px 0 12px;
+}
+
+/* ------------------------------------------------------------ UI キット（#/ui-kit）の記号の一覧 */
+.kit-icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+.kit-icons__item {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+}
+.kit-icons__item small {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  text-align: center;
+  overflow-wrap: anywhere;
 }

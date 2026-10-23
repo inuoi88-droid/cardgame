@@ -37,6 +37,16 @@ export function briefChipLabel(c: { id: string; label: string }): string {
   return isTauntChip(c.id) ? '🛡挑発' : briefLabel(c.label);
 }
 
+/**
+ * タイル・帯の札の中身（UI2：形のある札は形＋数字だけ）。挑発だけは「挑発」の名前を残す（守備力の盾と見分ける）。
+ * 形の無い札は今までどおり briefChipLabel
+ */
+export function briefFace(c: { id: string; label: string; gi?: string; text?: string }): { gi?: string; text: string } {
+  if (isTauntChip(c.id)) return { gi: 'checked-shield', text: '挑発' };
+  if (c.gi) return { gi: c.gi, text: (c.text ?? '').replace(WORDS, '') };
+  return { text: briefChipLabel(c) };
+}
+
 /** 手札の注意の札（パワー入替・条件未達…）をスマホではアイコンにする */
 export const HAND_BADGE_ICON: Record<string, string> = {
   氷結: '🧊',

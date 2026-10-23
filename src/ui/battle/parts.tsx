@@ -6,11 +6,12 @@ import { CostGem, Emblem, frameClasses, nameFit } from '../components/cardParts.
 import { Popover, type PopoverCard } from '../components/Popover.tsx';
 import { abilityGlossary, glossary, keywordGlossary, mechanicGlossary, type GlossaryEntry } from '../glossary.ts';
 import { cx } from '../util.ts';
-import { logIcon, tokenizeLog, type LogNames } from './logFormat.ts';
+import { UiIcon } from '../components/UiIcon.tsx';
+import { logGi, logIcon, tokenizeLog, type LogNames } from './logFormat.ts';
 import type { Float } from './useReplay.ts';
 import { monsterForecasts, summarizeCard } from './summary.ts';
 import { dayNightBand, fieldBand } from './matchOptions.ts';
-import { briefChipLabel, briefLabel, HAND_BADGE_ICON, isTauntChip, overflowItems, tileChipOrder } from './compact.ts';
+import { briefFace, briefLabel, HAND_BADGE_ICON, isTauntChip, overflowItems, tileChipOrder } from './compact.ts';
 
 type Statuses = battle.Statuses;
 type PlayerId = battle.PlayerId;
@@ -33,16 +34,41 @@ function useBump(n: number, ms = 1500): boolean {
 
 export interface Chip {
   id: string;
+  /** 札の文字（絵文字つき。読み上げ・title・詳細の一覧に使う） */
   label: string;
   tone: 'bad' | 'good' | 'info' | 'kw' | 'power';
   card: PopoverCard;
+  /** 札に描く形（game-icons。UI2：絵文字の代わり。無ければ label の絵文字のまま） */
+  gi?: string;
+  /** 形のあとに添える文字（gi があるとき。label から絵文字を外したもの） */
+  text?: string;
 }
 
 const chipOf = (g: GlossaryEntry, value: string, lines: ReactNode[] = []): Omit<Chip, 'id'> => ({
   label: `${g.icon}${value}`,
   tone: g.tone,
   card: { title: `${g.icon} ${g.name}${value ? ` ${value}` : ''}`, description: g.short, lines },
+  ...(g.gi ? { gi: g.gi, text: value } : {}),
 });
+
+/** 形の色：毒は緑・やけどは橙（色の意味は絵文字のときのまま）。ほかは札の文字の色 */
+const GI_TONE: Record<string, string> = { 'poison-bottle': 'poison', flame: 'fire', 'death-zone': 'poison' };
+
+/** 札の形（状態異常・キーワード）。大きさは文字の 1.15 倍 */
+export function ChipIcon({ gi }: { gi: string }) {
+  return <UiIcon name={`gi:${gi}`} className={cx('u-sticon', GI_TONE[gi] && `u-sticon--${GI_TONE[gi]}`)} />;
+}
+
+/** 札の中身：形があれば形＋文字、無ければ絵文字つきの文字のまま */
+export function ChipFace({ c }: { c: Pick<Chip, 'label' | 'gi' | 'text'> }) {
+  if (!c.gi) return <>{c.label}</>;
+  return (
+    <>
+      <ChipIcon gi={c.gi} />
+      {c.text}
+    </>
+  );
+}
 
 /** 状態異常・持続効果を小さな札にする。説明文は用語集（glossary.ts）と共通 */
 export function statusChips(s: Statuses, isPlayer: boolean): Chip[] {
@@ -77,7 +103,9 @@ export function Chips({ chips, className }: { chips: Chip[]; className?: string 
     <div className={cx('chips-row', className)}>
       {chips.map((c) => (
         <Popover key={c.id} content={c.card} placement="top">
-          <span className={`st st--${c.tone}`}>{c.label}</span>
+          <span className={`st st--${c.tone}`} aria-label={c.gi ? c.label : undefined}>
+            <ChipFace c={c} />
+          </span>
         </Popover>
       ))}
     </div>
@@ -151,6 +179,8 @@ interface PlayerPanelProps {
   onOpen?: () => void;
   /** 帯の「✦N」を押したとき：パワーの一覧を開く（自分） */
   onPowers?: () => void;
+  /** PC の銘板の肖像（game-icons の名前。CPU は強さで形が変わる。リーダーがいればリーダーの絵。UI2） */
+  portrait?: string;
 }
 
 /** 起動の ⚡ ボタン（モンスター・パワー）。使えないときは灰色で、押すと理由を出す */
@@ -202,6 +232,39 @@ export function ActivateBtn({ a, name, className }: { a: ActivateButton; name: s
   );
 }
 
+/** HP：カードの体力の紋章と同じハート＋数（UI2）。max を渡すと「/最大」を小さく添える */
+export function HpHeart({ hp, max, className }: { hp: number; max?: number; className?: string }) {
+  return (
+    <span className={cx('u-hp', className)}>
+      <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+        <use href="#emb-hp" />
+      </svg>
+      <b>{hp}</b>
+      {max !== undefined && <small>/{max}</small>}
+    </span>
+  );
+}
+
+/** エナジー：カードのコストと同じ六角の宝石（UI2。読み上げは呼び出し側の aria-label） */
+export function EnergyGem({ n, size, className }: { n: number; size?: 'lg' | 'btn'; className?: string }) {
+  return (
+    <span className={cx('cgem u-egem', size && `u-egem--${size}`, className)} aria-hidden="true">
+      <i>{n}</i>
+    </span>
+  );
+}
+
+/** 数の井戸の中身：形（18px 以上）＋数 */
+function CntFace({ gi, n, rest }: { gi: string; n: ReactNode; rest?: ReactNode }) {
+  return (
+    <>
+      <UiIcon name={`gi:${gi}`} />
+      <b>{n}</b>
+      {rest}
+    </>
+  );
+}
+
 export function PlayerPanel({
   ps,
   isMe,
@@ -230,6 +293,7 @@ export function PlayerPanel({
   compact,
   onOpen,
   onPowers,
+  portrait,
 }: PlayerPanelProps) {
   const waiting = ps.waiting ?? [];
   // 手札から捨てられたカード（MTG 要素 △ バッチA：捨てられたとき。B：大混乱）が捨て札に入ったら、捨て札の山を少しの間光らせる
@@ -244,12 +308,15 @@ export function PlayerPanel({
   if (compact) {
     // スマホ：1行の帯（名前・HP・エナジー・小さな数字）。状態異常などは大事なものから2つ（自分は1つ）＋「+N」、残りは詳細（onOpen）
     const M = mechanicGlossary;
-    const badges: { id: string; label: string; tone: Chip['tone']; title: string }[] = [];
-    if (hasCrown) badges.push({ id: 'crown', label: M.crown!.icon, tone: 'good', title: '王冠' });
+    const badges: { id: string; label: string; gi?: string; tone: Chip['tone']; title: string }[] = [];
+    if (hasCrown) badges.push({ id: 'crown', label: '', gi: M.crown!.gi, tone: 'good', title: '王冠' });
     if (ps.extraTurnPending) badges.push({ id: 'extra', label: M.extraTurn!.icon, tone: 'good', title: '追加ターン' });
-    if (ps.quash) badges.push({ id: 'quash', label: M.quash!.icon, tone: 'bad', title: `封殺（${QUASH_KIND[ps.quash.kind] ?? 'カード'}）` });
+    if (ps.quash) badges.push({ id: 'quash', label: '', gi: M.quash!.gi, tone: 'bad', title: `封殺（${QUASH_KIND[ps.quash.kind] ?? 'カード'}）` });
     if ((ps.fatigue ?? 0) > 0) badges.push({ id: 'fatigue', label: `${M.fatigue!.icon}${ps.fatigue}`, tone: 'bad', title: `疲労${ps.fatigue}` });
-    for (const c of statusChips(ps.status, true)) badges.push({ id: c.id, label: briefLabel(c.label), tone: c.tone, title: typeof c.card.title === 'string' ? c.card.title : c.label });
+    for (const c of statusChips(ps.status, true)) {
+      const f = briefFace(c);
+      badges.push({ id: c.id, label: c.gi ? f.text : briefLabel(c.label), gi: f.gi, tone: c.tone, title: typeof c.card.title === 'string' ? c.card.title : c.label });
+    }
     if ((ps.ice ?? 0) > 0) badges.push({ id: 'ice', label: `${M.ice!.icon}${ps.ice}`, tone: 'bad', title: `氷結${ps.ice}` });
     // リーダーはいちばん後ろ（空きがあれば出る）
     const leaderId = toLeaderId(ps.leader);
@@ -288,23 +355,19 @@ export function PlayerPanel({
         {targetable && <span className="pp__target">対象</span>}
         {/* CPU の名前の「（デッキ名）」は詳細で */}
         <b className="ppc__name">{ps.name.replace(/（[^（）]*）$/, '') || ps.name}</b>
-        <span className="ppc__hp" aria-hidden="true">
-          <span className="pp__hpicon">❤</span>
-          {hp}
-        </span>
+        <HpHeart hp={hp} className="ppc__hp" />
         {ps.shield > 0 && (
           <span className="ppc__shield" aria-hidden="true">
-            🛡{ps.shield}
+            <ChipIcon gi={glossary.shield.gi!} />
+            {ps.shield}
           </span>
         )}
-        <span className="ppc__energy" aria-hidden="true">
-          ⚡{ps.energy}
-        </span>
+        <EnergyGem n={ps.energy} className="ppc__energy" />
         <span className="ppc__cnt ppc__hand" aria-label={`手札${ps.hand.length}枚`}>
-          🂠{ps.hand.length}
+          <CntFace gi="hand" n={ps.hand.length} />
         </span>
         <span className="ppc__cnt ppc__deck" aria-label={`山札${ps.deck.length}枚`}>
-          📚{ps.deck.length}
+          <CntFace gi="stack" n={ps.deck.length} />
         </span>
         {isMe && (
           <button
@@ -315,7 +378,7 @@ export function PlayerPanel({
             data-drop="pile"
             data-fx="pile"
           >
-            🗑{ps.discard.length}
+            <CntFace gi="card-discard" n={ps.discard.length} />
           </button>
         )}
         {isMe && (
@@ -327,8 +390,7 @@ export function PlayerPanel({
             data-drop="waiting"
             data-fx="waiting:me"
           >
-            {M.waiting!.icon}
-            {waiting.length}
+            <CntFace gi="hourglass" n={waiting.length} />
           </button>
         )}
         {ps.powers.length > 0 &&
@@ -339,15 +401,16 @@ export function PlayerPanel({
               onClick={(e) => (e.stopPropagation(), onPowers())}
               aria-label={`パワー${ps.powers.length}つ（${ps.powers.map((pw) => pw.name).join('・')}）を見る`}
             >
-              ✦{ps.powers.length}
+              <CntFace gi="magic-swirl" n={ps.powers.length} />
             </button>
           ) : (
             <span className={cx('ppc__cnt ppc__powers', pwFlash)} aria-label={`パワー${ps.powers.length}つ`}>
-              ✦{ps.powers.length}
+              <CntFace gi="magic-swirl" n={ps.powers.length} />
             </span>
           ))}
         {shown.map((b, i) => (
           <span key={b.id} className={cx('st', `st--${b.tone}`, 'ppc__badge', i === shown.length - 1 && 'ppc__badge--last')} title={b.title} aria-label={b.title}>
+            {b.gi && <ChipIcon gi={b.gi} />}
             {b.label}
           </span>
         ))}
@@ -380,6 +443,13 @@ export function PlayerPanel({
       data-drop={dropKey}
     >
       <div className="pp__row">
+        {toLeaderId(ps.leader) !== 'none' ? (
+          <LeaderChip leader={toLeaderId(ps.leader)} portrait />
+        ) : (
+          <span className="pp__portrait" aria-hidden="true">
+            <UiIcon name={`gi:${portrait ?? (isMe ? 'visored-helm' : 'robot-golem')}`} />
+          </span>
+        )}
         <span className="pp__role">{roleLabel}</span>
         <b className="pp__name">{ps.name}</b>
         {hasCrown && (
@@ -389,26 +459,24 @@ export function PlayerPanel({
             </span>
           </Popover>
         )}
-        {toLeaderId(ps.leader) !== 'none' && <LeaderChip leader={toLeaderId(ps.leader)} />}
         {targetable && <span className="pp__target">対象</span>}
-        <span className="pp__energy" aria-label={`エナジー${ps.energy}`}>
-          ⚡{ps.energy}
+        <span className="pp__energy" role="img" aria-label={`エナジー${ps.energy}`}>
+          <EnergyGem n={ps.energy} size="lg" />
         </span>
       </div>
       <div className="pp__hp">
-        <span className="pp__hpnum">
-          <span className="pp__hpicon" aria-hidden="true">
-            ❤
-          </span>
-          {hp}
-          <small>/{ps.maxHp}</small>
+        <span className="pp__hpnum" role="img" aria-label={`HP${hp}／${ps.maxHp}`}>
+          <HpHeart hp={hp} max={ps.maxHp} />
         </span>
         <div className="hpbar" aria-hidden="true">
           <div className="hpbar__fill" style={{ width: `${pct}%` }} />
         </div>
         {ps.shield > 0 && (
           <Popover content={{ title: `🛡 シールド ${ps.shield}`, description: glossary.shield.short }} placement="top">
-            <span className="pp__shield">🛡{ps.shield}</span>
+            <span className="pp__shield">
+              <ChipIcon gi={glossary.shield.gi!} />
+              {ps.shield}
+            </span>
           </Popover>
         )}
       </div>
@@ -425,8 +493,8 @@ export function PlayerPanel({
           }}
           placement="top"
         >
-          <span className="pile">
-            📚{ps.deck.length}
+          <span className="pile" aria-label={`山札${ps.deck.length}枚`}>
+            <CntFace gi="stack" n={ps.deck.length} />
             {(ps.fatigue ?? 0) > 0 && <span className="pile__usable pile__fatigue">疲労{ps.fatigue}</span>}
           </span>
         </Popover>
@@ -438,11 +506,11 @@ export function PlayerPanel({
           data-drop={isMe ? 'pile' : undefined}
           data-fx={isMe ? 'pile' : undefined}
         >
-          🗑{ps.discard.length}
+          <CntFace gi="card-discard" n={ps.discard.length} />
           {discardUsable > 0 && <span className="pile__usable">使える{discardUsable}</span>}
         </button>
         <button type="button" className="pile pile--btn" onClick={(e) => (e.stopPropagation(), onPile('exile'))} aria-label={`除外${ps.exile.length}枚を見る`}>
-          ⛔{ps.exile.length}
+          <CntFace gi="vortex" n={ps.exile.length} />
         </button>
         {/* 待機ゾーン（MTG 要素 △ バッチC）：自分のは常に出す（ドラッグの落とし先）。相手のはカードがあるときだけ */}
         {(isMe || waiting.length > 0) && (
@@ -454,8 +522,7 @@ export function PlayerPanel({
             data-drop={isMe ? 'waiting' : undefined}
             data-fx={isMe ? 'waiting:me' : 'waiting:opp'}
           >
-            {mechanicGlossary.waiting!.icon}
-            {waiting.length}/{BALANCE.battle.maxWaiting}
+            <CntFace gi="hourglass" n={`${waiting.length}/${BALANCE.battle.maxWaiting}`} />
             {waitingUsable > 0 && <span className="pile__usable">使える{waitingUsable}</span>}
           </button>
         )}
@@ -467,7 +534,9 @@ export function PlayerPanel({
         )}
         {!isMe && (
           <Popover content={{ title: `🂠 手札 ${ps.hand.length}枚`, description: '相手の手札の中身は見えない' }} placement="top">
-            <span className="pile">🂠{ps.hand.length}</span>
+            <span className="pile" aria-label={`手札${ps.hand.length}枚`}>
+              <CntFace gi="hand" n={ps.hand.length} />
+            </span>
           </Popover>
         )}
         {next.map((t) => (
@@ -580,7 +649,8 @@ export function PlayerPanel({
                 }}
                 aria-label={`パワー「${pw.name}」の詳細`}
               >
-                ✦{pw.name}
+                <UiIcon name="gi:magic-swirl" className="st__gi" />
+                {pw.name}
                 {pw.life !== undefined && <span className="st__life">{` ${mechanicGlossary.lifespan!.icon}${pw.life}`}</span>}
                 {meter && <span className="st__meter">{` ${meter}`}</span>}
               </button>
@@ -647,12 +717,12 @@ export function PowersList({
 }
 
 /** リーダー（MTG 要素 △ バッチD）の札：アイコンだけ。タップで名前と説明 */
-function LeaderChip({ leader }: { leader: ReturnType<typeof toLeaderId> }) {
+function LeaderChip({ leader, portrait }: { leader: ReturnType<typeof toLeaderId>; portrait?: boolean }) {
   const l = LEADERS[leader];
   return (
     <Popover content={{ title: `${l.icon} リーダー：${l.name}`, description: l.description }} placement="bottom">
-      <span className="pp__leader" aria-label={`リーダー：${l.name}`}>
-        <CardArt icon={l.art} rarity="legend" size="1.35em" />
+      <span className={cx('pp__leader', portrait && 'pp__portrait pp__portrait--leader')} aria-label={`リーダー：${l.name}`}>
+        <CardArt icon={l.art} rarity="legend" size={portrait ? '34px' : '1.35em'} />
       </span>
     </Popover>
   );
@@ -679,7 +749,7 @@ export function MatchBand({ view, flash = {} }: { view: battle.GameState; flash?
       {d && (
         <Popover content={{ title: `${d.icon} ${d.name}`, description: d.description }} placement="bottom">
           <span className={cx('match-band__chip', 'match-band__daynight', `is-${view.dayNight}`, flash.dayNight)} data-fx="dayNight" aria-label={d.name}>
-            {d.icon}
+            <UiIcon name={view.dayNight === 'day' ? 'gi:sun' : 'gi:moon'} className="match-band__gi" />
           </span>
         </Popover>
       )}
@@ -829,12 +899,13 @@ export function monsterChips(
       label: g ? `${g.icon}${g.name}${k.value !== undefined ? k.value : ''}` : k.id,
       tone: 'kw',
       card: { title: g ? `${g.icon} ${g.name}` : k.id, description: g?.short ?? '' },
+      ...(g?.gi ? { gi: g.gi, text: `${g.name}${k.value !== undefined ? k.value : ''}` } : {}),
     };
   });
   const extra: Chip[] = [];
-  if (m.sealed) extra.push({ id: 'sealed', label: `${glossary.seal.icon}封印`, tone: 'bad', card: { title: '🔒 封印', description: glossary.seal.short } });
-  if (m.stealth) extra.push({ id: 'stealth', label: `${glossary.stealth.icon}隠密中`, tone: 'info', card: { title: '👤 隠密', description: glossary.stealth.short } });
-  if (m.betraying) extra.push({ id: 'betraying', label: `${glossary.betrayal.icon}裏切り`, tone: 'bad', card: { title: '🗡 裏切り', description: glossary.betrayal.short } });
+  if (m.sealed) extra.push({ id: 'sealed', label: `${glossary.seal.icon}封印`, tone: 'bad', card: { title: '🔒 封印', description: glossary.seal.short }, gi: glossary.seal.gi, text: '封印' });
+  if (m.stealth) extra.push({ id: 'stealth', label: `${glossary.stealth.icon}隠密中`, tone: 'info', card: { title: '👤 隠密', description: glossary.stealth.short }, gi: glossary.stealth.gi, text: '隠密中' });
+  if (m.betraying) extra.push({ id: 'betraying', label: `${glossary.betrayal.icon}裏切り`, tone: 'bad', card: { title: '🗡 裏切り', description: glossary.betrayal.short }, gi: glossary.betrayal.gi, text: '裏切り' });
   const M = mechanicGlossary;
   if (m.card.token && !m.siege) extra.push({ id: 'token', label: `${M.token!.icon}トークン`, tone: 'info', card: { title: `${M.token!.icon} ${M.token!.name}`, description: M.token!.short } });
   if (!m.sealed) {
@@ -845,6 +916,8 @@ export function monsterChips(
         label: `${M.granted!.icon}${g?.icon ?? ''}${g?.name ?? id}`,
         tone: 'kw',
         card: { title: `${M.granted!.icon} 付与：${g?.name ?? id}`, description: g?.short ?? '', lines: [M.granted!.short] },
+        // 形の札では付与の印は「+」（詳細のポップオーバーに「付与」と出る）
+        ...(g?.gi ? { gi: g.gi, text: `+${g.name}` } : {}),
       });
     }
   }
@@ -853,15 +926,17 @@ export function monsterChips(
       id: 'temp',
       label: `${M.tempAttack!.icon}攻撃+${m.tempAttack}`,
       tone: 'good',
+      gi: M.tempAttack!.gi,
+      text: `攻撃+${m.tempAttack}`,
       card: { title: `${M.tempAttack!.icon} 一時強化 +${m.tempAttack}`, description: M.tempAttack!.short, lines: [`もとの攻撃力 ${m.attack} → このターン ${attackOf(m, attackNow)}`] },
     });
   }
   if (flags.divineShield && m.shieldUsed) {
-    extra.push({ id: 'shieldUsed', label: `${keywordGlossary.divineShield?.icon ?? ''}聖盾 使用済み`, tone: 'info', card: { title: '聖盾（使用済み）', description: 'このモンスターの聖盾はもう使った。キーワード付与で聖盾を与え直すと戻る' } });
+    extra.push({ id: 'shieldUsed', label: `${keywordGlossary.divineShield?.icon ?? ''}聖盾 使用済み`, gi: keywordGlossary.divineShield?.gi, text: '聖盾 使用済み', tone: 'info', card: { title: '聖盾（使用済み）', description: 'このモンスターの聖盾はもう使った。キーワード付与で聖盾を与え直すと戻る' } });
   }
   const life = m.counters.life;
   if (life !== undefined && life > 0) {
-    extra.push({ id: 'life', label: `${M.lifespan!.icon}寿命${life}`, tone: 'bad', card: { title: `${M.lifespan!.icon} 寿命 残り${life}`, description: M.lifespan!.short, lines: [life === 1 ? 'このモンスターの持ち主のターン終了時に破壊される' : `あと${life}回、持ち主のターン終了時を迎えると破壊される`] } });
+    extra.push({ id: 'life', label: `${M.lifespan!.icon}寿命${life}`, gi: M.lifespan!.gi, text: `寿命${life}`, tone: 'bad', card: { title: `${M.lifespan!.icon} 寿命 残り${life}`, description: M.lifespan!.short, lines: [life === 1 ? 'このモンスターの持ち主のターン終了時に破壊される' : `あと${life}回、持ち主のターン終了時を迎えると破壊される`] } });
   }
   // MTG 要素 ○ バッチA：消耗（次の持ち主のターンは攻撃できない）・攻撃した回数（条件「このモンスターが3回以上攻撃した」のカードだけ）
   const exertTurn = m.counters.exertTurn;
@@ -918,13 +993,15 @@ export function monsterChips(
         id: `tg:${id}`,
         label: `${M.tempGranted!.icon}${g?.icon ?? ''}${g?.name ?? id}`,
         tone: 'kw',
+        // 形の札では付与と同じく「+」（「このターンだけ」は詳細のポップオーバーに出る）
+        ...(g?.gi ? { gi: g.gi, text: `+${g.name}` } : {}),
         card: { title: `${M.tempGranted!.icon} このターンだけ：${g?.name ?? id}`, description: g?.short ?? '', lines: [M.tempGranted!.short] },
       });
     }
   }
   const dormantFrom = m.counters.dormantFrom;
   if (dormantFrom !== undefined && ownerTurns !== undefined && (ownerTurns - dormantFrom) % 2 === 1) {
-    extra.push({ id: 'dormant', label: `${M.dormant!.icon}休眠中`, tone: 'bad', card: { title: `${M.dormant!.icon} 休眠中`, description: M.dormant!.short } });
+    extra.push({ id: 'dormant', label: `${M.dormant!.icon}休眠中`, gi: M.dormant!.gi, text: '休眠中', tone: 'bad', card: { title: `${M.dormant!.icon} 休眠中`, description: M.dormant!.short } });
   }
   if (m.counters.age) {
     extra.push({ id: 'age', label: `${M.cumulativeUpkeep!.icon}累加${m.counters.age}`, tone: 'bad', card: { title: `${M.cumulativeUpkeep!.icon} 累加維持費（場にあるターン数 ${m.counters.age}）`, description: M.cumulativeUpkeep!.short } });
@@ -939,9 +1016,9 @@ export function monsterChips(
   // MTG 要素 △ バッチB：試作版・解鎖・一時蘇生（公開の印）
   if (m.prototype) extra.push({ id: 'prototype', label: `${M.prototype!.icon}試作`, tone: 'info', card: { title: `${M.prototype!.icon} ${M.prototype!.name}`, description: M.prototype!.short } });
   if (m.unleashed) extra.push({ id: 'unleashed', label: `${M.unleashed!.icon}解鎖`, tone: 'info', card: { title: `${M.unleashed!.icon} ${M.unleashed!.name}`, description: M.unleashed!.short } });
-  if (m.unearthed) extra.push({ id: 'unearthed', label: `${M.unearthed!.icon}一時`, tone: 'bad', card: { title: `${M.unearthed!.icon} ${M.unearthed!.name}`, description: M.unearthed!.short } });
+  if (m.unearthed) extra.push({ id: 'unearthed', label: `${M.unearthed!.icon}一時`, gi: M.unearthed!.gi, text: '一時', tone: 'bad', card: { title: `${M.unearthed!.icon} ${M.unearthed!.name}`, description: M.unearthed!.short } });
   if (m.card.lostKeywords?.includes('doubleTeam')) {
-    extra.push({ id: 'dt-used', label: `${keywordGlossary.doubleTeam?.icon ?? ''}分身 使用済み`, tone: 'info', card: { title: '分身（使用済み）', description: keywordGlossary.doubleTeam?.short ?? '' } });
+    extra.push({ id: 'dt-used', label: `${keywordGlossary.doubleTeam?.icon ?? ''}分身 使用済み`, gi: keywordGlossary.doubleTeam?.gi, text: '分身 使用済み', tone: 'info', card: { title: '分身（使用済み）', description: keywordGlossary.doubleTeam?.short ?? '' } });
   }
   // MTG 要素 △ バッチC：裏向き（正体は持ち主にだけ）・進化・Lv・ワープ・砦
   if (m.faceDown) {
@@ -972,6 +1049,17 @@ export function monsterChips(
   return [...(m.sealed ? [] : kws), ...extra, ...statusChips(m.status, false)];
 }
 
+/** スマホの札の中身：形（あれば）と数字だけ（compact.ts の briefFace） */
+function BriefFace({ c }: { c: Chip }) {
+  const f = briefFace(c);
+  return (
+    <>
+      {f.gi && <ChipIcon gi={f.gi} />}
+      {f.text}
+    </>
+  );
+}
+
 /**
  * 札をアイコンだけで並べ、残りを「+N」にする（スマホのモンスターのタイル。押すとタイルの詳細）。
  * ふつうは2つ＋「+N」、狭いタイルは1つ＋「+N」、場に余裕があって大きく出すタイルは4つ＋「+N」（どれを出すかは battle.css のコンテナクエリ）
@@ -983,7 +1071,7 @@ function BriefChips({ chips }: { chips: Chip[] }) {
     <span className="mt__brief" aria-hidden="true">
       {shown.map((c, i) => (
         <span key={c.id} className={cx('st', `st--${c.tone}`, 'mt__bchip', i >= 1 && 'mt__bchip--2nd', i >= 2 && 'mt__bchip--late', isTauntChip(c.id) && 'mt__bchip--taunt')} title={typeof c.card.title === 'string' ? c.card.title : undefined}>
-          {briefChipLabel(c)}
+          <BriefFace c={c} />
         </span>
       ))}
       {chips.length > 1 && <span className="mt__bmore mt__bmore--1">+{chips.length - 1}</span>}
@@ -1030,7 +1118,7 @@ function TileChips({ chips }: { chips: Chip[] }) {
     <div ref={ref} className="chips-row mt__chips">
       {shown.map((c) => (
         <span key={c.id} className={cx('st', `st--${c.tone}`, isTauntChip(c.id) && 'st--taunt')} title={typeof c.card.title === 'string' ? c.card.title : undefined}>
-          {c.label}
+          <ChipFace c={c} />
         </span>
       ))}
       {more > 0 && (
@@ -1072,7 +1160,7 @@ export function MonsterTile({
   const chips = monsterChips(def, m, flags, ownerTurns, attackNow, realName).filter((c) => !(m.faceDown && c.id === 'faceDown'));
   // スマホ：挑発を先頭に、守備力（0でなければ）はステータスの行から札へ移す（狭いタイルで数字がくっつかないように）
   const briefChips = compact
-    ? tileChipOrder(chips, m.defense !== 0 ? { id: 'def', label: `🛡${m.defense}`, tone: 'info', card: { title: `守備力 ${m.defense}`, description: '受けるダメージをこの数だけ減らす（最低ダメージあり）' } } : undefined)
+    ? tileChipOrder(chips, m.defense !== 0 ? { id: 'def', label: `🛡${m.defense}`, gi: 'shield', text: String(m.defense), tone: 'info', card: { title: `守備力 ${m.defense}`, description: '受けるダメージをこの数だけ減らす（最低ダメージあり）' } } : undefined)
     : [];
   // 挑発：城壁の狭間（上の縁の石の凸凹）と石の縁（カードデザイン案A）
   const taunt = chips.some((c) => isTauntChip(c.id));
@@ -1193,13 +1281,15 @@ interface HandCardProps {
   ghost?: boolean;
   /** いま手札に入ったばかり（少しの間光らせる） */
   fresh?: boolean;
+  /** 絵としてだけ描く（操作は外側の部品が受ける。マリガン・選択の CardPickGrid。UI2） */
+  still?: boolean;
 }
 
-export function HandCard({ card, def, info, energy, playable, selected, dim, onClick, onDetail, onHover, onPointerDown, dragging, ghost, fresh }: HandCardProps) {
-  const press = useLongPress(ghost ? undefined : onDetail);
+export function HandCard({ card, def, info, energy, playable, selected, dim, onClick, onDetail, onHover, onPointerDown, dragging, ghost, fresh, still }: HandCardProps) {
+  const press = useLongPress(ghost || still ? undefined : onDetail);
   const ref = useRef<HTMLDivElement>(null);
   const cost = info.cost;
-  const interactive = ghost
+  const interactive = ghost || still
     ? { 'aria-hidden': true as const }
     : {
         role: 'button',
@@ -1291,15 +1381,15 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
         fresh && 'is-fresh',
         iced && 'is-iced',
       )}
-      aria-label={ghost ? undefined : `${def.name}（コスト${cost}${def.stats ? `・攻撃力${permAtk}・体力${permHp}` : ''}）${grown > 0 ? `・成長+${grown}` : ''}${badge ? `・${badge}` : ''}${selected ? '・選択中' : ''}。押すと詳細${playable ? '、場へドラッグで使う' : ''}`}
-      aria-pressed={!ghost && selected ? true : undefined}
+      aria-label={ghost || still ? undefined : `${def.name}（コスト${cost}${def.stats ? `・攻撃力${permAtk}・体力${permHp}` : ''}）${grown > 0 ? `・成長+${grown}` : ''}${badge ? `・${badge}` : ''}${selected ? '・選択中' : ''}。押すと詳細${playable ? '、場へドラッグで使う' : ''}`}
+      aria-pressed={!ghost && !still && selected ? true : undefined}
       onMouseEnter={onHover ? () => onHover(ref.current) : undefined}
       onMouseLeave={onHover ? () => onHover(null) : undefined}
       onFocus={onHover ? () => onHover(ref.current) : undefined}
       onBlur={onHover ? () => onHover(null) : undefined}
       {...interactive}
     >
-      {ghost ? (
+      {ghost || still ? (
         <span className="hc__costwrap">{costEl}</span>
       ) : (
         <Popover content={{ title: `コスト ${cost}`, lines: costNotes }} placement="top" hover={false} className="hc__costwrap">
@@ -1381,7 +1471,7 @@ interface PressHandlers {
 }
 
 /** 長押し（450ms）で onLong。長押しが成立したら直後の click は無視する */
-function useLongPress(onLong?: () => void) {
+export function useLongPress(onLong?: () => void) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fired = useRef(false);
   const start = useRef<{ x: number; y: number } | null>(null);
@@ -1522,6 +1612,7 @@ export function LogPanel({ log, me, names, onCard, compact = false }: { log: bat
             {isOpen &&
               g.rows.map(({ e, i }) => {
                 const icon = logIcon(e.ev?.kind, e.kind, e.ev?.status ?? e.ev?.damageKind);
+                const gi = logGi(e.ev?.kind, e.kind, e.ev?.status ?? e.ev?.damageKind);
                 const depth = Math.min(e.depth, 4);
                 return (
                   <div
@@ -1530,7 +1621,7 @@ export function LogPanel({ log, me, names, onCard, compact = false }: { log: bat
                     style={{ '--depth': depth } as CSSProperties}
                   >
                     <span className="log__mark" aria-hidden="true">
-                      {icon}
+                      {gi ? <UiIcon name={`gi:${gi.gi}`} className={gi.tone && `gi--${gi.tone}`} /> : icon}
                     </span>
                     <span className="log__text">
                       <LogText text={e.text} names={names} me={me} preferId={e.ev?.cardId} onCard={onCard} />

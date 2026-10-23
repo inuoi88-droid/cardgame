@@ -8,6 +8,8 @@ import { Sheet } from '../components/Sheet.tsx';
 import { cx } from '../util.ts';
 import { iconText } from '../icons/ref.ts';
 import { CardDetailModal } from './CardDetail.tsx';
+import { CardPickGrid } from './CardPickGrid.tsx';
+import { UiIcon } from '../components/UiIcon.tsx';
 import { summarizeResult } from './summary.ts';
 
 type GameState = battle.GameState;
@@ -80,11 +82,12 @@ export function CardRow({
           </span>
         </span>
         <span className={cx('crow__mark', picked && 'is-on')} aria-hidden="true">
-          {picked ? mark : '○'}
+          {/* UI2：選べる印は「○」の字ではなく宝石のラジオ（選んだら文言）。ただ見るだけの一覧（mark が空）は出さない */}
+          {picked ? mark : mark ? <span className="u-pickgem" /> : null}
         </span>
       </button>
       <button type="button" className="btn btn--ghost btn--icon crow__zoom" onClick={() => onZoom(def)} aria-label={`${def.name}の詳細`}>
-        🔍
+        <UiIcon name="gi:magnifying-glass" />
       </button>
     </div>
   );
@@ -119,19 +122,28 @@ export function MulliganDialog({ view, me, onAction, timeLeft }: { view: GameSta
           <span className={cx('badge', first ? 'badge--mine' : 'badge--enemy')}>{first ? '先攻（1ターン目はエナジー−1）' : '後攻'}</span>
           {timeLeft && <span className="dlg__time">{timeLeft}</span>}
         </div>
-        <p className="hint dlg__lead">このまま始めるか、引き直すカードを選んでください。一部だけの引き直しは1回で手札が決まります。</p>
-        <div className="crow-list">
-          {mine.hand.map((c) => (
-            <CardRow key={c.uid} def={view.cards[c.cardId]} picked={picked.has(c.uid)} mark="戻す" onToggle={() => toggle(c.uid)} onZoom={setZoom} />
-          ))}
-        </div>
+        <p className="hint dlg__lead">引き直すカードに印を付けてください（一部の引き直しは1回で手札が決まります）。</p>
+        <CardPickGrid
+          mode="redraw"
+          label="最初の手札"
+          items={mine.hand.map((c) => ({ key: c.uid, card: c, def: view.cards[c.cardId], name: battle.cardName(view, c.cardId), on: picked.has(c.uid) }))}
+          onToggle={toggle}
+          onDetail={setZoom}
+        />
         <div className="btn-row modal__foot dlg__foot">
-          <button type="button" className="btn btn--primary" onClick={() => onAction({ type: 'mulligan', player: me, mode: 'keep' })}>
-            この手札で始める
-          </button>
+          {/* 主ボタンは状態で文言が変わる：印が無ければ「この手札で始める」、印を付けたら「N枚を引き直して始める」 */}
+          {picked.size > 0 && !all ? (
+            <button type="button" className="btn btn--primary" onClick={() => onAction({ type: 'mulligan', player: me, mode: 'partial', cardUids: [...picked] })}>
+              {picked.size}枚を引き直して始める
+            </button>
+          ) : (
+            <button type="button" className="btn btn--primary" onClick={() => onAction({ type: 'mulligan', player: me, mode: 'keep' })}>
+              この手札で始める
+            </button>
+          )}
           {picked.size > 0 && !all && (
-            <button type="button" className="btn" onClick={() => onAction({ type: 'mulligan', player: me, mode: 'partial', cardUids: [...picked] })}>
-              選んだ{picked.size}枚を引き直す
+            <button type="button" className="btn" onClick={() => setPicked(new Set())}>
+              印を外す
             </button>
           )}
           <button type="button" className="btn" disabled={nextSize < BALANCE.battle.mulliganMinHand} onClick={() => onAction({ type: 'mulligan', player: me, mode: 'all' })}>
@@ -206,6 +218,21 @@ export function ChoiceDialog({ view, me, onAction, timeLeft }: { view: GameState
               );
             })}
           </div>
+        ) : p.options.length > 0 && p.options.every((o) => o.cardId) ? (
+          /* カードを選ぶ：本物の手札のカードを並べる（UI2） */
+          <CardPickGrid
+            mode="choose"
+            label="選べるカード"
+            items={p.options.map((o) => ({
+              key: o.id,
+              card: { uid: o.id, cardId: o.cardId!, owner: me },
+              def: view.cards[o.cardId!],
+              name: view.cards[o.cardId!]?.name ?? o.label,
+              on: picked.includes(o.id),
+            }))}
+            onToggle={toggle}
+            onDetail={setZoom}
+          />
         ) : (
           <div className="crow-list">
             {p.options.map((o) => (
@@ -269,6 +296,9 @@ export function ResultDialog({ view, me, onHide, children }: { view: GameState; 
   return (
     <Modal title="対戦終了" onClose={onHide}>
       <div className={cx('result', won && 'result--won', !won && !draw && 'result--lost')}>
+        <span className="result__crest" aria-hidden="true">
+          <UiIcon name={won ? 'gi:crown' : draw ? 'gi:sword-clash' : 'gi:skull-crack'} />
+        </span>
         <p className="result__title">{title}</p>
         <p className="result__why">{why}</p>
         <dl className="result__stats">

@@ -142,6 +142,51 @@ export function tokenizeLog(text: string, names: LogNames, preferId?: string): L
 }
 
 /** ログの出来事の種類ごとのアイコン（ev がなければ行の種類から） */
+/**
+ * ログの行の印の形（UI2：よく出る出来事だけ game-icons。tone は色の意味）。無ければ logIcon の絵文字のまま。
+ * ドローの card-draw はこの意味だけに使う（決定事項 #111 の 8章）
+ */
+export function logGi(evKind: battle.LogEvent['kind'] | undefined, rowKind?: battle.LogEntry['kind'], status?: string): { gi: string; tone?: 'dmg' | 'heal' | 'energy' | 'play' } | null {
+  if (status === 'coin') return { gi: 'coins' };
+  if (status === 'doom') return { gi: 'death-zone', tone: 'dmg' };
+  if (status === 'divineShield') return { gi: 'bolt-shield' };
+  if (status === 'cycling' || status === 'channel' || status === 'drawn' || status === 'delayed' || status === 'clash' || status === 'fatigue') return null;
+  switch (evKind) {
+    case 'damage':
+      return { gi: 'explosion-rays', tone: 'dmg' };
+    case 'retaliate':
+      return { gi: 'return-arrow', tone: 'dmg' };
+    case 'heal':
+      return { gi: 'heart-plus', tone: 'heal' };
+    case 'shield':
+      return { gi: 'energy-shield' };
+    case 'status':
+      return { gi: 'crystal-shine' };
+    case 'play':
+      return { gi: 'magic-palm', tone: 'play' };
+    case 'summon':
+      return { gi: 'sparkles', tone: 'play' };
+    case 'destroy':
+      return { gi: 'skull-crack' };
+    case 'draw':
+      return { gi: 'card-draw' };
+    case 'attack':
+      return { gi: 'sword-clash', tone: 'dmg' };
+    case 'energy':
+      return { gi: 'crystal-growth', tone: 'energy' };
+    case 'discard':
+      return { gi: 'card-discard' };
+    case 'crown':
+      return { gi: 'crown' };
+    case 'waiting':
+      return { gi: 'hourglass' };
+    case undefined:
+      return rowKind === 'damage' ? { gi: 'explosion-rays', tone: 'dmg' } : null;
+    default:
+      return null;
+  }
+}
+
 export function logIcon(evKind: battle.LogEvent['kind'] | undefined, rowKind?: battle.LogEntry['kind'], status?: string): string {
   if (status === 'coin') return '🪙';
   if (status === 'clash') return '⚔';

@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ai, battle } from '../../engine/index.ts';
 import { BattleBoard } from '../battle/BattleBoard.tsx';
+import { CPU_PORTRAIT } from '../battle/portraits.ts';
 import { CPU, HUMAN, clearSession, loadSession, saveSession, sessionLevel, startSession, type BattleSession } from '../battle/session.ts';
 import { navigate } from '../router.ts';
 
@@ -89,10 +90,11 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
       onAction={onAction}
       error={error}
       opponentLabel="CPU"
+      opponentPortrait={CPU_PORTRAIT[level]}
       onReplayDone={onReplayDone}
       menuItems={
         <button type="button" className="btn" onClick={() => navigate('/battle')}>
-          ⏸ 中断して準備画面へ（続きから再開できます）
+          中断して準備画面へ（続きから再開できます）
         </button>
       }
       resultButtons={

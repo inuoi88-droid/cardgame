@@ -20,6 +20,7 @@ import { navigate } from '../router.ts';
 import { cx } from '../util.ts';
 import { preloadIcons } from '../icons/load.ts';
 import { iconText } from '../icons/ref.ts';
+import { UiIcon } from '../components/UiIcon.tsx';
 import './battle.css';
 import { CardDetailBody, CardDetailSheet, NoiseDetailBody } from './CardDetail.tsx';
 import {
@@ -41,7 +42,7 @@ import { DragLayer } from './DragLayer.tsx';
 import { resolveDrop, resolveModeDrop, parseSpot, targetKey, type DragSource } from './dragLogic.ts';
 import { keyOf } from './events.ts';
 import { logNamesOf } from './logFormat.ts';
-import { grownDef, HandCard, MatchBand, LogPanel, LogText, MonsterTile, PlayerPanel, PowersList, type ActivateButton } from './parts.tsx';
+import { EnergyGem, grownDef, HandCard, MatchBand, LogPanel, LogText, MonsterTile, PlayerPanel, PowersList, type ActivateButton } from './parts.tsx';
 import { useBattleDrag, type DropResult } from './useDrag.ts';
 import { useReplay } from './useReplay.ts';
 
@@ -118,6 +119,8 @@ export interface BattleBoardProps {
   onReplayDone?: () => void;
   /** メニュー（⋯）に足す項目（「対戦の準備に戻る」など） */
   menuItems?: ReactNode;
+  /** 相手の肖像（PC の銘板。game-icons の名前。CPU は強さで形が変わる：BattlePage。UI2） */
+  opponentPortrait?: string;
 }
 
 /** 攻撃できない理由を、タイルに出す短い言葉にする */
@@ -131,7 +134,7 @@ function shortBlock(reason: string | null): string | null {
   return null;
 }
 
-export function BattleBoard({ view, me, onAction, error, busy = false, status, opponentLabel, resultButtons, timeLeft, onReplayDone, menuItems }: BattleBoardProps) {
+export function BattleBoard({ view, me, onAction, error, busy = false, status, opponentLabel, resultButtons, timeLeft, onReplayDone, menuItems, opponentPortrait }: BattleBoardProps) {
   const opp = battle.other(me);
   const confirm = useConfirm();
   const toast = useToast();
@@ -1431,6 +1434,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           ps={ps}
           isMe={isMe}
           roleLabel={isMe ? 'あなた' : '相手'}
+          portrait={isMe ? undefined : opponentPortrait}
           active={view.active === p && view.phase === 'main'}
           targetable={false}
           dropKey={`sheet:${p}`}
@@ -1488,10 +1492,11 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
         <div className="battle__status">{status}</div>
         <div className="battle__headbtns">
           <button type="button" className="btn btn--small btn--ghost battle__logbtn" onClick={() => setLogOpen(true)}>
+            <UiIcon name="gi:scroll-unfurled" />
             ログ
           </button>
           <button type="button" className="btn btn--small btn--ghost btn--icon" aria-label="メニュー" onClick={() => setMenuOpen(true)}>
-            ⋯
+            <UiIcon name="gi:cog" />
           </button>
         </div>
       </header>
@@ -1511,6 +1516,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           onWaiting={() => setWaitingOpen(opp)}
           compact={phone}
           onOpen={() => setPlayerOpen(opp)}
+          portrait={opponentPortrait}
           hasCrown={view.crown === opp}
           powerDef={(pw) => view.cards[pw.cardId]}
           powerFlash={replay.flash}
@@ -1599,7 +1605,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
       <div className={cx('battle-bar', hintKey && 'has-key-hint')}>
         <button type="button" className="battle-bar__ticker" onClick={() => setLogOpen(true)} aria-live="polite" aria-label="直近の出来事（タップでログ）">
           <span className="battle-bar__tickicon" aria-hidden="true">
-            ›
+            <UiIcon name="gi:scroll-unfurled" />
           </span>
           <span className="battle-bar__ticktext">
             <LogText text={replay.ticker || lastLog?.text || ''} names={names} me={me} />
@@ -1637,7 +1643,11 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               !sel && (
                 <button type="button" className={cx('btn btn--primary btn--end battle-bar__end', nothingLeft && 'is-pulse')} disabled={!myTurn} onClick={() => void endTurn()}>
                   ターン終了
-                  {myTurn && <span className="battle-bar__energy">⚡{mine.energy}</span>}
+                  {myTurn && (
+                    <span className="battle-bar__energy" role="img" aria-label={`エナジー${mine.energy}`}>
+                      <EnergyGem n={mine.energy} size="btn" />
+                    </span>
+                  )}
                 </button>
               )
             )}
@@ -1900,11 +1910,13 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               navigate('/rules');
             }}
           >
-            📖 ルールを見る
+            <UiIcon name="gi:rule-book" />
+            ルールを見る
           </button>
           {menuItems}
           <button type="button" className="btn btn--danger" disabled={view.phase === 'ended'} onClick={() => void concede()}>
-            🏳 降参する
+            <UiIcon name="gi:flying-flag" />
+            降参する
           </button>
         </div>
       </Sheet>

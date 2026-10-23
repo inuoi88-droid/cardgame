@@ -93,7 +93,7 @@ function WaitingRoom({ code, online, room }: { code: string; online: boolean; ro
       </div>
       <p className="hint">
         このルールで対戦：{rulesSummary(room.rules)}
-        {leader !== 'none' && `・あなたのリーダー ${LEADERS[leader].icon}${LEADERS[leader].name}`}
+        {leader !== 'none' && `・あなたのリーダー ${LEADERS[leader].name}`}
       </p>
       <div className="btn-row">
         <button type="button" className="btn" onClick={copy}>

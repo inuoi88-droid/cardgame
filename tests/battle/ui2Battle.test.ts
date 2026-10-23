@@ -88,3 +88,41 @@ describe('cardFullText（マリガン・選択の全文）', () => {
     expect(cardFullText(undefined)).toMatch(/除外/);
   });
 });
+
+describe('モンスターの札はすべて形を持つ（絵文字を出さない。UI2 の統合）', () => {
+  it('すべての印を立てたモンスターの札・状態の札に gi があり、同梱されていて、見出しに絵文字が無い', async () => {
+    const { monsterChips } = await import('../../src/ui/battle/parts.tsx');
+    const { battle } = await import('../../src/engine/index.ts');
+    const inst = { uid: 'c1', cardId: battle.ARMY_CARD_ID, owner: 'p1', token: { attack: 1, hp: 1, copy: true, temp: true, spawn: true, egg: { hatchAt: 9, attack: 1 } }, lostKeywords: ['doubleTeam'] };
+    const status = { poison: 3, burn: 2, weak: 1, vulnerable: 1, bleed: 1, freezePending: true, freezeActive: true, confusePending: true, confuseActive: true, counter: 1, nullify: 1, regen: 1, strength: 1, focus: 1, doom: 1, rad: 1 };
+    const m = {
+      uid: 'm1', card: inst, owner: 'p1', controller: 'p1', attack: 3, hp: 3, maxHp: 3, defense: 0, enteredTurn: 0, attacksUsed: 1, sealed: false, undyingUsed: false,
+      stealth: true, betraying: true, status,
+      counters: { life: 2, exertTurn: 5, attacksTotal: 3, borrowLeft: 1, dormantFrom: 4, age: 2, withered: 1, level: 2 },
+      tempAttack: 2, granted: ['flying', 'taunt'], shieldUsed: true, equipment: [inst], bounty: [{ player: 'p2', draw: 1 }], finality: true, suspected: true,
+      guard: { kind: 'indestructible', until: 9 }, tempGranted: ['haste'], prototype: true, unleashed: true, unearthed: true,
+      faceDown: { kind: 'disguise', revealCost: 2 }, achieved: true, warped: true,
+    } as unknown as Parameters<typeof monsterChips>[1];
+    const def = { ...card('x', 'rare', 2, true), keywords: [{ id: 'flying' }], effects: [{ id: 'damage', timing: 'onPlay', condition: 'veteran' }], abilities: [{ id: 'levelUp' }], drawbacks: [{ id: 'betrayal' }, { id: 'upkeep' }] } as unknown as CardDef;
+    const chips = [...monsterChips(def, m, { divineShield: true, attacksPerTurn: 2 } as never, 5, 5, '本物'), ...monsterChips(def, { ...m, sealed: true, guard: { kind: 'protection', until: 9 }, card: { ...inst, cardId: 'x', token: undefined, perm: { attack: 1, hp: 1 } } } as never, {} as never, 5)];
+    expect(chips.length).toBeGreaterThan(40);
+    const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}]/u;
+    // 形を持たない札は「防衛・腐乱・維持費」の予告（文字だけで絵文字なし）だけ
+    const plain = chips.filter((c) => !c.gi).map((c) => c.id);
+    expect(plain.every((id) => id.startsWith('fc:'))).toBe(true);
+    for (const c of chips) {
+      if (c.gi) expect(bundled(c.gi), `${c.id}:${c.gi}`).toBe(true);
+      expect(emoji.test(String(c.card.title)), `${c.id}:${String(c.card.title)}`).toBe(false);
+      expect(emoji.test(c.text ?? c.label), `${c.id}:${c.label}`).toBe(false);
+    }
+  });
+});
+
+describe('pickSub（選択肢の文をカードの下に添える）', () => {
+  it('処分の「手札：X／捨て札：X」・章を進めるの「第N章」は添え、カード名と同じなら省く', async () => {
+    const { pickSub } = await import('../../src/ui/battle/CardPickGrid.tsx');
+    expect(pickSub('手札：毒針', '毒針')).toBe('手札：毒針');
+    expect(pickSub('捨て札：毒針', '毒針')).toBe('捨て札：毒針');
+    expect(pickSub('毒針', '毒針')).toBeUndefined();
+  });
+});

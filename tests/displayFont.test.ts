@@ -21,6 +21,11 @@ describe('見出し用の明朝（UI Mincho）', () => {
     for (const ch of 'あいうえおんゃゎアイウエオンヴーABCxyz0123456789!?') expect(covered.has(ch), ch).toBe(true);
   });
 
+  it('登録の名前（選択ダイアログの見出しに出る効果・デメリットの名前）の字も入っている', () => {
+    const covered = new Set([...meta.covered]);
+    for (const ch of '増殖徴募討伐手札喪失汚染施し寄生枯朽') expect(covered.has(ch), ch).toBe(true);
+  });
+
   it('コメントの字は拾わず、文字列と JSX の字は拾う', () => {
     const set = charsOfSource('// 鬱\n/* 鶫 */\nconst a = "黴";\nconst b = <h1>魘{x}</h1>;\nconst c = `蒼${y}`;', 'x.tsx');
     expect(set.has('黴')).toBe(true);

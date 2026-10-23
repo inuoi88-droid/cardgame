@@ -28,8 +28,9 @@ import {
   listModifiers,
   battle,
 } from '../../engine/index.ts';
-import { abilityGlossary, glossary, keywordGlossary, mechanicGlossary, MTG_GUIDE, modifierGlossary, type StatusId } from '../glossary.ts';
+import { glossary, keywordGlossary, mechanicGlossary, MTG_GUIDE, type StatusId } from '../glossary.ts';
 import { TEMPLATES } from '../editor/templates.ts';
+import { ABILITY_GI, DRAWBACK_GI, effectGi } from '../editor/effectIcons.ts';
 import { cx } from '../util.ts';
 import { RarityGem } from '../components/cardParts.tsx';
 import { UiIcon, type UiIconProps } from '../components/UiIcon.tsx';
@@ -51,21 +52,15 @@ function Section({ id, icon, title, open, children }: { id: string; icon: Sectio
   );
 }
 
-/** 用語の印：game-icons の名前（gi）があれば UiIcon、無ければ絵文字のまま */
-function Term({ name, children, icon, gi, tone }: { name: ReactNode; children: ReactNode; icon?: string; gi?: string; tone?: 'bad' | 'good' | 'info' }) {
+/** 用語の印：game-icons の名前（gi）があれば UiIcon。無ければ印なし（絵文字は使わない：UI2 の統合） */
+function Term({ name, children, gi, tone }: { name: ReactNode; children: ReactNode; gi?: string; tone?: 'bad' | 'good' | 'info' }) {
   return (
     <div className="term">
       <dt className={cx('term__name', tone && `term__name--${tone}`)}>
-        {gi ? (
+        {gi && (
           <span className="term__icon term__icon--gi" aria-hidden="true">
             <UiIcon name={`gi:${gi}`} />
           </span>
-        ) : (
-          icon && (
-            <span className="term__icon" aria-hidden="true">
-              {icon}
-            </span>
-          )
         )}
         {name}
       </dt>
@@ -142,7 +137,6 @@ export function RulesPage() {
           </li>
           <li>
             <b>
-              {mechanicGlossary.fatigue!.icon}
               {mechanicGlossary.fatigue!.name}（山札切れ）
             </b>
             ：{mechanicGlossary.fatigue!.short}。1ターンに{B.drawPerTurn}枚引けなければ、最初は{fatigueTurn(0)}、次のターンは{fatigueTurn(B.drawPerTurn)}です。引けなかった1枚も1ターンに引ける枚数（{B.maxDrawPerTurn}枚）に数えます。
@@ -211,19 +205,19 @@ export function RulesPage() {
       <Section {...sec('cards')}>
         <p className="hint">種類はカードの中身から自動で決まります（保存はしません）。</p>
         <dl className="terms">
-          <Term name={CARD_TYPE_LABEL.monster} icon="🐻">
+          <Term name={CARD_TYPE_LABEL.monster} gi="battle-gear">
             ステータス（攻撃力・体力・守備力）を持ち、自分の場に召喚します。破壊されると捨て札へ。
           </Term>
-          <Term name={CARD_TYPE_LABEL.attack} icon="🔥">
+          <Term name={CARD_TYPE_LABEL.attack} gi="explosion-rays">
             相手にダメージを与える効果を持つカード。使うと捨て札へ。筋力・気合が最初の1発に乗ります。
           </Term>
-          <Term name={CARD_TYPE_LABEL.skill} icon="🪄">
+          <Term name={CARD_TYPE_LABEL.skill} gi="fairy-wand">
             ダメージ以外の効果のカード。使うと捨て札へ。
           </Term>
-          <Term name={CARD_TYPE_LABEL.power} icon="✦">
+          <Term name={CARD_TYPE_LABEL.power} gi="magic-swirl">
             「ターン開始時」「ターン終了時」「カードを使うたび」など、試合中ずっと続く効果。使うと除外され、効果だけが残ります。パワーは1人{B.maxPowers}つまでで、{B.maxPowers + 1}つ目を使うといちばん古いパワーが消えます。
           </Term>
-          <Term name={CARD_TYPE_LABEL.powerAttack} icon="✦🔥">
+          <Term name={CARD_TYPE_LABEL.powerAttack} gi="magic-swirl">
             ダメージを与えたうえで永続効果を残すカード。使うと除外されます。
           </Term>
         </dl>
@@ -276,7 +270,7 @@ export function RulesPage() {
         <p className="hint">{mechanicGlossary.abilities!.short}。</p>
         <dl className="terms">
           {listAbilities().map((d) => (
-            <Term key={d.id} name={d.name} icon={abilityGlossary[`ability:${d.id}`]?.icon}>
+            <Term key={d.id} name={d.name} gi={ABILITY_GI}>
               {d.summary}
             </Term>
           ))}
@@ -358,7 +352,7 @@ export function RulesPage() {
           {statusOrder.map((id) => {
             const g = glossary[id];
             return (
-              <Term key={id} name={g.name} icon={g.icon} gi={giOf(g)} tone={g.tone}>
+              <Term key={id} name={g.name} gi={giOf(g)} tone={g.tone}>
                 {g.short}
               </Term>
             );
@@ -370,7 +364,7 @@ export function RulesPage() {
         <p className="hint">モンスターに付けられる性質です。封印されると働きません。</p>
         <dl className="terms">
           {listKeywords().map((def) => (
-            <Term key={def.id} name={def.name} icon={keywordGlossary[def.id]?.icon} gi={giOf(keywordGlossary[def.id])}>
+            <Term key={def.id} name={def.name} gi={giOf(keywordGlossary[def.id])}>
               {keywordGlossary[def.id]?.short ?? def.summary}
             </Term>
           ))}
@@ -389,6 +383,7 @@ export function RulesPage() {
                 {defs.map((d) => (
                   <Term
                     key={d.id}
+                    gi={effectGi(d.id, d.group)}
                     name={
                       <>
                         {d.name}
@@ -424,7 +419,7 @@ export function RulesPage() {
         <h3>対象（自分のモンスター・お互い）</h3>
         <dl className="terms">
           {(['thisMonster', 'allyMonsters', 'otherAllies', 'weakestAlly', 'triggerAlly', 'bothPlayers', 'attacker'] as const).map((id) => (
-            <Term key={id} name={mechanicGlossary[id]!.name} icon={mechanicGlossary[id]!.icon}>
+            <Term key={id} name={mechanicGlossary[id]!.name}>
               {mechanicGlossary[id]!.short}
             </Term>
           ))}
@@ -446,7 +441,7 @@ export function RulesPage() {
         <h3>オプション</h3>
         <dl className="terms">
           {listModifiers().map((m) => (
-            <Term key={m.id} name={m.name} icon={modifierGlossary[m.id]?.icon}>
+            <Term key={m.id} name={m.name}>
               {m.summary}（ポイント{m.rate >= 0 ? '+' : '−'}{Math.round(Math.abs(m.rate) * 100)}%）
             </Term>
           ))}
@@ -472,7 +467,7 @@ export function RulesPage() {
         </p>
         <dl className="terms">
           {listDrawbacks().map((d) => (
-            <Term key={d.id} name={d.monsterOnly ? `${d.name}（モンスター専用）` : d.name}>
+            <Term key={d.id} name={d.monsterOnly ? `${d.name}（モンスター専用）` : d.name} gi={DRAWBACK_GI}>
               {d.summary}
             </Term>
           ))}
@@ -554,7 +549,7 @@ export function RulesPage() {
         <p className="hint">{mechanicGlossary.leader!.short.split('。')[0]}。</p>
         <dl className="terms">
           {LEADER_IDS.filter((id) => id !== 'none').map((id) => (
-            <Term key={id} name={LEADERS[id].name} icon={LEADERS[id].icon}>
+            <Term key={id} name={LEADERS[id].name} gi={LEADERS[id].art.replace(/^gi:/, '')}>
               {LEADERS[id].description}
             </Term>
           ))}
@@ -572,14 +567,14 @@ export function RulesPage() {
         </ul>
         <dl className="terms">
           {ACTIVE_FIELD_IDS.map((id) => (
-            <Term key={id} name={FIELDS[id].name} icon={FIELDS[id].icon}>
+            <Term key={id} name={FIELDS[id].name} gi={FIELDS[id].art.replace(/^gi:/, '')}>
               {FIELDS[id].description}
             </Term>
           ))}
         </dl>
         {DISABLED_FIELD_IDS.length > 0 && (
           <p className="hint">
-            {DISABLED_FIELD_IDS.map((id) => `${FIELDS[id].icon}${FIELDS[id].name}（${FIELDS[id].description}）`).join('・')}
+            {DISABLED_FIELD_IDS.map((id) => `${FIELDS[id].name}（${FIELDS[id].description}）`).join('・')}
             は見送り中です（次元では選ばれず、効果「フィールド」でも選べません）。
           </p>
         )}

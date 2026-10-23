@@ -29,11 +29,12 @@
   align-items: center;
   gap: 5px;
 }
+/* 丸い鋲3つ（菱形は CPU の強さの印なので使わない：1つの形は1つの意味） */
 .u-more > i {
   width: 6px;
   height: 6px;
-  transform: rotate(45deg);
-  background: linear-gradient(135deg, #e6e9ef, #8d95a5 60%, #5c6474);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #f2f4f8, #9aa2b2 55%, #4b5262);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
 }
 
@@ -140,6 +141,22 @@ input.u-name-input {
   .dboxes {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+  }
+}
+/* PC（1024px〜）：デッキ箱を大きく（空いた画面に小さな箱が並ばないように）。絵の窓も高く */
+@media (min-width: 1024px) {
+  .dboxes {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .dboxes .dbox__art {
+    height: 120px;
+  }
+  .dboxes .dbox__art .cart {
+    --cart-size: 92px;
+  }
+  .dboxes .dbox__seal {
+    top: 92px;
   }
 }
 .dbox {
@@ -312,10 +329,11 @@ input.u-name-input {
   transform: rotate(-10deg);
   color: #ffe6ea;
   font-weight: 900;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.1;
   text-align: center;
-  background: radial-gradient(circle at 40% 35%, #e0566f, #9b1c35 55%, #5a0b1d);
+  /* 文字の後ろは暗めの深紅（12〜13px の白で AA 4.5:1 を超える） */
+  background: radial-gradient(circle at 40% 35%, #a8243e, #8f1428 55%, #5a0b1d);
   box-shadow:
     0 0 0 3px rgba(90, 11, 29, 0.6),
     0 2px 0 rgba(0, 0, 0, 0.6),
@@ -345,7 +363,7 @@ input.u-name-input {
   display: grid;
   place-items: center;
   width: var(--tap);
-  height: 40px;
+  height: var(--tap);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -369,7 +387,7 @@ input.u-name-input {
 }
 .tmenu {
   position: absolute;
-  top: 50px;
+  top: 54px;
   right: 6px;
   z-index: 5;
   display: grid;

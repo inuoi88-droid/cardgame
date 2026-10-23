@@ -52,6 +52,23 @@ export function charsOfSource(text, fileName = 'x.tsx') {
   return set;
 }
 
+/**
+ * 登録の名前（src/engine/defs の `name: '…'`。効果・デメリット・能力・キーワード・修飾）。選択ダイアログの見出し
+ * （「枯朽：1つ選ぶ」など）が明朝で出るので、名前の字も入れる（説明文は入れない：書体を小さく保つ）
+ */
+export function namesOfSource(text, fileName = 'x.ts') {
+  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  const set = new Set();
+  const visit = (node) => {
+    if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name) && (node.name.text === 'name' || node.name.text === 'label') && (ts.isStringLiteral(node.initializer) || ts.isNoSubstitutionTemplateLiteral(node.initializer))) {
+      for (const ch of node.initializer.text) set.add(ch);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return set;
+}
+
 /** いつも入れる字：ASCII・全角の英数字と記号・ひらがな・カタカナ・よく使う記号 */
 export function baseChars() {
   const set = new Set();
@@ -72,6 +89,9 @@ export function collectDisplayChars(root) {
   const set = baseChars();
   for (const file of walk(join(root, 'src', 'ui'), [])) {
     for (const ch of charsOfSource(readFileSync(file, 'utf8'), file)) set.add(ch);
+  }
+  for (const file of [...walk(join(root, 'src', 'engine', 'defs'), []), join(root, 'src', 'engine', 'options.ts')]) {
+    for (const ch of namesOfSource(readFileSync(file, 'utf8'), file)) set.add(ch);
   }
   // 改行・タブなどの制御文字は入れない
   return [...set].filter((ch) => ch.codePointAt(0) >= 0x20).sort((a, b) => a.codePointAt(0) - b.codePointAt(0));

@@ -4,10 +4,10 @@ import { BALANCE, battle, CARD_TYPE_LABEL, CONDITIONS, analyzeCard, describeEffe
 import { CardArt, NOISE_ART } from '../components/CardArt.tsx';
 import { CostGem, Emblem, frameClasses, nameFit } from '../components/cardParts.tsx';
 import { Popover, type PopoverCard } from '../components/Popover.tsx';
-import { abilityGlossary, glossary, keywordGlossary, mechanicGlossary, type GlossaryEntry } from '../glossary.ts';
+import { glossary, keywordGlossary, mechanicGlossary, type GlossaryEntry } from '../glossary.ts';
 import { cx } from '../util.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
-import { logGi, logIcon, tokenizeLog, type LogNames } from './logFormat.ts';
+import { logGi, stripOptionIcons, tokenizeLog, type LogNames } from './logFormat.ts';
 import type { Float } from './useReplay.ts';
 import { monsterForecasts, summarizeCard } from './summary.ts';
 import { dayNightBand, fieldBand } from './matchOptions.ts';
@@ -45,14 +45,32 @@ export interface Chip {
 }
 
 const chipOf = (g: GlossaryEntry, value: string, lines: ReactNode[] = []): Omit<Chip, 'id'> => ({
-  label: `${g.icon}${value}`,
+  label: `${g.name}${value}`,
   tone: g.tone,
-  card: { title: `${g.icon} ${g.name}${value ? ` ${value}` : ''}`, description: g.short, lines },
+  card: { title: `${g.name}${value ? ` ${value}` : ''}`, description: g.short, lines },
   ...(g.gi ? { gi: g.gi, text: value } : {}),
 });
 
-/** 形の色：毒は緑・やけどは橙（色の意味は絵文字のときのまま）。ほかは札の文字の色 */
-const GI_TONE: Record<string, string> = { 'poison-bottle': 'poison', flame: 'fire', 'death-zone': 'poison' };
+/**
+ * 仕組みの札（モンスターのタイル・詳細）。形は用語集の gi、文字は text、見出しは名前だけ（絵文字を使わない。UI2 の統合）。
+ * 形が無い用語は、読み上げの label の文字だけの札になる（tests/battle/ui2Battle.test.ts が「全部に形がある」を確かめる）
+ */
+export function glossChip(id: string, g: GlossaryEntry, text: string, tone: Chip['tone'], card: Partial<PopoverCard> = {}): Chip {
+  return { id, label: text, tone, ...(g.gi ? { gi: g.gi, text } : {}), card: { title: card.title ?? g.name, description: card.description ?? g.short, ...(card.lines ? { lines: card.lines } : {}) } };
+}
+
+/** 札の見出し（形があれば形＋名前） */
+export function ChipTitle({ c }: { c: Pick<Chip, 'gi' | 'card'> }) {
+  return (
+    <>
+      {c.gi && <ChipIcon gi={c.gi} />}
+      {c.card.title}
+    </>
+  );
+}
+
+/** 形の色：毒は緑・やけどは橙（色の意味は絵文字のときのまま）、休眠・一時蘇生は濃い赤（細い形が札の大きさで沈まないように）。ほかは札の文字の色 */
+const GI_TONE: Record<string, string> = { 'poison-bottle': 'poison', flame: 'fire', 'death-zone': 'poison', 'night-sleep': 'alert', 'raise-zombie': 'alert' };
 
 /** 札の形（状態異常・キーワード）。大きさは文字の 1.15 倍 */
 export function ChipIcon({ gi }: { gi: string }) {
@@ -102,7 +120,7 @@ export function Chips({ chips, className }: { chips: Chip[]; className?: string 
   return (
     <div className={cx('chips-row', className)}>
       {chips.map((c) => (
-        <Popover key={c.id} content={c.card} placement="top">
+        <Popover key={c.id} content={{ ...c.card, title: <ChipTitle c={c} /> }} placement="top">
           <span className={`st st--${c.tone}`} aria-label={c.gi ? c.label : undefined}>
             <ChipFace c={c} />
           </span>
@@ -246,7 +264,7 @@ export function HpHeart({ hp, max, className }: { hp: number; max?: number; clas
 }
 
 /** エナジー：カードのコストと同じ六角の宝石（UI2。読み上げは呼び出し側の aria-label） */
-export function EnergyGem({ n, size, className }: { n: number; size?: 'lg' | 'btn'; className?: string }) {
+export function EnergyGem({ n, size, className }: { n: number; size?: 'lg' | 'btn' | 'sm'; className?: string }) {
   return (
     <span className={cx('cgem u-egem', size && `u-egem--${size}`, className)} aria-hidden="true">
       <i>{n}</i>
@@ -777,54 +795,53 @@ export function SpeedGauge({ speed }: { speed: number }) {
 }
 
 /**
- * パワーの札に添える短い表示：英雄譚「📖2/3」・蓄積「🔋1/3」（MTG 要素 ○ バッチC2）、罠「🪤」・プラン「📜」・休眠中「💤」・累加維持費「⏫2」
- * （MTG 要素 △ バッチA。休眠は持ち主の turnsTaken を渡したときだけ）
+ * パワーの札に添える短い表示（文字だけ。絵文字は使わない：UI2 の統合）：英雄譚「第2/3章」・蓄積「蓄積1/3」（MTG 要素 ○ バッチC2）、
+ * 罠「罠」・プラン「プラン」・休眠中・累加維持費「累加2」（MTG 要素 △ バッチA。休眠は持ち主の turnsTaken を渡したときだけ）
  */
 export function powerMeter(pw: battle.PowerInst, def: CardDef | undefined, ownerTurns?: number): string | null {
-  const M = mechanicGlossary;
   const parts: string[] = [];
-  if (pw.chapter !== undefined) parts.push(`${M.saga!.icon}${pw.chapter}/${battle.lastChapter(def) || pw.chapter}`);
+  if (pw.chapter !== undefined) parts.push(`第${pw.chapter}/${battle.lastChapter(def) || pw.chapter}章`);
   const charge = def?.abilities?.find((a) => a.id === 'charge');
-  if (charge) parts.push(`${charge.once ? M.plan!.icon : ''}${M.charge!.icon}${pw.charge ?? 0}/${charge.value ?? ''}`);
-  if (def?.abilities?.some((a) => a.id === 'trap')) parts.push(M.trap!.icon);
-  if (ownerTurns !== undefined && pw.dormantFrom !== undefined && (ownerTurns - pw.dormantFrom) % 2 === 1) parts.push(`${M.dormant!.icon}休眠中`);
-  if (pw.age) parts.push(`${M.cumulativeUpkeep!.icon}${pw.age}`);
+  if (charge) parts.push(`${charge.once ? 'プラン' : '蓄積'}${pw.charge ?? 0}/${charge.value ?? ''}`);
+  if (def?.abilities?.some((a) => a.id === 'trap')) parts.push('罠');
+  if (ownerTurns !== undefined && pw.dormantFrom !== undefined && (ownerTurns - pw.dormantFrom) % 2 === 1) parts.push('休眠中');
+  if (pw.age) parts.push(`累加${pw.age}`);
   // MTG 要素 △ バッチC：忠誠・Lv・達成・特殊勝利の進み
-  if (pw.loyalty !== undefined) parts.push(`${M.loyalty!.icon}${pw.loyalty}`);
+  if (pw.loyalty !== undefined) parts.push(`忠誠${pw.loyalty}`);
   if (def?.abilities?.some((a) => a.id === 'levelUp')) parts.push(`Lv${pw.level ?? 1}`);
-  if (pw.achieved) parts.push(`${M.achieve!.icon}達成`);
+  if (pw.achieved) parts.push('達成');
   const goal = battle.altWinGoalOf(def);
-  if (goal) parts.push(`${M.altWin!.icon}${pw.progress ?? 0}/${battle.altWinTarget(goal)}`);
+  if (goal) parts.push(`勝利${pw.progress ?? 0}/${battle.altWinTarget(goal)}`);
   return parts.length > 0 ? parts.join(' ') : null;
 }
 
 export function powerLines(pw: battle.PowerInst, def?: CardDef): ReactNode[] {
   const effects = pw.effects.filter((x) => !x.removed).map((x) => `${TIMINGS[x.effect.timing]?.label ?? ''}：${getEffect(x.effect.id)?.name ?? x.effect.id}`);
-  const life = pw.life !== undefined ? [`${mechanicGlossary.lifespan!.icon} 寿命：残り${pw.life}（持ち主のターン終了時に1減り、0で消える）`] : [];
+  const life = pw.life !== undefined ? [`寿命：残り${pw.life}（持ち主のターン終了時に1減り、0で消える）`] : [];
   // 英雄譚：いまの章と、次の章の効果。蓄積：たまった数
   const extra: string[] = [];
   if (pw.chapter !== undefined) {
     const last = battle.lastChapter(def) || pw.chapter;
     const next = pw.chapter < last ? (def?.effects ?? []).filter((e) => e.timing === `chapter${pw.chapter! + 1}`).map((e) => describeEffect(e, def, { noTiming: true })) : [];
-    extra.push(`${mechanicGlossary.saga!.icon} 英雄譚：第${pw.chapter}章／全${last}章${pw.chapter >= last ? '（この章で終わる）' : ''}`);
+    extra.push(`英雄譚：第${pw.chapter}章／全${last}章${pw.chapter >= last ? '（この章で終わる）' : ''}`);
     if (next.length > 0) extra.push(`次の自分のターン開始時に第${pw.chapter + 1}章：${next.join('')}`);
   }
   const charge = def?.abilities?.find((a) => a.id === 'charge');
-  if (charge) extra.push(`${mechanicGlossary.charge!.icon} 蓄積：${pw.charge ?? 0}/${charge.value ?? ''}${charge.once ? `（${mechanicGlossary.plan!.short}）` : ''}`);
+  if (charge) extra.push(`蓄積：${pw.charge ?? 0}/${charge.value ?? ''}${charge.once ? `（${mechanicGlossary.plan!.short}）` : ''}`);
   // MTG 要素 △ バッチA：罠・休眠・累加維持費
-  if (def?.abilities?.some((a) => a.id === 'trap')) extra.push(`${mechanicGlossary.trap!.icon} ${mechanicGlossary.trap!.short}`);
-  if (pw.dormantFrom !== undefined) extra.push(`${mechanicGlossary.dormant!.icon} ${mechanicGlossary.dormant!.short}`);
-  if (pw.age) extra.push(`${mechanicGlossary.cumulativeUpkeep!.icon} 累加維持費：場にあるターン数 ${pw.age}`);
+  if (def?.abilities?.some((a) => a.id === 'trap')) extra.push(`${mechanicGlossary.trap!.short}`);
+  if (pw.dormantFrom !== undefined) extra.push(`${mechanicGlossary.dormant!.short}`);
+  if (pw.age) extra.push(`累加維持費：場にあるターン数 ${pw.age}`);
   // MTG 要素 △ バッチC
   const G = mechanicGlossary;
-  if (pw.loyalty !== undefined) extra.push(`${G.loyalty!.icon} 忠誠：${pw.loyalty}（最大${BALANCE.battle.loyaltyMax}。0で消える）`);
-  if (def?.abilities?.some((a) => a.id === 'levelUp')) extra.push(`${G.level!.icon} Lv${pw.level ?? 1}／${BALANCE.battle.maxLevel}`);
+  if (pw.loyalty !== undefined) extra.push(`忠誠：${pw.loyalty}（最大${BALANCE.battle.loyaltyMax}。0で消える）`);
+  if (def?.abilities?.some((a) => a.id === 'levelUp')) extra.push(`Lv${pw.level ?? 1}／${BALANCE.battle.maxLevel}`);
   const ach = battle.achieveOf(def);
-  if (ach) extra.push(`${G.achieve!.icon} ${pw.achieved ? '達成した' : 'まだ達成していない'}（達成条件：${(ach.a.condition ? CONDITIONS[ach.a.condition]?.label : undefined) ?? '？'}）`);
+  if (ach) extra.push(`${pw.achieved ? '達成した' : 'まだ達成していない'}（達成条件：${(ach.a.condition ? CONDITIONS[ach.a.condition]?.label : undefined) ?? '？'}）`);
   const goal = battle.altWinGoalOf(def);
-  if (goal) extra.push(`${G.altWin!.icon} 特殊勝利：${ALT_WIN_TEXT[goal]} ${pw.progress ?? 0}/${battle.altWinTarget(goal)}`);
-  if (battle.isEmblemCard(def)) extra.push(`${G.emblem!.icon} ${G.emblem!.short}`);
-  return [...extra, ...effects, ...pw.drawbacks.map((d) => `☠ デメリット（${d.timing ? TIMINGS[d.timing].label : ''}）`), ...life];
+  if (goal) extra.push(`特殊勝利：${ALT_WIN_TEXT[goal]} ${pw.progress ?? 0}/${battle.altWinTarget(goal)}`);
+  if (battle.isEmblemCard(def)) extra.push(`${G.emblem!.short}`);
+  return [...extra, ...effects, ...pw.drawbacks.map((d) => `デメリット（${d.timing ? TIMINGS[d.timing].label : ''}）`), ...life];
 }
 
 // ---------------------------------------------------------------- モンスター
@@ -869,9 +886,6 @@ interface MonsterTileProps {
   compact?: boolean;
 }
 
-/** カードの能力のアイコン */
-const abilityIcon = (id: string): string => abilityGlossary[`ability:${id}`]?.icon ?? '✦';
-
 /** 特殊勝利の目標の言い方（MTG 要素 △ バッチC） */
 const ALT_WIN_TEXT: Record<NonNullable<ReturnType<typeof battle.altWinGoalOf>>, string> = { cards: 'カードを使った数', turns: '自分のターン数', board: '場のモンスターの数' };
 
@@ -897,155 +911,117 @@ export function monsterChips(
     const g = keywordGlossary[k.id];
     return {
       id: `kw:${k.id}`,
-      label: g ? `${g.icon}${g.name}${k.value !== undefined ? k.value : ''}` : k.id,
+      label: g ? `${g.name}${k.value !== undefined ? k.value : ''}` : k.id,
       tone: 'kw',
-      card: { title: g ? `${g.icon} ${g.name}` : k.id, description: g?.short ?? '' },
+      card: { title: g ? g.name : k.id, description: g?.short ?? '' },
       ...(g?.gi ? { gi: g.gi, text: `${g.name}${k.value !== undefined ? k.value : ''}` } : {}),
     };
   });
   const extra: Chip[] = [];
-  if (m.sealed) extra.push({ id: 'sealed', label: `${glossary.seal.icon}封印`, tone: 'bad', card: { title: '🔒 封印', description: glossary.seal.short }, gi: glossary.seal.gi, text: '封印' });
-  if (m.stealth) extra.push({ id: 'stealth', label: `${glossary.stealth.icon}隠密中`, tone: 'info', card: { title: '👤 隠密', description: glossary.stealth.short }, gi: glossary.stealth.gi, text: '隠密中' });
-  if (m.betraying) extra.push({ id: 'betraying', label: `${glossary.betrayal.icon}裏切り`, tone: 'bad', card: { title: '🗡 裏切り', description: glossary.betrayal.short }, gi: glossary.betrayal.gi, text: '裏切り' });
   const M = mechanicGlossary;
-  if (m.card.token && !m.siege) extra.push({ id: 'token', label: `${M.token!.icon}トークン`, tone: 'info', card: { title: `${M.token!.icon} ${M.token!.name}`, description: M.token!.short } });
+  /** 仕組みの札（形は用語集の gi。見出しは名前だけ：絵文字は使わない） */
+  const add = (id: string, g: GlossaryEntry, text: string, tone: Chip['tone'], card: Partial<PopoverCard> = {}) =>
+    extra.push(glossChip(id, g, text, tone, card));
+  if (m.sealed) add('sealed', glossary.seal, '封印', 'bad');
+  if (m.stealth) add('stealth', glossary.stealth, '隠密中', 'info');
+  if (m.betraying) add('betraying', glossary.betrayal, '裏切り', 'bad');
+  if (m.card.token && !m.siege) add('token', M.token!, 'トークン', 'info');
   if (!m.sealed) {
     for (const id of m.granted ?? []) {
       const g = keywordGlossary[id];
-      extra.push({
-        id: `gr:${id}`,
-        label: `${M.granted!.icon}${g?.icon ?? ''}${g?.name ?? id}`,
-        tone: 'kw',
-        card: { title: `${M.granted!.icon} 付与：${g?.name ?? id}`, description: g?.short ?? '', lines: [M.granted!.short] },
-        // 形の札では付与の印は「+」（詳細のポップオーバーに「付与」と出る）
-        ...(g?.gi ? { gi: g.gi, text: `+${g.name}` } : {}),
-      });
+      // 形の札では付与の印は「+」（詳細のポップオーバーに「付与」と出る）
+      extra.push({ id: `gr:${id}`, label: `付与：${g?.name ?? id}`, tone: 'kw', gi: g?.gi ?? M.tempAttack!.gi, text: `+${g?.name ?? id}`, card: { title: `付与：${g?.name ?? id}`, description: g?.short ?? '', lines: [M.granted!.short] } });
     }
   }
   if (m.tempAttack) {
-    extra.push({
-      id: 'temp',
-      label: `${M.tempAttack!.icon}攻撃+${m.tempAttack}`,
-      tone: 'good',
-      gi: M.tempAttack!.gi,
-      text: `攻撃+${m.tempAttack}`,
-      card: { title: `${M.tempAttack!.icon} 一時強化 +${m.tempAttack}`, description: M.tempAttack!.short, lines: [`もとの攻撃力 ${m.attack} → このターン ${attackOf(m, attackNow)}`] },
-    });
+    add('temp', M.tempAttack!, `攻撃+${m.tempAttack}`, 'good', { title: `一時強化 +${m.tempAttack}`, lines: [`もとの攻撃力 ${m.attack} → このターン ${attackOf(m, attackNow)}`] });
   }
-  if (flags.divineShield && m.shieldUsed) {
-    extra.push({ id: 'shieldUsed', label: `${keywordGlossary.divineShield?.icon ?? ''}聖盾 使用済み`, gi: keywordGlossary.divineShield?.gi, text: '聖盾 使用済み', tone: 'info', card: { title: '聖盾（使用済み）', description: 'このモンスターの聖盾はもう使った。キーワード付与で聖盾を与え直すと戻る' } });
+  if (flags.divineShield && m.shieldUsed && keywordGlossary.divineShield) {
+    add('shieldUsed', keywordGlossary.divineShield, '聖盾 使用済み', 'info', { title: '聖盾（使用済み）', description: 'このモンスターの聖盾はもう使った。キーワード付与で聖盾を与え直すと戻る' });
   }
   const life = m.counters.life;
   if (life !== undefined && life > 0) {
-    extra.push({ id: 'life', label: `${M.lifespan!.icon}寿命${life}`, gi: M.lifespan!.gi, text: `寿命${life}`, tone: 'bad', card: { title: `${M.lifespan!.icon} 寿命 残り${life}`, description: M.lifespan!.short, lines: [life === 1 ? 'このモンスターの持ち主のターン終了時に破壊される' : `あと${life}回、持ち主のターン終了時を迎えると破壊される`] } });
+    add('life', M.lifespan!, `寿命${life}`, 'bad', { title: `寿命 残り${life}`, lines: [life === 1 ? 'このモンスターの持ち主のターン終了時に破壊される' : `あと${life}回、持ち主のターン終了時を迎えると破壊される`] });
   }
   // MTG 要素 ○ バッチA：消耗（次の持ち主のターンは攻撃できない）・攻撃した回数（条件「このモンスターが3回以上攻撃した」のカードだけ）
   const exertTurn = m.counters.exertTurn;
   if (exertTurn !== undefined && ownerTurns !== undefined && exertTurn >= ownerTurns) {
     const now = exertTurn === ownerTurns;
-    extra.push({
-      id: 'exert',
-      label: `${M.exert!.icon}消耗${now ? '中' : ''}`,
-      tone: 'bad',
-      card: { title: `${M.exert!.icon} ${M.exert!.name}`, description: M.exert!.short, lines: [now ? 'このターンは攻撃できない' : '次の持ち主のターンは攻撃できない'] },
-    });
+    add('exert', M.exert!, `消耗${now ? '中' : ''}`, 'bad', { lines: [now ? 'このターンは攻撃できない' : '次の持ち主のターンは攻撃できない'] });
   }
   const attacksTotal = m.counters.attacksTotal ?? 0;
   if (attacksTotal > 0 && def?.effects.some((e) => e.condition === 'veteran')) {
-    extra.push({ id: 'attacksTotal', label: `⚔攻撃した回数 ${attacksTotal}`, tone: 'info', card: { title: `攻撃した回数 ${attacksTotal}`, description: '場に出てから攻撃した回数（場を離れると0から）' } });
+    add('attacksTotal', glossary.retaliation, `攻撃した回数 ${attacksTotal}`, 'info', { title: `攻撃した回数 ${attacksTotal}`, description: '場に出てから攻撃した回数（場を離れると0から）' });
   }
   // MTG 要素 ○ バッチB：複写・応召・軍団、装備、借用、懸賞、分身を使った
-  if (m.card.token?.copy) extra.push({ id: 'copy', label: `${M.copyToken!.icon}コピー`, tone: 'info', card: { title: `${M.copyToken!.icon} ${M.copyToken!.name}`, description: M.copyToken!.short } });
-  if (m.card.token?.temp) extra.push({ id: 'temp-token', label: `${M.tempToken!.icon}応召`, tone: 'info', card: { title: `${M.tempToken!.icon} ${M.tempToken!.name}`, description: M.tempToken!.short } });
-  if (m.card.cardId === battle.ARMY_CARD_ID) extra.push({ id: 'army', label: `${M.army!.icon}${M.army!.name}`, tone: 'info', card: { title: `${M.army!.icon} ${M.army!.name}`, description: M.army!.short } });
+  if (m.card.token?.copy) add('copy', M.copyToken!, 'コピー', 'info');
+  if (m.card.token?.temp) add('temp-token', M.tempToken!, '応召', 'info');
+  if (m.card.cardId === battle.ARMY_CARD_ID) add('army', M.army!, M.army!.name, 'info');
   if ((m.equipment?.length ?? 0) > 0) {
     const n = m.equipment!.length;
-    extra.push({ id: 'equip', label: `${M.equip!.icon}装備${n > 1 ? `×${n}` : ''}`, tone: 'good', card: { title: `${M.equip!.icon} 装備（${n}枚）`, description: M.equip!.short } });
+    add('equip', M.equip!, `装備${n > 1 ? `×${n}` : ''}`, 'good', { title: `装備（${n}枚）` });
   }
   if (m.counters.borrowLeft !== undefined) {
-    extra.push({ id: 'borrow', label: `${M.borrow!.icon}借用 残り${m.counters.borrowLeft}`, tone: 'info', card: { title: `${M.borrow!.icon} 借用（残り${m.counters.borrowLeft}ターン）`, description: M.borrow!.short } });
+    add('borrow', M.borrow!, `借用 残り${m.counters.borrowLeft}`, 'info', { title: `借用（残り${m.counters.borrowLeft}ターン）` });
   }
   if ((m.bounty?.length ?? 0) > 0) {
     const draw = m.bounty!.reduce((n, b) => n + b.draw, 0);
-    extra.push({ id: 'bounty', label: `${M.bounty!.icon}懸賞`, tone: 'info', card: { title: `${M.bounty!.icon} 懸賞（破壊されたら${draw}枚）`, description: M.bounty!.short } });
+    add('bounty', M.bounty!, '懸賞', 'info', { title: `懸賞（破壊されたら${draw}枚）` });
   }
   // MTG 要素 △ バッチA：卵・落とし子・消滅の印・容疑・守護・賛助のキーワード・休眠・累加維持費・萎縮・永久強化
   const egg = m.card.token?.egg;
   if (egg) {
     const left = ownerTurns !== undefined ? Math.max(0, egg.hatchAt - ownerTurns) : undefined;
-    extra.push({
-      id: 'egg',
-      label: `${M.egg!.icon}卵${left !== undefined ? ` あと${left}` : ''}`,
-      tone: 'info',
-      card: { title: `${M.egg!.icon} ${M.egg!.name}（孵化すると攻撃力+${egg.attack}）`, description: M.egg!.short, lines: left !== undefined ? [`孵化まで、持ち主のターン開始あと${left}回`] : [] },
-    });
+    add('egg', M.egg!, `卵${left !== undefined ? ` あと${left}` : ''}`, 'info', { title: `${M.egg!.name}（孵化すると攻撃力+${egg.attack}）`, lines: left !== undefined ? [`孵化まで、持ち主のターン開始あと${left}回`] : [] });
   }
-  if (m.card.token?.spawn) extra.push({ id: 'spawn', label: `${M.spawn!.icon}落とし子`, tone: 'info', card: { title: `${M.spawn!.icon} ${M.spawn!.name}`, description: M.spawn!.short } });
-  if (m.finality) extra.push({ id: 'finality', label: `${M.finality!.icon}消滅の印`, tone: 'bad', card: { title: `${M.finality!.icon} ${M.finality!.name}`, description: M.finality!.short } });
-  if (m.suspected) extra.push({ id: 'suspected', label: `${M.suspected!.icon}容疑`, tone: 'info', card: { title: `${M.suspected!.icon} ${M.suspected!.name}`, description: M.suspected!.short } });
+  if (m.card.token?.spawn) add('spawn', M.spawn!, '落とし子', 'info');
+  if (m.finality) add('finality', M.finality!, '消滅の印', 'bad');
+  if (m.suspected) add('suspected', M.suspected!, '容疑', 'info');
   if (m.guard) {
     const gd = M[m.guard.kind]!;
-    extra.push({ id: 'guard', label: `${gd.icon}${gd.name}`, tone: 'good', card: { title: `${gd.icon} 守護：${gd.name}`, description: gd.short } });
+    add('guard', gd, gd.name, 'good', { title: `守護：${gd.name}` });
   }
   if (!m.sealed) {
     for (const id of m.tempGranted ?? []) {
       const g = keywordGlossary[id];
-      extra.push({
-        id: `tg:${id}`,
-        label: `${M.tempGranted!.icon}${g?.icon ?? ''}${g?.name ?? id}`,
-        tone: 'kw',
-        // 形の札では付与と同じく「+」（「このターンだけ」は詳細のポップオーバーに出る）
-        ...(g?.gi ? { gi: g.gi, text: `+${g.name}` } : {}),
-        card: { title: `${M.tempGranted!.icon} このターンだけ：${g?.name ?? id}`, description: g?.short ?? '', lines: [M.tempGranted!.short] },
-      });
+      // 形の札では付与と同じく「+」（「このターンだけ」は詳細のポップオーバーに出る）
+      extra.push({ id: `tg:${id}`, label: `このターンだけ：${g?.name ?? id}`, tone: 'kw', gi: g?.gi ?? M.tempAttack!.gi, text: `+${g?.name ?? id}`, card: { title: `このターンだけ：${g?.name ?? id}`, description: g?.short ?? '', lines: [M.tempGranted!.short] } });
     }
   }
   const dormantFrom = m.counters.dormantFrom;
-  if (dormantFrom !== undefined && ownerTurns !== undefined && (ownerTurns - dormantFrom) % 2 === 1) {
-    extra.push({ id: 'dormant', label: `${M.dormant!.icon}休眠中`, gi: M.dormant!.gi, text: '休眠中', tone: 'bad', card: { title: `${M.dormant!.icon} 休眠中`, description: M.dormant!.short } });
-  }
-  if (m.counters.age) {
-    extra.push({ id: 'age', label: `${M.cumulativeUpkeep!.icon}累加${m.counters.age}`, tone: 'bad', card: { title: `${M.cumulativeUpkeep!.icon} 累加維持費（場にあるターン数 ${m.counters.age}）`, description: M.cumulativeUpkeep!.short } });
-  }
-  if (m.counters.withered) {
-    extra.push({ id: 'withered', label: `${M.withered!.icon}萎縮−${m.counters.withered}`, tone: 'bad', card: { title: `${M.withered!.icon} 萎縮：最大体力−${m.counters.withered}`, description: M.withered!.short } });
-  }
+  if (dormantFrom !== undefined && ownerTurns !== undefined && (ownerTurns - dormantFrom) % 2 === 1) add('dormant', M.dormant!, '休眠中', 'bad', { title: '休眠中' });
+  if (m.counters.age) add('age', M.cumulativeUpkeep!, `累加${m.counters.age}`, 'bad', { title: `累加維持費（場にあるターン数 ${m.counters.age}）` });
+  if (m.counters.withered) add('withered', M.withered!, `萎縮−${m.counters.withered}`, 'bad', { title: `萎縮：最大体力−${m.counters.withered}` });
   if (m.card.perm && !m.card.token) {
     const p = m.card.perm;
-    extra.push({ id: 'perm', label: `${M.perpetual!.icon}永久+${p.attack}/+${p.hp}`, tone: 'good', card: { title: `${M.perpetual!.icon} 永久強化 攻撃力+${p.attack}・体力+${p.hp}`, description: M.perpetual!.short } });
+    add('perm', M.perpetual!, `永久+${p.attack}/+${p.hp}`, 'good', { title: `永久強化 攻撃力+${p.attack}・体力+${p.hp}` });
   }
   // MTG 要素 △ バッチB：試作版・解鎖・一時蘇生（公開の印）
-  if (m.prototype) extra.push({ id: 'prototype', label: `${M.prototype!.icon}試作`, tone: 'info', card: { title: `${M.prototype!.icon} ${M.prototype!.name}`, description: M.prototype!.short } });
-  if (m.unleashed) extra.push({ id: 'unleashed', label: `${M.unleashed!.icon}解鎖`, tone: 'info', card: { title: `${M.unleashed!.icon} ${M.unleashed!.name}`, description: M.unleashed!.short } });
-  if (m.unearthed) extra.push({ id: 'unearthed', label: `${M.unearthed!.icon}一時`, gi: M.unearthed!.gi, text: '一時', tone: 'bad', card: { title: `${M.unearthed!.icon} ${M.unearthed!.name}`, description: M.unearthed!.short } });
-  if (m.card.lostKeywords?.includes('doubleTeam')) {
-    extra.push({ id: 'dt-used', label: `${keywordGlossary.doubleTeam?.icon ?? ''}分身 使用済み`, gi: keywordGlossary.doubleTeam?.gi, text: '分身 使用済み', tone: 'info', card: { title: '分身（使用済み）', description: keywordGlossary.doubleTeam?.short ?? '' } });
+  if (m.prototype) add('prototype', M.prototype!, '試作', 'info');
+  if (m.unleashed) add('unleashed', M.unleashed!, '解鎖', 'info');
+  if (m.unearthed) add('unearthed', M.unearthed!, '一時', 'bad');
+  if (m.card.lostKeywords?.includes('doubleTeam') && keywordGlossary.doubleTeam) {
+    add('dt-used', keywordGlossary.doubleTeam, '分身 使用済み', 'info', { title: '分身（使用済み）' });
   }
   // MTG 要素 △ バッチC：裏向き（正体は持ち主にだけ）・進化・Lv・ワープ・砦
   if (m.faceDown) {
     const real = m.faceDown.card;
     const cost = m.faceDown.revealCost;
-    extra.push({
-      id: 'faceDown',
-      label: `${M.faceDown!.icon}裏向き`,
-      tone: 'info',
-      card: {
-        title: `${M.faceDown!.icon} ${M.faceDown!.name}（${m.faceDown.kind === 'disguise' ? '変装' : '予示'}）`,
-        description: M.faceDown!.short,
-        lines: real ? [`正体：「${realName ?? '？'}」`, cost === null ? '表にできない（モンスターでない）' : `エナジー${cost}で表にできる`] : [],
-      },
+    add('faceDown', M.faceDown!, '裏向き', 'info', {
+      title: `${M.faceDown!.name}（${m.faceDown.kind === 'disguise' ? '変装' : '予示'}）`,
+      lines: real ? [`正体：「${realName ?? '？'}」`, cost === null ? '表にできない（モンスターでない）' : `エナジー${cost}で表にできる`] : [],
     });
   }
-  if (m.achieved) extra.push({ id: 'achieved', label: `${abilityIcon('evolve')}進化`, tone: 'good', card: { title: `${M.achieve!.icon} 進化した`, description: M.achieve!.short } });
+  if (m.achieved) add('achieved', M.achieve!, '進化', 'good', { title: '進化した' });
   if (def?.abilities?.some((a) => a.id === 'levelUp')) {
     const lv = m.counters.level ?? 1;
-    extra.push({ id: 'level', label: `${M.level!.icon}Lv${lv}`, tone: 'good', card: { title: `${M.level!.icon} Lv${lv}／${BALANCE.battle.maxLevel}`, description: M.level!.short } });
+    add('level', M.level!, `Lv${lv}`, 'good', { title: `Lv${lv}／${BALANCE.battle.maxLevel}` });
   }
-  if (m.warped) extra.push({ id: 'warped', label: `${abilityIcon('warp')}ワープ`, tone: 'info', card: { title: 'ワープ', description: 'ワープで出たモンスター。持ち主のターン終了時に待機ゾーンへ移り、後の自分のターンに出し直せる' } });
-  if (m.siege) extra.push({ id: 'siege', label: `${M.siege!.icon}${M.siege!.name}`, tone: 'info', card: { title: `${M.siege!.icon} ${M.siege!.name}`, description: M.siege!.short } });
-  for (const f of monsterForecasts(def, m)) extra.push({ id: `fc:${f.title}`, label: f.label, tone: f.tone, card: { title: f.title, description: f.description } });
+  if (m.warped) extra.push({ id: 'warped', label: 'ワープ', gi: 'portal', text: 'ワープ', tone: 'info', card: { title: 'ワープ', description: 'ワープで出たモンスター。持ち主のターン終了時に待機ゾーンへ移り、後の自分のターンに出し直せる' } });
+  if (m.siege) add('siege', M.siege!, M.siege!.name, 'info');
+  for (const f of monsterForecasts(def, m)) extra.push({ id: `fc:${f.title}`, label: f.label, tone: f.tone, card: { title: f.title, description: f.description }, ...(f.title === '裏切り' ? { gi: glossary.betrayal.gi, text: f.label } : {}) });
   if ((flags.attacksPerTurn ?? 1) > 1 && m.attacksUsed > 0) {
-    extra.push({ id: 'attacks', label: `攻撃${m.attacksUsed}/${flags.attacksPerTurn}`, tone: 'info', card: { title: 'このターンの攻撃回数', description: `${flags.attacksPerTurn}回まで攻撃できる` } });
+    add('attacks', glossary.retaliation, `攻撃${m.attacksUsed}/${flags.attacksPerTurn}`, 'info', { title: 'このターンの攻撃回数', description: `${flags.attacksPerTurn}回まで攻撃できる` });
   }
   return [...(m.sealed ? [] : kws), ...extra, ...statusChips(m.status, false)];
 }
@@ -1540,7 +1516,7 @@ function groupLog(log: battle.LogEntry[]): LogGroup[] {
 
 /** ログ1行の文（カード名は黄色で押すと詳細、プレイヤー名は自分／相手の色、ダメージは赤、回復は緑） */
 export function LogText({ text, names, me, preferId, onCard }: { text: string; names: LogNames; me: PlayerId; preferId?: string; onCard?: (cardId: string) => void }) {
-  const segs = tokenizeLog(text, names, preferId);
+  const segs = tokenizeLog(stripOptionIcons(text), names, preferId);
   return (
     <>
       {segs.map((s, i) => {
@@ -1612,7 +1588,6 @@ export function LogPanel({ log, me, names, onCard, compact = false }: { log: bat
             )}
             {isOpen &&
               g.rows.map(({ e, i }) => {
-                const icon = logIcon(e.ev?.kind, e.kind, e.ev?.status ?? e.ev?.damageKind);
                 const gi = logGi(e.ev?.kind, e.kind, e.ev?.status ?? e.ev?.damageKind);
                 const depth = Math.min(e.depth, 4);
                 return (
@@ -1622,7 +1597,8 @@ export function LogPanel({ log, me, names, onCard, compact = false }: { log: bat
                     style={{ '--depth': depth } as CSSProperties}
                   >
                     <span className="log__mark" aria-hidden="true">
-                      {gi ? <UiIcon name={`gi:${gi.gi}`} className={gi.tone && `gi--${gi.tone}`} /> : icon}
+                      {/* 形の無い出来事は小さな鉄の菱形（絵文字は使わない） */}
+                      {gi ? <UiIcon name={`gi:${gi.gi}`} className={gi.tone && `gi--${gi.tone}`} /> : <i className="log__dot" />}
                     </span>
                     <span className="log__text">
                       <LogText text={e.text} names={names} me={me} preferId={e.ev?.cardId} onCard={onCard} />

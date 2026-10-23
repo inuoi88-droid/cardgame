@@ -1,7 +1,9 @@
 /**
  * マリガン・手札や捨て札からの選択（UI2「黒鉄と金の卓」。決定事項 #112）：行の一覧ではなく、本物の手札のカード（HandCard）を並べる。
  * - 引き直す（redraw）：タップで深紅の × の封蝋と深紅の輪。選ぶ（choose）：カードの下のサファイアの宝石のラジオと輪
- * - カードの中身は暗くしない（読める）。下に最後に触ったカードの全文（効果テキストの読みやすさは行の一覧と同じ）と「詳細」
+ * - カードの中身は暗くしない（読める）。スマホ（手札のカードに効果テキストが無い）はカードの下に全カードの全文の一覧を出し、
+ *   読むために印を付け外ししなくてよい（UI2 の統合）。PC は最後に触ったカードの全文と「詳細」
+ * - 選択肢の文（engine の label）がカード名と違えば（処分の「手札：X／捨て札：X」、章を進める の「第N章」など）カードの下に添える
  * - 長押し（または「詳細」）で CardDetail。読み上げは各カードに aria-pressed と「〇〇を引き直す」「〇〇を選ぶ」
  */
 import { useState } from 'react';
@@ -17,6 +19,13 @@ export interface PickItem {
   /** 表示名（ノイズ・裏向きなど def の無いものの名前） */
   name: string;
   on: boolean;
+  /** カード名だけでは分からない選択肢の文（手札：X・捨て札：X・第N章など）。カード名と同じなら省く */
+  sub?: string;
+}
+
+/** 選択肢の文がカード名と違うときだけ添える */
+export function pickSub(label: string, name: string): string | undefined {
+  return label && label !== name ? label : undefined;
 }
 
 /** カードの全文（種類・ステータス・キーワード・効果・デメリット・能力）。CardRow の本文と同じ文 */
@@ -48,7 +57,7 @@ function CardPick({ it, mode, onToggle, onTouch, onDetail }: { it: PickItem; mod
       type="button"
       className={cx('cpick', it.on && 'is-on')}
       aria-pressed={it.on}
-      aria-label={`${it.name}${mode === 'redraw' ? 'を引き直す' : 'を選ぶ'}`}
+      aria-label={`${it.sub ?? it.name}${mode === 'redraw' ? 'を引き直す' : 'を選ぶ'}`}
       onClick={() => {
         if (press.consumed()) return;
         onTouch();
@@ -61,10 +70,18 @@ function CardPick({ it, mode, onToggle, onTouch, onDetail }: { it: PickItem; mod
       <span className="cpick__ring" aria-hidden="true" />
       {mode === 'redraw' ? (
         <span className="cpick__seal" aria-hidden="true">
-          <UiIcon name="gi:cross-mark" />
+          {/* 太い幾何学の ×（筆の × は封蝋の大きさで鳥のように見えた） */}
+          <svg viewBox="0 0 20 20" className="cpick__x" focusable="false">
+            <path d="M5 5 15 15M15 5 5 15" />
+          </svg>
         </span>
       ) : (
         <span className="cpick__gem" aria-hidden="true" />
+      )}
+      {it.sub && (
+        <span className="cpick__sub" aria-hidden="true">
+          {it.sub}
+        </span>
       )}
     </button>
   );
@@ -94,6 +111,16 @@ export function CardPickGrid({
           <CardPick key={it.key} it={it} mode={mode} onToggle={() => onToggle(it.key)} onTouch={() => setLast(it.key)} onDetail={() => it.def && onDetail(it.def)} />
         ))}
       </div>
+      {/* スマホ：全カードの全文（読むのに印を付け外ししない） */}
+      <ul className="cpick-all">
+        {items.map((it) => (
+          <li key={it.key} className={cx(it.on && 'is-on')}>
+            <b>{it.sub ?? it.name}</b>
+            {it.on && <span className={cx('cpick-all__mark', mode === 'redraw' && 'cpick-all__mark--redraw')}>{mode === 'redraw' ? '引き直す' : '選択中'}</span>}
+            <span>{cardFullText(it.def)}</span>
+          </li>
+        ))}
+      </ul>
       {cur && (
         <div className="cpick-desc" aria-live="polite">
           {cur.def && (
@@ -102,7 +129,7 @@ export function CardPickGrid({
             </button>
           )}
           <p>
-            <b>{cur.name}</b>
+            <b>{cur.sub ?? cur.name}</b>
             {cardFullText(cur.def)}
           </p>
         </div>

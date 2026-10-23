@@ -6,7 +6,19 @@
  * - プレイヤー名：後ろに助詞（の・は・に・が・を・と）や区切りが続くときだけ（名前が他の言葉の一部に当たらないように）
  * - 数：「12ダメージ」の 12 は damage、「12回復」の 12 は heal、それ以外の数は plain
  */
-import type { battle } from '../../engine/index.ts';
+import { FIELDS, LEADERS, type battle } from '../../engine/index.ts';
+
+/** リーダー・フィールドの名前の前の絵文字（エンジンのログの文。画面では形に揃えて絵文字を出さない：UI2 の統合） */
+const OPTION_ICON_NAMES: [string, string][] = [...Object.values(LEADERS), ...Object.values(FIELDS)]
+  .filter((x) => x.icon && x.name)
+  .flatMap((x) => [[`${x.icon} ${x.name}`, x.name], [`${x.icon}${x.name}`, x.name]] as [string, string][]);
+
+/** ログの文からリーダー・フィールドの名前の前の絵文字を外す（「🏇騎士」→「騎士」） */
+export function stripOptionIcons(text: string): string {
+  let out = text;
+  for (const [from, to] of OPTION_ICON_NAMES) if (out.includes(from)) out = out.split(from).join(to);
+  return out;
+}
 
 export type LogSegment =
   | { t: 'text'; text: string }
@@ -150,7 +162,8 @@ export function logGi(evKind: battle.LogEvent['kind'] | undefined, rowKind?: bat
   if (status === 'coin') return { gi: 'coins' };
   if (status === 'doom') return { gi: 'death-zone', tone: 'dmg' };
   if (status === 'divineShield') return { gi: 'bolt-shield' };
-  if (status === 'cycling' || status === 'channel' || status === 'drawn' || status === 'delayed' || status === 'clash' || status === 'fatigue') return null;
+  if (status === 'fatigue') return { gi: 'stack', tone: 'dmg' };
+  if (status === 'cycling' || status === 'channel' || status === 'drawn' || status === 'delayed' || status === 'clash') return null;
   switch (evKind) {
     case 'damage':
       return { gi: 'explosion-rays', tone: 'dmg' };
@@ -178,10 +191,12 @@ export function logGi(evKind: battle.LogEvent['kind'] | undefined, rowKind?: bat
       return { gi: 'card-discard' };
     case 'crown':
       return { gi: 'crown' };
+    case 'result':
+      return { gi: 'trophy-cup' };
     case 'waiting':
       return { gi: 'hourglass' };
     case undefined:
-      return rowKind === 'damage' ? { gi: 'explosion-rays', tone: 'dmg' } : null;
+      return rowKind === 'damage' ? { gi: 'explosion-rays', tone: 'dmg' } : rowKind === 'result' ? { gi: 'trophy-cup' } : null;
     default:
       return null;
   }

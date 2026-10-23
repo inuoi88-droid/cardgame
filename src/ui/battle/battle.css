@@ -131,6 +131,32 @@ body:has(.battle) .toast__action {
   min-height: 44px;
   min-width: 44px;
 }
+/* 狭いスマホ（〜399px）：ターンの銘がいちばん大事なので縮めない。ログは形だけ（読み上げは aria-label）、菱形の飾りは外し、
+   状態の札（「あなたが選択中」など）のほうを省略する */
+@media (max-width: 399px) {
+  .battle__turn {
+    flex: 0 1 auto;
+  }
+  .battle__turn::before {
+    display: none;
+  }
+  .battle__turn b {
+    flex: none;
+    overflow: visible;
+  }
+  .battle__turn .badge {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .battle__logtext {
+    display: none;
+  }
+  .battle__head .match-band {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+}
 
 /* ------------------------------------------------------------ プレイヤー（UI2：黒鉄の銘板）
    相手は深紅の縁・自分はサファイアの縁、手番の側だけ金の縁。交代のとき金の縁が1回だけ光る（::after の opacity。
@@ -338,6 +364,10 @@ body:has(.battle) .toast__action {
 .cgem.u-egem--btn {
   --g: 28px;
 }
+.cgem.u-egem--sm {
+  --g: 22px;
+  vertical-align: middle;
+}
 .hpbar {
   flex: 1;
   height: 8px;
@@ -483,6 +513,11 @@ body:has(.battle) .toast__action {
 .u-sticon--fire {
   color: #ffb36b;
 }
+/* 休眠・一時蘇生：細い形なので札の文字より濃く明るい赤にして、札の大きさでも沈まないように */
+.u-sticon--alert {
+  color: #ff7f8e;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.8));
+}
 
 /* ------------------------------------------------------------ 場 */
 .board {
@@ -492,7 +527,8 @@ body:has(.battle) .toast__action {
   flex-wrap: wrap;
   align-content: flex-start;
   gap: 6px;
-  padding: 6px;
+  /* 縁が UI2 で 1px → 2px になったぶん、余白を 1px 減らして中の幅・高さ（タイルの大きさ）を変えない */
+  padding: 5px;
   overflow-y: auto;
   overscroll-behavior: contain;
   /* 場（UI2）：不透明な暗い地＋2px の彫った縁（外の黒・色の金属・内の黒い段＋内側の影）。相手は深紅、自分はサファイア */
@@ -1252,6 +1288,13 @@ body:has(.battle) .toast__action {
 }
 .battle-bar__end {
   gap: 8px;
+  /* 明朝の読み込み前後で幅が変わらないように（代わりの書体のほうが少し広い） */
+  min-width: 156px;
+}
+@media (min-width: 920px) {
+  .battle-bar__end {
+    min-width: 172px;
+  }
 }
 /* ターン終了の右のエナジーの宝石 */
 .battle-bar__energy {
@@ -1661,6 +1704,13 @@ body:has(.battle) .toast__action {
   vertical-align: -0.2em;
   color: var(--u-ink-2);
 }
+.log__dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  vertical-align: 0.1em;
+  background: var(--u-diamond-iron) center / contain no-repeat;
+}
 .log__mark > .gi--dmg {
   color: #ff8a96;
 }
@@ -1811,9 +1861,40 @@ button.lt-card:focus-visible {
     opacity var(--dur-fast),
     transform var(--dur-fast);
 }
-.cpick__seal > .gi {
-  width: 16px;
-  height: 16px;
+.cpick__x {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.6;
+  stroke-linecap: round;
+}
+/* 選択肢の文（手札：X・捨て札：X・第N章）。カードの下に小さな銘板 */
+.cpick__sub {
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  z-index: 5;
+  transform: translateX(-50%);
+  max-width: calc(100% + 16px);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--u-ink);
+  background: linear-gradient(180deg, #232840, #12162a);
+  box-shadow: inset 0 0 0 1px #5c6474, 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+.cpicks--choose .cpick:has(.cpick__sub) .cpick__gem {
+  bottom: -32px;
+}
+.cpicks--choose:has(.cpick__sub) {
+  padding-bottom: 36px;
+  row-gap: 40px;
 }
 .cpick.is-on .cpick__seal {
   opacity: 1;
@@ -1880,6 +1961,54 @@ button.lt-card:focus-visible {
 .cpick-hint > .gi {
   width: 16px;
   height: 16px;
+}
+/* スマホ：全カードの全文の一覧（手札のカードに効果テキストが無いので、読むのに印を付け外ししない）。PC は最後に触ったカードの全文 */
+.cpick-all {
+  display: none;
+  margin: 8px 0 0;
+  padding: 2px 0;
+  list-style: none;
+  border-radius: var(--u-r);
+  background: linear-gradient(180deg, #0a0c16, #12162a);
+  box-shadow:
+    inset 0 0 0 1px #2c3243,
+    inset 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+.cpick-all > li {
+  padding: 6px 10px;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--u-ink-2);
+}
+.cpick-all > li + li {
+  border-top: 1px solid #222838;
+}
+.cpick-all b {
+  margin-right: 8px;
+  font-family: var(--u-font-name);
+  color: var(--card-name, #ffd76a);
+}
+.cpick-all__mark {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #dce8ff;
+  background: #1d3f9a;
+}
+.cpick-all__mark--redraw {
+  color: #ffe6ea;
+  background: #8f1428;
+}
+@media (max-width: 919px) {
+  .cpick-all {
+    display: block;
+  }
+  .cpick-desc {
+    display: none;
+  }
 }
 /* PC：手札のカード（136px）5枚が1列に入る幅 */
 @media (min-width: 920px) {
@@ -2046,6 +2175,17 @@ button.lt-card:focus-visible {
   justify-content: flex-start;
   min-height: 52px;
 }
+/* 2行の項目（本文＋小さな補足） */
+.menu-list__text {
+  display: grid;
+  text-align: left;
+  line-height: 1.3;
+}
+.menu-list__text > small {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--u-ink-3);
+}
 
 /* 結果（UI2）：肖像と同じ丸い鉄の台座の紋（勝ち＝王冠・サファイア、負け＝割れた髑髏・深紅、引き分け＝打ち合う剣）、見出しは明朝 */
 .result {
@@ -2110,9 +2250,14 @@ button.lt-card:focus-visible {
 }
 .result__stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
+}
+/* ターン・決め手は横いっぱい、与えた／受けたダメージを左右に並べる（空いた升を作らない） */
+.result__stats > div:first-child,
+.result__stats > div:nth-child(4) {
+  grid-column: 1 / -1;
 }
 /* 数の井戸（はめ込み） */
 .result__stats > div {
@@ -2200,13 +2345,13 @@ button.lt-card:focus-visible {
 .dpicks {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  align-items: start;
   gap: 12px;
   margin: 4px 0 0;
   padding: 4px 0;
   list-style: none;
 }
 .dpick {
-  height: 100%;
   align-content: start;
   cursor: pointer;
 }
@@ -2250,6 +2395,38 @@ button.lt-card:focus-visible {
   .dpicks > li {
     flex: 0 0 136px;
     scroll-snap-align: start;
+  }
+  /* 箱を低くして、CPU のデッキ・強さのメダルまで1画面に入れる：紋を小さく、宝石の数は1行、コスト分布はデッキの中身の欄で見る */
+  .dpicks .dbox {
+    gap: 6px;
+  }
+  .dpicks .dbox__art {
+    height: 58px;
+  }
+  .dpicks .dbox__crest {
+    width: 46px;
+    height: 46px;
+  }
+  .dpicks .dbox__crest > .gi {
+    width: 28px;
+    height: 28px;
+  }
+  .dpicks .dbox__meta {
+    min-height: 0;
+  }
+  .dpicks .dbox__gems {
+    flex-wrap: nowrap;
+    gap: 0 5px;
+    font-size: 12px;
+  }
+  .dpicks .dbox__gems > span {
+    gap: 1px;
+  }
+  .dpicks .dbox__curve {
+    display: none;
+  }
+  .dpicks .dbox__seal {
+    top: 34px;
   }
 }
 /* メダル（Medal.tsx）：丸い鉄の台座。選ぶとサファイアの縁と光。強さは形＋菱形の数 */
@@ -2405,11 +2582,8 @@ button.lt-card:focus-visible {
   gap: 12px;
   margin: 16px calc(-1 * var(--gutter, 16px)) 0;
   padding: 10px var(--gutter, 16px) calc(10px + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, #1b1f32, #0c0e1a);
-  border-top: 1px solid #000;
-  box-shadow:
-    inset 0 1px 0 #3a404d,
-    0 -10px 24px rgba(0, 0, 0, 0.45);
+  /* 卓の縁（上に黒と鉄の線）。PC で中身の幅（1200px）の外まで帯を伸ばす：border-image の outset は描くだけでスクロールを作らない */
+  border-image: linear-gradient(180deg, #000 0 1px, #3a404d 1px 2px, #1b1f32 2px, #0c0e1a) fill 0 / 0 / 0 100vmax;
 }
 .setup__sum {
   flex: 1;
@@ -2557,7 +2731,7 @@ button.lt-card:focus-visible {
     display: none;
   }
   .board {
-    padding-top: 12px;
+    padding-top: 11px;
     row-gap: 12px;
   }
   .mt {
@@ -4115,7 +4289,7 @@ button.lt-card:focus-visible {
 
   /* ---- 場：上が相手（深紅の縁）、下が自分（サファイアの縁）。色は場とタイルの両方で */
   .board {
-    padding: 10px 4px 4px;
+    padding: 9px 3px 3px;
     gap: 11px 4px;
   }
   .board__empty {

@@ -17,6 +17,7 @@ import { loadSession, startSession } from '../battle/session.ts';
 import { summarizeCard } from '../battle/summary.ts';
 import '../battle/battle.css';
 import { navigate } from '../router.ts';
+import { UiIcon } from '../components/UiIcon.tsx';
 import { actions, useStore } from '../store.ts';
 import { uuid } from '../util.ts';
 import { MedalGroup } from '../battle/Medal.tsx';
@@ -106,6 +107,7 @@ export function DraftPage() {
       <div className="page-head">
         <h1>ドラフト戦</h1>
         <button type="button" className="btn btn--ghost" onClick={() => navigate('/battle')}>
+          <UiIcon name="gi:crossed-swords" />
           CPU 戦の準備へ
         </button>
       </div>

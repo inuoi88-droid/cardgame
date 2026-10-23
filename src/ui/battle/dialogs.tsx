@@ -8,8 +8,9 @@ import { Sheet } from '../components/Sheet.tsx';
 import { cx } from '../util.ts';
 import { iconText } from '../icons/ref.ts';
 import { CardDetailModal } from './CardDetail.tsx';
-import { CardPickGrid } from './CardPickGrid.tsx';
+import { CardPickGrid, pickSub } from './CardPickGrid.tsx';
 import { UiIcon } from '../components/UiIcon.tsx';
+import { EnergyGem } from './parts.tsx';
 import { summarizeResult } from './summary.ts';
 
 type GameState = battle.GameState;
@@ -228,6 +229,7 @@ export function ChoiceDialog({ view, me, onAction, timeLeft }: { view: GameState
               card: { uid: o.id, cardId: o.cardId!, owner: me },
               def: view.cards[o.cardId!],
               name: view.cards[o.cardId!]?.name ?? o.label,
+              sub: pickSub(o.label, view.cards[o.cardId!]?.name ?? o.label),
               on: picked.includes(o.id),
             }))}
             onToggle={toggle}
@@ -338,7 +340,7 @@ export function ResultDialog({ view, me, onHide, children }: { view: GameState; 
  * モード選択のカード（MTG 要素 ○ バッチC2）：モードを選ぶシート。各モードの効果の文・コスト・使えない理由を出す。
  * 選べるのはエンジンの PlayInfo.modes が使えるとしたものだけ（双呪は「すべて」）。
  * 放題（MTG 要素 △ バッチB。combos がある）は複数選べる：選んだモードの組み合わせの情報（コスト・使えない理由）は combos から引く。
- * 段階のモードは追加のエナジー（surcharge）を「+1⚡」で出す
+ * 段階のモードは追加のエナジー（surcharge）を「追加 エナジー+1」で出す
  */
 export function ModeDialog({
   name,
@@ -364,7 +366,7 @@ export function ModeDialog({
   return (
     <Sheet open title={`「${name}」：${multi ? '次のうち好きな数を選ぶ' : '次のうち1つを選ぶ'}`} onClose={onCancel} desktop="modal">
       <p className="mode-sheet__lead">
-        {multi ? '使うモードを選んでください（2つ目から追加のエナジー）。' : '使うモードを選んでください'}（残りのエナジー ⚡{energy}）。対象が要るモードは、このあと対象を選びます。
+        {multi ? '使うモードを選んでください（2つ目から追加のエナジー）。' : '使うモードを選んでください'}（残りのエナジー {energy}）。対象が要るモードは、このあと対象を選びます。
       </p>
       <div className="mode-list" role="list">
         {modes.map((m) => {
@@ -385,7 +387,7 @@ export function ModeDialog({
               <span className="mode-opt__body">
                 <span className="mode-opt__name">
                   {m.mode === 0 ? 'すべてのモード（双呪）' : `モード${m.label}`}
-                  {m.surcharge ? <span className="mode-opt__extra">追加+{m.surcharge}⚡</span> : null}
+                  {m.surcharge ? <span className="mode-opt__extra">追加 エナジー+{m.surcharge}</span> : null}
                 </span>
                 <span className="mode-opt__text">{m.text}</span>
                 {!multi && m.blocked ? (
@@ -394,7 +396,7 @@ export function ModeDialog({
                   !multi && m.warnings.length > 0 && <span className="mode-opt__warn">⚠ {m.warnings.join('／')}</span>
                 )}
               </span>
-              <span className="mode-opt__cost">⚡{m.cost}</span>
+              <EnergyGem n={m.cost} size="sm" className="mode-opt__cost" />
             </button>
           );
         })}
@@ -402,7 +404,7 @@ export function ModeDialog({
       <div className="btn-row modal__foot dlg__foot">
         {multi && (
           <button type="button" className="btn btn--primary" disabled={!sel || !!sel.blocked} onClick={() => sel && onPick(picked[0]!, picked.length > 1 ? picked : undefined)}>
-            {!sel ? 'モードを選んでください' : sel.blocked ? sel.blocked : `モード${sel.label}で使う（⚡${sel.cost}）`}
+            {!sel ? 'モードを選んでください' : sel.blocked ? sel.blocked : `モード${sel.label}で使う（エナジー${sel.cost}）`}
           </button>
         )}
         <button type="button" className="btn btn--ghost" onClick={onCancel}>
@@ -459,9 +461,9 @@ export function needsPaySheet(info: battle.PlayInfo, energy: number): boolean {
 type TargetLike = { enemyTargets: battle.TargetRef[]; allyTargets: string[] };
 
 const EXTRA_LABEL: Record<battle.ExtraPayKind, (unit: number) => string> = {
-  cleave: (k) => `切除して条件を無視する（+${k}⚡）`,
-  strive: (k) => `相手モンスターを1体追加（1回+${k}⚡）`,
-  squad: (k) => `コピーを1体追加（1回+${k}⚡）`,
+  cleave: (k) => `切除して条件を無視する（エナジー+${k}）`,
+  strive: (k) => `相手モンスターを1体追加（1回 エナジー+${k}）`,
+  squad: (k) => `コピーを1体追加（1回 エナジー+${k}）`,
 };
 
 /**
@@ -546,8 +548,10 @@ export function PaySheet({
     <>
       <Sheet open title={`「${def.name}」の使い方と支払い`} onClose={onCancel} desktop="modal">
         <div className="pay-top">
-          <button type="button" className="btn btn--primary" disabled={!!plain.error} onClick={() => onDone({ ...base, done: true })} title={plain.error ?? undefined}>
-            そのまま使う（⚡{plain.b.total}）
+          {/* 金のボタンは下の「決定して使う」だけ（1画面に金は1つ）。こちらは鉄の板 */}
+          <button type="button" className="btn pay-top__plain" disabled={!!plain.error} onClick={() => onDone({ ...base, done: true })} title={plain.error ?? undefined}>
+            そのまま使う
+            <EnergyGem n={plain.b.total} size="sm" />
           </button>
           {plain.error && <span className="pay-why">{plain.error}</span>}
         </div>
@@ -558,7 +562,7 @@ export function PaySheet({
               <div className="pay-opts">
                 <button type="button" className={cx('pay-opt', !pay.alt && 'is-on')} aria-pressed={!pay.alt} onClick={() => set({ alt: undefined })}>
                   <b>ふつうに使う</b>
-                  <span className="pay-opt__cost">⚡{info.cost}</span>
+                  <EnergyGem n={info.cost} size="sm" className="pay-opt__cost" />
                 </button>
                 {pi.alts.map((x) => (
                   <button
@@ -571,7 +575,7 @@ export function PaySheet({
                   >
                     <b>{x.name}</b>
                     <small>{x.note}</small>
-                    <span className="pay-opt__cost">⚡{x.cost}</span>
+                    <EnergyGem n={x.cost} size="sm" className="pay-opt__cost" />
                     {x.blocked && <small className="pay-why">{x.blocked}</small>}
                   </button>
                 ))}
@@ -596,7 +600,7 @@ export function PaySheet({
               <h3>キッカー</h3>
               <label className="check">
                 <input type="checkbox" checked={pay.kick === true} onChange={(e) => set({ kick: e.target.checked || undefined })} />
-                キッカーを払う（+{info.kicker.extra}⚡）
+                キッカーを払う（エナジー+{info.kicker.extra}）
               </label>
               {kicked.length > 0 && (
                 <ul className="warn-list kick-list">
@@ -625,7 +629,7 @@ export function PaySheet({
                     onClick={() => set({ sacrificeUid: o.uid, tapUids: (pay.tapUids ?? []).filter((x) => x !== o.uid) })}
                   >
                     {label(o.uid)}
-                    {o.cut > 0 ? ` −${o.cut}⚡` : ''}
+                    {o.cut > 0 ? ` エナジー−${o.cut}` : ''}
                   </button>
                 ))}
               </div>
@@ -634,7 +638,7 @@ export function PaySheet({
           {pi?.tap && (
             <section className="pay-sec" aria-label="休ませる">
               <h3>
-                {pi.tap.name}：まだ攻撃できるモンスターを休ませる（{pi.tap.kind === 'convoke' ? `1体につき−1⚡・${pi.tap.max}体まで` : '1体だけ・攻撃力で安くなる'}）
+                {pi.tap.name}：まだ攻撃できるモンスターを休ませる（{pi.tap.kind === 'convoke' ? `1体につきエナジー−1・${pi.tap.max}体まで` : '1体だけ・攻撃力で安くなる'}）
               </h3>
               <div className="pay-chips">
                 {pi.tap.options.map((o) => {
@@ -648,7 +652,7 @@ export function PaySheet({
                       disabled={pay.sacrificeUid === o.uid}
                       onClick={() => set({ tapUids: toggleIn(pay.tapUids, o.uid, pi.tap!.max) })}
                     >
-                      {label(o.uid)} −{o.cut}⚡
+                      {label(o.uid)} エナジー−{o.cut}
                     </button>
                   );
                 })}
@@ -657,7 +661,7 @@ export function PaySheet({
           )}
           {delveMode && pi?.delve && (
             <section className="pay-sec" aria-label="探査">
-              <h3>探査：捨て札を除外すると1枚につき−1⚡（{pi.delve.max}枚まで）</h3>
+              <h3>探査：捨て札を除外すると1枚につきエナジー−1（{pi.delve.max}枚まで）</h3>
               <div className="crow-list pay-cards">
                 {pi.delve.order.map((uid) => {
                   const c = mine.discard.find((x) => x.uid === uid);
@@ -741,9 +745,9 @@ export function PaySheet({
         </div>
         <div className="pay-foot">
           <div className="pay-total" aria-live="polite">
-            合計 <b>⚡{total}</b>
+            合計 <EnergyGem n={total} size="btn" />
             {hp > 0 && <b className="pay-hp"> ＋ HP{hp}</b>}
-            <span className="pay-left">（残り ⚡{mine.energy}）</span>
+            <span className="pay-left">（残り {mine.energy}）</span>
             {notes && <small className="pay-notes">{notes}</small>}
           </div>
           {now.error && <p className="pay-why">{now.error}</p>}

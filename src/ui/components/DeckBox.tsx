@@ -19,9 +19,8 @@ const GEM_ORDER: Rarity[] = [...RARITIES].reverse();
 /**
  * デッキ箱の中身（DeckBox・DeckPicker で共用）。外側の要素（.dbox）の直下に並ぶ兄弟として返す。
  * - crest：絵の代わりの紋（game-icons の名前）。プリセットのデッキの紋、カードが無いときは chest
- * - meta：レアリティの宝石の数とミニのコスト分布を出すか（プリセットは中身を見せないので出さない）
  */
-export function DeckBoxFace({ s, name, crest, count, meta = true, note, ng }: { s: DeckSummary; name: string; crest?: string; count?: number; meta?: boolean; note: string; ng: boolean }) {
+export function DeckBoxFace({ s, name, crest, count, note, ng }: { s: DeckSummary; name: string; crest?: string; count?: number; note: string; ng: boolean }) {
   const max = Math.max(1, ...s.curve);
   const art = crest ?? (s.best ? null : 'chest');
   return (
@@ -37,23 +36,21 @@ export function DeckBoxFace({ s, name, crest, count, meta = true, note, ng }: { 
         {count !== undefined && <span className="dbox__count">{count}枚</span>}
       </span>
       <span className="dbox__name">{name}</span>
-      {meta && (
-        <span className="dbox__meta" aria-hidden="true">
-          <span className="dbox__gems">
-            {GEM_ORDER.filter((r) => s.gems[r] > 0).map((r) => (
-              <span key={r}>
-                <RarityGem rarity={r} />
-                {s.gems[r]}
-              </span>
-            ))}
-          </span>
-          <span className="dbox__curve">
-            {s.curve.map((n, i) => (
-              <i key={i} style={{ height: `${Math.max(2, Math.round((n / max) * 20))}px` }} />
-            ))}
-          </span>
+      <span className="dbox__meta" aria-hidden="true">
+        <span className="dbox__gems">
+          {GEM_ORDER.filter((r) => s.gems[r] > 0).map((r) => (
+            <span key={r}>
+              <RarityGem rarity={r} />
+              {s.gems[r]}
+            </span>
+          ))}
         </span>
-      )}
+        <span className="dbox__curve">
+          {s.curve.map((n, i) => (
+            <i key={i} style={{ height: `${Math.max(2, Math.round((n / max) * 20))}px` }} />
+          ))}
+        </span>
+      </span>
       <span className={cx('dbox__note', ng && 'is-ng')}>{note}</span>
       {ng && (
         <span className="dbox__seal" aria-hidden="true">

@@ -295,7 +295,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   triggerAlly: { name: '出たモンスター', icon: '✨', tone: 'info', short: '「自分のモンスターが出るたび」で、いま場に出た自分のモンスター' },
   token: {
     name: 'トークン',
-    icon: B.tokenIcon,
+    icon: B.tokenIcon, gi: 'pawn',
     tone: 'info',
     short: `効果で出る${B.tokenName}。ふつうのモンスターと同じく戦うが、場を離れると（破壊・手札に戻る）どこにも行かずに消える。1人${B.maxTokens}体まで`,
   },
@@ -360,7 +360,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   },
   exert: {
     name: '消耗',
-    icon: '😮‍💨',
+    icon: '😮‍💨', gi: 'tired-eye',
     tone: 'bad',
     short: '消耗のモンスターが攻撃すると、次の持ち主のターンは攻撃できない（自動攻撃もしない。反撃はする）',
   },
@@ -373,17 +373,17 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   // ---- MTG 要素 ○ バッチB
   equip: {
     name: '装備',
-    icon: '🗡',
+    icon: '🗡', gi: 'sword-hilt',
     tone: 'good',
     short: '装備のカードは、使い終えると選んだモンスターに付く（攻撃力の上乗せはそのまま）。モンスターが場を離れると、カードは持ち主の手札に戻る',
   },
   borrow: {
     name: '借用',
-    icon: '🤲',
+    icon: '🤲', gi: 'puppet',
     tone: 'info',
     short: '借りたモンスターはすぐ攻撃できる。借りた側のターン終了時に残りが1減り、0で元の持ち主の場に戻る（召喚酔いなし。ダメージ・強化はそのまま）',
   },
-  bounty: { name: '懸賞', icon: '💰', tone: 'info', short: '懸賞の掛かったモンスターが破壊されると、掛けたプレイヤーがカードを引く（バウンスなど破壊でなく場を離れたら消える）' },
+  bounty: { name: '懸賞', icon: '💰', gi: 'wanted-reward', tone: 'info', short: '懸賞の掛かったモンスターが破壊されると、掛けたプレイヤーがカードを引く（バウンスなど破壊でなく場を離れたら消える）' },
   quash: {
     name: '封殺',
     icon: '🚫',
@@ -395,17 +395,17 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   ramp: { name: '最大エナジー増加', icon: '🔋', tone: 'good', short: `以後ずっと、自分のターン開始時のエナジーが増える（1人${B.rampCap}回まで）` },
   army: {
     name: B.armyName,
-    icon: B.armyIcon,
+    icon: B.armyIcon, gi: 'spartan-helmet',
     tone: 'info',
     short: `動員で出るトークン。いなければ攻撃力0・体力0で出てから強くなる。1人${B.maxArmy}体まで（トークンの上限${B.maxTokens}に数える）。居住・複写召喚では写せない`,
   },
   copyToken: {
     name: '複写トークン',
-    icon: '🪞',
+    icon: '🪞', gi: 'mirror-mirror',
     tone: 'info',
     short: '新生・複写召喚・居住で出るコピー。元のカードの効果・キーワード・デメリットを持ち、召喚時の効果も出る（新生・複写召喚はトークンからは出ない）。場を離れると消える',
   },
-  tempToken: { name: '応召', icon: '⌛', tone: 'info', short: '速攻つきで出て、持ち主のターン終了時に消える（破壊ではない）' },
+  tempToken: { name: '応召', icon: '⌛', gi: 'hunting-horn', tone: 'info', short: '速攻つきで出て、持ち主のターン終了時に消える（破壊ではない）' },
   freePlay: {
     name: '無料で使う（続唱）',
     icon: '🎲',
@@ -522,31 +522,31 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     tone: 'info',
     short: 'タイミング「捨てられたとき」の効果は、効果やコスト（手札整理・ランダムに捨てる・再活の支払い・サイクリング・魂力）で手札から捨てられたときに出る。ターン終了時に手札を捨てるときは出ない',
   },
-  finality: { name: '消滅の印', icon: '⚰', tone: 'bad', short: '消滅の印のモンスターは、破壊されると捨て札ではなく除外される（蘇生・回収できない）。場を離れると印も消える' },
+  finality: { name: '消滅の印', icon: '⚰', gi: 'tombstone', tone: 'bad', short: '消滅の印のモンスターは、破壊されると捨て札ではなく除外される（蘇生・回収できない）。場を離れると印も消える' },
   suspected: {
     name: '容疑',
-    icon: '🕵',
+    icon: '🕵', gi: 'spy',
     tone: 'info',
     short: `容疑のモンスターは攻撃力+${BALANCE.effects.suspect.attack}、挑発を失い、攻撃されても反撃しない。攻撃したときは相手の反撃を受けない（場を離れるまで。封印されても残る）`,
   },
   indestructible: {
     name: '不壊',
-    icon: '🛡',
+    icon: '🛡', gi: 'diamond-hard',
     tone: 'good',
     short: '次の持ち主のターン開始まで、体力が1未満にならず、破壊の効果（接死・処刑・全体破壊・腐乱など）も効かない。生け贄・衰弱で体力0・寿命・バウンスは効く',
   },
-  protection: { name: '加護', icon: '✨', tone: 'good', short: '次の持ち主のターン開始まで、すべてのダメージを受けず、相手のカードの「選んだ1体」に選ばれない（ランダム・全体の効果は当たるがダメージは0）' },
+  protection: { name: '加護', icon: '✨', gi: 'angel-wings', tone: 'good', short: '次の持ち主のターン開始まで、すべてのダメージを受けず、相手のカードの「選んだ1体」に選ばれない（ランダム・全体の効果は当たるがダメージは0）' },
   egg: {
     name: B.eggName,
-    icon: B.eggIcon,
+    icon: B.eggIcon, gi: 'egg-clutch',
     tone: 'info',
     short: `培養で出る卵（トークン。攻撃力0）。攻撃できない（反撃はする）。${B.eggHatchTurns}回目の自分のターン開始時に孵化し、攻撃力が上がって${B.tokenName}になる`,
   },
   tempGranted: { name: '賛助のキーワード', icon: '🤝', tone: 'good', short: '賛助でこのターンだけ与えられたキーワード。ターン終了時に消える（封印中は働かない）' },
-  dormant: { name: '休眠', icon: '💤', gi: 'sleepy', tone: 'bad', short: '休眠のモンスター・パワーは1ターンおきに休む。休眠中は攻撃できず、場にいる間のタイミングの効果・起動が出ない（召喚時・破壊されたとき・反撃は普通どおり）' },
-  cumulativeUpkeep: { name: '累加維持費', icon: '⏫', tone: 'bad', short: '持ち主のターン開始時に「場にあるターン数×N」のダメージを受ける（毎ターン1ずつ増える）' },
-  withered: { name: '萎縮', icon: '🥀', tone: 'bad', short: '萎縮のダメージで、減った体力のぶん最大体力も減った（修理・回復で戻らない）' },
-  spawn: { name: '落とし子', icon: '⚡', tone: 'info', short: '落とし子のトークンが破壊されると、持ち主のエナジー+1（自分のターンならこのターン、相手のターンなら次のターン）' },
+  dormant: { name: '休眠', icon: '💤', gi: 'night-sleep', tone: 'bad', short: '休眠のモンスター・パワーは1ターンおきに休む。休眠中は攻撃できず、場にいる間のタイミングの効果・起動が出ない（召喚時・破壊されたとき・反撃は普通どおり）' },
+  cumulativeUpkeep: { name: '累加維持費', icon: '⏫', gi: 'coins-pile', tone: 'bad', short: '持ち主のターン開始時に「場にあるターン数×N」のダメージを受ける（毎ターン1ずつ増える）' },
+  withered: { name: '萎縮', icon: '🥀', gi: 'dead-wood', tone: 'bad', short: '萎縮のダメージで、減った体力のぶん最大体力も減った（修理・回復で戻らない）' },
+  spawn: { name: '落とし子', icon: '⚡', gi: 'tentacle-strike', tone: 'info', short: '落とし子のトークンが破壊されると、持ち主のエナジー+1（自分のターンならこのターン、相手のターンなら次のターン）' },
   exp: { name: '経験', icon: '🎖', tone: 'good', short: `試合中ずっと残る数（最大${B.expCap}）。修飾「経験1につき」の数値が大きくなる（最大${BALANCE.modifierParams.expCountCap}）` },
   ice: {
     name: '氷結',
@@ -554,7 +554,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     tone: 'bad',
     short: `次の自分のターン開始時（引いた後）に、手札（ノイズ以外）からランダムにこの枚数が凍り、そのターンは使えない（サイクリング・魂力も不可。合計${B.iceCap}まで。浄化で消える）`,
   },
-  perpetual: { name: '永久強化', icon: '♾', tone: 'good', short: 'この試合のあいだ、このカードの攻撃力と体力が上がっている（山札・捨て札・除外を巡っても残る）' },
+  perpetual: { name: '永久強化', icon: '♾', gi: 'infinity', tone: 'good', short: 'この試合のあいだ、このカードの攻撃力と体力が上がっている（山札・捨て札・除外を巡っても残る）' },
   // ---- MTG 要素 △ バッチB
   payment: {
     name: '支払いのシート',
@@ -563,8 +563,8 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     short:
       'カードの能力に追加の支払い（放題・切除・奮励・分隊・キッカー）、代わりの使い方（試作・想起・超過・解鎖）、差し出すもの（現出・犠牲・協約）、払い方（召集・探査・代替コスト・血の支払い）があるカードは、場に落とすと支払いのシートが出る。何も選ばずに使うこともできる。合計のコストはシートに出る',
   },
-  prototype: { name: '試作版', icon: '🔧', tone: 'info', short: '能力「試作」で安く出したモンスター。攻撃力・体力が半分（キーワード・効果はそのまま）。場を離れたら元に戻る' },
-  unleashed: { name: '解鎖', icon: '⛓', tone: 'info', short: '能力「解鎖」で攻撃力を上げて出したモンスター。攻撃されても反撃しない（自分から攻撃したときの相手の反撃は受ける）' },
+  prototype: { name: '試作版', icon: '🔧', gi: 'gear-hammer', tone: 'info', short: '能力「試作」で安く出したモンスター。攻撃力・体力が半分（キーワード・効果はそのまま）。場を離れたら元に戻る' },
+  unleashed: { name: '解鎖', icon: '⛓', gi: 'unlocking', tone: 'info', short: '能力「解鎖」で攻撃力を上げて出したモンスター。攻撃されても反撃しない（自分から攻撃したときの相手の反撃は受ける）' },
   unearthed: { name: '一時蘇生', icon: '🧟', gi: 'raise-zombie', tone: 'bad', short: '能力「一時蘇生」で捨て札から出したモンスター。速攻を持ち、持ち主のターン終了時に除外される（場を離れても除外）' },
   villain: {
     name: '最悪の二択',
@@ -587,13 +587,13 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   },
   achieve: {
     name: '達成（事件・進化）',
-    icon: '🔍',
+    icon: '🔍', gi: 'laurels',
     tone: 'good',
     short: '能力「事件」（パワー）・「進化」（モンスター）は、持ち主のターン終了時に達成条件を満たしていれば達成する（1回きり・相手にも見える）。以後「達成していれば」の効果が働き、「達成したとき」の効果が出る',
   },
   level: {
     name: 'Lv',
-    icon: '⬆',
+    icon: '⬆', gi: 'level-three',
     tone: 'good',
     short: `能力「Lvアップ」のカードは、自分のターンにエナジーを払って Lv を1上げる（Lv${B.maxLevel}まで・1ターン1回）。カードの「Lv」のボタンか、⬆ をドラッグして使う`,
   },
@@ -605,7 +605,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   },
   faceDown: {
     name: '裏向きのモンスター',
-    icon: B.faceDownIcon,
+    icon: B.faceDownIcon, gi: 'domino-mask',
     tone: 'info',
     short: `変装・予示で裏向きに出たモンスター。名前・効果・キーワードがなく、攻撃力${B.faceDownStats}・体力${B.faceDownStats}・護法${B.faceDownWard}（変装）。正体は持ち主にだけ見える。自分のターンにエナジーを払って表にでき（「表になったとき」の効果）、受けていたダメージは残る。場を離れると正体が公開される`,
   },
@@ -635,7 +635,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   },
   siege: {
     name: B.siegeName,
-    icon: B.siegeIcon,
+    icon: B.siegeIcon, gi: 'castle',
     tone: 'info',
     short: `効果「砦を築く」で相手の場に置かれる${B.siegeName}（攻撃力0。攻撃も反撃もせず、挑発もない）。破壊されると、築いた側の「砦を落としたとき」の効果が出る。バウンス・奪取では報酬なしで消える`,
   },

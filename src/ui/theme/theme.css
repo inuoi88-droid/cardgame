@@ -10,11 +10,16 @@
   font-display: swap;
   src: url('./fonts/ui-mincho.woff2') format('woff2');
 }
-/* 読み込むまで・字が無いときの代わり（端末の明朝の太いもの） */
+/* 読み込むまで・字が無いときの代わり（端末の明朝の太いもの）。行の高さを UI Mincho（Shippori Mincho B1 800：
+   ascent 1160・descent 288／1000）に合わせて、読み込み後に見出しやボタンの高さが跳ねないようにする */
 @font-face {
   font-family: 'UI Mincho Fallback';
   font-style: normal;
   font-weight: 600 900;
+  size-adjust: 100%;
+  ascent-override: 116%;
+  descent-override: 28.8%;
+  line-gap-override: 0%;
   src: local('Hiragino Mincho ProN W6'), local('HiraMinProN-W6'), local('Yu Mincho Demibold'), local('YuMincho-Demibold'), local('Noto Serif CJK JP Bold'), local('NotoSerifCJKjp-Bold'), local('Noto Serif JP Bold');
 }
 :root {

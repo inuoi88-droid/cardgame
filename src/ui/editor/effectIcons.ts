@@ -30,9 +30,9 @@ export const EFFECT_ICON: Record<string, string> = {
   // ダメージ系
   damage: 'explosion-rays',
   counter: 'riposte',
-  execute: 'guillotine',
+  execute: 'executioner-hood',
   fight: 'fist',
-  multiHit: 'sword-spin',
+  multiHit: 'thrown-daggers',
   // 防御・回復系
   cleanse: 'water-splash',
   guard: 'guarded-tower',

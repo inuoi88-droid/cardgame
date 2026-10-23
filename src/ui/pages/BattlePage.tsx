@@ -9,6 +9,7 @@ import { BattleBoard } from '../battle/BattleBoard.tsx';
 import { CPU_PORTRAIT } from '../battle/portraits.ts';
 import { CPU, HUMAN, clearSession, loadSession, saveSession, sessionLevel, startSession, type BattleSession } from '../battle/session.ts';
 import { navigate } from '../router.ts';
+import { UiIcon } from '../components/UiIcon.tsx';
 
 /** 演出を見せ終えてから CPU が次の手を打つまでの間（ミリ秒） */
 const CPU_THINK = 280;
@@ -94,7 +95,11 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
       onReplayDone={onReplayDone}
       menuItems={
         <button type="button" className="btn" onClick={() => navigate('/battle')}>
-          中断して準備画面へ（続きから再開できます）
+          <UiIcon name="gi:exit-door" />
+          <span className="menu-list__text">
+            中断して準備画面へ
+            <small>続きから再開できます</small>
+          </span>
         </button>
       }
       resultButtons={

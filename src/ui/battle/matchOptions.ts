@@ -17,11 +17,11 @@ export function isLeaderChoice(x: unknown): x is LeaderChoice {
 export function leaderOptions(allowRandom = false): PickOption[] {
   const list: PickOption[] = LEADER_IDS.map((id) => ({
     id,
-    label: id === 'none' ? 'なし' : `${LEADERS[id].icon} ${LEADERS[id].name}`,
+    label: id === 'none' ? 'なし' : LEADERS[id].name,
     description: LEADERS[id].description,
     ...(id === 'none' ? { pinned: true } : {}),
   }));
-  if (allowRandom) list.unshift({ id: RANDOM_LEADER, label: '🎲 おまかせ', description: '対戦の開始時に、なし以外からランダムに決める', pinned: true });
+  if (allowRandom) list.unshift({ id: RANDOM_LEADER, label: 'おまかせ', description: '対戦の開始時に、なし以外からランダムに決める', pinned: true });
   return list;
 }
 

@@ -15,6 +15,14 @@ export const PRESET_GI: Record<string, string> = {
   fortress: 'stone-tower',
   clockwork: 'gears',
 };
+/** プリセットのデッキの持ち味（デッキ箱の1行の注記。CLAUDE.md の「毒・モンスター・呪い・守り・コンボ」） */
+export const PRESET_THEME: Record<string, string> = {
+  poison: '毒でじわじわ削る',
+  beasts: 'モンスターで速攻',
+  curses: '呪いで押し込む',
+  fortress: '挑発で守り切る',
+  clockwork: '手数のコンボ',
+};
 export const RANDOM_GI = 'perspective-dice-six-faces-random';
 export const ME_PORTRAIT = 'visored-helm';
 export const ONLINE_OPP_PORTRAIT = 'closed-barbute';

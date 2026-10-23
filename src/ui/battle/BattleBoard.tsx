@@ -1492,9 +1492,9 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
         <MatchBand view={view} flash={replay.flash} />
         <div className="battle__status">{status}</div>
         <div className="battle__headbtns">
-          <button type="button" className="btn btn--small btn--ghost battle__logbtn" onClick={() => setLogOpen(true)}>
+          <button type="button" className="btn btn--small btn--ghost battle__logbtn" aria-label="ログ" onClick={() => setLogOpen(true)}>
             <UiIcon name="gi:scroll-unfurled" />
-            ログ
+            <span className="battle__logtext">ログ</span>
           </button>
           <button type="button" className="btn btn--small btn--ghost btn--icon" aria-label="メニュー" onClick={() => setMenuOpen(true)}>
             <UiIcon name="gi:cog" />

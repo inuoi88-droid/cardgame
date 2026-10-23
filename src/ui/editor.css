@@ -1671,10 +1671,15 @@
   color: var(--text);
 }
 .mode-seg__btn.is-on {
-  color: #fff;
-  background: var(--u-sap-fill) padding-box, var(--u-rim-sapphire) border-box;
-  text-shadow: 0 1px 0 rgba(0, 20, 60, 0.8);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  color: var(--u-ink);
+  font-weight: bold;
+  background:
+    linear-gradient(180deg, rgba(111, 160, 255, 0.16), transparent 70%) padding-box,
+    linear-gradient(180deg, #1d2a4f, #121a35) padding-box,
+    var(--u-rim-sapphire) border-box;
+  box-shadow:
+    inset 0 0 8px rgba(111, 160, 255, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 .ed-row__mode-note {
   flex-basis: 100%;

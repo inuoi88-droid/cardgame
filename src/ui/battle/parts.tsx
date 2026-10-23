@@ -320,7 +320,7 @@ export function PlayerPanel({
     if ((ps.ice ?? 0) > 0) badges.push({ id: 'ice', label: `${M.ice!.icon}${ps.ice}`, tone: 'bad', title: `氷結${ps.ice}` });
     // リーダーはいちばん後ろ（空きがあれば出る）
     const leaderId = toLeaderId(ps.leader);
-    if (leaderId !== 'none') badges.push({ id: 'leader', label: LEADERS[leaderId].icon, tone: 'info', title: `リーダー：${LEADERS[leaderId].name}` });
+    if (leaderId !== 'none') badges.push({ id: 'leader', label: '', gi: LEADERS[leaderId].art.replace(/^gi:/, ''), tone: 'info', title: `リーダー：${LEADERS[leaderId].name}` });
     // 帯に出さないもの（詳細だけ）も「+N」に数える
     const hiddenExtras =
       (ps.emblems?.length ?? 0) +
@@ -455,7 +455,7 @@ export function PlayerPanel({
         {hasCrown && (
           <Popover content={{ title: `${mechanicGlossary.crown!.icon} 王冠`, description: mechanicGlossary.crown!.short }} placement="bottom">
             <span className="pp__crown" data-fx={`crown:${isMe ? 'me' : 'opp'}`} aria-label="王冠を持っている">
-              {mechanicGlossary.crown!.icon}
+              <UiIcon name={`gi:${mechanicGlossary.crown!.gi!}`} />
             </span>
           </Popover>
         )}
@@ -575,7 +575,8 @@ export function PlayerPanel({
         {ps.quash && (
           <Popover content={{ title: `${mechanicGlossary.quash!.icon} 封殺（${QUASH_KIND[ps.quash.kind] ?? 'カード'}）`, description: mechanicGlossary.quash!.short }} placement="top">
             <span className="pp__next pp__quash">
-              {mechanicGlossary.quash!.icon}封殺（{QUASH_KIND[ps.quash.kind] ?? 'カード'}）
+              <ChipIcon gi={mechanicGlossary.quash!.gi!} />
+              封殺（{QUASH_KIND[ps.quash.kind] ?? 'カード'}）
             </span>
           </Popover>
         )}
@@ -764,7 +765,7 @@ export function SpeedGauge({ speed }: { speed: number }) {
   return (
     <Popover content={{ title: `${g.icon} 速度 ${speed}/${max}${speed >= max ? '（最高速度）' : ''}`, description: g.short }} placement="top">
       <span className={cx('speed', speed >= max && 'is-max')} aria-label={`速度${speed}/${max}`}>
-        {g.icon}
+        <ChipIcon gi={g.gi!} />
         <span className="speed__bar" aria-hidden="true">
           {Array.from({ length: max }, (_, i) => (
             <i key={i} className={cx('speed__tick', i < speed && 'is-on')} />

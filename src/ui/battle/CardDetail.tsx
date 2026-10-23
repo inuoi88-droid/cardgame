@@ -87,7 +87,12 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
             <h3>いまの状態</h3>
             <dl className="cdetail__stats">
               <div>
-                <dt>⚔ 攻撃力</dt>
+                <dt>
+                  <svg className="cdetail__emb" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                    <use href="#emb-atk-mini" />
+                  </svg>
+                  攻撃力
+                </dt>
                 <dd>
                   {attackOf(m, extras.attackNow)}
                   {diff(attackOf(m, extras.attackNow), def.stats.attack) && (
@@ -96,14 +101,24 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
                 </dd>
               </div>
               <div>
-                <dt>❤ 体力</dt>
+                <dt>
+                  <svg className="cdetail__emb" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                    <use href="#emb-hp" />
+                  </svg>
+                  体力
+                </dt>
                 <dd>
                   {m.hp}
                   <small>/{m.maxHp}</small>
                 </dd>
               </div>
               <div>
-                <dt>🛡 守備力</dt>
+                <dt>
+                  <svg className="cdetail__emb" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                    <use href="#emb-def" />
+                  </svg>
+                  守備力
+                </dt>
                 <dd>
                   {m.defense}
                   {diff(m.defense, def.stats.defense) && <small className={m.defense > def.stats.defense ? 'is-up' : 'is-down'}>{diff(m.defense, def.stats.defense)}</small>}

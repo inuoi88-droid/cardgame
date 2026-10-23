@@ -92,10 +92,11 @@
   "megaphone": "キーワード：後援",
   "sands-of-time": "寿命",
   "crown": "王冠",
-  "explosion-rays": "ログ：ダメージ / エディター：効果の見出し（ダメージ系）",
+  "checkered-flag": "速度",
+  "explosion-rays": "ログ：ダメージ・エディター：効果の見出し（ダメージ系。同じ意味）",
   "heart-plus": "ログ：回復",
-  "magic-palm": "ログ：カードを使った / エディター：効果の見出し（妨害系）",
-  "sparkles": "ログ：場に出た / エディター：効果の見出し（レアリティ限定）",
+  "magic-palm": "ログ：カードを使った",
+  "sparkles": "ログ：場に出た",
   "skull-crack": "ログ：破壊",
   "crystal-growth": "ログ：エナジー",
   "crystal-shine": "ログ：状態を与えた",
@@ -109,6 +110,8 @@
   "bubbling-flask": "エディター：効果の見出し（状態異常）",
   "biceps": "エディター：効果の見出し（強化系）",
   "card-exchange": "エディター：効果の見出し（リソース系）",
+  "manacles": "エディター：効果の見出し（妨害系）",
+  "cut-diamond": "エディター：効果の見出し（レアリティ限定）",
   "rune-stone": "エディター：カードの能力",
   "rune-sword": "エディター：キーワード"
 }

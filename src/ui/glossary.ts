@@ -474,6 +474,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   speed: {
     name: '速度',
     icon: '🏁',
+    gi: 'checkered-flag',
     tone: 'good',
     short: `「エンジン始動」で速度${BALANCE.speed.start}から始まり、自分のターンに相手のHPを減らすと1ターン1回+1（最大${BALANCE.speed.max}。下がらない・浄化でも消えない）。最大なら条件「速度が最大」が満たされる`,
   },

@@ -2196,7 +2196,7 @@ button.lt-card:focus-visible {
   font-size: 13px;
   font-weight: 600;
 }
-/* デッキ箱のタイル（DeckPicker.tsx） */
+/* デッキ箱のタイル（DeckPicker.tsx）。中身と板は デッキ一覧と同じ .dbox（pages/pages.css）。ここは並べ方とラジオの状態だけ */
 .dpicks {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -2206,24 +2206,9 @@ button.lt-card:focus-visible {
   list-style: none;
 }
 .dpick {
-  position: relative;
-  display: grid;
-  gap: 6px;
-  min-width: 0;
   height: 100%;
-  padding: 10px 10px 9px;
-  border: 1.5px solid transparent;
-  border-radius: 7px;
-  color: var(--u-ink);
+  align-content: start;
   cursor: pointer;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 40%) padding-box,
-    linear-gradient(180deg, #232840, #12162a) padding-box,
-    var(--u-rim-iron) border-box;
-  box-shadow:
-    var(--u-chamfer),
-    0 2px 0 rgba(0, 0, 0, 0.55);
-  transition: transform var(--dur-fast);
 }
 .dpick:hover {
   filter: brightness(1.08);
@@ -2246,139 +2231,10 @@ button.lt-card:focus-visible {
 .dpick.is-ng {
   cursor: not-allowed;
 }
-.dpick.is-ng > .dpick__art,
-.dpick.is-ng > .dpick__name,
-.dpick.is-ng > .dpick__meta {
-  filter: saturate(0.45) brightness(0.7);
-}
-.dpick__art {
-  position: relative;
-  display: grid;
-  place-items: center;
-  height: 76px;
-  border-radius: 4px;
-  overflow: hidden;
-  background: radial-gradient(ellipse at 50% 30%, #2b3150, #0b0d18 80%);
-  box-shadow:
-    inset 0 0 0 1px #000,
-    inset 0 2px 0 rgba(0, 0, 0, 0.5);
-}
-.dpick__art .cart {
-  --cart-size: 60px;
-}
-/* プリセットの紋：肖像と同じ丸い鉄の台座に鉄銀の線画 */
-.dpick__crest {
-  display: grid;
-  place-items: center;
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  color: #d5dae3;
-  background: radial-gradient(circle at 50% 35%, #31384f, #0b0d18 75%);
-  box-shadow:
-    0 0 0 2px #0b0d18,
-    0 0 0 3.5px #5c6474;
-}
-.dpick.is-selected .dpick__crest {
+.dpick.is-selected .dbox__crest {
   box-shadow:
     0 0 0 2px #0b0d18,
     0 0 0 3.5px #6fa6f5;
-}
-.dpick__crest > .gi {
-  width: 36px;
-  height: 36px;
-}
-.dpick__count {
-  position: absolute;
-  right: 5px;
-  bottom: 3px;
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--u-ink-2);
-  text-shadow: 0 1px 0 #000;
-}
-/* 銘板：人が入力したデッキ名なので --font-title（カードの名前と同じ書体） */
-.dpick__name {
-  display: block;
-  padding: 3px 6px;
-  border-radius: 3px;
-  font-family: var(--u-font-name);
-  font-weight: 700;
-  font-size: 15px;
-  line-height: 1.25;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  background: linear-gradient(180deg, #0a0c16, #161a2c);
-  box-shadow: inset 0 0 0 1px rgba(154, 162, 178, 0.35);
-}
-.dpick__meta {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 6px;
-  min-height: 22px;
-}
-.dpick__gems {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 6px;
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--u-ink-2);
-  font-variant-numeric: tabular-nums;
-}
-.dpick__gems > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-/* ミニのコスト分布：平らな鉄の柱に上辺の光だけ */
-.dpick__curve {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 20px;
-  flex: none;
-}
-.dpick__curve > i {
-  width: 6px;
-  min-height: 2px;
-  border-radius: 1px 1px 0 0;
-  background: linear-gradient(180deg, #c3c9d4 0 2px, #7d8595 2px);
-}
-.dpick__note {
-  font-size: 12px;
-  color: var(--u-ink-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.dpick__note.is-ng {
-  color: #ffb0bc;
-}
-/* 要修正：深紅の封蝋（絵の左下に小さく押す。絵は隠さない） */
-.dpick__seal {
-  position: absolute;
-  top: 54px;
-  left: 6px;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  transform: rotate(-10deg);
-  color: #ffe6ea;
-  font-weight: 900;
-  font-size: 12px;
-  line-height: 1.1;
-  text-align: center;
-  background: radial-gradient(circle at 40% 35%, #e0566f, #9b1c35 55%, #5a0b1d);
-  box-shadow:
-    0 0 0 3px rgba(90, 11, 29, 0.6),
-    0 2px 0 rgba(0, 0, 0, 0.6),
-    inset 0 0 0 2px rgba(255, 170, 185, 0.35);
 }
 /* スマホ：デッキ箱は横に流す1列（使えるものが先、要修正は最後） */
 @media (max-width: 600px) {
@@ -2394,23 +2250,6 @@ button.lt-card:focus-visible {
   .dpicks > li {
     flex: 0 0 136px;
     scroll-snap-align: start;
-  }
-  .dpick__art {
-    height: 64px;
-  }
-  .dpick__art .cart {
-    --cart-size: 50px;
-  }
-  .dpick__crest {
-    width: 50px;
-    height: 50px;
-  }
-  .dpick__crest > .gi {
-    width: 30px;
-    height: 30px;
-  }
-  .dpick__seal {
-    top: 42px;
   }
 }
 /* メダル（Medal.tsx）：丸い鉄の台座。選ぶとサファイアの縁と光。強さは形＋菱形の数 */
@@ -3107,9 +2946,10 @@ button.lt-card:focus-visible {
   font-size: var(--fs-xs);
   font-weight: bold;
   line-height: 1.6;
-  padding: 1px 10px;
-  border-radius: var(--radius-pill);
-  background: var(--panel-3);
+  padding: 1px 8px;
+  /* 押せない札＝刻印（UI2 4章）：角 3px・暗い地・影なし */
+  border-radius: var(--radius-xs);
+  background: linear-gradient(180deg, #0a0c16, #141829);
   border: 1px solid var(--line-strong);
   color: var(--text);
 }
@@ -3161,12 +3001,24 @@ button.lt-card:focus-visible {
 .cdetail__stats > div {
   padding: 6px;
   text-align: center;
-  background: var(--panel-2);
   border-radius: var(--radius-sm);
+  /* 井戸（はめ込み）：上が暗く、上の縁は暗く下の縁は明るい（UI2 1章） */
+  background: linear-gradient(180deg, #06070e, #0e1121);
+  box-shadow:
+    inset 0 1px 0 rgba(0, 0, 0, 0.6),
+    0 1px 0 rgba(255, 255, 255, 0.06);
 }
 .cdetail__stats dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--fs-xs);
   color: var(--muted);
+}
+.cdetail__emb {
+  width: 18px;
+  height: 18px;
+  flex: none;
 }
 .cdetail__stats dd {
   margin: 0;
@@ -3516,8 +3368,11 @@ button.lt-card:focus-visible {
 
 /* 王冠・速度ゲージ・種族タグ・パワーの章と蓄積（MTG 要素 ○ バッチC2） */
 .pp__crown {
-  font-size: 1.05rem;
+  display: inline-flex;
+  font-size: 1.15rem;
   line-height: 1;
+  /* 王冠は物としての金（ボタンの金の数え方には入れない） */
+  color: #f2c75c;
   filter: drop-shadow(0 0 4px rgba(246, 196, 69, 0.6));
 }
 .speed {
@@ -3525,7 +3380,7 @@ button.lt-card:focus-visible {
   align-items: center;
   gap: 4px;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-xs);
   background: var(--panel-3);
   font-size: 0.78rem;
 }
@@ -3719,7 +3574,7 @@ button.lt-card:focus-visible {
 .mode-opt__extra {
   margin-left: 6px;
   padding: 0 6px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-xs);
   background: #ffd85c;
   color: #2b1d00;
   font-weight: 700;

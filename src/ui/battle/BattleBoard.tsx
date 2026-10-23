@@ -1236,7 +1236,8 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
                     setSel({ kind: 'attacker', uid: m.uid });
                   }}
                 >
-                  ⚔ 攻撃する
+                  <UiIcon name="gi:sword-clash" />
+                  攻撃する
                 </button>
                 {reason && <span className="cdetail__why">{reason}</span>}
                 {acts.map((a) => (

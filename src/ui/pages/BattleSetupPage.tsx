@@ -1,6 +1,6 @@
 /** 対戦の準備：自分のデッキと CPU のデッキを選んで開始。選んだデッキの中身（種類・コストの内訳とカード）を見せ、前回の選択を覚える */
 import { useMemo, useState } from 'react';
-import { ai, LEADERS, type CardDef, type PlanarMode } from '../../engine/index.ts';
+import { ai, type CardDef, type PlanarMode } from '../../engine/index.ts';
 import { PRESET_DECKS } from '../../presets.ts';
 import { CardView } from '../components/CardView.tsx';
 import { CardArtOf } from '../components/CardArt.tsx';
@@ -201,7 +201,7 @@ export function BattleSetupPage() {
       <section className="panel">
         <details className="setup__fold setup__fold--top">
           <summary>リーダーと対戦のルール（どれも選ばなくても遊べます）</summary>
-          <p className="hint">リーダーの{LEADERS.knight.icon}騎士などは対戦のあいだずっと効く小さな効果です。</p>
+          <p className="hint">リーダーの騎士などは対戦のあいだずっと効く小さな効果です。</p>
           <div className="setup__leaders">
             <LeaderField label="あなたのリーダー" title="あなたのリーダー" value={myLeader} onChange={setMyLeader} id="setup-my-leader" />
             <LeaderField label="CPU のリーダー" title="CPU のリーダー" value={cpuLeader} onChange={setCpuLeader} allowRandom id="setup-cpu-leader" />

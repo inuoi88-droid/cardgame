@@ -16,8 +16,8 @@ export const GROUP_GI: Record<EffectGroup, string> = {
   status: 'bubbling-flask',
   buff: 'biceps',
   resource: 'card-exchange',
-  disrupt: 'magic-palm',
-  special: 'sparkles',
+  disrupt: 'manacles',
+  special: 'cut-diamond',
 };
 
 /** デメリット・カードの能力・キーワードの形（同梱） */
@@ -115,7 +115,7 @@ export const EFFECT_ICON: Record<string, string> = {
   wipe: 'mushroom-cloud',
   // 妨害系
   bounce: 'shield-bounces',
-  dispel: 'magic-palm',
+  dispel: 'magic-broom',
   drawJam: 'interdiction',
   energyJam: 'lightning-dissipation',
   exileMill: 'vortex',

@@ -1,5 +1,6 @@
 /** 対戦のオプション（MTG 要素 △ バッチD）の入力欄：リーダー（選択パネル）・次元・昼と夜。CPU 戦の準備画面とオンラインのロビーで共用 */
 import type { PlanarMode } from '../../engine/index.ts';
+import { UiIcon } from '../components/UiIcon.tsx';
 import { OptionPicker } from '../editor/OptionPicker.tsx';
 import { cx } from '../util.ts';
 import { PLANAR_CHOICES, leaderOptions, type LeaderChoice } from './matchOptions.ts';
@@ -37,7 +38,10 @@ export function RulesFields({ field, dayNight, onField, onDayNight, name }: { fi
       <label className={cx('choice', 'match-opt__daynight', dayNight && 'is-active')}>
         <input type="checkbox" checked={dayNight} onChange={(e) => onDayNight(e.target.checked)} />
         <span>
-          <b>☀🌙 昼と夜</b>
+          <b>
+            <UiIcon name="gi:sun" />
+            <UiIcon name="gi:moon" /> 昼と夜
+          </b>
           <small>昼で始まり、カードの使い方で昼と夜が入れ替わる（オフでも「昼なら／夜なら」のカードが出たら始まる）</small>
         </span>
       </label>

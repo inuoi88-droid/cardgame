@@ -7,6 +7,8 @@ import { CardArtOf } from '../components/CardArt.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { Modal } from '../components/controls.tsx';
 import { DeckPicker } from '../battle/DeckPicker.tsx';
+import { MedalGroup } from '../battle/Medal.tsx';
+import { CPU_PIPS, CPU_PORTRAIT, presetGi, RANDOM_GI } from '../battle/portraits.ts';
 import { pickChoice, useDeckChoices } from '../battle/deckChoices.ts';
 import { clearSession, loadSession, loadSetupPrefs, saveSetupPrefs, sessionLevel, startSession } from '../battle/session.ts';
 import { breakdownDeck } from '../battle/summary.ts';
@@ -15,7 +17,6 @@ import { rulesSummary, toRules, type LeaderChoice } from '../battle/matchOptions
 import { CostCurve } from '../components/CostCurve.tsx';
 import '../battle/battle.css';
 import { navigate } from '../router.ts';
-import { cx } from '../util.ts';
 import type { Deck } from '../../engine/index.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
 
@@ -136,16 +137,20 @@ export function BattleSetupPage() {
             対戦の途中です（{ongoing.setup.myDeckName} 対 {ongoing.setup.cpuDeckName}・強さ {ai.CPU_LEVEL_LABEL[sessionLevel(ongoing)]}・{rulesSummary(ongoing.state.rules)}・あなたの
             {ongoing.state.players[0].turnsTaken}ターン目）
           </span>
-          <button type="button" className="btn btn--primary" onClick={() => navigate('/battle/play')}>
+          {/* 金はこの画面の「対戦開始」だけ（UI2）。再開はサファイアの縁の小さな主ボタン */}
+          <button type="button" className="btn btn--primary btn--small" onClick={() => navigate('/battle/play')}>
             続きから再開
           </button>
-          <button type="button" className="btn btn--danger" onClick={() => void discard()}>
+          <button type="button" className="btn btn--danger btn--small" onClick={() => void discard()}>
             途中の対戦を破棄
           </button>
         </div>
       )}
       <section className="panel">
-        <h2>あなたのデッキ</h2>
+        <div className="setup__sechead">
+          <h2>あなたのデッキ</h2>
+          <small>{myChoices.filter((c) => c.valid).length}つ使えます</small>
+        </div>
         {!hasOwnDeck && (
           <p className="hint">
             自分のデッキはまだありません。プリセットで遊べます。
@@ -162,50 +167,58 @@ export function BattleSetupPage() {
             setError(null);
           }}
         />
-        {selected && <DeckContents deck={selected.deck} cards={selected.cards} onCard={setZoom} />}
+        {selected && (
+          <details className="setup__fold">
+            <summary>選んだデッキの中身を見る（{selected.deck.entries.reduce((n, e) => n + e.count, 0)}枚）</summary>
+            <DeckContents deck={selected.deck} cards={selected.cards} onCard={setZoom} />
+          </details>
+        )}
       </section>
+      <div className="setup__pair">
+        <section className="panel">
+          <h2>CPU のデッキ</h2>
+          <MedalGroup
+            label="CPU のデッキ"
+            name="cpu"
+            value={cpu}
+            onChange={setCpu}
+            options={[{ id: 'random', label: 'ランダム', gi: RANDOM_GI }, ...PRESET_DECKS.map((p) => ({ id: p.id, label: p.name, gi: presetGi(p.id), isName: true }))]}
+          />
+          <p className="setup__hint">{cpuPreset ? cpuPreset.description : `${PRESET_DECKS.length}つのプリセットからランダムに選ぶ`}</p>
+          {cpuPreset && (
+            <details className="setup__fold">
+              <summary>CPU のデッキの中身を見る</summary>
+              <DeckContents deck={cpuPreset.deck} cards={cpuPreset.cards} onCard={setZoom} />
+            </details>
+          )}
+        </section>
+        <section className="panel">
+          <h2>CPU の強さ</h2>
+          <MedalGroup label="CPU の強さ" name="level" value={level} onChange={setLevel} options={ai.CPU_LEVELS.map((l) => ({ id: l, label: ai.CPU_LEVEL_LABEL[l], gi: CPU_PORTRAIT[l], pips: CPU_PIPS[l] }))} />
+          <p className="setup__hint">{LEVEL_HINT[level]}</p>
+        </section>
+      </div>
       <section className="panel">
-        <h2>CPU のデッキ</h2>
-        <div className="choice-list">
-          {[{ id: 'random', name: 'ランダム', description: `${PRESET_DECKS.length}つのプリセットからランダムに選ぶ` }, ...PRESET_DECKS].map((p) => (
-            <label key={p.id} className={cx('choice', cpu === p.id && 'is-active')}>
-              <input type="radio" name="cpu" checked={cpu === p.id} onChange={() => setCpu(p.id)} />
-              <span>
-                <b>{p.name}</b>
-                <small>{p.description}</small>
-              </span>
-            </label>
-          ))}
-        </div>
-        {cpuPreset && <DeckContents deck={cpuPreset.deck} cards={cpuPreset.cards} onCard={setZoom} />}
-      </section>
-      <section className="panel">
-        <h2>CPU の強さ</h2>
-        <div className="choice-list choice-list--row" role="radiogroup" aria-label="CPU の強さ">
-          {ai.CPU_LEVELS.map((l) => (
-            <label key={l} className={cx('choice', level === l && 'is-active')}>
-              <input type="radio" name="level" checked={level === l} onChange={() => setLevel(l)} />
-              <span>
-                <b>{ai.CPU_LEVEL_LABEL[l]}</b>
-                <small>{LEVEL_HINT[l]}</small>
-              </span>
-            </label>
-          ))}
-        </div>
-      </section>
-      <section className="panel">
-        <h2>リーダーと対戦のルール</h2>
-        <p className="hint">どれも選ばなくても遊べます。リーダーの{LEADERS.knight.icon}騎士などは対戦のあいだずっと効く小さな効果です。</p>
-        <div className="setup__leaders">
-          <LeaderField label="あなたのリーダー" title="あなたのリーダー" value={myLeader} onChange={setMyLeader} id="setup-my-leader" />
-          <LeaderField label="CPU のリーダー" title="CPU のリーダー" value={cpuLeader} onChange={setCpuLeader} allowRandom id="setup-cpu-leader" />
-        </div>
-        <RulesFields field={field} dayNight={dayNight} onField={setField} onDayNight={setDayNight} name="setup" />
+        <details className="setup__fold setup__fold--top">
+          <summary>リーダーと対戦のルール（どれも選ばなくても遊べます）</summary>
+          <p className="hint">リーダーの{LEADERS.knight.icon}騎士などは対戦のあいだずっと効く小さな効果です。</p>
+          <div className="setup__leaders">
+            <LeaderField label="あなたのリーダー" title="あなたのリーダー" value={myLeader} onChange={setMyLeader} id="setup-my-leader" />
+            <LeaderField label="CPU のリーダー" title="CPU のリーダー" value={cpuLeader} onChange={setCpuLeader} allowRandom id="setup-cpu-leader" />
+          </div>
+          <RulesFields field={field} dayNight={dayNight} onField={setField} onDayNight={setDayNight} name="setup" />
+        </details>
       </section>
       {error && <div className="notice notice--ng">{error}</div>}
-      <div className="btn-row">
+      {/* 下に固定した金の「対戦開始」（この画面の金の主役は1つだけ）と、だれ対だれの要約 */}
+      <div className="setup__startbar">
+        <span className="setup__sum">
+          <b>{selected?.name ?? '—'}</b> 対 <b>{cpuPreset?.name ?? 'ランダム'}</b>
+          <br />
+          強さ {ai.CPU_LEVEL_LABEL[level]}・先攻後攻はランダム{toRules(field, dayNight) ? `・${rulesSummary(toRules(field, dayNight))}` : ''}
+        </span>
         <button type="button" className="btn btn--primary btn--big" disabled={!selected?.valid} onClick={() => void start()}>
-          対戦開始（先攻・後攻はランダム）
+          対戦開始
         </button>
       </div>
       {zoom && (

@@ -4,6 +4,8 @@ import { BALANCE, LEADERS, battle } from '../../engine/index.ts';
 import { rulesSummary } from '../battle/matchOptions.ts';
 import type { RoomView } from '../../online/protocol.ts';
 import { BattleBoard } from '../battle/BattleBoard.tsx';
+import { ONLINE_OPP_PORTRAIT } from '../battle/portraits.ts';
+import { UiIcon } from '../components/UiIcon.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { clearOnlineSession, loadOnlineSession, type OnlineSession } from '../online/client.ts';
 import { WARN_SECONDS } from '../online/config.ts';
@@ -61,6 +63,7 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
       error={r.error}
       busy={r.busy}
       opponentLabel={oppName}
+      opponentPortrait={ONLINE_OPP_PORTRAIT}
       status={<OnlineStatus room={room} online={r.online} serverNow={r.serverNow} />}
       resultButtons={
         <button type="button" className="btn btn--primary" onClick={leave}>
@@ -129,12 +132,14 @@ function OnlineStatus({ room, online, serverNow }: { room: RoomView; online: boo
     <span className="online-status">
       {left !== null && whose !== null && (
         <span className={cx('online-chip', (whose === me || whose === 'both') && left <= WARN_SECONDS && 'online-chip--ng')} title="この手番の残り時間">
-          ⏱ {whose === 'both' ? '' : whose === me ? 'あなた ' : '相手 '}
+          <UiIcon name="gi:stopwatch" className="online-chip__gi" />
+          {whose === 'both' ? '' : whose === me ? 'あなた ' : '相手 '}
           {left}秒
         </span>
       )}
       <span className={cx('online-chip', !room.opponentConnected && 'online-chip--ng')} title="相手の接続状態">
-        {room.opponentConnected ? '🟢' : '🔴'} {room.names[opp] ?? '相手'}
+        <span className={cx('online-dot', room.opponentConnected ? 'is-on' : 'is-off')} aria-hidden="true" />
+        {room.names[opp] ?? '相手'}
         {!room.opponentConnected && '（切断中）'}
       </span>
       {room.timeouts[me] > 0 && view.phase !== 'ended' && (

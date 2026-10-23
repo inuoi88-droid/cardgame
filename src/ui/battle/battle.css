@@ -22,10 +22,13 @@
   height: 100vh;
   height: 100dvh;
   padding: 6px var(--gutter) 0;
+  /* 卓（UI2）：夜の石卓の地に、上（相手側）から深紅の灯り、下（自分側）から青の灯り。ノイズは地と場だけ */
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(255, 110, 94, 0.1), transparent 55%),
-    radial-gradient(ellipse at 50% 100%, rgba(90, 169, 255, 0.1), transparent 55%),
-    var(--bg);
+    var(--u-noise),
+    radial-gradient(120% 55% at 50% 0%, rgba(160, 40, 55, 0.16), transparent 60%),
+    radial-gradient(120% 55% at 50% 100%, rgba(40, 90, 200, 0.16), transparent 60%),
+    var(--u-noise-dark),
+    linear-gradient(180deg, #151a2c, #0c0f1d);
   overflow: hidden;
   touch-action: manipulation;
 }
@@ -69,7 +72,7 @@ body:has(.battle) .toast__action {
   pointer-events: auto;
 }
 
-/* ------------------------------------------------------------ 見出し */
+/* ------------------------------------------------------------ 見出し（UI2：ターンの銘は羊皮紙の明朝 16px・左に鉄の菱形。金にしない） */
 .battle__head {
   display: flex;
   align-items: center;
@@ -84,9 +87,33 @@ body:has(.battle) .toast__action {
   font-size: var(--fs-md);
   white-space: nowrap;
 }
+.battle__turn::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  flex: none;
+  background: var(--u-diamond-iron) center / contain no-repeat;
+}
 .battle__turn b {
   overflow: hidden;
   text-overflow: ellipsis;
+  font-family: var(--u-font-display);
+  font-weight: 800;
+  font-size: 16px;
+  font-feature-settings: 'palt';
+  letter-spacing: 0.02em;
+  color: var(--u-ink);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+.battle__headbtns .btn {
+  color: var(--u-ink-2);
+}
+.battle__headbtns .btn > .gi {
+  width: 20px;
+  height: 20px;
+}
+.battle__headbtns .btn:hover:not(:disabled) {
+  color: var(--u-ink);
 }
 .battle__status {
   flex: 1;
@@ -105,44 +132,71 @@ body:has(.battle) .toast__action {
   min-width: 44px;
 }
 
-/* ------------------------------------------------------------ プレイヤー */
+/* ------------------------------------------------------------ プレイヤー（UI2：黒鉄の銘板）
+   相手は深紅の縁・自分はサファイアの縁、手番の側だけ金の縁。交代のとき金の縁が1回だけ光る（::after の opacity。
+   「動きを減らす」では出さない）。HP はカードの体力と同じハートの紋章、エナジーはコストと同じ六角の宝石 */
 .pp {
+  --pp-rim: var(--u-rim-iron);
   position: relative;
   display: grid;
   gap: 4px;
   padding: 6px 10px;
-  border-radius: var(--radius);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-left: 4px solid var(--line-strong);
-  transition:
-    box-shadow var(--dur),
-    border-color var(--dur);
-}
-.pp--me {
-  border-left-color: var(--mine);
+  border-radius: var(--u-r-lg);
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 60%) padding-box,
+    linear-gradient(180deg, #232840, #141829) padding-box,
+    var(--pp-rim) border-box;
+  box-shadow:
+    0 0 0 1px #000,
+    var(--u-bevel),
+    0 2px 0 rgba(0, 0, 0, 0.45);
 }
 .pp--opp {
-  border-left-color: var(--enemy);
+  --pp-rim: linear-gradient(170deg, #ffb3c0, #a3203a 30%, #3a0a16 65%, #c8344f);
+}
+.pp--me {
+  --pp-rim: linear-gradient(170deg, #d8eaff, #3d74d6 30%, #0f2457 65%, #6fa6f5);
 }
 .pp.is-active {
-  border-color: var(--line-strong);
+  --pp-rim: var(--u-rim-gold);
+  background:
+    linear-gradient(180deg, rgba(255, 233, 160, 0.07), transparent 60%) padding-box,
+    linear-gradient(180deg, #262a40, #151829) padding-box,
+    var(--pp-rim) border-box;
 }
-.pp--me.is-active {
+/* 手番の交代：金の縁が1回だけ光る */
+.pp.is-active::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
   box-shadow:
-    0 0 0 1px var(--mine),
-    0 0 18px rgba(90, 169, 255, 0.35);
-  background: linear-gradient(90deg, rgba(90, 169, 255, 0.12), var(--panel) 60%);
+    0 0 0 3px rgba(255, 233, 160, 0.9),
+    0 0 20px 6px rgba(233, 196, 106, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  animation: pp-turn-glow 1.2s ease-out 1;
 }
-.pp--opp.is-active {
-  box-shadow:
-    0 0 0 1px var(--enemy),
-    0 0 18px rgba(255, 110, 94, 0.35);
-  background: linear-gradient(90deg, rgba(255, 110, 94, 0.12), var(--panel) 60%);
+@keyframes pp-turn-glow {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp.is-active::after {
+    animation: none;
+  }
 }
 .pp.is-targetable {
   cursor: pointer;
-  border-color: var(--warn);
+  --pp-rim: linear-gradient(170deg, #fff3c4, #ffcf6e 40%, #9a6a12);
   animation: target-pulse 1.1s ease-in-out infinite;
 }
 .pp__row {
@@ -151,29 +205,57 @@ body:has(.battle) .toast__action {
   gap: 8px;
   min-width: 0;
 }
+/* 「相手」「あなた」は肖像で分かるので読み上げだけ（PC の銘板） */
 .pp__role {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* 肖像のメダル（鉄銀の線画。相手は深紅・自分はサファイアの輪） */
+.pp__portrait {
   flex: none;
-  font-size: var(--fs-xs);
-  font-weight: bold;
-  padding: 0 7px;
-  border-radius: var(--radius-pill);
-  line-height: 1.5;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: #c3c9d4;
+  background: radial-gradient(circle at 50% 35%, #31384f, #0b0d18 75%);
+  box-shadow:
+    0 0 0 2px #0b0d18,
+    0 0 0 3.5px #8d95a5;
 }
-.pp--me .pp__role {
-  color: #0d2340;
-  background: var(--mine);
+.pp--opp .pp__portrait {
+  box-shadow:
+    0 0 0 2px #0b0d18,
+    0 0 0 3.5px #c8344f;
 }
-.pp--opp .pp__role {
-  color: #3a0d08;
-  background: var(--enemy);
+.pp--me .pp__portrait {
+  color: #dbe7ff;
+  box-shadow:
+    0 0 0 2px #0b0d18,
+    0 0 0 3.5px #6fa6f5;
 }
+.pp__portrait > .gi {
+  width: 26px;
+  height: 26px;
+}
+.pp__portrait--leader {
+  cursor: pointer;
+}
+/* 名前は人が入力した字：カードと同じ --font-title */
 .pp__name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--fs-sm);
+  font-family: var(--u-font-name);
+  font-weight: 700;
+  font-size: 15px;
 }
 .pp__target {
   flex: none;
@@ -181,15 +263,13 @@ body:has(.battle) .toast__action {
   font-weight: bold;
   color: #2b1d00;
   background: var(--warn);
-  border-radius: var(--radius-pill);
+  border-radius: var(--u-r-sm);
   padding: 0 8px;
 }
 .pp__energy {
   flex: none;
-  color: #ffe066;
-  font-weight: bold;
-  font-size: var(--fs-md);
-  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  display: inline-flex;
 }
 .pp__hp {
   display: flex;
@@ -198,76 +278,136 @@ body:has(.battle) .toast__action {
 }
 .pp__hpnum {
   flex: none;
-  font-weight: bold;
-  font-size: var(--fs-lg);
   line-height: 1.1;
+}
+/* HP：ハートの紋章＋数（白・極太・黒の縁取り＝カードの紋章の数字と同じ） */
+.u-hp {
+  --e: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-variant-numeric: tabular-nums;
-  min-width: 86px;
 }
-.pp__hpicon {
-  font-size: var(--fs-sm);
-  margin-right: 2px;
+.u-hp > svg {
+  width: var(--e);
+  height: var(--e);
+  flex: none;
+  overflow: visible;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
 }
-.pp--me .pp__hpicon {
-  color: var(--ok);
+.u-hp > b {
+  font-weight: 900;
+  font-size: 19px;
+  line-height: 1;
+  color: #fff;
+  letter-spacing: -0.01em;
+  text-shadow:
+    0 1px 0 #1a0802,
+    0 -1px 0 #1a0802,
+    1px 0 0 #1a0802,
+    -1px 0 0 #1a0802,
+    0 2px 3px rgba(0, 0, 0, 0.55);
 }
-.pp--opp .pp__hpicon {
-  color: var(--ng);
+.u-hp > small {
+  align-self: flex-end;
+  margin-bottom: 1px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--u-ink-3);
 }
-.pp__hpnum small {
-  color: var(--muted);
-  font-weight: normal;
-  font-size: var(--fs-xs);
+.pp__hpnum .u-hp {
+  --e: 28px;
+}
+.pp__hpnum .u-hp > b {
+  font-size: 26px;
+}
+/* エナジー：コストの宝石（.cgem）を流れの中に置く */
+.cgem.u-egem {
+  --g: 26px;
+  --metal: var(--metal-rare);
+  position: relative;
+  left: auto;
+  top: auto;
+  display: inline-grid;
+  vertical-align: middle;
+  flex: none;
+}
+.cgem.u-egem--lg {
+  --g: 34px;
+}
+.cgem.u-egem--btn {
+  --g: 28px;
 }
 .hpbar {
   flex: 1;
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.45);
+  height: 8px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #05060c, #151827);
   overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(0, 0, 0, 0.9),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 .hpbar__fill {
   height: 100%;
-  background: linear-gradient(90deg, #ff5d6e, #ff9a5d);
+  background: linear-gradient(180deg, #ff9aa6, #d42a40 55%, #7c0c1e);
   transition: width 0.45s var(--ease);
 }
 .pp--me .hpbar__fill {
-  background: linear-gradient(90deg, #36c48a, #7be0a8);
+  background: linear-gradient(180deg, #a9f5cf, #22a86c 55%, #0b5a3a);
 }
 .pp__shield {
   flex: none;
-  color: #9fd0ff;
-  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: #a9cbff;
+  font-weight: 800;
   font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
 }
 .pp__meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px 6px;
+  gap: 4px 6px;
   font-size: var(--fs-xs);
   color: var(--muted);
 }
+/* 山（山札・捨て札・除外・待機・手札）：数の井戸に 18px の形と数。押せるもの（捨て札・除外・待機）は鉄の板で浮かせる */
 .pile {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  min-height: 28px;
+  gap: 3px;
+  min-height: 30px;
   padding: 0 8px;
-  border-radius: var(--radius-pill);
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid transparent;
+  border-radius: var(--u-r-sm);
+  background: linear-gradient(180deg, #06070e, #12152a);
+  border: 1px solid #2a2f3c;
+  border-bottom-color: #464d5e;
   font: inherit;
-  font-size: var(--fs-xs);
-  color: var(--muted);
+  font-size: var(--fs-sm);
+  color: var(--u-ink);
   font-variant-numeric: tabular-nums;
 }
+.pile > .gi {
+  width: 18px;
+  height: 18px;
+  color: #c9c2ad;
+}
+.pile > b {
+  font-weight: 800;
+}
 .pile--btn {
-  position: relative;
   cursor: pointer;
-  border-color: var(--line);
-  color: var(--text);
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #2c3248, #191d2e) padding-box,
+    linear-gradient(170deg, #7d8595, #2a2f3b) border-box;
+  box-shadow:
+    var(--u-bevel),
+    0 1px 0 rgba(0, 0, 0, 0.6);
 }
 .pile--btn::after {
   content: '';
@@ -275,13 +415,20 @@ body:has(.battle) .toast__action {
   inset: -8px -2px;
 }
 .pile--btn:hover {
-  border-color: var(--accent);
+  filter: brightness(1.12);
 }
 .pp__next {
-  color: #c9b3ff;
+  color: #d9c4ff;
 }
 .pp__meta .chips-row {
   display: contents;
+}
+/* パワーの札の渦の形 */
+.st__gi {
+  width: 1.1em;
+  height: 1.1em;
+  margin-right: 2px;
+  vertical-align: -0.18em;
 }
 
 /* ------------------------------------------------------------ 状態の札（ポップオーバー付き） */
@@ -321,6 +468,22 @@ body:has(.battle) .toast__action {
   border: 1px solid rgba(181, 109, 255, 0.55);
 }
 
+/* 状態異常・キーワードの形（UI2。札の中の絵文字の代わり）。規則は .u-sticon だけに掛け、札そのもの（.st・.mt__bchip）の箱は変えない。
+   色は札の文字の色（悪い＝赤・よい＝緑・キーワード＝羊皮紙・情報＝青）、毒は緑・やけどは橙 */
+.u-sticon {
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.2em;
+  margin-right: 1px;
+  fill: currentColor;
+}
+.u-sticon--poison {
+  color: #9fe89a;
+}
+.u-sticon--fire {
+  color: #ffb36b;
+}
+
 /* ------------------------------------------------------------ 場 */
 .board {
   position: relative;
@@ -332,23 +495,41 @@ body:has(.battle) .toast__action {
   padding: 6px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-radius: var(--radius);
-  border: 1px dashed transparent;
+  /* 場（UI2）：不透明な暗い地＋2px の彫った縁（外の黒・色の金属・内の黒い段＋内側の影）。相手は深紅、自分はサファイア */
+  border-radius: var(--u-r-lg);
+  border: 2px solid transparent;
 }
 .board--opp {
-  background: linear-gradient(180deg, rgba(255, 110, 94, 0.09), rgba(255, 110, 94, 0.03));
-  border-color: rgba(255, 110, 94, 0.25);
+  background:
+    var(--u-noise) padding-box,
+    radial-gradient(ellipse 90% 70% at 50% 0%, rgba(224, 74, 99, 0.13), transparent 70%) padding-box,
+    linear-gradient(180deg, #1c111b, #140d16) padding-box,
+    linear-gradient(170deg, #ff9fb0 0%, #a3203a 22%, #4a0918 55%, #8a1a30 80%, #e0566f 100%) border-box;
+  box-shadow:
+    0 0 0 1px #000,
+    inset 0 0 0 1px #000,
+    inset 0 0 0 3px rgba(224, 74, 99, 0.16),
+    inset 0 6px 18px rgba(0, 0, 0, 0.6);
 }
 .board--me {
-  background: linear-gradient(0deg, rgba(90, 169, 255, 0.09), rgba(90, 169, 255, 0.03));
-  border-color: rgba(90, 169, 255, 0.25);
+  background:
+    var(--u-noise) padding-box,
+    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(79, 134, 255, 0.13), transparent 70%) padding-box,
+    linear-gradient(0deg, #0f1730, #0c1122) padding-box,
+    linear-gradient(170deg, #cfe4ff 0%, #3d74d6 22%, #0f2457 55%, #2a58b8 80%, #8fb8ff 100%) border-box;
+  box-shadow:
+    0 0 0 1px #000,
+    inset 0 0 0 1px #000,
+    inset 0 0 0 3px rgba(111, 160, 255, 0.16),
+    inset 0 -6px 18px rgba(0, 0, 0, 0.6);
 }
 .board__empty {
   width: 100%;
   align-self: center;
   text-align: center;
-  color: var(--muted);
+  color: var(--u-ink-3);
   font-size: var(--fs-xs);
+  letter-spacing: 0;
   padding: 10px 0;
 }
 .board--opp .board__empty,
@@ -673,11 +854,21 @@ body:has(.battle) .toast__action {
 
 /* ------------------------------------------------------------ 手札 */
 .battle__hand {
+  position: relative;
   display: grid;
   grid-template-rows: auto auto;
   gap: 2px;
   min-width: 0;
   transition: opacity var(--dur);
+}
+/* 手札の受け皿（UI2）：金の灯りはやめて、暗い革の影だけ */
+.battle__hand::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 8px calc(-1 * var(--gutter)) -4px;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.38));
+  pointer-events: none;
 }
 .battle__hand.is-dim .hand {
   opacity: 0.8;
@@ -686,7 +877,7 @@ body:has(.battle) .toast__action {
   display: flex;
   gap: 10px;
   font-size: var(--fs-xs);
-  color: var(--muted);
+  color: var(--u-ink-2);
   padding: 0 2px;
   min-height: 16px;
   line-height: 16px;
@@ -978,15 +1169,18 @@ body:has(.battle) .toast__action {
   filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.6));
 }
 
-/* ------------------------------------------------------------ 操作バー */
+/* ------------------------------------------------------------ 操作バー（UI2：卓の縁＝暗い板＋上に鉄の線。金の「ターン終了」がこの画面の主役） */
 .battle-bar {
+  position: relative;
   display: grid;
   gap: 4px;
   margin: 0 calc(-1 * var(--gutter));
   padding: 4px max(var(--gutter), env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom));
-  background: rgba(13, 16, 32, 0.96);
-  backdrop-filter: blur(6px);
-  border-top: 1px solid var(--line);
+  background: linear-gradient(180deg, #1e2234, #0c0e18);
+  border-top: 1px solid #000;
+  box-shadow:
+    inset 0 1px 0 #3a404d,
+    0 -8px 20px rgba(0, 0, 0, 0.45);
 }
 .battle-bar__ticker {
   display: flex;
@@ -1004,8 +1198,13 @@ body:has(.battle) .toast__action {
   min-width: 0;
 }
 .battle-bar__tickicon {
-  color: var(--accent);
-  font-weight: bold;
+  display: inline-grid;
+  flex: none;
+  color: var(--u-ink-3);
+}
+.battle-bar__tickicon > .gi {
+  width: 16px;
+  height: 16px;
 }
 .battle-bar__ticktext {
   flex: 1;
@@ -1054,12 +1253,10 @@ body:has(.battle) .toast__action {
 .battle-bar__end {
   gap: 8px;
 }
+/* ターン終了の右のエナジーの宝石 */
 .battle-bar__energy {
-  font-family: var(--u-font-body);
-  font-weight: 800;
-  color: var(--u-gold-ink);
-  text-shadow: none;
-  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  margin-left: 2px;
 }
 /* 脈動は .btn--end の ::after の opacity（styles.css。決定事項 #111） */
 .battle-bar__end.is-pulse:not(:disabled):not(.btn--end) {
@@ -1140,10 +1337,14 @@ body:has(.battle) .toast__action {
   transform: translate(-50%, -50%);
   z-index: 35;
   padding: 10px 26px;
-  border-radius: var(--radius-pill);
-  background: rgba(10, 13, 28, 0.9);
-  border: 1px solid var(--line-strong);
-  color: var(--text);
+  /* UI2：黒鉄の銘板（縁の金属で手番の側の色） */
+  border-radius: var(--u-r-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 60%) padding-box,
+    linear-gradient(180deg, #232840, #12162a) padding-box,
+    var(--u-rim-iron) border-box;
+  border: 1.5px solid transparent;
+  color: var(--u-ink);
   font-size: var(--fs-md);
   font-weight: bold;
   white-space: nowrap;
@@ -1152,20 +1353,32 @@ body:has(.battle) .toast__action {
   animation: banner-in 0.9s var(--ease) both;
 }
 .fx-banner--big {
+  padding: 14px 40px;
+  font-family: var(--u-font-display);
+  font-feature-settings: 'palt';
+  font-weight: 800;
   font-size: var(--fs-xl);
-  padding: 14px 36px;
+  letter-spacing: 0.02em;
 }
 .fx-banner--mine {
-  border-color: var(--mine);
+  background:
+    linear-gradient(180deg, rgba(111, 160, 255, 0.14), transparent 60%) padding-box,
+    linear-gradient(180deg, #1d2a4f, #121a35) padding-box,
+    var(--u-rim-sapphire) border-box;
   box-shadow:
-    0 0 0 1px var(--mine),
-    0 0 40px rgba(90, 169, 255, 0.45);
+    0 0 0 1px #000,
+    0 0 40px rgba(90, 169, 255, 0.4),
+    var(--shadow-3);
 }
 .fx-banner--enemy {
-  border-color: var(--enemy);
+  background:
+    linear-gradient(180deg, rgba(224, 74, 99, 0.14), transparent 60%) padding-box,
+    linear-gradient(180deg, #3a1a28, #1d0f18) padding-box,
+    var(--u-rim-crimson) border-box;
   box-shadow:
-    0 0 0 1px var(--enemy),
-    0 0 40px rgba(255, 110, 94, 0.45);
+    0 0 0 1px #000,
+    0 0 40px rgba(224, 74, 99, 0.4),
+    var(--shadow-3);
 }
 .fx-reveal {
   position: absolute;
@@ -1187,9 +1400,11 @@ body:has(.battle) .toast__action {
 }
 .fx-reveal__text {
   padding: 6px 18px;
-  border-radius: var(--radius-pill);
-  background: rgba(10, 13, 28, 0.92);
-  border: 1px solid var(--enemy);
+  border-radius: var(--u-r);
+  background:
+    linear-gradient(180deg, #2a1622, #170c14) padding-box,
+    var(--u-rim-crimson) border-box;
+  border: 1px solid transparent;
   font-weight: bold;
   font-size: var(--fs-sm);
   max-width: calc(100vw - 32px);
@@ -1429,14 +1644,34 @@ body:has(.battle) .toast__action {
 .log__row--info {
   color: var(--muted);
 }
+/* 自分にだけ見える行：斜体はやめ、左の細いサファイアの線と字下げで区別（UI2） */
 .log__row--private {
-  font-style: italic;
   color: #c4d0ff;
+  padding-left: calc(var(--depth) * 14px + 12px);
+  box-shadow: inset 2px 0 0 rgba(111, 160, 255, 0.45);
 }
 .log__mark {
   flex: none;
   width: 18px;
   text-align: center;
+}
+.log__mark > .gi {
+  width: 15px;
+  height: 15px;
+  vertical-align: -0.2em;
+  color: var(--u-ink-2);
+}
+.log__mark > .gi--dmg {
+  color: #ff8a96;
+}
+.log__mark > .gi--heal {
+  color: #8fe08a;
+}
+.log__mark > .gi--energy {
+  color: #8fb8ff;
+}
+.log__mark > .gi--play {
+  color: var(--u-ink);
 }
 .log__row--ev-play,
 .log__row--ev-attack {
@@ -1499,6 +1734,176 @@ button.lt-card:focus-visible {
 }
 .dlg__foot {
   gap: 6px;
+}
+/* マリガン・選択：本物の手札のカードを並べる（UI2。CardPickGrid.tsx）。カードの面には手を入れず、外の輪・封蝋・宝石だけ */
+.cpicks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 8px;
+  padding: 10px 0 6px;
+}
+.cpicks--choose {
+  gap: 20px 8px;
+  padding-bottom: 14px;
+}
+.cpick {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: transform var(--dur-fast);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+.cpick.is-on {
+  transform: translateY(-6px);
+}
+.cpick:focus-visible {
+  outline: 2px solid var(--u-sap-hi);
+  outline-offset: 4px;
+}
+.cpick__ring {
+  position: absolute;
+  inset: -4px;
+  z-index: 4;
+  border-radius: 12px;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px transparent;
+  transition: box-shadow var(--dur-fast);
+}
+.cpick.is-on .cpick__ring {
+  box-shadow:
+    0 0 0 2px #e04a63,
+    0 0 12px 2px rgba(224, 74, 99, 0.45);
+}
+.cpicks--choose .cpick.is-on .cpick__ring {
+  box-shadow:
+    0 0 0 2px #6fa6f5,
+    0 0 12px 2px rgba(111, 160, 255, 0.5);
+}
+/* 引き直す印：深紅の × の封蝋（右上。カードの中身は暗くしない） */
+.cpick__seal {
+  position: absolute;
+  top: -10px;
+  right: -8px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: #fff;
+  background: radial-gradient(circle at 40% 35%, #e0566f, #9b1c35 55%, #5a0b1d);
+  box-shadow:
+    0 0 0 2px #0b0d18,
+    0 0 0 3.5px #ffb3c0,
+    0 2px 0 4px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: scale(0.6) rotate(-12deg);
+  transition:
+    opacity var(--dur-fast),
+    transform var(--dur-fast);
+}
+.cpick__seal > .gi {
+  width: 16px;
+  height: 16px;
+}
+.cpick.is-on .cpick__seal {
+  opacity: 1;
+  transform: rotate(-12deg);
+}
+/* 選ぶ印：サファイアの宝石のラジオ（カードの下の真ん中） */
+.cpick__gem {
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  z-index: 5;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, #1a1f30, #06070e 70%);
+  box-shadow:
+    0 0 0 2px #0b0d18,
+    0 0 0 3.5px #8d95a5;
+}
+.cpick.is-on .cpick__gem {
+  background:
+    radial-gradient(circle at 42% 36%, #ffffff 0 8%, transparent 9%),
+    radial-gradient(circle at 50% 50%, #8fc0ff 0 22%, #2f5fe0 46%, #142a6a 58%, transparent 60%),
+    radial-gradient(circle at 50% 40%, #1a1f30, #06070e 70%);
+  box-shadow:
+    0 0 0 2px #0b0d18,
+    0 0 0 3.5px #a9cbff;
+}
+/* 最後に触ったカードの全文（名前はカード名の黄色・人の入力なので --font-title） */
+.cpick-desc {
+  display: flow-root;
+  margin: 8px 0 0;
+  padding: 8px 6px 8px 10px;
+  border-radius: var(--u-r);
+  background: linear-gradient(180deg, #0a0c16, #12162a);
+  box-shadow:
+    inset 0 0 0 1px #2c3243,
+    inset 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+.cpick-desc > p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--u-ink-2);
+}
+.cpick-desc b {
+  margin-right: 8px;
+  font-family: var(--u-font-name);
+  color: var(--card-name, #ffd76a);
+}
+.cpick-desc__more {
+  float: right;
+  margin: -4px -2px 0 6px;
+}
+.cpick-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--u-ink-3);
+}
+.cpick-hint > .gi {
+  width: 16px;
+  height: 16px;
+}
+/* PC：手札のカード（136px）5枚が1列に入る幅 */
+@media (min-width: 920px) {
+  .modal__body:has(.cpicks) {
+    width: min(800px, 100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cpick,
+  .cpick__seal {
+    transition: none;
+  }
+}
+/* 行の一覧（捨て札・支払い）の選べる印：サファイアの宝石のラジオの空の台座（UI2。「○」の字の代わり） */
+.u-pickgem {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: radial-gradient(circle at 50% 40%, #1a1f30, #06070e 70%);
+  box-shadow:
+    0 0 0 2px #0b0d18,
+    0 0 0 3px #8d95a5;
 }
 .crow-list {
   display: grid;
@@ -1642,25 +2047,65 @@ button.lt-card:focus-visible {
   min-height: 52px;
 }
 
-/* 結果 */
+/* 結果（UI2）：肖像と同じ丸い鉄の台座の紋（勝ち＝王冠・サファイア、負け＝割れた髑髏・深紅、引き分け＝打ち合う剣）、見出しは明朝 */
 .result {
   text-align: center;
   padding: 6px 0 12px;
 }
+.result__crest {
+  display: inline-grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  margin: 2px 0 8px;
+  border-radius: 50%;
+  color: #c3c9d4;
+  background: radial-gradient(circle at 50% 35%, #31384f, #0b0d18 75%);
+  box-shadow:
+    0 0 0 3px #0b0d18,
+    0 0 0 5px #8d95a5,
+    0 3px 0 5px rgba(0, 0, 0, 0.5);
+}
+.result__crest > .gi {
+  width: 40px;
+  height: 40px;
+}
+.result--won .result__crest {
+  color: #fff;
+  background: radial-gradient(circle at 50% 35%, #2f4f9a, #0b1430 75%);
+  box-shadow:
+    0 0 0 3px #0b0d18,
+    0 0 0 5px #6fa6f5,
+    0 0 22px 6px rgba(111, 160, 255, 0.35);
+}
+.result--lost .result__crest {
+  color: #ffd0d6;
+  background: radial-gradient(circle at 50% 35%, #5a1a2a, #1a0710 75%);
+  box-shadow:
+    0 0 0 3px #0b0d18,
+    0 0 0 5px #c8344f;
+}
 .result__title {
-  font-size: 2rem;
-  font-weight: 900;
   margin: 0 0 4px;
+  font-family: var(--u-font-display);
+  font-feature-settings: 'palt';
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--u-ink);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
 }
 .result--won .result__title {
-  color: var(--ok);
-  text-shadow: 0 0 24px rgba(60, 207, 145, 0.5);
+  color: #dbe8ff;
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.6),
+    0 0 24px rgba(111, 160, 255, 0.45);
 }
 .result--lost .result__title {
-  color: var(--ng);
+  color: #ffc3cc;
 }
 .result__why {
-  color: var(--muted);
+  color: var(--u-ink-2);
   margin: 0 0 12px;
 }
 .result__stats {
@@ -1669,27 +2114,31 @@ button.lt-card:focus-visible {
   gap: 8px;
   margin: 0;
 }
+/* 数の井戸（はめ込み） */
 .result__stats > div {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 10px;
   padding: 8px;
+  border-radius: var(--u-r);
+  background: linear-gradient(180deg, var(--u-well-0), var(--u-well-1));
+  border: 1px solid #2a2f3c;
+  border-bottom-color: #464d5e;
 }
 .result__stats dt {
   font-size: var(--fs-xs);
-  color: var(--muted);
+  color: var(--u-ink-3);
 }
 .result__stats dd {
   margin: 0;
-  font-weight: bold;
+  font-weight: 800;
   font-size: var(--fs-md);
+  color: var(--u-ink);
   font-variant-numeric: tabular-nums;
 }
 .result__buttons {
   justify-content: center;
 }
 
-/* ------------------------------------------------------------ 対戦の準備 */
+/* ------------------------------------------------------------ 対戦の準備（UI2：フォームの羅列をやめ、デッキ箱のタイル・メダル・下に固定した金の「対戦開始」） */
+/* ラジオの行（ロビーなどに残る選択肢）：鉄の板、選ぶとサファイアの縁 */
 .choice-list {
   display: grid;
   gap: 6px;
@@ -1703,24 +2152,31 @@ button.lt-card:focus-visible {
   align-items: flex-start;
   padding: 8px 10px;
   min-height: var(--tap);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel-2);
+  border: 1px solid transparent;
+  border-radius: var(--u-r);
+  background:
+    linear-gradient(180deg, #232840, #161a2c) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  box-shadow: var(--u-lift-1);
   cursor: pointer;
 }
 .choice span {
   display: grid;
 }
 .choice small {
-  color: var(--muted);
+  color: var(--u-ink-2);
 }
 .choice.is-active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent) inset;
+  background:
+    linear-gradient(180deg, #1d2a4f, #121a35) padding-box,
+    var(--u-rim-sapphire) border-box;
 }
 .choice.is-disabled {
-  opacity: 0.55;
   cursor: not-allowed;
+  background:
+    linear-gradient(180deg, #1a1d2b, #131624) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  color: var(--u-ink-3);
 }
 .choice input {
   margin-top: 4px;
@@ -1729,17 +2185,420 @@ button.lt-card:focus-visible {
   accent-color: var(--accent);
   flex: none;
 }
-.setup__deck {
+.setup__sechead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.setup__sechead small {
+  color: var(--u-ink-3);
+  font-size: 13px;
+  font-weight: 600;
+}
+/* デッキ箱のタイル（DeckPicker.tsx） */
+.dpicks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 4px 0 0;
+  padding: 4px 0;
+  list-style: none;
+}
+.dpick {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  height: 100%;
+  padding: 10px 10px 9px;
+  border: 1.5px solid transparent;
+  border-radius: 7px;
+  color: var(--u-ink);
+  cursor: pointer;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 40%) padding-box,
+    linear-gradient(180deg, #232840, #12162a) padding-box,
+    var(--u-rim-iron) border-box;
+  box-shadow:
+    var(--u-chamfer),
+    0 2px 0 rgba(0, 0, 0, 0.55);
+  transition: transform var(--dur-fast);
+}
+.dpick:hover {
+  filter: brightness(1.08);
+}
+.dpick.is-selected {
+  transform: translateY(-2px);
+  background:
+    linear-gradient(180deg, rgba(111, 160, 255, 0.16), transparent 50%) padding-box,
+    linear-gradient(180deg, #1d2a4f, #121a35) padding-box,
+    var(--u-rim-sapphire) border-box;
+  box-shadow:
+    var(--u-chamfer),
+    0 4px 0 rgba(0, 0, 0, 0.55),
+    0 0 0 3px rgba(111, 160, 255, 0.22);
+}
+.dpick:has(input:focus-visible) {
+  outline: 2px solid var(--u-sap-hi);
+  outline-offset: 3px;
+}
+.dpick.is-ng {
+  cursor: not-allowed;
+}
+.dpick.is-ng > .dpick__art,
+.dpick.is-ng > .dpick__name,
+.dpick.is-ng > .dpick__meta {
+  filter: saturate(0.45) brightness(0.7);
+}
+.dpick__art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 76px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 30%, #2b3150, #0b0d18 80%);
+  box-shadow:
+    inset 0 0 0 1px #000,
+    inset 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+.dpick__art .cart {
+  --cart-size: 60px;
+}
+/* プリセットの紋：肖像と同じ丸い鉄の台座に鉄銀の線画 */
+.dpick__crest {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  color: #d5dae3;
+  background: radial-gradient(circle at 50% 35%, #31384f, #0b0d18 75%);
+  box-shadow:
+    0 0 0 2px #0b0d18,
+    0 0 0 3.5px #5c6474;
+}
+.dpick.is-selected .dpick__crest {
+  box-shadow:
+    0 0 0 2px #0b0d18,
+    0 0 0 3.5px #6fa6f5;
+}
+.dpick__crest > .gi {
+  width: 36px;
+  height: 36px;
+}
+.dpick__count {
+  position: absolute;
+  right: 5px;
+  bottom: 3px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--u-ink-2);
+  text-shadow: 0 1px 0 #000;
+}
+/* 銘板：人が入力したデッキ名なので --font-title（カードの名前と同じ書体） */
+.dpick__name {
+  display: block;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-family: var(--u-font-name);
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.25;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: linear-gradient(180deg, #0a0c16, #161a2c);
+  box-shadow: inset 0 0 0 1px rgba(154, 162, 178, 0.35);
+}
+.dpick__meta {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 22px;
+}
+.dpick__gems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--u-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.dpick__gems > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+/* ミニのコスト分布：平らな鉄の柱に上辺の光だけ */
+.dpick__curve {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 20px;
+  flex: none;
+}
+.dpick__curve > i {
+  width: 6px;
+  min-height: 2px;
+  border-radius: 1px 1px 0 0;
+  background: linear-gradient(180deg, #c3c9d4 0 2px, #7d8595 2px);
+}
+.dpick__note {
+  font-size: 12px;
+  color: var(--u-ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dpick__note.is-ng {
+  color: #ffb0bc;
+}
+/* 要修正：深紅の封蝋（絵の左下に小さく押す。絵は隠さない） */
+.dpick__seal {
+  position: absolute;
+  top: 54px;
+  left: 6px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  transform: rotate(-10deg);
+  color: #ffe6ea;
+  font-weight: 900;
+  font-size: 12px;
+  line-height: 1.1;
+  text-align: center;
+  background: radial-gradient(circle at 40% 35%, #e0566f, #9b1c35 55%, #5a0b1d);
+  box-shadow:
+    0 0 0 3px rgba(90, 11, 29, 0.6),
+    0 2px 0 rgba(0, 0, 0, 0.6),
+    inset 0 0 0 2px rgba(255, 170, 185, 0.35);
+}
+/* スマホ：デッキ箱は横に流す1列（使えるものが先、要修正は最後） */
+@media (max-width: 600px) {
+  .dpicks {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    margin: 0 calc(-1 * var(--panel-pad, 16px));
+    padding: 6px var(--panel-pad, 16px) 10px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  .dpicks > li {
+    flex: 0 0 136px;
+    scroll-snap-align: start;
+  }
+  .dpick__art {
+    height: 64px;
+  }
+  .dpick__art .cart {
+    --cart-size: 50px;
+  }
+  .dpick__crest {
+    width: 50px;
+    height: 50px;
+  }
+  .dpick__crest > .gi {
+    width: 30px;
+    height: 30px;
+  }
+  .dpick__seal {
+    top: 42px;
+  }
+}
+/* メダル（Medal.tsx）：丸い鉄の台座。選ぶとサファイアの縁と光。強さは形＋菱形の数 */
+.smedals {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 6px 2px 6px;
+  scrollbar-width: none;
+}
+.smedal {
+  position: relative;
+  flex: 0 0 96px;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 4px;
+  min-width: 84px;
+  min-height: var(--tap);
+  padding: 6px 2px;
+  border-radius: 6px;
+  color: var(--u-ink-2);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+}
+.smedal:has(input:focus-visible) {
+  outline: 2px solid var(--u-sap-hi);
+  outline-offset: 1px;
+}
+.smedal__disc {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  color: #c3c9d4;
+  background: radial-gradient(circle at 50% 35%, #31384f, #0b0d18 75%);
+  box-shadow:
+    0 0 0 2px #0b0d18,
+    0 0 0 3.5px #5c6474,
+    0 2px 0 3.5px rgba(0, 0, 0, 0.5);
+  transition: box-shadow var(--dur-fast);
+}
+.smedal:hover .smedal__disc {
+  color: #e3e7ee;
+}
+.smedal__disc > .gi {
+  width: 34px;
+  height: 34px;
+}
+.smedal__name {
+  white-space: nowrap;
+}
+.smedal__name.is-name {
+  font-family: var(--u-font-name);
+}
+.smedal__pips {
+  display: flex;
+  gap: 4px;
+  height: 8px;
+}
+.smedal__pips > i {
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: #5c6474;
+}
+.smedal.is-selected {
+  color: var(--u-ink);
+}
+.smedal.is-selected .smedal__disc {
+  color: #fff;
+  background: radial-gradient(circle at 50% 35%, #2f4f9a, #0b1430 75%);
+  box-shadow:
+    0 0 0 2px #0b0d18,
+    0 0 0 4px #6fa6f5,
+    0 0 14px 4px rgba(111, 160, 255, 0.35);
+}
+.smedal.is-selected .smedal__pips > i {
+  background: #a9cbff;
+}
+.setup__hint {
+  margin: 4px 0 0;
+  min-height: 2.6em;
+  font-size: 13px;
+  color: var(--u-ink-2);
+}
+.setup__pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 12px;
+}
+.setup__pair > * {
+  min-width: 0;
+}
+@media (min-width: 920px) {
+  .setup__pair {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+  .dpicks {
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  }
+}
+/* 畳む（選んだデッキの中身・リーダーと対戦のルール） */
+.setup__fold {
   margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px solid #2c3243;
+}
+.setup__fold--top {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.setup__fold > summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  color: var(--u-ink-2);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.setup__fold > summary::-webkit-details-marker {
+  display: none;
+}
+.setup__fold > summary::before {
+  content: '';
+  flex: none;
+  width: 12px;
+  height: 8px;
+  margin-right: 8px;
+  background: var(--u-chev) center / contain no-repeat;
+  transform: rotate(-90deg);
+  transition: transform var(--dur-fast);
+}
+.setup__fold[open] > summary::before {
+  transform: none;
+}
+.setup__fold > summary:hover {
+  color: var(--u-ink);
+}
+/* 下に固定した金の「対戦開始」 */
+.setup__startbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px calc(-1 * var(--gutter, 16px)) 0;
+  padding: 10px var(--gutter, 16px) calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, #1b1f32, #0c0e1a);
+  border-top: 1px solid #000;
+  box-shadow:
+    inset 0 1px 0 #3a404d,
+    0 -10px 24px rgba(0, 0, 0, 0.45);
+}
+.setup__sum {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--u-ink-2);
+}
+.setup__sum b {
+  font-family: var(--u-font-name);
+  font-size: 14px;
+  color: var(--u-ink);
+}
+.setup__startbar .btn--big {
+  flex: none;
+}
+.setup__deck {
+  margin-top: 4px;
   padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--line);
+  border-radius: var(--u-r);
+  background: linear-gradient(180deg, var(--u-well-0), var(--u-well-1));
+  border: 1px solid #2a2f3c;
+  border-bottom-color: #464d5e;
 }
 .setup__deck h3 {
   margin: 0 0 6px;
   font-size: var(--fs-sm);
-  color: var(--muted);
+  color: var(--u-ink-2);
 }
 .setup__counts {
   display: flex;
@@ -1752,33 +2611,38 @@ button.lt-card:focus-visible {
   flex-wrap: wrap;
   gap: 6px;
 }
+/* 中身のカード：鉄の小さな板（押すと全文） */
 .setup__card {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   min-height: 44px;
   padding: 0 10px 0 6px;
-  border-radius: var(--radius-pill);
-  background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
+  border-radius: var(--u-r);
+  background:
+    linear-gradient(180deg, #262b40, #191d2e) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  box-shadow: var(--u-lift-1);
   font: inherit;
+  font-family: var(--u-font-name);
   font-size: var(--fs-xs);
-  color: var(--text);
+  color: var(--u-ink);
   cursor: pointer;
 }
+.setup__card:hover {
+  filter: brightness(1.1);
+}
 .setup__card b {
-  color: var(--muted);
-  font-weight: normal;
+  color: var(--u-ink-2);
+  font-family: var(--u-font-body);
+  font-weight: 700;
 }
 .setup__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-}
-.btn--big {
-  font-size: 1.05rem;
-  padding: 12px 22px;
 }
 
 /* ------------------------------------------------------------ PC（3カラム・1画面固定） */
@@ -1802,27 +2666,49 @@ button.lt-card:focus-visible {
   .battle__pp--me {
     align-self: end;
   }
+  .battle__turn b {
+    font-size: 19px;
+  }
   .pp {
-    padding: 10px 12px;
-    gap: 6px;
+    padding: 12px 14px;
+    gap: 8px;
   }
-  .pp__hpnum {
-    font-size: var(--fs-xl);
+  .pile {
+    min-height: 30px;
   }
+  /* ログ（UI2）：パネルと同じ額（石の板＋面取りした鉄の縁）。見出しは明朝 16px・羊皮紙・字間 0.02em */
   .battle__log {
+    position: relative;
     display: flex;
     flex-direction: column;
     min-height: 0;
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
+    background:
+      var(--u-noise) padding-box,
+      linear-gradient(180deg, var(--u-slate-0), var(--u-slate-1)) padding-box,
+      var(--u-rim-iron) border-box;
+    border: 1px solid transparent;
+    border-radius: var(--u-r-lg);
+    box-shadow: var(--u-chamfer), var(--u-lift-2);
     padding: 10px;
   }
-  /* 見出しは明朝（16px 以上・字間 0.02em。決定事項 #111） */
+  .battle__log::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    margin-left: -5px;
+    background: var(--u-diamond-iron) center / contain no-repeat;
+  }
   .battle__log h2 {
     margin: 0 0 6px;
-    font-size: var(--fs-md);
-    color: var(--text);
+    padding: 0 2px 6px;
+    font-size: 16px;
+    letter-spacing: 0.02em;
+    color: var(--u-ink);
+    border-bottom: 1px solid #2c3243;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
   }
   .battle__log .log {
     flex: 1;
@@ -2021,12 +2907,15 @@ button.lt-card:focus-visible {
 }
 .play-zone__label {
   padding: 8px 16px;
-  border-radius: var(--radius-pill);
-  background: rgba(13, 16, 32, 0.92);
-  border: 1px solid var(--line-strong);
+  border-radius: var(--u-r);
+  background:
+    linear-gradient(180deg, #262b40, #141829) padding-box,
+    var(--u-rim-iron) border-box;
+  border: 1px solid transparent;
+  box-shadow: var(--u-lift-1);
   font-weight: bold;
   font-size: var(--fs-md);
-  color: var(--text);
+  color: var(--u-ink);
   text-align: center;
   max-width: calc(100% - 24px);
 }
@@ -2109,10 +2998,12 @@ button.lt-card:focus-visible {
   position: fixed;
   transform: translate(-50%, calc(-100% - var(--lift, 34px)));
   padding: 3px 10px;
-  border-radius: var(--radius-pill);
-  background: rgba(13, 16, 32, 0.94);
-  border: 1px solid var(--line-strong);
-  color: var(--text);
+  border-radius: var(--u-r-sm);
+  background:
+    linear-gradient(180deg, #262b40, #141829) padding-box,
+    var(--u-rim-iron) border-box;
+  border: 1px solid transparent;
+  color: var(--u-ink);
   font-size: var(--fs-xs);
   font-weight: bold;
   white-space: nowrap;
@@ -2442,10 +3333,10 @@ button.lt-card:focus-visible {
 .pile__usable {
   margin-left: 4px;
   padding: 0 5px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--u-r-sm);
   font-weight: bold;
-  font-size: 10px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.4;
   color: #06281a;
   background: var(--ok);
 }
@@ -2552,35 +3443,48 @@ button.lt-card:focus-visible {
   min-height: 56px;
   padding: 10px 12px;
   text-align: left;
-  color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
+  color: var(--u-ink);
+  /* UI2：鉄の板。選ぶ・フォーカスでサファイアの縁 */
+  background:
+    linear-gradient(180deg, #262b40, #171b2c) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  border: 1px solid transparent;
+  border-radius: var(--u-r);
+  box-shadow: var(--u-lift-1);
   cursor: pointer;
   font: inherit;
 }
 .mode-opt:hover:not(:disabled),
-.mode-opt:focus-visible {
-  border-color: var(--accent);
-  background: var(--accent-bg);
+.mode-opt:focus-visible,
+.mode-opt.is-on {
+  background:
+    linear-gradient(180deg, #1d2a4f, #121a35) padding-box,
+    var(--u-rim-sapphire) border-box;
 }
 .mode-opt.is-blocked {
-  opacity: 0.55;
   cursor: not-allowed;
+  color: var(--u-ink-3);
+  background:
+    linear-gradient(180deg, #1a1d2b, #131624) padding-box,
+    var(--u-rim-iron-soft) border-box;
 }
+/* モードの印：鉄の六角（カードのコストの宝石と同じ形・色は鉄） */
 .mode-opt__label {
   display: grid;
   place-items: center;
   width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--accent-strong);
+  height: 34px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: linear-gradient(180deg, #8d95a5, #3a404d 55%, #5c6474);
   color: #fff;
-  font-weight: 700;
+  font-weight: 800;
+  text-shadow: 0 1px 0 #000;
+}
+.mode-opt.is-on .mode-opt__label {
+  background: linear-gradient(180deg, #a9cbff, #2f5fe0 55%, #1d438f);
 }
 .mode-opt--all .mode-opt__label {
-  background: var(--legend);
-  color: #1a1a1a;
+  background: linear-gradient(180deg, #d8b8ff, #6731ad 55%, #3d1670);
 }
 .mode-opt__body {
   display: flex;
@@ -2710,9 +3614,10 @@ button.lt-card:focus-visible {
   flex-direction: column;
   gap: 6px;
   padding: 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  background: var(--panel-2);
+  border-radius: var(--u-r);
+  background: linear-gradient(180deg, var(--u-well-0), var(--u-well-1));
+  border: 1px solid #2a2f3c;
+  border-bottom-color: #464d5e;
 }
 .pay-sec h3 {
   margin: 0;
@@ -2733,25 +3638,28 @@ button.lt-card:focus-visible {
   padding: 8px 10px;
   text-align: left;
   font: inherit;
-  color: var(--text);
-  background: var(--panel);
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  color: var(--u-ink);
+  background:
+    linear-gradient(180deg, #262b40, #171b2c) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  border: 1px solid transparent;
+  border-radius: var(--u-r);
+  box-shadow: var(--u-lift-1);
   cursor: pointer;
 }
 .pay-opt small {
-  color: var(--muted);
+  color: var(--u-ink-2);
   font-size: 0.78rem;
   line-height: 1.35;
 }
 .pay-opt.is-on {
-  border-color: var(--accent);
-  background: var(--accent-bg);
-  box-shadow: 0 0 0 1px var(--accent) inset;
+  background:
+    linear-gradient(180deg, #1d2a4f, #121a35) padding-box,
+    var(--u-rim-sapphire) border-box;
 }
 .pay-opt.is-blocked {
-  opacity: 0.55;
   cursor: not-allowed;
+  color: var(--u-ink-3);
 }
 .pay-opt__cost {
   font-weight: 700;
@@ -2771,8 +3679,9 @@ button.lt-card:focus-visible {
   bottom: 0;
   margin-top: 12px;
   padding-top: 8px;
-  background: var(--panel);
-  border-top: 1px solid var(--line);
+  background: linear-gradient(180deg, #1b1f32, #12162a);
+  border-top: 1px solid #000;
+  box-shadow: inset 0 1px 0 #3a404d;
 }
 .pay-total {
   display: flex;
@@ -2897,9 +3806,10 @@ button.lt-card:focus-visible {
   gap: 3px;
   min-height: 28px;
   padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--line-strong);
-  background: var(--field);
+  border-radius: var(--u-r);
+  border: 1px solid #2a2f3c;
+  border-bottom-color: #464d5e;
+  background: linear-gradient(180deg, var(--u-well-0), var(--u-well-1));
   font-size: var(--fs-xs);
   white-space: nowrap;
   cursor: help;
@@ -2909,6 +3819,16 @@ button.lt-card:focus-visible {
 }
 .match-band__daynight.is-night {
   border-color: rgba(111, 141, 255, 0.6);
+}
+.match-band__gi {
+  width: 20px;
+  height: 20px;
+}
+.match-band__daynight.is-day .match-band__gi {
+  color: #ffd98a;
+}
+.match-band__daynight.is-night .match-band__gi {
+  color: #c9d8ff;
 }
 .match-band__chip.is-activate {
   box-shadow: 0 0 0 2px var(--accent), 0 0 12px var(--accent);
@@ -2923,6 +3843,33 @@ button.lt-card:focus-visible {
 }
 
 /* ------------------------------------------------------------ ドラフト戦（MTG 要素 △ バッチD） */
+.draft__sub {
+  margin: 12px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--u-ink-2);
+}
+/* オンラインの見出しの札（UI2：絵文字の代わりに形と色の点） */
+.online-chip__gi {
+  width: 16px;
+  height: 16px;
+  margin-right: 3px;
+  vertical-align: -0.25em;
+}
+.online-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 50%;
+  vertical-align: 0.05em;
+}
+.online-dot.is-on {
+  background: radial-gradient(circle at 40% 35%, #c2ffe4, #22a86c 60%);
+  box-shadow: 0 0 6px rgba(60, 207, 145, 0.7);
+}
+.online-dot.is-off {
+  background: radial-gradient(circle at 40% 35%, #ffc0c7, #d42a40 60%);
+}
 .draft__head {
   display: flex;
   align-items: center;
@@ -3130,9 +4077,9 @@ button.lt-card:focus-visible {
   .pp--compact {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     min-height: 44px;
-    padding: 3px 8px 7px;
+    padding: 3px 6px 7px;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
@@ -3152,6 +4099,8 @@ button.lt-card:focus-visible {
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 13px;
+    font-family: var(--u-font-name);
+    font-weight: 700;
   }
   /* 自分の帯は名前と山札を出さない（青い縁と位置で分かる。山札は詳細に。読み上げは aria-label） */
   .pp--me .ppc__name,
@@ -3161,52 +4110,67 @@ button.lt-card:focus-visible {
   .pp--me .ppc__energy {
     margin-right: auto;
   }
+  /* HP はハートの紋章＋数、エナジーはコストの宝石（UI2） */
   .ppc__hp {
     flex: none;
-    font-size: 17px;
-    font-weight: 800;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
+    gap: 1px;
+    --e: 20px;
   }
-  .ppc__hp .pp__hpicon {
-    font-size: var(--fs-xs);
-    margin-right: 1px;
+  .ppc__hp > b {
+    font-size: 17px;
+    letter-spacing: -0.03em;
+  }
+  .ppc__shield .u-sticon {
+    margin-right: 0;
   }
   .ppc__shield {
     flex: none;
-    color: #9fd0ff;
-    font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    color: #a9cbff;
+    font-weight: 800;
     font-size: 13px;
     font-variant-numeric: tabular-nums;
   }
-  .ppc__energy {
-    flex: none;
-    color: #ffe066;
-    font-weight: bold;
-    font-size: 15px;
-    font-variant-numeric: tabular-nums;
+  .ppc__energy.cgem {
+    --g: 22px;
   }
+  /* 数の井戸：形は 18px（14〜16px では潰れる）と数。押せる数（捨て札・待機・パワー）は鉄の板で浮かせる */
   .ppc__cnt {
     flex: none;
     display: inline-flex;
     align-items: center;
     gap: 1px;
     min-height: 26px;
-    padding: 0 5px;
-    border-radius: var(--radius-pill);
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid transparent;
+    padding: 0 3px;
+    border-radius: var(--u-r-sm);
+    background: linear-gradient(180deg, #06070e, #12152a);
+    border: 1px solid #2a2f3c;
+    border-bottom-color: #464d5e;
     font: inherit;
     font-size: var(--fs-xs);
-    color: var(--muted);
+    color: var(--u-ink);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+  .ppc__cnt > .gi {
+    width: 18px;
+    height: 18px;
+    color: #c9c2ad;
+  }
+  .ppc__cnt > b {
+    font-weight: 800;
   }
   .ppc__cnt--btn {
     position: relative;
     cursor: pointer;
-    border-color: var(--line);
-    color: var(--text);
+    border: 1px solid transparent;
+    background:
+      linear-gradient(180deg, #2c3248, #191d2e) padding-box,
+      linear-gradient(170deg, #7d8595, #2a2f3b) border-box;
+    box-shadow:
+      var(--u-bevel),
+      0 1px 0 rgba(0, 0, 0, 0.6);
   }
   /* 押せる範囲は帯の高さいっぱい（44px）と、となりのボタンとの間まで */
   .ppc__cnt--btn::after {
@@ -3218,7 +4182,9 @@ button.lt-card:focus-visible {
     display: none;
   }
   .ppc__cnt.is-usable {
-    border-color: var(--ok);
+    background:
+      linear-gradient(180deg, #1d3a33, #12221f) padding-box,
+      linear-gradient(170deg, #a9f5cf, #22a86c 45%, #0b5a3a) border-box;
     color: #b5f3d4;
   }
   .ppc__cnt.is-lit {
@@ -3240,13 +4206,20 @@ button.lt-card:focus-visible {
     animation: hc-fresh 1.5s ease-out;
   }
   .ppc__powers {
-    color: #dcc2ff;
-    border-color: rgba(181, 109, 255, 0.55);
-    background: rgba(181, 109, 255, 0.15);
+    color: #e6d2ff;
+    border: 1px solid transparent;
+    background:
+      linear-gradient(180deg, #3a2a5c, #221838) padding-box,
+      linear-gradient(170deg, #f0e0ff, #6731ad 45%, #bb8cf6) border-box;
     font-weight: bold;
   }
+  .ppc__powers > .gi {
+    color: #cfa8ff;
+  }
   .ppc__powers.is-usable {
-    border-color: #ffd85c;
+    background:
+      linear-gradient(180deg, #3a2a5c, #221838) padding-box,
+      linear-gradient(170deg, #fff3c4, #ffcf6e 45%, #9a6a12) border-box;
     color: #ffe9a3;
   }
   .ppc__powers.is-activate {
@@ -3269,8 +4242,9 @@ button.lt-card:focus-visible {
     right: 8px;
     bottom: 3px;
     height: 3px;
-    border-radius: 999px;
-    background: rgba(0, 0, 0, 0.5);
+    border-radius: 1px;
+    background: linear-gradient(180deg, #05060c, #151827);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05);
     overflow: hidden;
   }
   .ppc__bar .hpbar__fill {
@@ -3284,19 +4258,10 @@ button.lt-card:focus-visible {
     opacity: 0.55;
   }
 
-  /* ---- 場：上が相手（赤）、下が自分（青）。色は場とタイルの両方で */
+  /* ---- 場：上が相手（深紅の縁）、下が自分（サファイアの縁）。色は場とタイルの両方で */
   .board {
     padding: 10px 4px 4px;
     gap: 11px 4px;
-    border-style: solid;
-  }
-  .board--opp {
-    background: rgba(255, 110, 94, 0.1);
-    border-color: rgba(255, 110, 94, 0.45);
-  }
-  .board--me {
-    background: rgba(90, 169, 255, 0.1);
-    border-color: rgba(90, 169, 255, 0.45);
   }
   .board__empty {
     padding: 4px 0;
@@ -3706,7 +4671,7 @@ button.lt-card:focus-visible {
   .hand__drop {
     margin: 0;
     padding: 4px 12px;
-    border-radius: var(--radius-pill);
+    border-radius: var(--u-r);
     background: rgba(13, 16, 32, 0.94);
     border: 1px solid var(--warn);
   }

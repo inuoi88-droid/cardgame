@@ -12,6 +12,11 @@ export interface GlossaryEntry {
   /** 1〜2文の説明（ポップオーバー用） */
   short: string;
   icon: string;
+  /**
+   * 画面に出すときの形（game-icons の名前。UiIcon で描く。決定事項 #111・UI2 の B）。
+   * 絵文字の icon はルールページ・ログの文の中で使うので残す。無ければ icon の絵文字のまま
+   */
+  gi?: string;
   /** 悪い状態か（表示の色分け用） */
   tone: 'bad' | 'good' | 'info';
 }
@@ -42,69 +47,79 @@ export const glossary: Record<StatusId, GlossaryEntry> = {
   poison: {
     name: '毒',
     icon: '☠',
+    gi: 'poison-bottle',
     tone: 'bad',
     short: `自分のターン開始時に、毒の数だけダメージ（守備力・シールド・無効化を無視）。そのあと毒は半分（切り捨て）になる`,
   },
   doom: {
     name: '呪縛',
     icon: '⏳',
+    gi: 'death-zone',
     tone: 'bad',
     short: `自分のターン開始時に、呪縛の数だけダメージ（シールド・無効化を無視）。毒と違って減らない。浄化で消える。合計は${B.doomCap}まで`,
   },
   rad: {
     name: '放射能',
     icon: '☢',
+    gi: 'radioactive',
     tone: 'bad',
     short: `自分のターン開始時（引いた後）に、山札の上を放射能の数だけ捨て札に置き、モンスター以外1枚ごとに${B.radDamage}ダメージ（シールド・無効化を無視）。放射能はその枚数だけ減る。合計${B.radCap}まで。浄化で消える`,
   },
   burn: {
     name: 'やけど',
     icon: '🔥',
+    gi: 'flame',
     tone: 'bad',
     short: `自分のターン終了時に${B.burnDamage}ダメージ（シールド・無効化を無視）。かかっている間は受ける回復が${pct(B.burnHealRate)}になる。残りターンの数だけ続く`,
   },
-  weak: { name: '弱体', icon: '⬇', tone: 'bad', short: `与えるダメージが−${pct(B.weakRate)}（切り捨て）。自分のターン終了時に1ターン減る` },
-  vulnerable: { name: '脆弱', icon: '💔', tone: 'bad', short: `受けるダメージが+${pct(B.vulnerableRate)}（切り捨て）。自分のターン終了時に1ターン減る` },
+  weak: { name: '弱体', icon: '⬇', gi: 'shattered-sword', tone: 'bad', short: `与えるダメージが−${pct(B.weakRate)}（切り捨て）。自分のターン終了時に1ターン減る` },
+  vulnerable: { name: '脆弱', icon: '💔', gi: 'broken-heart', tone: 'bad', short: `受けるダメージが+${pct(B.vulnerableRate)}（切り捨て）。自分のターン終了時に1ターン減る` },
   bleed: {
     name: '出血',
     icon: '🩸',
+    gi: 'bleeding-wound',
     tone: 'bad',
     short: '攻撃やカードでダメージを受けるたび、出血の数だけ追加ダメージ（1枚のカード・1回の攻撃につき1回）。自分のターン終了時に半分になる',
   },
   freeze: {
     name: '凍結',
     icon: '❄',
+    gi: 'snowflake-1',
     tone: 'bad',
     short: `次の自分のターン、モンスターは攻撃できない。プレイヤーは最初に使うカードのコストが+${B.freezeCostIncrease}`,
   },
-  confuse: { name: '混乱', icon: '💫', tone: 'bad', short: '次の自分のターン開始時、敵味方を問わずランダムな相手を自動で攻撃する' },
-  seal: { name: '封印', icon: '🔒', tone: 'bad', short: '効果とキーワードをすべて失う（デメリットは残る）。反撃はする' },
+  confuse: { name: '混乱', icon: '💫', gi: 'knocked-out-stars', tone: 'bad', short: '次の自分のターン開始時、敵味方を問わずランダムな相手を自動で攻撃する' },
+  seal: { name: '封印', icon: '🔒', gi: 'padlock', tone: 'bad', short: '効果とキーワードをすべて失う（デメリットは残る）。反撃はする' },
   shield: {
     name: 'シールド',
     icon: '🛡',
+    gi: 'energy-shield',
     tone: 'good',
     short: '受けるダメージを先に肩代わりする（毒・やけど・防御無視は通る）。次の自分のターン開始時に消える',
   },
   counter: {
     name: '反撃（状態）',
     icon: '↩',
+    gi: 'return-arrow',
     tone: 'good',
     short: '次の自分のターン開始時まで、攻撃やカードでダメージを受けたら、その相手に反撃の数だけダメージを返す（1枚のカード・1回の攻撃につき1回）',
   },
-  nullify: { name: '無効化', icon: '✖', tone: 'good', short: '次に受けるダメージを0にする（回数ぶん）。毒・やけどは防げない' },
-  regen: { name: '再生', icon: '✚', tone: 'good', short: '自分のターン開始時に、再生の数だけHPが回復。そのあと再生は半分（切り捨て）になる' },
+  nullify: { name: '無効化', icon: '✖', gi: 'cancel', tone: 'good', short: '次に受けるダメージを0にする（回数ぶん）。毒・やけどは防げない' },
+  regen: { name: '再生', icon: '✚', gi: 'regeneration', tone: 'good', short: '自分のターン開始時に、再生の数だけHPが回復。そのあと再生は半分（切り捨て）になる' },
   strength: {
     name: '筋力',
     icon: '💪',
+    gi: 'muscle-up',
     tone: 'good',
     short: `アタックのダメージに筋力の数を足す（1枚につき最初の1発だけ）。合計は${B.strengthCap}まで`,
   },
-  focus: { name: '気合', icon: '✨', tone: 'good', short: 'このターンだけ、アタックのダメージに気合の数を足す（1枚につき最初の1発だけ）。ターン終了時に消える' },
-  stealth: { name: '隠密', icon: '👤', tone: 'info', short: '相手の次のターン終了まで、相手の攻撃や効果の対象に選ばれない（全体効果は受ける）' },
-  betrayal: { name: '裏切り', icon: '🗡', tone: 'bad', short: '持ち主を自動で攻撃する。自分では攻撃できない' },
+  focus: { name: '気合', icon: '✨', gi: 'concentration-orb', tone: 'good', short: 'このターンだけ、アタックのダメージに気合の数を足す（1枚につき最初の1発だけ）。ターン終了時に消える' },
+  stealth: { name: '隠密', icon: '👤', gi: 'hooded-figure', tone: 'info', short: '相手の次のターン終了まで、相手の攻撃や効果の対象に選ばれない（全体効果は受ける）' },
+  betrayal: { name: '裏切り', icon: '🗡', gi: 'backstab', tone: 'bad', short: '持ち主を自動で攻撃する。自分では攻撃できない' },
   retaliation: {
     name: '反撃（モンスター）',
     icon: '⚔',
+    gi: 'sword-clash',
     tone: 'info',
     short: 'モンスターを攻撃すると、守備側がそのときの攻撃力ぶんを攻撃したモンスターに返す（同時に解決。プレイヤーへの攻撃では起きない）',
   },
@@ -141,11 +156,38 @@ const KEYWORD_ICON: Record<string, string> = {
   enlist: '📣',
 };
 
+/** キーワードの形（game-icons。画面の札で絵文字の代わりに描く。1つの形は1つの意味だけ：tests/battleIcons.test.ts） */
+export const KEYWORD_GI: Record<string, string> = {
+  haste: 'sprint',
+  taunt: 'checked-shield',
+  flying: 'feathered-wing',
+  trample: 'stomp',
+  doubleAttack: 'sword-array',
+  stealth: 'hooded-figure',
+  undying: 'ankh',
+  selfRepair: 'wrench',
+  deathtouch: 'death-skull',
+  firstStrike: 'fast-arrow',
+  hexproof: 'aura',
+  lifelink: 'heart-wings',
+  bushido: 'katana',
+  divineShield: 'bolt-shield',
+  hitAndRun: 'boomerang',
+  inspire: 'trumpet-flag',
+  ward: 'magic-shield',
+  onslaught: 'charging-bull',
+  menace: 'angry-eyes',
+  doubleTeam: 'two-shadows',
+  reach: 'bow-arrow',
+  skulk: 'paw-print',
+  enlist: 'megaphone',
+};
+
 /** キーワードの用語（レジストリから作る。名前と説明はエンジンの定義そのもの） */
 export const keywordGlossary: Record<string, GlossaryEntry> = Object.fromEntries(
   listKeywords().map((def) => {
     const inst = def.value ? { id: def.id, value: def.value.default } : { id: def.id };
-    return [def.id, { name: def.name, short: def.describe(inst), icon: KEYWORD_ICON[def.id] ?? '◆', tone: 'info' as const }];
+    return [def.id, { name: def.name, short: def.describe(inst), icon: KEYWORD_ICON[def.id] ?? '◆', gi: KEYWORD_GI[def.id], tone: 'info' as const }];
   }),
 );
 
@@ -260,6 +302,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   tempAttack: {
     name: '一時強化',
     icon: '⤴',
+    gi: 'upgrade',
     tone: 'good',
     short: 'このターンだけ攻撃力が上がっている（攻撃・反撃・格闘に乗る）。ターン終了時に消える',
   },
@@ -278,6 +321,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   lifespan: {
     name: '寿命',
     icon: '⌛',
+    gi: 'sands-of-time',
     tone: 'bad',
     short: '持ち主のターン終了時に1ずつ減り、0になると場から消える（モンスターは破壊、パワーは消える）。出たターンも数える',
   },
@@ -343,6 +387,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   quash: {
     name: '封殺',
     icon: '🚫',
+    gi: 'cancel',
     tone: 'bad',
     short: '次に使う指定の種類のカード1枚が無効になる（コストは払い、何も起きない）。期限は次の自分のターンの終わりまで。浄化で消える',
   },
@@ -435,6 +480,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   crown: {
     name: '王冠',
     icon: '👑',
+    gi: 'crown',
     tone: 'good',
     short: `王冠は1つだけ。持っていると自分のターン開始時に${BALANCE.crown.extraDraw}枚多く引く。相手のモンスターの攻撃（貫通の余りを含む）でHPが減ると、王冠はそのモンスターの持ち主に移る（効果のダメージでは移らない）`,
   },
@@ -496,7 +542,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     short: `培養で出る卵（トークン。攻撃力0）。攻撃できない（反撃はする）。${B.eggHatchTurns}回目の自分のターン開始時に孵化し、攻撃力が上がって${B.tokenName}になる`,
   },
   tempGranted: { name: '賛助のキーワード', icon: '🤝', tone: 'good', short: '賛助でこのターンだけ与えられたキーワード。ターン終了時に消える（封印中は働かない）' },
-  dormant: { name: '休眠', icon: '💤', tone: 'bad', short: '休眠のモンスター・パワーは1ターンおきに休む。休眠中は攻撃できず、場にいる間のタイミングの効果・起動が出ない（召喚時・破壊されたとき・反撃は普通どおり）' },
+  dormant: { name: '休眠', icon: '💤', gi: 'sleepy', tone: 'bad', short: '休眠のモンスター・パワーは1ターンおきに休む。休眠中は攻撃できず、場にいる間のタイミングの効果・起動が出ない（召喚時・破壊されたとき・反撃は普通どおり）' },
   cumulativeUpkeep: { name: '累加維持費', icon: '⏫', tone: 'bad', short: '持ち主のターン開始時に「場にあるターン数×N」のダメージを受ける（毎ターン1ずつ増える）' },
   withered: { name: '萎縮', icon: '🥀', tone: 'bad', short: '萎縮のダメージで、減った体力のぶん最大体力も減った（修理・回復で戻らない）' },
   spawn: { name: '落とし子', icon: '⚡', tone: 'info', short: '落とし子のトークンが破壊されると、持ち主のエナジー+1（自分のターンならこのターン、相手のターンなら次のターン）' },
@@ -518,7 +564,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   },
   prototype: { name: '試作版', icon: '🔧', tone: 'info', short: '能力「試作」で安く出したモンスター。攻撃力・体力が半分（キーワード・効果はそのまま）。場を離れたら元に戻る' },
   unleashed: { name: '解鎖', icon: '⛓', tone: 'info', short: '能力「解鎖」で攻撃力を上げて出したモンスター。攻撃されても反撃しない（自分から攻撃したときの相手の反撃は受ける）' },
-  unearthed: { name: '一時蘇生', icon: '🧟', tone: 'bad', short: '能力「一時蘇生」で捨て札から出したモンスター。速攻を持ち、持ち主のターン終了時に除外される（場を離れても除外）' },
+  unearthed: { name: '一時蘇生', icon: '🧟', gi: 'raise-zombie', tone: 'bad', short: '能力「一時蘇生」で捨て札から出したモンスター。速攻を持ち、持ち主のターン終了時に除外される（場を離れても除外）' },
   villain: {
     name: '最悪の二択',
     icon: '⚖',

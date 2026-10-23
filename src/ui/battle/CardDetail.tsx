@@ -11,7 +11,7 @@ import { Modal } from '../components/controls.tsx';
 import { Sheet } from '../components/Sheet.tsx';
 import { keywordGlossary } from '../glossary.ts';
 import { cx } from '../util.ts';
-import { attackOf, monsterChips, powerLines } from './parts.tsx';
+import { attackOf, ChipFace, monsterChips, powerLines } from './parts.tsx';
 
 export interface DetailExtras {
   /** 場のモンスター（今の値・状態を出す） */
@@ -114,7 +114,9 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
               <ul className="cdetail__list">
                 {statusChips.map((c) => (
                   <li key={c.id}>
-                    <span className={`st st--${c.tone}`}>{c.label}</span>
+                    <span className={`st st--${c.tone}`} aria-label={c.gi ? c.label : undefined}>
+                      <ChipFace c={c} />
+                    </span>
                     <span>
                       {c.card.description}
                       {c.card.lines?.length ? <small> {c.card.lines.join('・')}</small> : null}

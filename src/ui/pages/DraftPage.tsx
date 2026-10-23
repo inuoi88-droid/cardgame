@@ -18,7 +18,9 @@ import { summarizeCard } from '../battle/summary.ts';
 import '../battle/battle.css';
 import { navigate } from '../router.ts';
 import { actions, useStore } from '../store.ts';
-import { cx, uuid } from '../util.ts';
+import { uuid } from '../util.ts';
+import { MedalGroup } from '../battle/Medal.tsx';
+import { CPU_PIPS, CPU_PORTRAIT } from '../battle/portraits.ts';
 
 const D = BALANCE.draft;
 
@@ -116,16 +118,8 @@ export function DraftPage() {
           <p className="hint">
             山はあなたのカードとプリセットのカード（{pool.length}種類。ルール違反・レジェンドは除く）。レアリティの枚数・同名の上限を破るカードは出ません。
           </p>
-          <div className="choice-list choice-list--row" role="radiogroup" aria-label="CPU の強さ">
-            {ai.CPU_LEVELS.map((l) => (
-              <label key={l} className={cx('choice', level === l && 'is-active')}>
-                <input type="radio" name="draft-level" checked={level === l} onChange={() => setLevel(l)} />
-                <span>
-                  <b>CPU：{ai.CPU_LEVEL_LABEL[l]}</b>
-                </span>
-              </label>
-            ))}
-          </div>
+          <h3 className="draft__sub">CPU の強さ</h3>
+          <MedalGroup label="CPU の強さ" name="draft-level" value={level} onChange={setLevel} options={ai.CPU_LEVELS.map((l) => ({ id: l, label: ai.CPU_LEVEL_LABEL[l], gi: CPU_PORTRAIT[l], pips: CPU_PIPS[l] }))} />
           <div className="btn-row">
             <button type="button" className="btn btn--primary btn--big" disabled={pool.length < D.offer} onClick={start}>
               ドラフトを始める
@@ -147,7 +141,8 @@ export function DraftPage() {
               <div key={c.id} className="draft__cand">
                 <CardView card={c} size="sm" onClick={() => setZoom(c)} actionLabel={`${c.name}を大きく見る`} />
                 <p className="draft__sum">{summarizeCard(c, 28)}</p>
-                <button type="button" className="btn btn--primary" onClick={() => pick(c)}>
+                {/* 1画面に3つ出るので金にしない（サファイアの縁の小さな主ボタン。UI2） */}
+                <button type="button" className="btn btn--primary btn--small" onClick={() => pick(c)}>
                   これを選ぶ
                 </button>
               </div>

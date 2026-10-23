@@ -82,10 +82,10 @@
   "megaphone": "キーワード：後援",
   "sands-of-time": "寿命",
   "crown": "王冠",
-  "explosion-rays": "ログ：ダメージ",
+  "explosion-rays": "ログ：ダメージ / エディター：効果の見出し（ダメージ系）",
   "heart-plus": "ログ：回復",
-  "magic-palm": "ログ：カードを使った",
-  "sparkles": "ログ：場に出た",
+  "magic-palm": "ログ：カードを使った / エディター：効果の見出し（妨害系）",
+  "sparkles": "ログ：場に出た / エディター：効果の見出し（レアリティ限定）",
   "skull-crack": "ログ：破壊",
   "crystal-growth": "ログ：エナジー",
   "crystal-shine": "ログ：状態を与えた",
@@ -94,5 +94,11 @@
   "stopwatch": "オンライン：手番の残り時間",
   "sun": "昼",
   "moon": "夜",
-  "flying-flag": "降参"
+  "flying-flag": "降参",
+  "healing": "エディター：効果の見出し（防御・回復系）",
+  "bubbling-flask": "エディター：効果の見出し（状態異常）",
+  "biceps": "エディター：効果の見出し（強化系）",
+  "card-exchange": "エディター：効果の見出し（リソース系）",
+  "rune-stone": "エディター：カードの能力",
+  "rune-sword": "エディター：キーワード"
 }

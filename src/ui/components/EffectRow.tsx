@@ -33,7 +33,7 @@ import {
   type TimingId,
   type Violation,
 } from '../../engine/index.ts';
-import { GROUP_ICON } from '../editor/EffectPicker.tsx';
+import { EffectIcon } from '../editor/EffectIcon.tsx';
 import { drawbackHint, effectHint } from '../editor/hints.ts';
 import { OptionPicker } from '../editor/OptionPicker.tsx';
 import {
@@ -57,7 +57,7 @@ interface RowShellProps {
   invalid: boolean;
   expanded: boolean;
   onToggle: () => void;
-  icon: string;
+  icon: ReactNode;
   title: ReactNode;
   chips: ReactNode[];
   pts: string;
@@ -72,9 +72,7 @@ function RowShell({ id, kind, invalid, expanded, onToggle, icon, title, chips, p
     <div className={cx('ed-row', `ed-row--${kind}`, invalid && 'ed-row--invalid', expanded && 'is-open')} id={id}>
       <div className="ed-row__head">
         <button type="button" className="ed-row__toggle" aria-expanded={expanded} onClick={onToggle} aria-label={`${index + 1}番目の${kind === 'effect' ? '効果' : 'デメリット'}：${typeof title === 'string' ? title : ''}（${expanded ? '閉じる' : '開く'}）`}>
-          <span className="ed-row__icon" aria-hidden="true">
-            {icon}
-          </span>
+          {icon}
           <span className="ed-row__main">
             <span className="ed-row__title">
               {title}
@@ -82,9 +80,7 @@ function RowShell({ id, kind, invalid, expanded, onToggle, icon, title, chips, p
             </span>
             <span className="ed-row__chips">{chips}</span>
           </span>
-          <span className="ed-row__chev" aria-hidden="true">
-            ▾
-          </span>
+          <span className="ed-row__chev" aria-hidden="true" />
         </button>
         <span className="ed-row__side">
           <span className={cx('ed-row__pts', kind === 'drawback' && 'is-minus')}>{pts}</span>
@@ -178,7 +174,7 @@ export function EffectRow({ index, count, effect, card, violations, expanded, on
       invalid={violations.length > 0}
       expanded={expanded}
       onToggle={onToggle}
-      icon={def ? GROUP_ICON[def.group] : '？'}
+      icon={<EffectIcon kind="effect" id={effect.id} group={def?.group} className="ed-row__icon" />}
       title={`${def?.name ?? effect.id}${shortValue ? ` ${shortValue}` : ''}`}
       chips={chips}
       pts={`${p.value}pt`}
@@ -377,7 +373,7 @@ export function DrawbackRow({ index, drawback, card, violations, expanded, onTog
       invalid={violations.length > 0}
       expanded={expanded}
       onToggle={onToggle}
-      icon="☠"
+      icon={<EffectIcon kind="drawback" className="ed-row__icon" />}
       title={`${def?.name ?? drawback.id}${spec ? ` ${drawback.value ?? 0}` : ''}`}
       chips={chips}
       pts={`−${p.value}pt`}

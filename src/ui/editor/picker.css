@@ -29,15 +29,22 @@
   border-color: var(--u-iron-hi);
 }
 .opk-trigger.is-open {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--u-sap);
+  box-shadow:
+    inset 0 2px 0 rgba(0, 0, 0, 0.5),
+    0 0 0 1px var(--u-sap);
+}
+.opk-trigger:focus-visible {
+  outline: 2px solid var(--u-sap-hi);
+  outline-offset: 1px;
 }
 .opk-trigger.is-invalid {
   border-color: var(--u-crim);
 }
 .opk-trigger:disabled {
   cursor: default;
-  opacity: 0.8;
+  color: var(--muted);
+  background: linear-gradient(180deg, #0d0f18, #12141e);
 }
 .opk-trigger__label {
   flex: 1;
@@ -60,8 +67,6 @@
   flex: none;
   width: 12px;
   height: 8px;
-  overflow: hidden;
-  color: transparent;
   background: var(--u-chev) center / contain no-repeat;
   transition: transform var(--dur-fast);
 }
@@ -69,18 +74,23 @@
   transform: rotate(180deg);
 }
 
-/* ------------------------------------------------------------ PC のパネル */
+/* ------------------------------------------------------------ PC のパネル：石の板＋面取りした鉄の縁（ダイアログと同じ額） */
 .opk-pop {
   position: fixed;
   z-index: 60;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 10px;
-  background: var(--panel);
-  border: 1px solid var(--line-strong);
+  padding: 12px;
+  background:
+    var(--u-noise) padding-box,
+    linear-gradient(180deg, var(--u-slate-0), var(--u-slate-1)) padding-box,
+    var(--u-rim-iron) border-box;
+  border: 1px solid transparent;
   border-radius: var(--radius);
-  box-shadow: var(--shadow-3);
+  box-shadow:
+    var(--u-chamfer),
+    var(--shadow-3);
   outline: none;
   animation: pop-in var(--dur) var(--ease);
 }
@@ -91,6 +101,7 @@
 .opk-pop .opk__list {
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 /* ------------------------------------------------------------ 中身 */
@@ -122,7 +133,7 @@
 .opk__list {
   min-height: 0;
   display: grid;
-  gap: 10px;
+  gap: 12px;
   align-content: start;
 }
 .opk__empty {
@@ -135,53 +146,100 @@
   display: grid;
   gap: 4px;
 }
+/* 見出し：羊皮紙の小さな字、左に鉄の菱形、下に彫った線（一覧の上に貼り付く） */
 .opk__group-head {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 2px 4px;
-  font-size: var(--fs-xs);
-  font-weight: bold;
-  color: var(--muted);
-  background: var(--panel);
-}
-.opk-opt {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 4px 4px 5px;
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  color: var(--muted);
+  background: var(--u-slate-1);
+  border-bottom: 1px solid #2c3243;
+  box-shadow: var(--u-groove);
+}
+.opk__group-head::before {
+  content: '';
+  flex: none;
+  width: 9px;
+  height: 9px;
+  background: var(--u-diamond-iron) center / contain no-repeat;
+}
+.opk__group.is-disabled .opk__group-head {
+  color: var(--placeholder);
+}
+/* 1行＝鉄の板（行が多いのでノイズは使わない）。選んだ行はサファイアの左の線と宝石 */
+.opk-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-height: 48px;
-  padding: 6px 10px 6px 6px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel-2);
+  padding: 6px 10px 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, #1f2538, #171b2b) padding-box,
+    linear-gradient(170deg, #454c5e, #23272f) border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   cursor: pointer;
-  transition:
-    border-color var(--dur-fast),
-    background-color var(--dur-fast);
+  transition: filter var(--dur-fast);
 }
 .opk-opt.is-active {
-  border-color: var(--accent);
-  background: var(--panel-3);
+  background:
+    linear-gradient(180deg, #283049, #1d2235) padding-box,
+    var(--u-rim-iron) border-box;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(111, 160, 255, 0.55);
 }
 .opk-opt.is-selected {
-  border-color: var(--ok);
+  background:
+    linear-gradient(90deg, rgba(47, 95, 224, 0.3), rgba(47, 95, 224, 0.06)) padding-box,
+    linear-gradient(180deg, #1f2538, #171b2b) padding-box,
+    var(--u-rim-sapphire) border-box;
+  box-shadow: inset 3px 0 0 var(--u-sap);
 }
 .opk-opt.is-selected.is-active {
-  box-shadow: 0 0 0 1px var(--accent);
+  box-shadow:
+    inset 3px 0 0 var(--u-sap),
+    0 0 0 1px var(--u-sap-hi);
 }
+/* 選べないもの：金属の色を抜く（字は 4.5:1 以上を保つ） */
 .opk-opt.is-disabled {
   cursor: not-allowed;
-  opacity: 0.62;
+  color: var(--muted);
+  background:
+    linear-gradient(180deg, #171a26, #12141e) padding-box,
+    linear-gradient(170deg, #34383f, #1f2229) border-box;
+  box-shadow: none;
 }
 .opk-opt.is-disabled.is-active {
-  background: var(--panel-2);
+  box-shadow: 0 0 0 1px rgba(154, 162, 178, 0.5);
 }
+/* 選んだ印：鉄の台座、選ぶとサファイアの宝石（ラジオと同じ形） */
 .opk-opt__check {
   flex: none;
   width: 18px;
-  text-align: center;
-  color: var(--ok);
-  font-weight: bold;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, #1a1f30, var(--u-well-0) 70%);
+  box-shadow:
+    inset 0 2px 0 rgba(0, 0, 0, 0.6),
+    0 0 0 1px var(--u-iron);
+}
+.opk-opt.is-selected .opk-opt__check {
+  background:
+    radial-gradient(circle at 42% 36%, #ffffff 0 9%, transparent 10%),
+    radial-gradient(circle at 50% 50%, #8fc0ff 0 22%, #2f5fe0 46%, #142a6a 58%, transparent 60%),
+    radial-gradient(circle at 50% 40%, #1a1f30, var(--u-well-0) 70%);
+  box-shadow: 0 0 0 1px var(--u-iron-hi);
+}
+.opk-opt.is-disabled .opk-opt__check {
+  visibility: hidden;
 }
 .opk-opt__main {
   flex: 1;
@@ -199,9 +257,21 @@
   color: var(--muted);
   line-height: 1.4;
 }
+/* 選べない理由：琥珀の字、行頭に琥珀の菱形（🔒 の絵文字はやめる） */
 .opk-opt__reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--fs-xs);
   color: var(--warn);
+}
+.opk-opt__reason::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  background: var(--warn);
 }
 .opk-opt__pts {
   flex: none;
@@ -213,6 +283,7 @@
 }
 .opk-opt__pts b {
   font-size: var(--fs-sm);
+  font-weight: 800;
 }
 .opk-opt__pts small {
   font-size: var(--fs-xs);

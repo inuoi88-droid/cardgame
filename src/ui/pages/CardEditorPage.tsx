@@ -44,7 +44,7 @@ import { Stepper, Violations } from '../components/controls.tsx';
 import { useIsPhone } from '../components/dialogUtil.ts';
 import { DrawbackRow, EffectRow } from '../components/EffectRow.tsx';
 import { CardArt } from '../components/CardArt.tsx';
-import { CostGem, frameClasses, StatMini } from '../components/cardParts.tsx';
+import { CostGem, frameClasses, RarityGem, StatMini } from '../components/cardParts.tsx';
 import { iconLabel } from '../icons/ref.ts';
 import { PointPanel } from '../components/PointPanel.tsx';
 import { Sheet } from '../components/Sheet.tsx';
@@ -60,6 +60,7 @@ import { navigate, setNavigationGuard } from '../router.ts';
 import { NEW_DRAFT, actions, cardDrafts, useStore } from '../store.ts';
 import { cx, uuid, stepOf } from '../util.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
+import { EffectIcon } from '../editor/EffectIcon.tsx';
 
 /** カードの絵の選択パネル（検索の辞書・分類を含むので、開くときに読む。決定事項 #105） */
 const IconPicker = lazy(() => import('../components/IconPicker.tsx').then((m) => ({ default: m.IconPicker })));
@@ -466,7 +467,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
           {/* ---------------------------------------------------------------- 基本 */}
           <section className="panel ed-section">
             <div className="ed-section__head">
-              <span className="ed-step" aria-hidden="true">
+              <span className="u-hex ed-step" aria-hidden="true">
                 1
               </span>
               <h2>基本</h2>
@@ -519,7 +520,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
             </label>
             <div className="field" id={fieldId('rarity')}>
               <span>レアリティ（基本の予算が決まります）</span>
-              <div className="seg" role="radiogroup" aria-label="レアリティ">
+              <div className="seg ed-rar" role="radiogroup" aria-label="レアリティ">
                 {RARITIES.map((r) => (
                   <button
                     key={r}
@@ -538,6 +539,9 @@ function Editor({ saved }: { saved: CardDef | null }) {
                       (e.currentTarget.parentElement?.querySelector(`.seg__btn--${next}`) as HTMLElement | null)?.focus();
                     }}
                   >
+                    <span className="ed-rar__gem" aria-hidden="true">
+                      <RarityGem rarity={r} />
+                    </span>
                     {RARITY_LABEL[r]}
                     <small>上限 {BALANCE.rarity[r].cap}</small>
                   </button>
@@ -588,7 +592,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
           {/* ---------------------------------------------------------------- 種類 */}
           <section className="panel ed-section">
             <div className="ed-section__head">
-              <span className="ed-step" aria-hidden="true">
+              <span className="u-hex ed-step" aria-hidden="true">
                 2
               </span>
               <h2>種類</h2>
@@ -601,42 +605,57 @@ function Editor({ saved }: { saved: CardDef | null }) {
             {card.stats && (
               <>
                 <div className="stats-grid ed-stats">
-                  <Stepper
-                    id={fieldId('stats.attack')}
-                    label="攻撃力"
-                    help={`+${BALANCE.scale} ごとに ${BALANCE.scale * S.attackPoints}pt`}
-                    value={card.stats.attack}
-                    min={S.attackMin}
-                    max={S.attackMax}
-                    step={BALANCE.scale}
-                    snap
-                    error={violationsExactly(analysis.violations, 'stats.attack')[0]?.message}
-                    onChange={(attack) => setCard((c) => ({ ...c, stats: { ...c.stats!, attack } }))}
+                  <div className="ed-stat ed-stat--atk">
+                    <svg className="ed-stat__sigil" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                      <use href="#emb-atk-mini" />
+                    </svg>
+                    <Stepper
+                      id={fieldId('stats.attack')}
+                      label="攻撃力"
+                      help={`+${BALANCE.scale} ごとに ${BALANCE.scale * S.attackPoints}pt`}
+                      value={card.stats.attack}
+                      min={S.attackMin}
+                      max={S.attackMax}
+                      step={BALANCE.scale}
+                      snap
+                      error={violationsExactly(analysis.violations, 'stats.attack')[0]?.message}
+                      onChange={(attack) => setCard((c) => ({ ...c, stats: { ...c.stats!, attack } }))}
+                    />
+                  </div>
+                  <div className="ed-stat ed-stat--hp">
+                    <svg className="ed-stat__sigil" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                      <use href="#emb-hp" />
+                    </svg>
+                    <Stepper
+                      id={fieldId('stats.hp')}
+                      label="体力"
+                      help={`+${BALANCE.scale} ごとに ${BALANCE.scale * S.hpPoints}pt`}
+                      value={card.stats.hp}
+                      min={S.hpMin}
+                      max={S.hpMax}
+                      step={BALANCE.scale}
+                      snap
+                      error={violationsExactly(analysis.violations, 'stats.hp')[0]?.message}
+                      onChange={(hp) => setCard((c) => ({ ...c, stats: { ...c.stats!, hp } }))}
+                    />
+                  </div>
+                  <div className="ed-stat ed-stat--def">
+                    <svg className="ed-stat__sigil" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                      <use href="#emb-def" />
+                    </svg>
+                    <Stepper
+                      id={fieldId('stats.defense')}
+                      label="守備力"
+                      help={`+${BALANCE.scale} ごとに ${BALANCE.scale * S.defensePoints}pt`}
+                      value={card.stats.defense}
+                      min={S.defenseMin}
+                      max={S.defenseMax}
+                      step={BALANCE.scale}
+                      snap
+                      error={violationsExactly(analysis.violations, 'stats.defense')[0]?.message}
+                      onChange={(defense) => setCard((c) => ({ ...c, stats: { ...c.stats!, defense } }))}
                   />
-                  <Stepper
-                    id={fieldId('stats.hp')}
-                    label="体力"
-                    help={`+${BALANCE.scale} ごとに ${BALANCE.scale * S.hpPoints}pt`}
-                    value={card.stats.hp}
-                    min={S.hpMin}
-                    max={S.hpMax}
-                    step={BALANCE.scale}
-                    snap
-                    error={violationsExactly(analysis.violations, 'stats.hp')[0]?.message}
-                    onChange={(hp) => setCard((c) => ({ ...c, stats: { ...c.stats!, hp } }))}
-                  />
-                  <Stepper
-                    id={fieldId('stats.defense')}
-                    label="守備力"
-                    help={`+${BALANCE.scale} ごとに ${BALANCE.scale * S.defensePoints}pt`}
-                    value={card.stats.defense}
-                    min={S.defenseMin}
-                    max={S.defenseMax}
-                    step={BALANCE.scale}
-                    snap
-                    error={violationsExactly(analysis.violations, 'stats.defense')[0]?.message}
-                    onChange={(defense) => setCard((c) => ({ ...c, stats: { ...c.stats!, defense } }))}
-                  />
+                  </div>
                 </div>
                 <div className="ed-kws" id={fieldId('keywords')}>
                   <h3>
@@ -651,6 +670,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
                         return (
                           <li key={k.id} className={cx('ed-kw', bad.length > 0 && 'is-invalid')}>
                             <div className="ed-kw__head">
+                              <EffectIcon kind="keyword" className="ed-kw__icon" />
                               <b>{def.displayName(k)}</b>
                               <span className="ed-kw__pts">{def.points(k, card.stats!)}pt</span>
                               <button type="button" className="btn btn--ghost btn--icon btn--small" onClick={() => toggleKeyword(k.id)} aria-label={`${def.name}を外す`}>
@@ -676,7 +696,10 @@ function Editor({ saved }: { saved: CardDef | null }) {
                     </ul>
                   )}
                   <button type="button" className="ed-add ed-add--small" onClick={() => setPicker('keyword')}>
-                    ＋ キーワードを付ける
+                    <span className="ed-add__plus" aria-hidden="true">
+                      ＋
+                    </span>
+                    キーワードを付ける
                   </button>
                 </div>
               </>
@@ -686,7 +709,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
           {/* ---------------------------------------------------------------- 効果 */}
           <section className="panel ed-section" id={fieldId('effects')}>
             <div className="ed-section__head">
-              <span className="ed-step" aria-hidden="true">
+              <span className="u-hex ed-step" aria-hidden="true">
                 3
               </span>
               <h2>
@@ -722,7 +745,16 @@ function Editor({ saved }: { saved: CardDef | null }) {
               <p className={cx(attempted ? 'field__error' : 'hint', 'ed-section__msg')}>{attempted ? sectionViolations[0]!.message : 'まず効果を1つ追加しましょう（モンスターなら効果なしでも作れます）'}</p>
             )}
             <button type="button" className="ed-add" onClick={() => setPicker('effect')} disabled={card.effects.length >= maxEffects}>
-              {card.effects.length >= maxEffects ? `${RARITY_LABEL[card.rarity]}の効果は${maxEffects}つまでです` : '＋ 効果を追加'}
+              {card.effects.length >= maxEffects ? (
+                `${RARITY_LABEL[card.rarity]}の効果は${maxEffects}つまでです`
+              ) : (
+                <>
+                  <span className="ed-add__plus" aria-hidden="true">
+                    ＋
+                  </span>
+                  効果を追加
+                </>
+              )}
             </button>
           </section>
 
@@ -730,7 +762,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
           {(base === 'spell' || abilities.length > 0 || abilityAddable) && (
             <section className="panel ed-section" id={fieldId('abilities')}>
               <div className="ed-section__head">
-                <span className="ed-step" aria-hidden="true">
+                <span className="u-hex ed-step" aria-hidden="true">
                   ✦
                 </span>
                 <h2>
@@ -749,7 +781,8 @@ function Editor({ saved }: { saved: CardDef | null }) {
                 return (
                   <div key={`${a.id}-${i}`} className="ed-row ed-row--ability" id={fieldId(`abilities.${i}`)}>
                     <div className="ed-row__head">
-                      <b>✦ {def ? def.displayName(a) : a.id}</b>
+                      <EffectIcon kind="ability" className="ed-row__icon" />
+                      <b>{def ? def.displayName(a) : a.id}</b>
                       <span className="ed-row__pts">{line ? `${line.value}pt` : ''}</span>
                       <button type="button" className="btn btn--small btn--ghost" onClick={() => removeAbility(i)} aria-label={`${def?.name ?? a.id}を外す`}>
                         外す
@@ -837,7 +870,16 @@ function Editor({ saved }: { saved: CardDef | null }) {
               })}
               <Violations items={violationsExactly(analysis.violations, 'abilities')} />
               <button type="button" className="ed-add" onClick={() => setPicker('ability')} disabled={!abilityAddable}>
-                {abilityAddable ? '＋ カードの能力を追加' : '付けられるカードの能力はありません'}
+                {abilityAddable ? (
+                  <>
+                    <span className="ed-add__plus" aria-hidden="true">
+                      ＋
+                    </span>
+                    カードの能力を追加
+                  </>
+                ) : (
+                  '付けられるカードの能力はありません'
+                )}
               </button>
             </section>
           )}
@@ -845,7 +887,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
           {/* ---------------------------------------------------------------- デメリット */}
           <section className={cx('panel ed-section panel--drawback', analysis.isCurse && 'is-curse')} id={fieldId('drawbacks')}>
             <div className="ed-section__head">
-              <span className="ed-step" aria-hidden="true">
+              <span className="u-hex ed-step" aria-hidden="true">
                 4
               </span>
               <h2>デメリット</h2>
@@ -888,13 +930,22 @@ function Editor({ saved }: { saved: CardDef | null }) {
               );
             })}
             <button type="button" className="ed-add ed-add--drawback" onClick={() => setPicker('drawback')} disabled={addable.length === 0}>
-              {addable.length === 0 ? '付けられるデメリットはありません' : '＋ デメリットを追加'}
+              {addable.length === 0 ? (
+                '付けられるデメリットはありません'
+              ) : (
+                <>
+                  <span className="ed-add__plus" aria-hidden="true">
+                    ＋
+                  </span>
+                  デメリットを追加
+                </>
+              )}
             </button>
           </section>
         </div>
 
         <aside className="ed-aside" aria-label="プレビューと内訳">
-          <div className="ed-preview">
+          <div className={cx('ed-preview', `ed-preview--${card.rarity}`, analysis.isCurse && 'is-curse')}>
             <CardView card={card} analysis={analysis} />
             {shownViolations.length > 0 && <span className="ed-preview__ribbon">要修正 {shownViolations.length}件</span>}
           </div>
@@ -936,7 +987,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
         />
       )}
       <Sheet open={sheet === 'preview'} title="プレビューと内訳" onClose={() => setSheet(null)} desktop="modal">
-        <div className="ed-sheet-preview">
+        <div className={cx('ed-sheet-preview', `ed-preview--${card.rarity}`, analysis.isCurse && 'is-curse')}>
           <CardView card={card} analysis={analysis} />
         </div>
         {panel(false)}
@@ -946,7 +997,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
         <ul className="ed-tpls">
           {templateCards.map(({ t, card: c, a }) => {
 
-            const lines = [...a.text.keywords.map((k) => k.name), ...a.text.effects, ...a.text.drawbacks.map((d) => `☠ ${d}`)];
+            const lines = [...a.text.keywords.map((k) => k.name), ...a.text.effects, ...a.text.drawbacks.map((d) => `デメリット：${d}`)];
             return (
               <li key={t.id}>
                 <button type="button" className={cx('ed-tpl', frameClasses(c.rarity, a.cardType, a.isCurse), a.isCurse && 'is-curse')} onClick={() => void applyTemplate(t)}>

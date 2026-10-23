@@ -147,9 +147,7 @@ export function OptionPicker({ label, title, value, options, onChange, invalid, 
         <span className="opk-trigger__label">{current?.label ?? '（選べない値）'}</span>
         {current?.hint && <span className="opk-trigger__hint">{current.hint}</span>}
         {!disabled && (
-          <span className="opk-trigger__chev" aria-hidden="true">
-            ▾
-          </span>
+          <span className="opk-trigger__chev" aria-hidden="true" />
         )}
       </button>
       {phone ? (
@@ -374,13 +372,11 @@ function PickerPanel({ title, value, options, note, initialQuery, autoFocusSearc
                   onPointerMove={() => i !== activeIndex && setActive(i)}
                   onClick={() => !o.disabled && onPick(o.id)}
                 >
-                  <span className="opk-opt__check" aria-hidden="true">
-                    {selected ? '✓' : ''}
-                  </span>
+                  <span className="opk-opt__check" aria-hidden="true" />
                   <span className="opk-opt__main">
                     <span className="opk-opt__label">{o.label}</span>
                     {o.description && <span className="opk-opt__desc">{o.description}</span>}
-                    {o.disabled && <span className="opk-opt__reason">🔒 {o.disabled}</span>}
+                    {o.disabled && <span className="opk-opt__reason">{o.disabled}</span>}
                   </span>
                   {(o.points || o.hint) && (
                     <span className="opk-opt__pts">

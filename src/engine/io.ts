@@ -37,10 +37,43 @@ export interface ExportBundle {
   version: typeof EXPORT_VERSION;
   cards: CardDef[];
   decks: Deck[];
+  /** カードのグループ（カード置き場の整理用。任意の項目：無い書き出しもそのまま読める。決定事項 #109） */
+  groups?: CardGroup[];
 }
 
-export function buildExport(cards: readonly CardDef[], decks: readonly Deck[]): ExportBundle {
-  return { format: EXPORT_FORMAT, version: EXPORT_VERSION, cards: cards.map(canonicalCard), decks: decks.map(canonicalDeck) };
+/**
+ * カードのグループ（シナジーで分けるための名前つきの入れ物。カード置き場の整理用で、対戦には関わらない）。
+ * 保存は UI 側（store.ts）。ここには形の検証と書き出し・取り込みだけを置く。1枚のカードは複数のグループに入れる。
+ */
+export interface CardGroup {
+  v: 1;
+  id: string;
+  name: string;
+  /** 色の名前（UI のパレットのキー。知らない名前は UI が既定の色で描く） */
+  color: string;
+  /** シナジーのメモ（任意） */
+  memo?: string;
+  /** 入っているカードの ID（並びは入れた順） */
+  cardIds: string[];
+}
+
+/** グループ名・メモの最大文字数（見た目のための上限。バランスの数値ではない） */
+export const GROUP_NAME_MAX = 20;
+export const GROUP_MEMO_MAX = 200;
+const GROUP_COLOR = /^[a-z][a-z0-9-]{0,19}$/;
+export const GROUP_DEFAULT_COLOR = 'slate';
+
+/**
+ * 書き出しの形にする。groups を渡すと、書き出すカードの ID だけに絞って入れる（空のグループも残す）。
+ * groups が空なら項目ごと付けない（古い形と同じ）
+ */
+export function buildExport(cards: readonly CardDef[], decks: readonly Deck[], groups: readonly CardGroup[] = []): ExportBundle {
+  const bundle: ExportBundle = { format: EXPORT_FORMAT, version: EXPORT_VERSION, cards: cards.map(canonicalCard), decks: decks.map(canonicalDeck) };
+  if (groups.length > 0) {
+    const ids = new Set(cards.map((c) => c.id));
+    bundle.groups = groups.map((g) => canonicalGroup({ ...g, cardIds: g.cardIds.filter((id) => ids.has(id)) }));
+  }
+  return bundle;
 }
 
 /** デッキ1つを、使っているカードの定義と一緒に書き出す */
@@ -217,9 +250,61 @@ export function parseDeck(x: unknown): Result<Deck> {
   return { ok: true, value: { v: 1, id: x.id, name: x.name, entries } };
 }
 
+/** グループ名をそろえる：制御文字・改行は空白に、空白の連続は1つに、前後の空白は除き、GROUP_NAME_MAX 文字で切る */
+export function normalizeGroupName(x: unknown): string {
+  if (!isStr(x)) return '';
+  const chars = [...x.replace(DESCRIPTION_JUNK, ' ').replace(/\s+/gu, ' ').trim()];
+  return chars.slice(0, GROUP_NAME_MAX).join('').trimEnd();
+}
+
+/** グループ名の突き合わせ用の鍵（全角・半角と大文字・小文字の違いをならす） */
+export function groupKey(name: string): string {
+  return normalizeGroupName(name).normalize('NFKC').toLowerCase();
+}
+
+/** グループのメモをそろえる：改行は残し（3行以上の空行は詰める）、ほかの制御文字は空白に。GROUP_MEMO_MAX 文字で切る。空なら undefined */
+export function normalizeGroupMemo(x: unknown): string | undefined {
+  if (!isStr(x)) return undefined;
+  const cleaned = x
+    .replace(/\r\n?/g, '\n')
+    .replace(/[^\S\n]+/gu, ' ')
+    .replace(/[\p{Cc}\u2028\u2029\u202A-\u202E\u2066-\u2069]/gu, (c) => (c === '\n' ? c : ' '))
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  const chars = [...cleaned];
+  const out = chars.length > GROUP_MEMO_MAX ? chars.slice(0, GROUP_MEMO_MAX).join('').trimEnd() : cleaned;
+  return out === '' ? undefined : out;
+}
+
+/** グループ1つを読み取る。カード ID は文字列だけを重ならないように残す（知らない ID は取り込みの統合で落とす） */
+export function parseGroup(x: unknown): Result<CardGroup> {
+  if (!isObj(x)) return { ok: false, error: 'グループの形式ではありません' };
+  const label = isStr(x.name) ? `グループ「${x.name}」` : 'グループ';
+  if (x.v !== undefined && x.v !== 1) return { ok: false, error: `${label}のデータ形式のバージョンに対応していません` };
+  if (!isStr(x.id) || x.id.length === 0) return { ok: false, error: `${label}にIDがありません` };
+  const name = normalizeGroupName(x.name);
+  if (name === '') return { ok: false, error: `${label}の名前がありません` };
+  if (!Array.isArray(x.cardIds)) return { ok: false, error: `${label}のカード一覧が正しくありません` };
+  const cardIds = [...new Set(x.cardIds.filter((id): id is string => isStr(id) && id.length > 0))];
+  const color = isStr(x.color) && GROUP_COLOR.test(x.color) ? x.color : GROUP_DEFAULT_COLOR;
+  const g: CardGroup = { v: 1, id: x.id, name, color, cardIds };
+  const memo = normalizeGroupMemo(x.memo);
+  if (memo !== undefined) g.memo = memo;
+  return { ok: true, value: g };
+}
+
+/** 項目の順番をそろえたコピー */
+function canonicalGroup(g: CardGroup): CardGroup {
+  const r = parseGroup(g);
+  return r.ok ? r.value : g;
+}
+
 export interface ParsedImport {
   cards: CardDef[];
   decks: Deck[];
+  /** グループ（書き出しに入っていたときだけ。無ければ空） */
+  groups: CardGroup[];
   /** 読み飛ばしたデータの理由 */
   warnings: string[];
 }
@@ -237,12 +322,14 @@ export function parseImport(text: string): Result<ParsedImport> {
   }
   let rawCards: unknown[] = [];
   let rawDecks: unknown[] = [];
+  let rawGroups: unknown[] = [];
   if (Array.isArray(data)) {
     rawCards = data;
   } else if (isObj(data) && data.format === EXPORT_FORMAT) {
     if (data.version !== EXPORT_VERSION) return { ok: false, error: 'このバージョンの書き出しファイルには対応していません' };
     rawCards = Array.isArray(data.cards) ? data.cards : [];
     rawDecks = Array.isArray(data.decks) ? data.decks : [];
+    rawGroups = Array.isArray(data.groups) ? data.groups : [];
   } else if (isObj(data) && 'rarity' in data) {
     rawCards = [data];
   } else {
@@ -252,6 +339,7 @@ export function parseImport(text: string): Result<ParsedImport> {
   const warnings: string[] = [];
   const cards: CardDef[] = [];
   const decks: Deck[] = [];
+  const groups: CardGroup[] = [];
   for (const c of rawCards) {
     const r = parseCard(c);
     if (r.ok) cards.push(r.value);
@@ -262,10 +350,15 @@ export function parseImport(text: string): Result<ParsedImport> {
     if (r.ok) decks.push(r.value);
     else warnings.push(r.error);
   }
-  if (cards.length === 0 && decks.length === 0) {
+  for (const g of rawGroups) {
+    const r = parseGroup(g);
+    if (r.ok) groups.push(r.value);
+    else warnings.push(r.error);
+  }
+  if (cards.length === 0 && decks.length === 0 && groups.length === 0) {
     return { ok: false, error: warnings[0] ?? '取り込めるカードやデッキがありませんでした' };
   }
-  return { ok: true, value: { cards, decks, warnings } };
+  return { ok: true, value: { cards, decks, groups, warnings } };
 }
 
 // ---------------------------------------------------------------- 取り込み（既存データとの統合）
@@ -289,8 +382,14 @@ function sameContent(a: CardDef, b: CardDef): boolean {
 export interface MergeResult {
   cards: CardDef[];
   decks: Deck[];
+  /** 手元のグループ＋取り込んだグループ（同じ名前は1つにまとめる） */
+  groups: CardGroup[];
   addedCards: number;
   addedDecks: number;
+  /** 新しく増えたグループの数 */
+  addedGroups: number;
+  /** 同じ名前の手元のグループにカードを足した数（グループの数） */
+  mergedGroups: number;
   /** 名前が重なったため変えたカード（変更前 → 変更後） */
   renamed: { from: string; to: string }[];
   /** すでに同じものがあったため取り込まなかったカードの数 */
@@ -303,12 +402,15 @@ export interface MergeResult {
  * - ID が重なって中身が違うカードは新しい ID にする
  * - 名前が重なったら末尾に番号を付ける
  * - デッキの中のカード ID は付け替える
+ * - グループは名前（groupKey）で手元のものと突き合わせ、同じ名前ならカードを足す（色・メモは手元のまま。手元にメモが無ければ取り込む）。
+ *   中のカード ID はカードと同じように付け替え、どこにも無いカードの ID は落とす
  */
 export function mergeImport(
   existingCards: readonly CardDef[],
   existingDecks: readonly Deck[],
-  incoming: { cards: readonly CardDef[]; decks: readonly Deck[] },
+  incoming: { cards: readonly CardDef[]; decks: readonly Deck[]; groups?: readonly CardGroup[] },
   newId: () => string,
+  existingGroups: readonly CardGroup[] = [],
 ): MergeResult {
   const cards = [...existingCards];
   const decks = [...existingDecks];
@@ -344,5 +446,29 @@ export function mergeImport(
     addedDecks++;
   }
 
-  return { cards, decks, addedCards, addedDecks, renamed, unchangedCards };
+  const groups = existingGroups.map((g) => ({ ...g, cardIds: [...g.cardIds] }));
+  const cardIdSet = new Set(cards.map((c) => c.id));
+  let addedGroups = 0;
+  let mergedGroups = 0;
+  for (const inc of incoming.groups ?? []) {
+    const ids = [...new Set(inc.cardIds.map((id) => idMap.get(id) ?? id))].filter((id) => cardIdSet.has(id));
+    const key = groupKey(inc.name);
+    const same = groups.find((g) => groupKey(g.name) === key);
+    if (same) {
+      const have = new Set(same.cardIds);
+      const extra = ids.filter((id) => !have.has(id));
+      const takeMemo = same.memo === undefined && inc.memo !== undefined;
+      if (extra.length > 0 || takeMemo) mergedGroups++;
+      same.cardIds.push(...extra);
+      if (takeMemo) same.memo = inc.memo;
+      continue;
+    }
+    const id = groups.some((g) => g.id === inc.id) ? newId() : inc.id;
+    const g: CardGroup = { v: 1, id, name: inc.name, color: inc.color, cardIds: ids };
+    if (inc.memo !== undefined) g.memo = inc.memo;
+    groups.push(g);
+    addedGroups++;
+  }
+
+  return { cards, decks, groups, addedCards, addedDecks, addedGroups, mergedGroups, renamed, unchangedCards };
 }

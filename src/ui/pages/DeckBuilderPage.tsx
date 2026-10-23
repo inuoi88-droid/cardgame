@@ -1,20 +1,28 @@
 /** デッキ構築 */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   BALANCE,
   CARD_TYPE_LABEL,
-  RARITIES,
   RARITY_LABEL,
   TRIBE_LABEL,
-  analyzeCard,
   analyzeDeck,
   normalizeName,
   type CardAnalysis,
   type CardDef,
   type Deck,
-  type Rarity,
+  type DeckAnalysis,
   type RarityRow,
 } from '../../engine/index.ts';
+import { FilterChipsRow, FilterSheet, SearchBox, SortSelect } from '../collection/Controls.tsx';
+import { useEntries } from '../collection/entries.ts';
+import { GroupDots } from '../collection/CardCollection.tsx';
+import { GroupBar } from '../collection/GroupUI.tsx';
+import { membershipIndex } from '../collection/groups.ts';
+import { PREF_KEYS, usePrefs } from '../collection/prefs.ts';
+import { EMPTY_FILTERS, deckUseIndex, filterCount, filterEntries, sortEntries, type Entry } from '../collection/query.ts';
+import type { TagId } from '../collection/tags.ts';
+import { VirtualRows } from '../collection/VirtualRows.tsx';
+import '../collection/collection.css';
 import { CardDetail } from '../components/CardDetail.tsx';
 import { CardArtOf } from '../components/CardArt.tsx';
 import { CostGem, frameClasses, RarityGem, StatMini } from '../components/cardParts.tsx';
@@ -44,10 +52,21 @@ export function DeckBuilderPage({ id }: { id: string | null }) {
   return <Builder key={id ?? NEW_DRAFT} saved={saved} />;
 }
 
-type PoolFilter = Rarity | 'curse' | 'all';
+/** 1枚足せないなら、その理由（デッキの枚数・同名・レアリティの上限、要修正） */
+function blockReason(card: CardDef, ca: CardAnalysis | undefined, deck: Deck, da: DeckAnalysis, cardsById: ReadonlyMap<string, CardDef>): string | null {
+  if (ca && !ca.valid) return '要修正のカードはデッキに入れられません（先にカードを直してください）';
+  if (da.total >= da.size) return `デッキは${da.size}枚ちょうどです（もう${da.total}枚入っています）`;
+  const perName = BALANCE.rarity[card.rarity].perNameLimit;
+  const key = normalizeName(card.name);
+  const nameCount = deck.entries.reduce((n, e) => (cardsById.get(e.cardId) && normalizeName(cardsById.get(e.cardId)!.name) === key ? n + e.count : n), 0);
+  if (perName !== null && nameCount >= perName) return `同じ名前のカードは${RARITY_LABEL[card.rarity]}なら${perName}枚までです（いま${nameCount}枚）`;
+  const row = da.rarityRows.find((r) => r.rarity === card.rarity);
+  if (row && row.limit !== null && row.count >= row.limit) return `${RARITY_LABEL[card.rarity]}はデッキ全体で${row.limit}枚までです（いま${row.count}枚）`;
+  return null;
+}
 
 function Builder({ saved }: { saved: Deck | null }) {
-  const { cards } = useStore();
+  const { cards, decks, groups } = useStore();
   const toast = useToast();
   const draftKey = saved?.id ?? NEW_DRAFT;
   const [restored] = useState(() => {
@@ -57,7 +76,8 @@ function Builder({ saved }: { saved: Deck | null }) {
   const [deck, setDeck] = useState<Deck>(() => restored ?? saved ?? emptyDeck(uuid()));
   const [draftNotice, setDraftNotice] = useState(restored !== null);
   const [tab, setTab] = useState<'pool' | 'deck'>('pool');
-  const [filter, setFilter] = useState<PoolFilter>('all');
+  const [prefs, setPrefs] = usePrefs(PREF_KEYS.deckPool);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [previewId, setPreviewId] = useState<string | null>(null);
 
@@ -68,7 +88,15 @@ function Builder({ saved }: { saved: Deck | null }) {
   }, [deck, saved, draftKey]);
 
   const cardsById = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
-  const analyses = useMemo(() => new Map(cards.map((c) => [c.id, analyzeCard(c)])), [cards]);
+  const entries = useEntries(cards);
+  const analyses = useMemo(() => new Map(entries.map((e) => [e.card.id, e.a])), [entries]);
+  const membership = useMemo(() => membershipIndex(groups), [groups]);
+  const groupsById = useMemo(() => new Map(groups.map((g) => [g.id, g])), [groups]);
+  const ctx = useMemo(() => ({ membership, deckUse: deckUseIndex(decks) }), [membership, decks]);
+  const scope = prefs.scope === 'all' || prefs.scope === 'ungrouped' || groupsById.has(prefs.scope) ? prefs.scope : 'all';
+  // デッキ構築ではデッキの絞り込みは使わない
+  const filters = prefs.filters.deck === 'any' ? prefs.filters : { ...prefs.filters, deck: 'any' };
+  const scopeGroup = groupsById.get(scope);
   const a = useMemo(() => analyzeDeck(deck, cardsById), [deck, cardsById]);
   const dirty = !saved || !sameJson(deck, saved);
 
@@ -97,31 +125,45 @@ function Builder({ saved }: { saved: Deck | null }) {
     return m;
   }, [deck, cardsById, analyses]);
 
-  const pool = cards.filter((c) => {
-    const ca = analyses.get(c.id)!;
-    if (filter === 'curse' && !ca.isCurse) return false;
-    if (filter !== 'curse' && filter !== 'all' && c.rarity !== filter) return false;
-    if (query.trim() && !c.name.includes(query.trim())) return false;
-    return true;
-  });
+  const pool = useMemo(() => sortEntries(filterEntries(entries, query, filters, scope, ctx), prefs.sort, prefs.desc), [entries, query, filters, scope, ctx, prefs.sort, prefs.desc]);
+  const poolRows = useMemo(() => pool.map((e) => ({ key: e.card.id, kind: 'row', entry: e })), [pool]);
+  const groupCounts = useMemo(() => new Map(groups.map((g) => [g.id, g.cardIds.filter((id) => cardsById.has(id)).length])), [groups, cardsById]);
+  const ungrouped = useMemo(() => cards.filter((c) => (membership.get(c.id)?.length ?? 0) === 0).length, [cards, membership]);
+  const tagCounts = useMemo(() => {
+    const m = new Map<TagId, number>();
+    for (const e of filterEntries(entries, '', EMPTY_FILTERS, scope, ctx)) for (const t of e.tags) m.set(t, (m.get(t) ?? 0) + 1);
+    return m;
+  }, [entries, scope, ctx]);
 
   const deckRows = deck.entries
     .map((e) => ({ entry: e, card: cardsById.get(e.cardId) }))
     .sort((x, y) => (x.card?.cost ?? 99) - (y.card?.cost ?? 99) || (x.card?.name ?? '').localeCompare(y.card?.name ?? '', 'ja'));
 
-  /** 1枚足せないなら、その理由（デッキの枚数・同名・レアリティの上限、要修正） */
-  const addBlock = (card: CardDef): string | null => {
-    const ca = analyses.get(card.id);
-    if (ca && !ca.valid) return '要修正のカードはデッキに入れられません（先にカードを直してください）';
-    if (a.total >= a.size) return `デッキは${a.size}枚ちょうどです（もう${a.total}枚入っています）`;
-    const perName = BALANCE.rarity[card.rarity].perNameLimit;
-    const nameCount = nameCounts.get(normalizeName(card.name)) ?? 0;
-    if (perName !== null && nameCount >= perName) return `同じ名前のカードは${RARITY_LABEL[card.rarity]}なら${perName}枚までです（いま${nameCount}枚）`;
-    const row = a.rarityRows.find((r) => r.rarity === card.rarity);
-    if (row && row.limit !== null && row.count >= row.limit) return `${RARITY_LABEL[card.rarity]}はデッキ全体で${row.limit}枚までです（いま${row.count}枚）`;
-    return null;
-  };
+  const addBlock = (card: CardDef): string | null => blockReason(card, analyses.get(card.id), deck, a, cardsById);
   const preview = previewId ? (cardsById.get(previewId) ?? null) : null;
+
+  /** 表示中の候補を1枚ずつ入れる（まだ入っていないカードだけ。上限・要修正で入らないものは飛ばす） */
+  const addEachOnce = (list: readonly Entry[]) => {
+    const before = deck;
+    let d = deck;
+    let added = 0;
+    let skipped = 0;
+    for (const e of list) {
+      if (d.entries.some((x) => x.cardId === e.card.id)) continue;
+      if (blockReason(e.card, e.a, d, analyzeDeck(d, cardsById), cardsById)) {
+        skipped++;
+        continue;
+      }
+      d = { ...d, entries: [...d.entries, { cardId: e.card.id, count: 1 }] };
+      added++;
+    }
+    setDeck(d);
+    toast({
+      text: added > 0 ? `${added}枚を1枚ずつ入れました${skipped > 0 ? `（${skipped}枚は上限・要修正で入れられませんでした）` : ''}` : skipped > 0 ? `入れられるカードがありませんでした（${skipped}枚は上限・要修正）` : 'どれももう入っています',
+      kind: added > 0 ? 'ok' : 'info',
+      action: added > 0 ? { label: '元に戻す', onClick: () => setDeck(before) } : undefined,
+    });
+  };
 
   const save = () => {
     if (!a.valid) return;
@@ -193,34 +235,80 @@ function Builder({ saved }: { saved: Deck | null }) {
       <div className="builder">
         <section className={cx('panel builder__pool', tab !== 'pool' && 'is-hidden-mobile')}>
           <h2>カードを選ぶ</h2>
-          <div className="filters">
-            <div className="chips">
-              {(['all', ...RARITIES, 'curse'] as PoolFilter[]).map((r) => (
-                <button key={r} type="button" className={cx('chip', filter === r && 'is-active')} onClick={() => setFilter(r)}>
-                  {r === 'all' ? 'すべて' : r === 'curse' ? '呪い' : RARITY_LABEL[r]}
+          {cards.length === 0 ? (
+            <p className="hint">カードがありません。先に「カード」タブでカードを作ってください。</p>
+          ) : (
+            <>
+              <div className="ctools ctools--pool">
+                <SearchBox value={query} onChange={setQuery} />
+                <button type="button" className={cx('btn ctools__btn', filterCount(filters) > 0 && 'is-on')} onClick={() => setFilterOpen(true)}>
+                  <span aria-hidden="true">⚲</span>
+                  絞り込み{filterCount(filters) > 0 && <span className="ctools__n">{filterCount(filters)}</span>}
                 </button>
-              ))}
-            </div>
-            <input type="search" value={query} placeholder="名前で探す" onChange={(e) => setQuery(e.target.value)} />
-          </div>
-          {cards.length === 0 && <p className="hint">カードがありません。先に「カード」タブでカードを作ってください。</p>}
-          <ul className="card-rows">
-            {pool.map((c) => {
-              const ca = analyses.get(c.id)!;
-              const count = countOf(c.id);
-              const perName = BALANCE.rarity[c.rarity].perNameLimit;
-              const nameCount = nameCounts.get(normalizeName(c.name)) ?? 0;
-              return (
-                <li key={c.id} className={cx('card-row', frameClasses(c.rarity, ca.cardType, ca.isCurse), !ca.valid && 'is-invalid', count > 0 && 'is-in')}>
-                  <CardRowInfo card={c} a={ca} onPreview={() => setPreviewId(c.id)} />
-                  <span className={cx('card-row__limit', perName !== null && nameCount > perName && 'text-ng')}>
-                    {ca.valid && perName !== null ? `同名 ${nameCount}/${perName}` : ''}
-                  </span>
-                  <CountControl count={count} disabled={!ca.valid && count === 0} onChange={(n) => setCount(c.id, n)} />
-                </li>
-              );
-            })}
-          </ul>
+              </div>
+              {groups.length > 0 && <GroupBar layout="bar" groups={groups} counts={groupCounts} total={cards.length} ungrouped={ungrouped} scope={scope} onScope={(sc) => setPrefs({ scope: sc })} />}
+              <div className="cstatus">
+                <span className="ccount" aria-live="polite">
+                  <b>{pool.length}</b> / {cards.length}枚
+                </span>
+                <FilterChipsRow filters={filters} decks={[]} onChange={(f) => setPrefs({ filters: f })} />
+                <SortSelect className="cstatus__sort" sort={prefs.sort} desc={prefs.desc} onChange={(sort, desc) => setPrefs({ sort, desc })} />
+              </div>
+              {(scopeGroup || filters.tags.length > 0) && pool.length > 0 && (
+                <div className="pool-bulk">
+                  {scopeGroup?.memo && <p className="pool-bulk__memo">{scopeGroup.memo}</p>}
+                  <button type="button" className="btn btn--small" onClick={() => addEachOnce(pool)} disabled={a.total >= a.size}>
+                    ＋ 表示中の{pool.length}枚を1枚ずつ入れる
+                  </button>
+                </div>
+              )}
+              {pool.length === 0 && (
+                <p className="hint">
+                  条件に合うカードはありません。
+                  {(query.trim() !== '' || filterCount(filters) > 0) && (
+                    <button
+                      type="button"
+                      className="btn btn--small"
+                      onClick={() => {
+                        setQuery('');
+                        setPrefs({ filters: EMPTY_FILTERS });
+                      }}
+                    >
+                      解除
+                    </button>
+                  )}
+                </p>
+              )}
+              <VirtualRows
+                className="card-rows card-rows--pool"
+                rows={poolRows}
+                estimate={{ row: 68 }}
+                render={({ entry }) => {
+                  const c = entry.card;
+                  const ca = entry.a;
+                  const count = countOf(c.id);
+                  const perName = BALANCE.rarity[c.rarity].perNameLimit;
+                  const nameCount = nameCounts.get(normalizeName(c.name)) ?? 0;
+                  return (
+                    <div className={cx('card-row card-row--pool', frameClasses(c.rarity, ca.cardType, ca.isCurse), !ca.valid && 'is-invalid', count > 0 && 'is-in')}>
+                      <CardRowInfo
+                        card={c}
+                        a={ca}
+                        onPreview={() => setPreviewId(c.id)}
+                        extra={
+                          <>
+                            <GroupDots ids={membership.get(c.id) ?? []} groupsById={groupsById} max={3} />
+                            {ca.valid && perName !== null && <span className={cx('card-row__limit', nameCount > perName && 'text-ng')}>同名 {nameCount}/{perName}</span>}
+                          </>
+                        }
+                      />
+                      <CountControl count={count} disabled={!ca.valid && count === 0} onChange={(n) => setCount(c.id, n)} />
+                    </div>
+                  );
+                }}
+              />
+            </>
+          )}
         </section>
 
         <section className={cx('panel builder__deck', tab !== 'deck' && 'is-hidden-mobile')}>
@@ -263,12 +351,15 @@ function Builder({ saved }: { saved: Deck | null }) {
         </button>
       </div>
 
+      {filterOpen && (
+        <FilterSheet filters={filters} onChange={(f) => setPrefs({ filters: f })} decks={[]} showDeck={false} tagCounts={tagCounts} resultCount={pool.length} onClose={() => setFilterOpen(false)} />
+      )}
       {preview && <PoolDetail card={preview} analysis={analyses.get(preview.id)!} count={countOf(preview.id)} block={addBlock(preview)} nameCount={nameCounts.get(normalizeName(preview.name)) ?? 0} rarityRow={a.rarityRows.find((r) => r.rarity === preview.rarity)} onCount={(n) => setCount(preview.id, n)} onClose={() => setPreviewId(null)} />}
     </>
   );
 }
 
-function CardRowInfo({ card, a, onPreview }: { card: CardDef; a: CardAnalysis; onPreview: () => void }) {
+function CardRowInfo({ card, a, onPreview, extra }: { card: CardDef; a: CardAnalysis; onPreview: () => void; extra?: ReactNode }) {
   const name = card.name || '（名前なし）';
   return (
     <button type="button" className="card-row__info" onClick={onPreview} title="詳細を見る" aria-label={`${name}（コスト${card.cost}・${CARD_TYPE_LABEL[a.cardType]}・${RARITY_LABEL[card.rarity]}${a.isCurse ? '・呪い' : ''}）の詳細を見る`}>
@@ -290,6 +381,7 @@ function CardRowInfo({ card, a, onPreview }: { card: CardDef; a: CardAnalysis; o
             {card.tribe && TRIBE_LABEL[card.tribe] ? `・${TRIBE_LABEL[card.tribe]}` : ''}
           </span>
           {card.stats && <StatMini attack={card.stats.attack} hp={card.stats.hp} defense={card.stats.defense} />}
+          {extra}
         </small>
       </span>
     </button>

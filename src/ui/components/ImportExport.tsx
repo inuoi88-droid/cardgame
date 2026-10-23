@@ -27,7 +27,7 @@ export function ExportDialog({ title, bundle, filename, onClose }: ExportProps) 
   return (
     <Modal title={title} onClose={onClose}>
       <p className="hint">
-        カード{bundle.cards.length}枚・デッキ{bundle.decks.length}個。ファイルに保存するか、テキストをコピーして渡してください。
+        カード{bundle.cards.length}枚・デッキ{bundle.decks.length}個{bundle.groups && bundle.groups.length > 0 ? `・グループ${bundle.groups.length}個` : ''}。ファイルに保存するか、テキストをコピーして渡してください。
       </p>
       <textarea className="json-box" readOnly value={text} onFocus={(e) => e.target.select()} aria-label="書き出すJSON" />
       <div className="btn-row">
@@ -47,6 +47,12 @@ export function ExportDialog({ title, bundle, filename, onClose }: ExportProps) 
       </div>
     </Modal>
   );
+}
+
+/** 「カードN枚・デッキN個（・グループN個）を取り込みました」 */
+function importSummary(m: MergeResult): string {
+  const groups = m.addedGroups + m.mergedGroups;
+  return `カード${m.addedCards}枚・デッキ${m.addedDecks}個${groups > 0 ? `・グループ${groups}個` : ''}を取り込みました`;
 }
 
 export function ImportDialog({ onClose }: { onClose: () => void }) {
@@ -69,13 +75,13 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
       setResult(null);
       return;
     }
-    const { cards, decks } = getState();
-    const merge = mergeImport(cards, decks, parsed.value, uuid);
-    actions.replaceAll(merge.cards, merge.decks);
+    const { cards, decks, groups } = getState();
+    const merge = mergeImport(cards, decks, parsed.value, uuid, groups);
+    actions.replaceAll(merge.cards, merge.decks, merge.groups);
     setError(null);
-    const added = merge.addedCards + merge.addedDecks;
+    const added = merge.addedCards + merge.addedDecks + merge.addedGroups + merge.mergedGroups;
     toast({
-      text: added > 0 ? `カード${merge.addedCards}枚・デッキ${merge.addedDecks}個を取り込みました` : '新しく追加するものはありませんでした（すべて取り込み済みです）',
+      text: added > 0 ? importSummary(merge) : '新しく追加するものはありませんでした（すべて取り込み済みです）',
       kind: added > 0 ? 'ok' : 'info',
     });
     // 名前の変更や読み飛ばしがなければ、詳細を見せずに閉じる
@@ -91,8 +97,8 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
       {result ? (
         <div className="import-result">
           <p>
-            {result.merge.addedCards + result.merge.addedDecks > 0
-              ? `カード${result.merge.addedCards}枚・デッキ${result.merge.addedDecks}個を取り込みました。`
+            {result.merge.addedCards + result.merge.addedDecks + result.merge.addedGroups + result.merge.mergedGroups > 0
+              ? `${importSummary(result.merge)}。`
               : '新しく追加するものはありませんでした（すべて取り込み済みです）。'}
             {result.merge.unchangedCards > 0 && `同じ内容のカード${result.merge.unchangedCards}枚は、手元のものをそのまま使います。`}
           </p>

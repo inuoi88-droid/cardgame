@@ -1,0 +1,1339 @@
+/* ============================================================ カード置き場（決定事項 #109）
+   検索・絞り込み・3つの密度（カード／コンパクト／リスト）・グループ・仕組みのタグ・まとめて操作。
+   カードの面と宝石・紋章は cardFrame.css（案A 王道ファンタジー）。ここは並べ方と操作の部品だけ */
+
+/* ------------------------------------------------------------ 全体の枠（PC は左にグループの列） */
+.collection {
+  display: block;
+}
+.collection--wide {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.collection__main {
+  min-width: 0;
+}
+.collection__side {
+  position: sticky;
+  top: 68px;
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+/* ------------------------------------------------------------ 操作の列 */
+.ctools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ctools .csearch {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.ctools__btn {
+  flex: none;
+  gap: 4px;
+  padding-left: 10px;
+  padding-right: 10px;
+  white-space: nowrap;
+}
+.ctools__btn.is-on {
+  border-color: var(--accent);
+  color: #fff;
+  background: var(--accent-bg);
+}
+.ctools__n {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-strong);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: bold;
+}
+@media (max-width: 480px) {
+  .ctools {
+    gap: 6px;
+  }
+  .ctools__btn {
+    padding-left: 8px;
+    padding-right: 8px;
+    font-size: var(--fs-sm);
+  }
+  .ctools__btn > span[aria-hidden] {
+    display: none;
+  }
+}
+.ctools .csel {
+  flex: 0 1 150px;
+  min-width: 0;
+}
+.csel {
+  min-height: var(--tap);
+  font-size: 15px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.csearch {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.csearch input[type='search'] {
+  width: 100%;
+  padding-left: 34px;
+  padding-right: 36px;
+}
+.csearch input::-webkit-search-cancel-button {
+  display: none;
+}
+.csearch__icon {
+  position: absolute;
+  left: 10px;
+  font-size: 14px;
+  opacity: 0.75;
+  pointer-events: none;
+}
+.csearch__clear {
+  position: absolute;
+  right: 2px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.csearch__clear:hover {
+  color: var(--text);
+}
+
+/* 表示の密度（3つの切り替え） */
+.vseg {
+  display: inline-flex;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex: none;
+}
+.vseg__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 42px;
+  min-height: var(--tap);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 18px;
+  color: var(--muted);
+  background: var(--panel);
+  border: none;
+  cursor: pointer;
+}
+.vseg__btn + .vseg__btn {
+  border-left: 1px solid var(--line-strong);
+}
+.vseg__btn.is-active {
+  color: #fff;
+  background: var(--accent-strong);
+}
+.vseg__label {
+  font-size: var(--fs-sm);
+}
+.dsheet .vseg {
+  display: flex;
+}
+.dsheet .vseg__btn {
+  flex: 1;
+}
+.dsheet {
+  display: grid;
+  gap: 14px;
+}
+.dsheet .csel {
+  width: 100%;
+}
+
+/* ------------------------------------------------------------ 件数と絞り込みの札 */
+.cstatus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 2px 0 10px;
+  min-height: 32px;
+}
+.cstatus:empty {
+  display: none;
+}
+/* スマホ：検索を1行に、その下に件数とボタン */
+.ctools--stack {
+  flex-wrap: wrap;
+}
+.ctools--stack .csearch {
+  flex: 1 1 100%;
+}
+.ctools--stack .ccount {
+  margin-right: auto;
+}
+.ccount {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ccount b {
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-variant-numeric: tabular-nums;
+}
+.cstatus__fold {
+  margin-left: auto;
+}
+.cstatus__sort {
+  margin-left: auto;
+  max-width: 190px;
+}
+.fchips {
+  display: contents;
+}
+.fchip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 2px 10px;
+  font: inherit;
+  font-size: var(--fs-xs);
+  color: var(--text);
+  background: var(--accent-bg);
+  border: 1px solid rgba(111, 141, 255, 0.55);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.fchip::after {
+  content: '';
+  position: absolute;
+  inset: -7px -2px;
+}
+.fchip span {
+  color: var(--muted);
+}
+.fchip:hover {
+  border-color: var(--accent);
+}
+.ctip {
+  margin: -4px 0 10px;
+}
+
+/* ------------------------------------------------------------ 絞り込みのシート */
+.fset {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.fset h3 {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  font-weight: bold;
+}
+.fset .chips {
+  gap: 6px;
+}
+.fset .chip .rgem {
+  width: 12px;
+  height: 12px;
+}
+.chip__n {
+  color: inherit;
+  opacity: 0.7;
+  font-size: var(--fs-xs);
+  font-weight: normal;
+}
+.fsheet__foot {
+  position: sticky;
+  bottom: -16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 6px -16px -16px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+.fsheet__count {
+  flex: 1;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.fsheet__count b {
+  color: var(--text);
+  font-size: var(--fs-md);
+}
+.menu-list {
+  display: grid;
+  gap: 8px;
+}
+
+/* ------------------------------------------------------------ グループ */
+.gdot {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--gc, var(--muted));
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.55);
+}
+.gdots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+.gdots .gdot {
+  width: 9px;
+  height: 9px;
+}
+.gdots__more {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.gbar__list {
+  display: flex;
+  gap: 6px;
+}
+.gbar--bar {
+  margin: 0 calc(-1 * var(--gutter)) 8px;
+}
+.gbar--bar .gbar__list {
+  overflow-x: auto;
+  padding: 2px var(--gutter) 6px;
+  scrollbar-width: thin;
+  scroll-padding: 0 var(--gutter);
+}
+.gbar--side .gbar__list {
+  flex-direction: column;
+}
+.gbar__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--fs-sm);
+  font-weight: bold;
+  color: var(--muted);
+  margin: 2px 0 6px;
+  min-height: 32px;
+}
+.gbar__tip {
+  margin: 8px 2px 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.gitem {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--gc, var(--line-strong));
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-fast),
+    border-color var(--dur-fast),
+    transform var(--dur-fast);
+}
+.gitem::after {
+  content: '';
+  position: absolute;
+  inset: -3px 0;
+}
+.gitem:hover {
+  border-color: var(--gc, var(--accent));
+}
+.gitem.is-active {
+  background: color-mix(in srgb, var(--gc, var(--accent)) 22%, var(--panel-2));
+  border-color: var(--gc, var(--accent));
+  font-weight: bold;
+}
+.gitem.is-drop {
+  background: color-mix(in srgb, var(--gc, var(--accent)) 35%, var(--panel-2));
+  border-color: var(--gc, var(--accent));
+  transform: scale(1.03);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gc, var(--accent)) 50%, transparent);
+}
+body.is-dragging-cards .gbar--side .gitem[style] {
+  outline: 1px dashed var(--gc);
+  outline-offset: 2px;
+}
+.gitem__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gbar--bar .gitem__name {
+  max-width: 11em;
+}
+.gitem__n {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-weight: normal;
+}
+.gbar--side .gitem {
+  width: 100%;
+}
+.gitem--none {
+  border-left-style: dashed;
+}
+.gitem--add {
+  color: var(--accent);
+  border-style: dashed;
+  border-left-width: 1px;
+}
+
+/* 見ているグループの見出し */
+.ghead {
+  border: 1px solid color-mix(in srgb, var(--gc) 55%, var(--line));
+  border-left: 4px solid var(--gc);
+  background: color-mix(in srgb, var(--gc) 9%, var(--panel));
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+.ghead__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.ghead__name {
+  font-family: var(--font-title);
+  font-size: var(--fs-md);
+}
+.ghead__n {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.ghead__btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.ghead__memo {
+  margin: 6px 0 0;
+  font-size: var(--fs-sm);
+  white-space: pre-wrap;
+  color: var(--text);
+}
+.ghead__memo.is-empty {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+/* グループの札（リストの行の中。狭い行では点だけ） */
+.gchips {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+.gchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 7px 0 5px;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--gc) 60%, transparent);
+  background: color-mix(in srgb, var(--gc) 14%, transparent);
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--text);
+  font-family: inherit;
+  font-weight: normal;
+}
+.gchip .gdot {
+  width: 8px;
+  height: 8px;
+}
+.gchip__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 7em;
+}
+@container lrow (max-width: 520px) {
+  .gchip {
+    padding: 0;
+    border: none;
+    background: none;
+  }
+  .gchip__name {
+    display: none;
+  }
+}
+
+/* 作る・直すダイアログ */
+.gdlg {
+  display: grid;
+  gap: 8px;
+}
+.gdlg > .field {
+  margin-bottom: 0;
+}
+.gdlg input[type='text'] {
+  width: 100%;
+}
+.gdlg__err {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+.gdlg__colors {
+  border: none;
+  margin: 4px 0;
+  padding: 0;
+}
+.gdlg__colors legend {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  margin-bottom: 6px;
+  padding: 0;
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.swatch {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  padding: 0;
+}
+.swatch::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+}
+.swatch.is-active {
+  box-shadow:
+    0 0 0 3px var(--bg),
+    0 0 0 5px #fff;
+}
+.gdlg textarea {
+  width: 100%;
+  font-size: 16px;
+}
+.gdlg__foot {
+  margin-top: 6px;
+}
+.gdlg__del {
+  margin-left: auto;
+}
+
+/* 選んだカードを入れる・外す */
+.gpick {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.gpick__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 12px;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gc);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.gpick__row:hover {
+  border-color: var(--gc);
+}
+.gpick__name {
+  flex: 1;
+  font-weight: bold;
+}
+.gpick__row small {
+  color: var(--muted);
+}
+.gpick__new {
+  width: 100%;
+}
+
+/* 管理 */
+.gman {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.gman__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gc);
+  border-radius: 10px;
+}
+.gman__text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.gman__text small {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gman__btns {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+/* カードの詳細の中：入っているグループと仕組みのタグ */
+.cmem {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.cmem__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.cmem__label {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  font-weight: bold;
+  min-width: 4em;
+}
+.gtoggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 2px 12px 2px 10px;
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.gtoggle::after {
+  content: '';
+  position: absolute;
+  inset: -5px 0;
+}
+.gtoggle.is-on {
+  color: var(--text);
+  border-color: var(--gc);
+  background: color-mix(in srgb, var(--gc) 22%, var(--panel));
+  font-weight: bold;
+}
+.gtoggle--add {
+  color: var(--accent);
+  border-style: dashed;
+}
+.ttag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong);
+  background: var(--panel-2);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--fs-xs);
+}
+.ttag--btn {
+  position: relative;
+  cursor: pointer;
+}
+.ttag--btn::after {
+  content: '';
+  position: absolute;
+  inset: -8px -2px;
+}
+.ttag--btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* ------------------------------------------------------------ 一覧（窓の中だけ描く） */
+.ccoll {
+  position: relative;
+  /* カードの宝石がはみ出す分 */
+  padding: 0 2px;
+}
+.vrow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  will-change: transform;
+}
+.vitems {
+  display: grid;
+}
+.vitems--card {
+  column-gap: 18px;
+  padding: 10px 2px 18px 8px;
+}
+.vitems--compact {
+  column-gap: 8px;
+  padding: 6px 0 4px 6px;
+}
+.vitems--list {
+  padding: 0 0 6px 4px;
+}
+@media (max-width: 600px) {
+  .vitems--card {
+    column-gap: 14px;
+  }
+}
+
+/* 節の見出し */
+.csec {
+  padding: 10px 0 6px;
+}
+.csec__bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.csec__toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 2px 4px;
+  font: inherit;
+  color: var(--text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+.csec__caret {
+  display: inline-block;
+  color: var(--muted);
+  font-size: 12px;
+  transform: rotate(90deg);
+  transition: transform var(--dur-fast);
+}
+.csec__toggle[aria-expanded='false'] .csec__caret {
+  transform: none;
+}
+.csec__label {
+  font-family: var(--font-title);
+  font-size: var(--fs-md);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.csec[class*='ty--'] .csec__label {
+  color: var(--type-ink);
+}
+.csec[class*='rar--'] .csec__label {
+  color: var(--rar);
+}
+.csec__count {
+  flex: none;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.csec__memo {
+  margin: 4px 0 0 26px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 選択のしるし（右上の丸） */
+.selmark {
+  position: absolute;
+  z-index: 4;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  background: rgba(8, 10, 20, 0.55);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+.is-selected .selmark,
+.is-selected > .selmark,
+[aria-checked='true'] > .selmark {
+  background: var(--accent-strong);
+  border-color: #fff;
+}
+.is-selected .selmark::after,
+[aria-checked='true'] > .selmark::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+/* --- カード（大きいカード） */
+.cc-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.cc-card__sel {
+  position: absolute;
+  z-index: 5;
+  inset: -4px -4px 40px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+.cc-card.is-selected .cc-card__sel {
+  border-color: var(--accent);
+  background: rgba(53, 86, 217, 0.18);
+}
+.cc-card__sel .selmark {
+  top: 10px;
+  right: 10px;
+}
+.cc-card .card-grid__actions {
+  min-height: 36px;
+}
+
+/* --- コンパクト（小さなタイル） */
+.ctile {
+  position: relative;
+  display: grid;
+  grid-template-rows: 64px auto auto 1fr;
+  justify-items: center;
+  width: 100%;
+  height: 162px;
+  padding: 8px 6px 6px;
+  font: inherit;
+  color: var(--ink);
+  text-align: center;
+  cursor: pointer;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background:
+    linear-gradient(180deg, var(--face-0) 0%, var(--face-1) 100%) padding-box,
+    var(--frame, var(--metal-iron)) border-box;
+  box-shadow:
+    0 0 0 1px #05060a,
+    0 5px 12px rgba(0, 0, 0, 0.45);
+  transition:
+    transform var(--dur-fast),
+    box-shadow var(--dur-fast);
+}
+.ctile:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px #05060a,
+    0 9px 18px rgba(0, 0, 0, 0.55);
+}
+.ctile.is-selected {
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 6px 14px rgba(0, 0, 0, 0.5);
+}
+.ctile .cgem {
+  --g: 28px;
+  left: -6px;
+  top: -6px;
+}
+.ctile__art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-self: center;
+}
+.ctile__seal {
+  position: absolute;
+  right: -10px;
+  bottom: -2px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--curse);
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+}
+.ctile__name {
+  width: 100%;
+  font-family: var(--font-title);
+  font-weight: bold;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--ink-name);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ctile__type {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 1px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--type-ink);
+  font-weight: bold;
+}
+.ctile__type .rgem {
+  width: 11px;
+  height: 11px;
+}
+.ctile__foot {
+  align-self: end;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  font-size: 12px;
+}
+.ctile__foot .smini {
+  font-size: 12px;
+}
+.ctile__sum {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-muted);
+}
+.ctile__dots {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.is-selecting .ctile__dots {
+  top: 32px;
+}
+.ctile__bad {
+  position: absolute;
+  top: 46px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 93, 110, 0.9);
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+.ctile.is-invalid .ctile__art {
+  opacity: 0.55;
+}
+
+/* --- リスト（1行1枚） */
+.ccoll--list {
+  container: lrow / inline-size;
+}
+.lrow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 62px;
+  padding: 0 10px 0 38px;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 10px;
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--rar) 12%, #1d2338) 0%, #181d31 45%, #151a2c 100%) padding-box,
+    var(--frame) border-box;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.lrow.is-cursed {
+  background:
+    linear-gradient(90deg, #3a1428 0%, #1d0d16 50%, #170b12 100%) padding-box,
+    var(--frame) border-box;
+}
+.lrow:hover {
+  filter: brightness(1.08);
+}
+.lrow.is-selected {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.lrow .cgem {
+  --g: 28px;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.lrow.is-selecting {
+  padding-right: 40px;
+}
+.lrow .selmark {
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+}
+.lrow__art {
+  display: grid;
+  place-items: center;
+  line-height: 0;
+}
+.lrow__main {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.35;
+}
+.lrow__l1,
+.lrow__l2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.lrow__name {
+  min-width: 0;
+  flex: 0 1 auto;
+  font-family: var(--font-title);
+  font-size: 15px;
+  color: var(--ink-name);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lrow__l1 .rgem {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+.lrow__l1 .card-row__bad {
+  flex: none;
+}
+.lrow__l2 {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.lrow__type {
+  flex: none;
+  max-width: 11em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--type-ink);
+}
+.lrow__l2 .smini {
+  flex: none;
+  flex-wrap: nowrap;
+  gap: 0 6px;
+}
+.lrow__sum {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+}
+.lrow__side {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.lrow__pts {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: bold;
+  font-size: 13px;
+}
+.lrow__pts small {
+  color: var(--muted);
+  font-weight: normal;
+  font-size: 11px;
+}
+@container lrow (max-width: 420px) {
+  .lrow__budget {
+    display: none;
+  }
+}
+.lrow__pts.is-over {
+  color: var(--ng);
+}
+.lrow__deck {
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong);
+  line-height: 16px;
+  font-size: 11px;
+}
+.lrow.is-invalid .lrow__art,
+.lrow.is-invalid .lrow__name {
+  opacity: 0.6;
+}
+/* 狭い行：種類は短く、モンスターはステータスを残して要約を省く（要約は詳細で）。呪文は要約を出す */
+@container lrow (max-width: 420px) {
+  .lrow {
+    gap: 8px;
+  }
+  .lrow__type {
+    max-width: 6.5em;
+  }
+  .lrow__l2:has(.smini) .lrow__sum {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------ まとめて操作のバー */
+.bulkbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 35;
+  display: grid;
+  gap: 6px;
+  padding: 8px max(var(--gutter), env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom));
+  background: rgba(20, 25, 50, 0.97);
+  backdrop-filter: blur(6px);
+  border-top: 1px solid var(--accent);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+}
+.bulkbar__top,
+.bulkbar__acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+.bulkbar__top b {
+  margin-right: auto;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+.bulkbar__acts {
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.bulkbar__acts .btn {
+  flex: none;
+}
+
+/* デッキ構築の候補 */
+.ctools--pool {
+  margin-top: 4px;
+}
+.card-rows--pool {
+  display: block;
+  padding: 0;
+}
+.card-rows--pool .vrow {
+  padding-bottom: 8px;
+}
+.card-row--pool {
+  grid-template-columns: minmax(0, 1fr) auto;
+  height: 62px;
+  min-height: 0;
+}
+@media (max-width: 480px) {
+  .card-row.card-row--pool {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .card-row.card-row--pool > :nth-child(2) {
+    grid-column: auto;
+    grid-row: auto;
+    padding-left: 0;
+    margin-top: 0;
+  }
+}
+.card-row--pool .card-row__text small {
+  max-height: 34px;
+  overflow: hidden;
+}
+.pool-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: -2px 0 10px;
+}
+.pool-bulk__memo {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+.empty--small {
+  padding: 28px 10px;
+}
+
+/* まとめて操作のバーがあるときは、通知をその上に出す */
+body:has(.bulkbar) .toasts {
+  bottom: calc(118px + env(safe-area-inset-bottom));
+}
+body:has(.bulkbar) .main {
+  padding-bottom: 150px;
+}
+
+/* 要修正の知らせ（小さな札。押すと要修正だけを見る） */
+.cwarn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 2px 10px;
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  color: #ffc2c9;
+  background: var(--ng-bg);
+  border: 1px solid rgba(255, 93, 110, 0.6);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  position: relative;
+}
+.cwarn::after {
+  content: '';
+  position: absolute;
+  inset: -7px -2px;
+}
+.cwarn:hover {
+  border-color: var(--ng);
+}
+
+/* 速いスクロールの間の仮の行（VirtualRows の renderLight）。高さは本物と同じ */
+.vph {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1.5px solid color-mix(in srgb, var(--rar, var(--line)) 55%, transparent);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  overflow: hidden;
+}
+.vph--list {
+  height: 62px;
+  padding-left: 10px;
+}
+.vph--compact {
+  height: 162px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 6px;
+}
+.vph--card {
+  aspect-ratio: 5 / 7;
+  flex-direction: column;
+  justify-content: center;
+  margin-bottom: 46px;
+}
+.vph.is-cursed {
+  border-color: color-mix(in srgb, var(--curse) 55%, transparent);
+}
+.vph__cost {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--panel-3);
+  color: var(--text);
+  font-weight: bold;
+  font-size: var(--fs-xs);
+}
+.vph__name {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

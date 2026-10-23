@@ -8,6 +8,7 @@ import { RarityGem } from '../components/cardParts.tsx';
 import { Sheet } from '../components/Sheet.tsx';
 import { cx } from '../util.ts';
 import { COST_VALUES, EMPTY_FILTERS, SECTION_BYS, SECTION_LABEL, VIEW_LABEL, VIEW_MODES, filterChips, type Filters, type SectionBy, type SortKey, type ViewMode } from './query.ts';
+import { ViewIcon } from './icons.tsx';
 import { ALL_TAGS, tagHint, tagLabel, type TagId } from './tags.ts';
 
 // ---------------------------------------------------------------- 検索
@@ -78,14 +79,12 @@ export function SectionSelect({ value, onChange, hasGroups, className }: { value
   );
 }
 
-const VIEW_ICON: Record<ViewMode, string> = { card: '▦', compact: '▩', list: '☰' };
-
 export function ViewSeg({ value, onChange, labels = false }: { value: ViewMode; onChange: (v: ViewMode) => void; labels?: boolean }) {
   return (
     <div className="vseg" role="radiogroup" aria-label="表示">
       {VIEW_MODES.map((v) => (
         <button key={v} type="button" role="radio" aria-checked={value === v} className={cx('vseg__btn', value === v && 'is-active')} onClick={() => onChange(v)} title={VIEW_LABEL[v]} aria-label={VIEW_LABEL[v]}>
-          <span aria-hidden="true">{VIEW_ICON[v]}</span>
+          <ViewIcon view={v} />
           {labels && <span className="vseg__label">{VIEW_LABEL[v]}</span>}
         </button>
       ))}

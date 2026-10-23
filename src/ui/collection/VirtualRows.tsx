@@ -19,6 +19,10 @@ export interface VirtualApi {
   scrollToRow(index: number, align?: 'nearest' | 'start'): void;
   /** 行の上端（一覧の上端から） */
   rowTop(index: number): number;
+  /** 一覧の上端から offset px のところにある行 */
+  rowAt(offset: number): number;
+  /** 上に固定しているバーの下で、上の端まで見えているいちばん上の行 */
+  firstVisibleRow(): number;
 }
 
 interface Props<R extends VRow> {
@@ -35,6 +39,8 @@ interface Props<R extends VRow> {
   onRendered?: () => void;
   /** これが変わったら行の高さを測り直す（一覧の幅・密度など） */
   measureKey?: string | number;
+  /** 見える範囲の外でも描いておく行（キーボードのフォーカスを持っている行。消すとフォーカスが失われる） */
+  keep?: number;
 }
 
 /** これより速いスクロール（px/ms）の間は、新しく入る行を仮の行で描く */
@@ -42,9 +48,12 @@ const FAST_SCROLL = 1.8;
 /** スクロールが落ち着いたとみなすまで（ms） */
 const SETTLE_MS = 140;
 
-/** 上に固定しているバー（.topbar）の高さ。行をスクロールで出すときはその下へ */
+/** 上に固定しているバー（.topbar と、カード置き場の操作の列 .ctools--sticky）の高さ。行をスクロールで出すときはその下へ */
 function stickyTop(): number {
-  return document.querySelector<HTMLElement>('.topbar')?.offsetHeight ?? 0;
+  let h = document.querySelector<HTMLElement>('.topbar')?.offsetHeight ?? 0;
+  const bar = document.querySelector<HTMLElement>('.ctools--sticky:not(.is-tucked)');
+  if (bar) h += bar.offsetHeight;
+  return h;
 }
 
 function upperBound(xs: readonly number[], v: number): number {
@@ -58,7 +67,7 @@ function upperBound(xs: readonly number[], v: number): number {
   return lo;
 }
 
-export function VirtualRows<R extends VRow>({ rows, estimate, render, renderLight, className, overscan = 700, api, onRendered, measureKey }: Props<R>) {
+export function VirtualRows<R extends VRow>({ rows, estimate, render, renderLight, className, overscan = 700, api, onRendered, measureKey, keep }: Props<R>) {
   const ref = useRef<HTMLDivElement>(null);
   const [measured, setMeasured] = useState<Record<string, number>>({});
   /** 測った時点の measureKey（種類ごと） */
@@ -84,10 +93,13 @@ export function VirtualRows<R extends VRow>({ rows, estimate, render, renderLigh
     full.current = new Set();
   }
 
+  /** 速いスクロールが落ち着いたら仮の行をやめるタイマー。行が変わって下の効果が作り直されても消さない（消すと仮の行のまま残る） */
+  const settle = useRef(0);
+  useEffect(() => () => window.clearTimeout(settle.current), []);
+
   useLayoutEffect(() => {
     let lastY = window.scrollY;
     let lastT = performance.now();
-    let settle = 0;
     const compute = () => {
       const el = ref.current;
       if (!el) return;
@@ -109,8 +121,8 @@ export function VirtualRows<R extends VRow>({ rows, estimate, render, renderLigh
       lastT = now;
       if (renderLight && v > FAST_SCROLL) {
         setFast(true);
-        window.clearTimeout(settle);
-        settle = window.setTimeout(() => setFast(false), SETTLE_MS);
+        window.clearTimeout(settle.current);
+        settle.current = window.setTimeout(() => setFast(false), SETTLE_MS);
       }
       if (raf) return;
       raf = requestAnimationFrame(() => {
@@ -122,7 +134,6 @@ export function VirtualRows<R extends VRow>({ rows, estimate, render, renderLigh
     window.addEventListener('resize', on);
     return () => {
       cancelAnimationFrame(raf);
-      window.clearTimeout(settle);
       window.removeEventListener('scroll', on);
       window.removeEventListener('resize', on);
     };
@@ -136,7 +147,7 @@ export function VirtualRows<R extends VRow>({ rows, estimate, render, renderLigh
     for (const child of el.children) {
       const c = child as HTMLElement;
       const kind = c.dataset.vkind;
-      if (!kind || c.dataset.light || measuredFor.current.get(kind) === measureKey) continue;
+      if (!kind || c.dataset.light || (measuredFor.current.has(kind) && measuredFor.current.get(kind) === measureKey)) continue;
       const h = c.offsetHeight;
       if (h <= 0) continue;
       measuredFor.current.set(kind, measureKey);
@@ -153,6 +164,16 @@ export function VirtualRows<R extends VRow>({ rows, estimate, render, renderLigh
     if (!api) return;
     api.current = {
       rowTop: (i) => offsetsRef.current[Math.max(0, Math.min(i, offsetsRef.current.length - 1))]!,
+      rowAt: (offset) => Math.max(0, Math.min(offsetsRef.current.length - 2, upperBound(offsetsRef.current, offset) - 1)),
+      firstVisibleRow() {
+        const el = ref.current;
+        if (!el) return 0;
+        const offs = offsetsRef.current;
+        const y = stickyTop() - el.getBoundingClientRect().top;
+        const r = this.rowAt(y);
+        // 上が固定バーの下に潜っている行は飛ばす（その行にフォーカスすると、ページが動いてしまう）
+        return offs[r]! < y - 1 && r + 1 < offs.length - 1 ? r + 1 : r;
+      },
       scrollToRow(i, align = 'nearest') {
         const el = ref.current;
         if (!el) return;
@@ -171,9 +192,12 @@ export function VirtualRows<R extends VRow>({ rows, estimate, render, renderLigh
 
   const [start, end] = range;
   const shown: ReactNode[] = [];
-  for (let i = start; i < Math.min(end, rows.length); i++) {
+  const indices: number[] = [];
+  if (keep !== undefined && keep >= 0 && keep < rows.length && (keep < start || keep >= end)) indices.push(keep);
+  for (let i = start; i < Math.min(end, rows.length); i++) indices.push(i);
+  for (const i of indices) {
     const row = rows[i]!;
-    const light = fast && !!renderLight && !full.current.has(row.key);
+    const light = fast && !!renderLight && i !== keep && !full.current.has(row.key);
     if (!light) full.current.add(row.key);
     shown.push(
       <Row key={row.key} row={row} index={i} top={offsets[i]!} light={light} render={(light ? renderLight! : render) as (row: VRow, index: number) => ReactNode} />,

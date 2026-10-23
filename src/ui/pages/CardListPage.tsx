@@ -3,7 +3,7 @@
  * 検索・並べ替え・絞り込み・3つの密度（カード／コンパクト／リスト）・グループ・仕組みのタグ・まとめて操作。
  * 一覧は見えている行だけを描く（collection/VirtualRows）。表示の設定は見る人ごとに localStorage（collection/prefs）。
  */
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { buildExport, mergeImport, normalizeName, uniqueName, type CardDef, type CardGroup, type ExportBundle } from '../../engine/index.ts';
 import { CardDetail } from '../components/CardDetail.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
@@ -16,6 +16,8 @@ import { FilterChipsRow, FilterSheet, SearchBox, SectionSelect, SortSelect, View
 import { useEntries } from '../collection/entries.ts';
 import { CardMembership, GroupBar, GroupDialog, GroupManager, GroupPicker } from '../collection/GroupUI.tsx';
 import { groupHex, membershipIndex } from '../collection/groups.ts';
+import { FilterIcon, SelectIcon, ViewIcon } from '../collection/icons.tsx';
+import { useHeightVar, useTuck } from '../collection/sticky.ts';
 import { PREF_KEYS, readPrefs, usePrefs, writePrefs } from '../collection/prefs.ts';
 import { EMPTY_FILTERS, autoView, deckUseIndex, filterCount, filterEntries, sectionsFor, sortEntries, type Entry, type Section } from '../collection/query.ts';
 import { tagLabel, type TagId } from '../collection/tags.ts';
@@ -35,6 +37,8 @@ export function CardListPage() {
   const wide = useMediaQuery('(min-width: 920px)');
   const [prefs, setPrefs] = usePrefs(PREF_KEYS.cards);
   const [query, setQuery] = useState('');
+  /** 一覧に使う検索語（入力を先に返し、一覧の描き直しは後回しにする。日本語入力の変換中も重くならないように） */
+  const listQuery = useDeferredValue(query);
   const [dialog, setDialog] = useState<'import' | 'menu' | 'filters' | 'display' | 'manage' | null>(null);
   const [exporting, setExporting] = useState<{ bundle: ExportBundle; title: string; filename: string } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -43,6 +47,7 @@ export function CardListPage() {
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const lastFlat = useRef<number | null>(null);
+  const bulkRef = useRef<HTMLDivElement>(null);
   const hasNewDraft = useMemo(() => cardDrafts.get(NEW_DRAFT) !== null, []);
 
   const entries = useEntries(cards);
@@ -60,11 +65,14 @@ export function CardListPage() {
   const headers = sectionBy !== 'none';
   const collapsed = useMemo(() => new Set(prefs.collapsed), [prefs.collapsed]);
 
-  const filtered = useMemo(() => filterEntries(entries, query, filters, scope, ctx), [entries, query, filters, scope, ctx]);
+  const filtered = useMemo(() => filterEntries(entries, listQuery, filters, scope, ctx), [entries, listQuery, filters, scope, ctx]);
   const sorted = useMemo(() => sortEntries(filtered, prefs.sort, prefs.desc), [filtered, prefs.sort, prefs.desc]);
   const sections = useMemo(() => sectionsFor(sorted, sectionBy, groups, membership), [sorted, sectionBy, groups, membership]);
   /** 選択モードの範囲選択に使う並び（たたんだ節は含めない。CardCollection の通し番号と同じ） */
   const flatIds = useMemo(() => sections.flatMap((s) => (headers && collapsed.has(s.key) ? [] : s.entries.map((e) => e.card.id))), [sections, headers, collapsed]);
+  const shownIds = useMemo(() => new Set(flatIds), [flatIds]);
+  /** 選んでいるのに今の検索・絞り込み・たたんだ節で見えていないカード */
+  const hiddenSelected = useMemo(() => [...selected].filter((id) => !shownIds.has(id)).length, [selected, shownIds]);
 
   const groupCounts = useMemo(() => new Map(groups.map((g) => [g.id, g.cardIds.filter((id) => cardIds.has(id)).length])), [groups, cardIds]);
   const ungrouped = useMemo(() => cards.filter((c) => (membership.get(c.id)?.length ?? 0) === 0).length, [cards, membership]);
@@ -132,17 +140,28 @@ export function CardListPage() {
     toast({ text: `「${copy!.name}」として複製しました`, kind: 'ok', action: { label: '編集', onClick: () => navigate(`/cards/${encodeURIComponent(copy!.id)}`) } });
   };
 
-  const removeCards = async (list: readonly CardDef[]) => {
+  const removeCards = async (list: readonly CardDef[], hidden = 0) => {
     if (list.length === 0) return;
     const ids = new Set(list.map((c) => c.id));
     const usedIn = decks.filter((d) => d.entries.some((e) => ids.has(e.cardId)));
     const one = list.length === 1 ? list[0]! : null;
+    const base =
+      usedIn.length > 0
+        ? `${one ? 'このカード' : '選んだカード'}は ${usedIn.map((d) => `「${d.name || '（名前なし）'}」`).join('')} で使われています。削除するとデッキが不完全になります。`
+        : '削除したあと、しばらくの間は「元に戻す」で戻せます。';
     const ok = await confirm({
       title: one ? `「${one.name}」を削除しますか？` : `${list.length}枚のカードを削除しますか？`,
       message:
-        usedIn.length > 0
-          ? `${one ? 'このカード' : '選んだカード'}は ${usedIn.map((d) => `「${d.name || '（名前なし）'}」`).join('')} で使われています。削除するとデッキが不完全になります。`
-          : '削除したあと、しばらくの間は「元に戻す」で戻せます。',
+        hidden > 0 ? (
+          <>
+            <p>
+              <b>うち{hidden}枚は、今の検索・絞り込み（またはたたんだ節）で表示されていないカードです。</b>
+            </p>
+            <p>{base}</p>
+          </>
+        ) : (
+          base
+        ),
       okLabel: '削除',
       danger: true,
     });
@@ -229,15 +248,27 @@ export function CardListPage() {
     setFilters(EMPTY_FILTERS);
   };
 
+  const narrowed = filtered.length !== cards.length;
   const countLabel = (
     <span className="ccount" aria-live="polite">
-      <b>{filtered.length}</b> / {cards.length}枚
+      {narrowed ? (
+        <>
+          <b>{filtered.length}</b> / {cards.length}枚
+        </>
+      ) : (
+        <>
+          <b>{cards.length}</b>枚
+        </>
+      )}
     </span>
   );
+  // 操作の列は上に固定（深くスクロールしても検索・絞り込みに手が届く）。スマホは下へスクロールする間だけ引っ込める
+  useHeightVar('--topbar-h', '.topbar');
+  useHeightVar('--bulkbar-h', bulkRef, selecting);
+  const tucked = useTuck(!wide && cards.length > 0, () => !!document.activeElement?.closest('.ctools'));
   const toolbar = (
-    <div className={cx('ctools', !wide && 'ctools--stack')}>
-      <SearchBox value={query} onChange={setQuery} />
-      {!wide && countLabel}
+    <div className={cx('ctools ctools--sticky', !wide && 'ctools--narrow', tucked && 'is-tucked')}>
+      <SearchBox value={query} onChange={setQuery} placeholder={wide ? undefined : '名前・効果など'} />
       {wide ? (
         <>
           <SortSelect sort={prefs.sort} desc={prefs.desc} onChange={(sort, desc) => setPrefs({ sort, desc })} />
@@ -245,18 +276,19 @@ export function CardListPage() {
           <ViewSeg value={view} onChange={(v) => setPrefs({ view: v })} />
         </>
       ) : (
-        <button type="button" className="btn ctools__btn" onClick={() => setDialog('display')} aria-label="表示（密度・並べ替え・まとめ方）">
-          <span aria-hidden="true">{view === 'list' ? '☰' : view === 'compact' ? '▩' : '▦'}</span>
-          表示
+        <button type="button" className="btn ctools__btn" onClick={() => setDialog('display')} aria-label="表示（大きさ・並べ替え・まとめ方）" title="表示">
+          <ViewIcon view={view} />
+          <span className="ctools__lbl">表示</span>
         </button>
       )}
-      <button type="button" className={cx('btn ctools__btn', fcount > 0 && 'is-on')} onClick={() => setDialog('filters')} aria-label={`絞り込み${fcount > 0 ? `（${fcount}件）` : ''}`}>
-        <span aria-hidden="true">⚲</span>
-        絞り込み{fcount > 0 && <span className="ctools__n">{fcount}</span>}
+      <button type="button" className={cx('btn ctools__btn', fcount > 0 && 'is-on')} onClick={() => setDialog('filters')} aria-label={`絞り込み${fcount > 0 ? `（${fcount}件）` : ''}`} title="絞り込み">
+        <FilterIcon />
+        <span className="ctools__lbl">絞り込み</span>
+        {fcount > 0 && <span className="ctools__n">{fcount}</span>}
       </button>
-      <button type="button" className={cx('btn ctools__btn', selecting && 'is-on')} aria-pressed={selecting} onClick={() => (selecting ? exitSelect() : setSelecting(true))}>
-        <span aria-hidden="true">☑</span>
-        選択
+      <button type="button" className={cx('btn ctools__btn', selecting && 'is-on')} aria-pressed={selecting} aria-label="選択（まとめて操作）" title={phone ? '選択（カードの長押しでも選べます）' : '選択'} onClick={() => (selecting ? exitSelect() : setSelecting(true))}>
+        <SelectIcon />
+        <span className="ctools__lbl">選択</span>
       </button>
     </div>
   );
@@ -279,9 +311,7 @@ export function CardListPage() {
   return (
     <>
       <div className="page-head">
-        <h1>
-          カード <small>{cards.length}枚</small>
-        </h1>
+        <h1>カード</h1>
         <div className="btn-row">
           <button type="button" className="btn btn--primary" onClick={() => navigate('/cards/new')}>
             ＋ 新しいカード
@@ -349,7 +379,7 @@ export function CardListPage() {
               </div>
             )}
             <div className="cstatus">
-              {wide && countLabel}
+              {countLabel}
               {invalidCount > 0 && !filters.invalidOnly && (
                 <button type="button" className="cwarn" onClick={() => setFilters({ ...filters, invalidOnly: true })} title="編集して直すまでデッキでは使えません" aria-label={`要修正のカードが${invalidCount}枚あります（直すまでデッキで使えません）。要修正だけを見る`}>
                   ⚠ 要修正 {invalidCount}枚
@@ -422,9 +452,12 @@ export function CardListPage() {
       )}
 
       {selecting && (
-        <div className="bulkbar" role="toolbar" aria-label="選んだカードの操作">
+        <div className="bulkbar" role="toolbar" aria-label="選んだカードの操作" ref={bulkRef}>
           <div className="bulkbar__top">
-            <b aria-live="polite">{selected.size}枚を選択中</b>
+            <b aria-live="polite">
+              {selected.size}枚を選択中
+              {hiddenSelected > 0 && <small className="bulkbar__hidden">（うち{hiddenSelected}枚は表示外）</small>}
+            </b>
             <button type="button" className="btn btn--ghost btn--small" onClick={() => setSelected(new Set(flatIds))} disabled={flatIds.length === 0} aria-label={`表示中の${flatIds.length}枚をすべて選ぶ`}>
               すべて選ぶ
             </button>
@@ -487,7 +520,7 @@ export function CardListPage() {
             >
               書き出す
             </button>
-            <button type="button" className="btn btn--small btn--danger" disabled={selected.size === 0} onClick={() => void removeCards(selectedCards())}>
+            <button type="button" className="btn btn--small btn--danger" disabled={selected.size === 0} onClick={() => void removeCards(selectedCards(), hiddenSelected)}>
               削除
             </button>
           </div>

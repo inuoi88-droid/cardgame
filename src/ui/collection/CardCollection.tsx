@@ -104,8 +104,40 @@ export function CardCollection(props: Props) {
     return { rows, flatCount: flat, itemRow };
   }, [sections, headers, collapsed, cols]);
 
-  // ---------------------------------------------------------------- キーボード（矢印・Home・End）
+  // ---------------------------------------------------------------- キーボード（矢印・PageUp/PageDown・Home・End）
+  // Tab で止まるのは一覧の中の1枚だけ（active。ロービング tabindex）。その行は見える範囲の外でも描いておく（フォーカスが消えないように）。
+  // 一覧の外にフォーカスがあるときは、スクロールが止まるたびに見えているいちばん上のカードを active にする（Tab で戻ったときに飛ばない）
   const api = useRef<VirtualApi | null>(null);
+  const [activeRaw, setActive] = useState(0);
+  /** 見えているいちばん上の行（それより上の、余分に描いてある節の見出しは Tab で止めない） */
+  const [firstRow, setFirstRow] = useState(0);
+  const active = Math.max(0, Math.min(activeRaw, flatCount - 1));
+  const activeRow = itemRow[active]?.row;
+  const tabFor = (flat: number) => (flat === active ? 0 : -1);
+  useEffect(() => {
+    let t = 0;
+    const on = () => {
+      window.clearTimeout(t);
+      t = window.setTimeout(() => {
+        const wrap = wrapRef.current;
+        if (!wrap || !api.current || wrap.contains(document.activeElement)) return;
+        const first = api.current.firstVisibleRow();
+        setFirstRow(first);
+        for (let r = first; r < rows.length; r++) {
+          const row = rows[r]!;
+          if (row.kind === 'items') {
+            setActive(row.items[0]!.flat);
+            return;
+          }
+        }
+      }, 160);
+    };
+    window.addEventListener('scroll', on, { passive: true });
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener('scroll', on);
+    };
+  }, [rows]);
   const pendingFocus = useRef<number | null>(null);
   const focusItem = (n: number) => {
     const el = wrapRef.current?.querySelector<HTMLElement>(`[data-vi="${n}"]`);
@@ -141,10 +173,24 @@ export function CardCollection(props: Props) {
         const items = rowItems(r)!;
         next = items[Math.min(pos.col, items.length - 1)]!.flat;
       }
+    } else if (e.key === 'PageDown' || e.key === 'PageUp') {
+      // 1画面ぶん先の行の、同じ列のカードへ
+      const a = api.current;
+      if (a) {
+        const dir = e.key === 'PageDown' ? 1 : -1;
+        const page = Math.max(120, window.innerHeight - 200);
+        const at = a.rowAt(a.rowTop(pos.row) + dir * page);
+        const r = rowItems(at) ? at : (nextItemsRow(at, dir) ?? nextItemsRow(at, dir === 1 ? -1 : 1));
+        if (r !== null && rowItems(r)) {
+          const items = rowItems(r)!;
+          next = items[Math.min(pos.col, items.length - 1)]!.flat;
+        }
+      }
     } else if (e.key === 'Home') next = 0;
     else if (e.key === 'End') next = flatCount - 1;
     if (next === null || next === cur || !itemRow[next]) return;
     e.preventDefault();
+    setActive(next);
     pendingFocus.current = next;
     api.current?.scrollToRow(itemRow[next]!.row);
     if (focusItem(next)) pendingFocus.current = null;
@@ -236,9 +282,9 @@ export function CardCollection(props: Props) {
     if (view === 'card') {
       return (
         <div key={card.id} className={cx('cc-card', isSel && 'is-selected', selecting && 'is-selecting')} {...common}>
-          <CardView card={card} analysis={entry.a} size="sm" onClick={() => props.onOpen(entry)} actionLabel={`${card.name || '（名前なし）'}の詳細を見る`} />
+          <CardView card={card} analysis={entry.a} size="sm" onClick={() => props.onOpen(entry)} actionLabel={`${card.name || '（名前なし）'}の詳細を見る`} tabIndex={selecting ? -1 : tabFor(flat)} />
           {selecting && (
-            <button type="button" className="cc-card__sel vfocus" role="checkbox" aria-checked={isSel} aria-label={`${card.name || '（名前なし）'}を選ぶ`} onClick={click}>
+            <button type="button" className="cc-card__sel vfocus" tabIndex={tabFor(flat)} role="checkbox" aria-checked={isSel} aria-label={`${card.name || '（名前なし）'}を選ぶ`} onClick={click}>
               <span className="selmark" aria-hidden="true" />
             </button>
           )}
@@ -249,7 +295,7 @@ export function CardCollection(props: Props) {
               {!entry.a.valid && <span className="sr">（要修正）</span>}
             </span>
             {props.onEdit && !selecting && (
-              <button type="button" className="btn btn--small" onClick={() => props.onEdit!(entry)} aria-label={`${card.name || '（名前なし）'}を編集`}>
+              <button type="button" className="btn btn--small" tabIndex={tabFor(flat)} onClick={() => props.onEdit!(entry)} aria-label={`${card.name || '（名前なし）'}を編集`}>
                 編集
               </button>
             )}
@@ -268,6 +314,7 @@ export function CardCollection(props: Props) {
           type="button"
           className={cx('ctile vfocus', frameClasses(card.rarity, entry.a.cardType, entry.a.isCurse), !entry.a.valid && 'is-invalid', isSel && 'is-selected')}
           {...common}
+          tabIndex={tabFor(flat)}
           {...selProps}
           onClick={click}
           title={entry.summary || undefined}
@@ -304,6 +351,7 @@ export function CardCollection(props: Props) {
         type="button"
         className={cx('lrow vfocus', frameClasses(card.rarity, entry.a.cardType, entry.a.isCurse), !entry.a.valid && 'is-invalid', isSel && 'is-selected', selecting && 'is-selecting')}
         {...common}
+        tabIndex={tabFor(flat)}
         {...selProps}
         onClick={click}
       >
@@ -320,7 +368,12 @@ export function CardCollection(props: Props) {
             <GroupChips ids={groupIds} groupsById={groupsById} />
           </span>
           <span className="lrow__l2">
-            <span className="lrow__type">{typeLabel}</span>
+            {/* 狭い行のモンスターは「モンスター」を省いて種族を残す（ステータスの絵でモンスターと分かる） */}
+            <span className="lrow__type">
+              <span className={cx('lrow__kind', !!card.stats && 'lrow__kind--monster')}>{CARD_TYPE_LABEL[entry.a.cardType]}</span>
+              {entry.a.isCurse && <span className="lrow__curse">{CURSE_LABEL}</span>}
+              {tribe && <span className="lrow__tribe">{tribe}</span>}
+            </span>
             {card.stats && <StatMini attack={card.stats.attack} hp={card.stats.hp} defense={card.stats.defense} />}
             <span className="lrow__sum">{entry.summary}</span>
           </span>
@@ -338,8 +391,8 @@ export function CardCollection(props: Props) {
   };
 
   /** 速いスクロールの間の仮の行（名前だけ。枠と高さは本物と同じ） */
-  const renderLight = (row: Row) => {
-    if (row.kind !== 'items') return render(row);
+  const renderLight = (row: Row, index: number) => {
+    if (row.kind !== 'items') return render(row, index);
     return (
       <div className={cx('vitems', `vitems--${view}`)} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }} aria-hidden="true">
         {row.items.map(({ entry }) => (
@@ -352,7 +405,7 @@ export function CardCollection(props: Props) {
     );
   };
 
-  const render = (row: Row) => {
+  const render = (row: Row, index: number) => {
     if (row.kind === 'items') {
       return (
         <div className={cx('vitems', `vitems--${view}`)} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
@@ -363,7 +416,11 @@ export function CardCollection(props: Props) {
     const s = row.section;
     const color = s.group ? groupHex(s.group.color) : undefined;
     return (
-      <div className={cx('csec', s.cardType && `ty--${s.cardType}`, s.rarity && `rar--${s.rarity}`)} style={color ? ({ '--gc': color } as CSSProperties) : undefined}>
+      <div
+        className={cx('csec', s.cardType && `ty--${s.cardType}`, s.rarity && `rar--${s.rarity}`)}
+        style={color ? ({ '--gc': color } as CSSProperties) : undefined}
+        inert={index < firstRow}
+      >
         <div className="csec__bar">
           <button type="button" className="csec__toggle" aria-expanded={!row.collapsed} onClick={() => props.onToggleSection(s.key)}>
             <span className="csec__caret" aria-hidden="true">
@@ -400,8 +457,12 @@ export function CardCollection(props: Props) {
       }}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      onFocus={(e) => {
+        const holder = (e.target as HTMLElement).closest<HTMLElement>('[data-vi]');
+        if (holder) setActive(Number(holder.dataset.vi));
+      }}
     >
-      {width > 0 && <VirtualRows rows={rows} estimate={estimate} render={render} renderLight={renderLight} api={api} onRendered={onRendered} measureKey={`${view}:${width}`} />}
+      {width > 0 && <VirtualRows rows={rows} estimate={estimate} render={render} renderLight={renderLight} api={api} onRendered={onRendered} measureKey={`${view}:${width}`} keep={activeRow} />}
     </div>
   );
 }

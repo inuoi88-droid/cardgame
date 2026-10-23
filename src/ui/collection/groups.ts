@@ -18,7 +18,7 @@ export const GROUP_COLORS: readonly { id: string; label: string; hex: string }[]
   { id: 'violet', label: '紫', hex: '#b47cff' },
   { id: 'pink', label: '桃', hex: '#ff7ac6' },
   { id: 'brown', label: '茶', hex: '#c8946a' },
-  { id: GROUP_DEFAULT_COLOR, label: '灰', hex: '#a6afcf' },
+  { id: GROUP_DEFAULT_COLOR, label: '灰', hex: '#7f8bb0' },
 ];
 
 export function groupHex(color: string): string {

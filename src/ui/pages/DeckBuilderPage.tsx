@@ -1,5 +1,5 @@
 /** デッキ構築 */
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   BALANCE,
   CARD_TYPE_LABEL,
@@ -18,6 +18,7 @@ import { useEntries } from '../collection/entries.ts';
 import { GroupDots } from '../collection/CardCollection.tsx';
 import { GroupBar } from '../collection/GroupUI.tsx';
 import { membershipIndex } from '../collection/groups.ts';
+import { FilterIcon } from '../collection/icons.tsx';
 import { PREF_KEYS, usePrefs } from '../collection/prefs.ts';
 import { EMPTY_FILTERS, deckUseIndex, filterCount, filterEntries, sortEntries, type Entry } from '../collection/query.ts';
 import type { TagId } from '../collection/tags.ts';
@@ -79,6 +80,8 @@ function Builder({ saved }: { saved: Deck | null }) {
   const [prefs, setPrefs] = usePrefs(PREF_KEYS.deckPool);
   const [filterOpen, setFilterOpen] = useState(false);
   const [query, setQuery] = useState('');
+  /** 候補に使う検索語（入力を先に返し、候補の描き直しは後回し） */
+  const listQuery = useDeferredValue(query);
   const [previewId, setPreviewId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -125,7 +128,7 @@ function Builder({ saved }: { saved: Deck | null }) {
     return m;
   }, [deck, cardsById, analyses]);
 
-  const pool = useMemo(() => sortEntries(filterEntries(entries, query, filters, scope, ctx), prefs.sort, prefs.desc), [entries, query, filters, scope, ctx, prefs.sort, prefs.desc]);
+  const pool = useMemo(() => sortEntries(filterEntries(entries, listQuery, filters, scope, ctx), prefs.sort, prefs.desc), [entries, listQuery, filters, scope, ctx, prefs.sort, prefs.desc]);
   const poolRows = useMemo(() => pool.map((e) => ({ key: e.card.id, kind: 'row', entry: e })), [pool]);
   const groupCounts = useMemo(() => new Map(groups.map((g) => [g.id, g.cardIds.filter((id) => cardsById.has(id)).length])), [groups, cardsById]);
   const ungrouped = useMemo(() => cards.filter((c) => (membership.get(c.id)?.length ?? 0) === 0).length, [cards, membership]);
@@ -147,19 +150,31 @@ function Builder({ saved }: { saved: Deck | null }) {
     const before = deck;
     let d = deck;
     let added = 0;
-    let skipped = 0;
+    /** 上限（レアリティ・同名）・要修正で入れられなかった枚数 */
+    let blocked = 0;
+    /** デッキの枚数がいっぱいになって入れなかった残り（並び順で後ろのカード） */
+    let left = 0;
     for (const e of list) {
       if (d.entries.some((x) => x.cardId === e.card.id)) continue;
-      if (blockReason(e.card, e.a, d, analyzeDeck(d, cardsById), cardsById)) {
-        skipped++;
+      const da = analyzeDeck(d, cardsById);
+      if (da.total >= da.size) {
+        left++;
+        continue;
+      }
+      if (blockReason(e.card, e.a, d, da, cardsById)) {
+        blocked++;
         continue;
       }
       d = { ...d, entries: [...d.entries, { cardId: e.card.id, count: 1 }] };
       added++;
     }
     setDeck(d);
+    const notes = [
+      left > 0 ? `${a.size}枚になったので、並び順で後ろの${left}枚は入れていません` : '',
+      blocked > 0 ? `${blocked}枚は上限（レアリティ・同じ名前）か要修正で入れられません` : '',
+    ].filter(Boolean);
     toast({
-      text: added > 0 ? `${added}枚を1枚ずつ入れました${skipped > 0 ? `（${skipped}枚は上限・要修正で入れられませんでした）` : ''}` : skipped > 0 ? `入れられるカードがありませんでした（${skipped}枚は上限・要修正）` : 'どれももう入っています',
+      text: added > 0 ? `${added}枚を1枚ずつ入れました${notes.length > 0 ? `（${notes.join('。')}）` : ''}` : notes.length > 0 ? `入れられるカードがありませんでした（${notes.join('。')}）` : 'どれももう入っています',
       kind: added > 0 ? 'ok' : 'info',
       action: added > 0 ? { label: '元に戻す', onClick: () => setDeck(before) } : undefined,
     });
@@ -242,7 +257,7 @@ function Builder({ saved }: { saved: Deck | null }) {
               <div className="ctools ctools--pool">
                 <SearchBox value={query} onChange={setQuery} />
                 <button type="button" className={cx('btn ctools__btn', filterCount(filters) > 0 && 'is-on')} onClick={() => setFilterOpen(true)}>
-                  <span aria-hidden="true">⚲</span>
+                  <FilterIcon />
                   絞り込み{filterCount(filters) > 0 && <span className="ctools__n">{filterCount(filters)}</span>}
                 </button>
               </div>
@@ -282,7 +297,8 @@ function Builder({ saved }: { saved: Deck | null }) {
               <VirtualRows
                 className="card-rows card-rows--pool"
                 rows={poolRows}
-                estimate={{ row: 68 }}
+                estimate={{ row: 70 }}
+                measureKey="pool"
                 render={({ entry }) => {
                   const c = entry.card;
                   const ca = entry.a;

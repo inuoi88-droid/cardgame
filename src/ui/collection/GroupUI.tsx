@@ -243,8 +243,10 @@ interface PickerProps {
 
 export function GroupPicker({ mode, cardIds, onClose, onCreate }: PickerProps) {
   const toast = useToast();
-  const groups = getState().groups;
+  const { groups, cards } = getState();
   const ids = new Set(cardIds);
+  /** 消したばかりのカード（元に戻せるようにグループには ID が残っている）は数えない */
+  const exists = new Set(cards.map((c) => c.id));
   const rows = groups.map((g) => ({ g, inside: g.cardIds.filter((id) => ids.has(id)).length })).filter((r) => mode === 'add' || r.inside > 0);
   const run = (g: CardGroup) => {
     if (mode === 'add') {
@@ -270,7 +272,7 @@ export function GroupPicker({ mode, cardIds, onClose, onCreate }: PickerProps) {
             <button type="button" className="gpick__row" style={gc(g.color)} onClick={() => run(g)}>
               <span className="gdot" aria-hidden="true" />
               <span className="gpick__name">{g.name}</span>
-              <small>{inside > 0 ? `${cardIds.length}枚中${inside}枚が入っています` : `${g.cardIds.length}枚`}</small>
+              <small>{inside > 0 ? `${cardIds.length}枚中${inside}枚が入っています` : `${g.cardIds.filter((id) => exists.has(id)).length}枚`}</small>
             </button>
           </li>
         ))}

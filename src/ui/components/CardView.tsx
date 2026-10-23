@@ -17,6 +17,8 @@ interface Props {
   onClick?: () => void;
   /** onClick があるときの読み上げ名（既定は「〇〇の詳細を見る」） */
   actionLabel?: string;
+  /** onClick があるときの tabIndex（既定 0。一覧のロービング tabindex で -1 にする） */
+  tabIndex?: number;
 }
 
 /** モードの行「A：…」「B（+1）：…」 */
@@ -24,7 +26,7 @@ const MODE_LINE = /^([ABC])(（[^）]*）)?：(.*)$/;
 /** 一覧の小さいカードの本文1行の高さ（cardFrame.css の .tcg__clamp と同じ） */
 const CLAMP_LINE = 18;
 
-export function CardView({ card, analysis, size = 'lg', onClick, actionLabel }: Props) {
+export function CardView({ card, analysis, size = 'lg', onClick, actionLabel, tabIndex = 0 }: Props) {
   const a = useMemo(() => analysis ?? analyzeCard(card), [analysis, card]);
   const name = card.name.trim() || '（名前なし）';
   const tribe = card.tribe && TRIBE_LABEL[card.tribe] ? TRIBE_LABEL[card.tribe] : null;
@@ -38,7 +40,7 @@ export function CardView({ card, analysis, size = 'lg', onClick, actionLabel }: 
       className={cx('tcg', `tcg--${size}`, frameClasses(card.rarity, a.cardType, a.isCurse), card.stats && 'tcg--monster', invalid && 'is-invalid', clamped && 'is-clamped', onClick && 'tcg--clickable')}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
+      tabIndex={onClick ? tabIndex : undefined}
       onKeyDown={
         onClick
           ? (e) => {

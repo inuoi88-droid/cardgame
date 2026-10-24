@@ -35,10 +35,13 @@ const NAV: { id: Section; icon: UiIconName; label: string; path: string }[] = [
 export function App() {
   const route = useRoute();
   const { saveError } = useStore();
-  const section: Section =
-    route.page === 'decks' || route.page === 'deckEdit'
+  // 公式カードの一覧（#/official）は CPU 戦・オンラインのどちらからも開くので、どのタブも光らせない
+  const section: Section | null =
+    route.page === 'official'
+      ? null
+      : route.page === 'decks' || route.page === 'deckEdit'
       ? 'decks'
-      : route.page === 'battle' || route.page === 'battleSetup' || route.page === 'draft' || route.page === 'official'
+      : route.page === 'battle' || route.page === 'battleSetup' || route.page === 'draft'
         ? 'battle'
         : route.page === 'online' || route.page === 'onlineBattle'
           ? 'online'

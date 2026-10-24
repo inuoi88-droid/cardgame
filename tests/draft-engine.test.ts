@@ -142,8 +142,9 @@ describe('交互に取る', () => {
     expect(JSON.stringify(s)).toBe(before);
     expect(t.field).toHaveLength(D.field);
     expect(t.pile).toHaveLength(s.pile.length - 1);
-    expect(t.field).not.toContain(s.field[2]);
-    expect(t.field[D.field - 1]).toBe(s.pile[0]);
+    // 取った場所にそのまま補充し、ほかのカードは動かさない（スマホの2列で並びが跳ねないように）
+    expect(t.field[2]).toBe(s.pile[0]);
+    expect(t.field.filter((_, i) => i !== 2)).toEqual(s.field.filter((_, i) => i !== 2));
     const done = runAuto(t);
     expect(draft.applyTake(done, draft.draftTurn(done) ?? 0, done.field[0]!)).toMatchObject({ ok: false, reason: 'done' });
   });
@@ -211,8 +212,8 @@ describe('交互に取る', () => {
       first: 0,
     };
     s = take(s, 1, rare(0));
-    // 補充で rare(10)、席0が取れないので rare(11)・common(10) を追加
-    expect(s.field).toEqual([rare(1), rare(2), rare(3), rare(4), rare(5), rare(10), rare(11), common(10)]);
+    // 取った場所に rare(10) を補充、席0が取れないので rare(11)・common(10) を後ろに追加
+    expect(s.field).toEqual([rare(10), rare(1), rare(2), rare(3), rare(4), rare(5), rare(11), common(10)]);
     expect(s.picks[s.picks.length - 1]!.extra).toBe(2);
     expect(draft.takeInfos(s, 0).filter((t) => t.ok).map((t) => t.cardId)).toEqual([common(10)]);
     expect(draft.autoPick(s, 0)).toBe(common(10));

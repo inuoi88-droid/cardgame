@@ -1,7 +1,7 @@
 /** オンライン対戦の公開窓口。Edge Function 用の1ファイル（npm run build:server）もここから作る */
 export { CODE_LENGTH, NAME_MAX_LENGTH, DEFAULT_NAME, normalizeCode, normalizeName } from './codes.ts';
 export { MAX_BODY_CHARS, parseAction, parseRequest } from './protocol.ts';
-export { ROOM_MODES } from './protocol.ts';
+export { ROOM_MODES, DRAFT_FEATURE } from './protocol.ts';
 export type { ErrorReason, OnlineRequest, OnlineResponse, RoomDraftView, RoomMode, RoomStatus, RoomView } from './protocol.ts';
 export { CONNECTED_WITHIN_MS, ROOM_TTL_MS } from './room.ts';
 export type { RoomDeck, RoomMeta, RoomRecord, Seat } from './room.ts';

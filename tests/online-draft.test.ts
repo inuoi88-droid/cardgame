@@ -60,7 +60,7 @@ function ok(res: OnlineResponse): RoomView {
 }
 
 const createDraftReq = (extra: Record<string, unknown> = {}) => ({ op: 'create', mode: 'draft', name: 'ホスト', ...extra });
-const joinReq = (extra: Record<string, unknown> = {}) => ({ op: 'join', code: 'abc234', name: 'ゲスト', ...extra });
+const joinReq = (extra: Record<string, unknown> = {}) => ({ op: 'join', code: 'abc234', name: 'ゲスト', features: ['draft'], ...extra });
 
 /** ドラフトの部屋に2人目が入った状態 */
 function drafting(createExtra: Record<string, unknown> = {}, joinExtra: Record<string, unknown> = {}) {
@@ -329,6 +329,86 @@ describe('ドラフトの時間切れとおまかせ', () => {
   });
 });
 
+describe('レビューの指摘（決定事項 #120）', () => {
+  it('相手がおまかせを切り替えても、自分の取る操作はやり直しにならない。同じ値のおまかせは版を上げない', () => {
+    const { s } = drafting();
+    const me = s.room!.meta!.draft!.first;
+    const opp = battle.other(me);
+    const seen = s.state(me);
+    const v = s.room!.version;
+    // 同じ値（もう切れている）なら何も変わらない
+    ok(s.auto(opp, false));
+    expect(s.room!.version).toBe(v);
+    // 相手の番ではないときにおまかせを入れる・切る（場は変わらない）
+    ok(s.auto(opp, true));
+    ok(s.auto(opp, false));
+    expect(s.room!.version).toBe(v + 2);
+    expect(s.room!.deadline).toBe(seen.deadline);
+    // 見ていた版（切り替えの前）のままで取れる
+    const card = seen.draft!.takeable.find((t) => t.ok)!.cardId;
+    expect(ok(s.take(me, card, seen.version)).draft!.picks).toHaveLength(1);
+    // 取られたあと（場が変わった）は、前の版ではやり直し
+    const before = s.state(opp);
+    takeFirstOk(s);
+    expect(s.take(me, s.room!.meta!.draft!.field[0]!, before.version)).toMatchObject({ ok: false, reason: 'version' });
+    // 未来の版も受け付けない
+    expect(s.take(me, s.room!.meta!.draft!.field[0]!, s.room!.version + 5)).toMatchObject({ ok: false, reason: 'version' });
+  });
+
+  it('ドラフトを知らない古い画面（features に draft が無い）はドラフトの部屋に入れない。自分のデッキの部屋には入れる', () => {
+    const s = new FakeServer();
+    ok(s.send(createDraftReq(), HOST));
+    const r = s.send({ op: 'join', code: 'abc234', name: '古い', deck: BEASTS.deck, cards: BEASTS.cards }, GUEST);
+    expect(r).toMatchObject({ ok: false, reason: 'invalid', error: 'この部屋はドラフト戦です。アプリを新しくしてから入ってください' });
+    expect(s.room!.status).toBe('waiting');
+    const n = new FakeServer();
+    ok(n.send({ op: 'create', name: 'a', deck: POISON.deck, cards: POISON.cards }, HOST));
+    expect(ok(n.send({ op: 'join', code: 'abc234', name: '古い', deck: BEASTS.deck, cards: BEASTS.cards }, GUEST)).status).toBe('playing');
+  });
+
+  it('時間切れ・おまかせで取ったカードには印が付く（自分で取ったものには付かない）', () => {
+    const { s } = drafting();
+    const late = s.room!.meta!.draft!.first;
+    s.now += PICK_MS + 1;
+    const v = s.state(battle.other(late));
+    expect(v.draft!.picks[0]).toMatchObject({ player: late, by: 'timeout' });
+    takeFirstOk(s);
+    expect(s.room!.meta!.draft!.picks[1]!.by).toBeUndefined();
+    ok(s.auto(late, true));
+    expect(s.room!.meta!.draft!.picks[2]).toMatchObject({ player: late, by: 'auto' });
+  });
+
+  it('山の並びと対戦のシードは、そのリクエストの乱数で決まる（ドラフトの乱数だけからは読めない）', () => {
+    const run = (finalSeed: number, takeSeed: number) => {
+      const { s } = drafting();
+      for (let i = 0; i < 2 * D.takes - 1; i++) {
+        s.now += 100;
+        takeFirstOk(s);
+      }
+      const snapshot = JSON.stringify(s.room);
+      s.seed = takeSeed;
+      const r1 = new FakeServer();
+      r1.room = JSON.parse(snapshot) as RoomRecord;
+      r1.now = s.now + 100;
+      r1.seed = finalSeed;
+      takeFirstOk(r1);
+      return r1.room!.state!;
+    };
+    const a = run(111, 0);
+    const b = run(222, 0);
+    expect(a.players[0].deck.map((c) => c.uid)).not.toEqual(b.players[0].deck.map((c) => c.uid));
+    // 同じ部屋・同じ取り方でも、取ったあとに補充されるカードはリクエストの乱数で変わりうる（山を混ぜ直す）
+    const fields = new Set<string>();
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const { s } = drafting();
+      s.seed = seed;
+      takeFirstOk(s);
+      fields.add(JSON.stringify(s.room!.meta!.draft!.field));
+    }
+    expect(fields.size).toBeGreaterThan(1);
+  });
+});
+
 describe('自分のデッキの部屋（今までどおり＋再戦）', () => {
   function normalRoom() {
     const s = new FakeServer();
@@ -410,7 +490,7 @@ describe('受付（handleBody）', () => {
     const call = async (body: unknown) => (await handleBody(JSON.stringify(body), deps)).body;
     const host = await call({ op: 'create', mode: 'draft', name: 'A' });
     if (!host.ok) throw new Error(host.error);
-    const guest = await call({ op: 'join', code: host.code, name: 'B' });
+    const guest = await call({ op: 'join', code: host.code, name: 'B', features: ['draft'] });
     if (!guest.ok) throw new Error(guest.error);
     expect(guest.status).toBe('drafting');
     const d = guest.draft!;

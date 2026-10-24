@@ -25,7 +25,7 @@ describe('オンラインのドラフト（実際の倍率）', () => {
     };
     const token = (p: battle.PlayerId) => (p === 0 ? HOST : GUEST);
     send({ op: 'create', mode: 'draft', name: 'A', leader: 'knight' }, HOST);
-    let v = send({ op: 'join', code: 'ABC234', name: 'B' }, GUEST);
+    let v = send({ op: 'join', code: 'ABC234', name: 'B', features: ['draft'] }, GUEST);
     while (v.status === 'drafting') {
       const p = v.draft!.turn!;
       const mine = send({ op: 'state', code: 'ABC234', token: token(p) }, token(p));

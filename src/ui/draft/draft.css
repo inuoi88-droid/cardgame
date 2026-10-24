@@ -3,6 +3,7 @@
 
 .dboard {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* 帯の中身（省略する文）で列が広がらないように */
   gap: 10px;
 }
 
@@ -98,6 +99,7 @@
 }
 .dbar__time {
   display: inline-flex;
+  white-space: nowrap;
   align-items: center;
   gap: 3px;
   padding: 1px 8px;
@@ -116,11 +118,26 @@
 }
 .dbar__stats {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
-  flex: 1;
+  flex: 0 0 auto;
+}
+/* スマホ：直前の取得を帯の中に1行で（長ければ省略。空でも1行分の高さを取って帯の高さを変えない） */
+.dbar__ticker {
+  flex: 1 1 100%;
+  margin: 0;
   min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  min-height: 1.4em;
+  color: var(--u-ink-2);
+}
+.dstat__rarname {
+  font-size: var(--fs-xs);
 }
 .dstat {
   display: inline-flex;
@@ -159,6 +176,12 @@
 .dstat--auto {
   color: var(--u-sap-hi);
 }
+/* 接続の札の相手の名前は長ければ省略（おまかせのボタンを押し出さない） */
+.dboard__info .dstat .u-name {
+  max-width: 8em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .dboard__info {
   display: flex;
   flex-wrap: wrap;
@@ -168,6 +191,11 @@
 .dboard__auto {
   margin-left: auto;
 }
+@media (pointer: coarse) {
+  .dboard__info .dboard__auto {
+    min-height: 44px;
+  }
+}
 .dboard__auto.is-on {
   --b-rim: var(--u-rim-sapphire);
   color: var(--u-sap-hi);
@@ -176,8 +204,29 @@
   flex: 1 1 auto;
   justify-content: flex-end;
 }
+/* PC：帯は1行（直前の取得の文は長ければ省略。手番が替わっても高さは同じ） */
+@media (min-width: 920px) {
+  .dbar {
+    flex-wrap: nowrap;
+  }
+  .dbar .dboard__info {
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .dbar__turn,
+  .dbar .dboard__info > :not(.dboard__last) {
+    flex: none;
+  }
+  .dbar .dboard__last {
+    flex: 1 1 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
 .dboard__last {
   flex: 1 1 200px;
+  min-width: 0;
   margin: 0;
   font-size: var(--fs-sm);
   color: var(--u-ink-2);
@@ -185,6 +234,18 @@
 @media (max-width: 919px) {
   .dboard__last {
     flex-basis: 100%;
+  }
+  /* スマホ：1段目は銘板と数字（折り返さない。足りなければ数字の欄を詰める）、2段目は直前の取得。手番が替わっても高さは同じ */
+  .dbar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .dbar__stats {
+    justify-content: flex-end;
+    overflow: hidden;
+  }
+  .dbar__ticker {
+    grid-column: 1 / -1;
   }
 }
 @media (max-width: 480px) {
@@ -208,6 +269,25 @@
   }
   .dstat {
     padding: 2px 6px;
+  }
+  .dstat--rar {
+    gap: 6px;
+  }
+}
+/* とても狭い幅ではレアリティの名前を省く（宝石の色と、押したときの説明で読む） */
+@media (max-width: 400px) {
+  .dstat__rarname,
+  .dbar__time > .gi {
+    display: none;
+  }
+  .dbar__turn {
+    padding: 4px 6px;
+  }
+  .dbar .dstat {
+    padding: 2px 4px;
+  }
+  .dstat--rar {
+    gap: 4px;
   }
 }
 
@@ -240,8 +320,10 @@
 }
 @media (min-width: 600px) {
   .dfield {
-    /* PC は2段が1画面に収まる幅（高さから決める。200px まで） */
-    grid-template-columns: repeat(3, minmax(0, clamp(170px, calc((100vh - 290px) / 2 * 0.7), 210px)));
+    /* PC は2段が「取る」ボタンまで1画面に収まる幅（高さから決める。210px まで）。
+       330px＝場より上（上の帯・見出し・手番の帯 約193px）＋2段の足（取るボタンと隙間 約57px×2）＋段の間と下の余白。
+       カードの面は 幅：高さ ≒ 0.71：1。1280×800・1440×900 で下の段のボタンが画面の中に入ることを確かめた */
+    grid-template-columns: repeat(3, minmax(0, clamp(150px, calc((100vh - 330px) / 2 * 0.71), 210px)));
     justify-content: start;
     gap: 14px 16px;
   }
@@ -290,11 +372,25 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 40px;
+  min-height: 44px;
 }
-.dcard__take {
+.dcard .dcard__take {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
+}
+/* 詳細の下の操作の欄：取れないカードは理由（取るボタンの代わり） */
+.dcard__nonote {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.dcard__nonote > .gi {
+  width: 16px;
+  height: 16px;
+  flex: none;
 }
 .dcard__no {
   display: inline-flex;

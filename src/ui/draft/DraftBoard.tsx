@@ -38,8 +38,12 @@ export interface DraftBoardProps {
   oppGi: string;
   /** 今のピックの残り秒（制限時間が無ければ null） */
   timeLeft?: number | null;
-  /** 残りがこの秒数以下なら目立たせる */
+  /** 残りがこの秒数以下なら目立たせる（自分の番だけ） */
   warnSeconds?: number;
+  /** 残り時間の札の説明（時間切れのときどうなるか） */
+  timerHint?: string;
+  /** 自分が続けて時間切れになった回数（オンラインだけ。1以上なら帯に「時間切れ n/上限」を出す） */
+  timeouts?: number;
   /** 送っている途中（取るボタンを止める） */
   busy?: boolean;
   /** 相手（CPU）が考えている途中 */
@@ -58,9 +62,11 @@ export interface DraftBoardProps {
 type Zoom = { card: CardDef; where: 'field'; index: number } | { card: CardDef; where: 'deck'; owner: PlayerId; count: number };
 
 export function DraftBoard(props: DraftBoardProps) {
-  const { view, me, names, oppGi, timeLeft = null, warnSeconds = 10, busy = false, thinking = false, onTake, onAuto, error, status } = props;
+  const { view, me, names, oppGi, timeLeft = null, warnSeconds = 10, timerHint, timeouts = 0, busy = false, thinking = false, onTake, onAuto, error, status } = props;
   const opp = (1 - me) as PlayerId;
   const wide = useMediaQuery('(min-width: 920px)');
+  // 狭いスマホでは銘板に相手の名前を出さない（名前は接続の札にある。手番が替わっても帯の高さを変えない）
+  const narrow = useMediaQuery('(max-width: 480px)');
   useHeightVar('--topbar-h', '.topbar');
   const [zoom, setZoom] = useState<Zoom | null>(null);
   const [tab, setTab] = useState<'me' | 'opp'>('me');
@@ -96,11 +102,26 @@ export function DraftBoard(props: DraftBoardProps) {
   const zoomInfo = zoom?.where === 'field' ? view.takeable[zoom.index] : undefined;
   const zoomReason = zoom?.where === 'field' ? shortReason(zoomInfo, zoom.card) : null;
 
+  const lastLine = last ?? (view.picks.length === 0 ? `${view.first === me ? 'あなた' : nameOf(opp)}から取ります。` : '');
+  // スマホは直前の取得を固定した帯の中に1行で出す（下を読んでいる間に場のカードが替わっても、何が起きたかわかるように）
+  const ticker = (
+    <p className="dbar__ticker" aria-live="polite" title={lastLine}>
+      {lastLine}
+    </p>
+  );
+  const limit = BALANCE.online.timeoutLoseCount;
   const info = (
     <div className="dboard__info">
-      <p className="dboard__last" aria-live="polite">
-        {last ?? (view.picks.length === 0 ? `${view.first === me ? 'あなた' : nameOf(opp)}から取ります。` : '')}
-      </p>
+      {wide && (
+        <p className="dboard__last" aria-live="polite" title={lastLine}>
+          {lastLine}
+        </p>
+      )}
+      {timeouts > 0 && (
+        <span className="dstat is-out dstat--timeouts" title={`${limit}回続けて時間切れになると、自分で取るまで「おまかせ」になります（負けにはなりません）`}>
+          時間切れ <b>{timeouts}</b>/{limit}
+        </span>
+      )}
       <span className="dstat dstat--pile" title="伏せた山の残り（中身と順番は見えません）">
         <UiIcon name="card-random" />
         山 {view.pileSize}
@@ -129,6 +150,8 @@ export function DraftBoard(props: DraftBoardProps) {
           <span className="dbar__who">
             {myTurn ? (
               'あなたの番'
+            ) : narrow ? (
+              '相手の番'
             ) : (
               <>
                 <span className="u-name">{nameOf(opp)}</span>の番
@@ -137,7 +160,7 @@ export function DraftBoard(props: DraftBoardProps) {
           </span>
           {thinking && !myTurn && <span className="dbar__think" aria-label="選んでいます" />}
           {timeLeft !== null && (
-            <span className={cx('dbar__time', timeLeft <= warnSeconds && 'is-warn')} title="このピックの残り時間">
+            <span className={cx('dbar__time', myTurn && timeLeft <= warnSeconds && 'is-warn')} title={timerHint ?? 'このピックの残り時間'}>
               <UiIcon name="stopwatch" />
               {timeLeft}秒
             </span>
@@ -145,20 +168,19 @@ export function DraftBoard(props: DraftBoardProps) {
         </div>
         <div className="dbar__stats">
           <span className="dstat" title="あなたがあと取れる回数">
-            あと<b>{view.takesLeft[me]}</b>回
+            残<b>{view.takesLeft[me]}</b>回
           </span>
           <span className="dstat dstat--rar">
             {rarityRoom(view.taken[me]).map((r) => (
               <span key={r.rarity} className={cx('dstat__rar', r.takesLeft === 0 && 'is-out')} title={`${RARITY_LABEL[r.rarity]}はあと${r.takesLeft}回取れます（デッキに${r.limit}枚まで）`}>
-                <RarityGem rarity={r.rarity} withLabel="sr" />
-                <span className="sr">あと</span>
-                <b>{r.takesLeft}</b>
+                <RarityGem rarity={r.rarity} />
+                <span className="dstat__rarname">{RARITY_LABEL[r.rarity]}</span>残<b>{r.takesLeft}</b>
                 <span className="sr">回</span>
               </span>
             ))}
           </span>
         </div>
-        {wide && info}
+        {wide ? info : ticker}
       </div>
       {!wide && info}
       {error && <div className="notice notice--ng">{error}</div>}
@@ -223,11 +245,14 @@ export function DraftBoard(props: DraftBoardProps) {
         <CardDetail
           card={zoom.card}
           onClose={() => setZoom(null)}
+          statusFirst={zoom.where === 'field'}
+          hideValidity
           status={
             zoom.where === 'deck' ? (
               `${zoom.owner === me ? 'あなた' : nameOf(opp)}のデッキに${zoom.count}枚`
             ) : zoomReason ? (
-              <span className="text-ng">{zoomInfo?.message ?? zoomReason}</span>
+              // 取れない理由は下の操作の欄（スマホでは画面の下に固定）に出す
+              undefined
             ) : myTurn ? (
               `取ると${D.copies}枚デッキに入ります`
             ) : (
@@ -235,7 +260,12 @@ export function DraftBoard(props: DraftBoardProps) {
             )
           }
           actions={
-            zoom.where === 'field' && myTurn && !zoomReason ? (
+            zoom.where !== 'field' ? undefined : zoomReason ? (
+              <p className="dcard__nonote text-ng">
+                <UiIcon name="cancel" />
+                取れません：{zoomInfo?.message ?? zoomReason}
+              </p>
+            ) : myTurn ? (
               <button type="button" className="btn btn--primary" disabled={busy} onClick={() => take(zoom.card.id)}>
                 これを取る（{D.copies}枚入る）
               </button>
@@ -286,7 +316,7 @@ export function DeckPanel({
         {rarityRoom(taken).map((r) => (
           <span key={r.rarity} className={cx('dpanel__rar', r.takesLeft === 0 && 'is-out')}>
             <RarityGem rarity={r.rarity} />
-            {RARITY_LABEL[r.rarity]} {r.copies}/{r.limit}
+            {total >= BALANCE.deck.size ? `${RARITY_LABEL[r.rarity]} ${r.copies}/${r.limit}枚` : `${RARITY_LABEL[r.rarity]}残${r.takesLeft}回（${r.copies}/${r.limit}枚）`}
           </span>
         ))}
       </div>

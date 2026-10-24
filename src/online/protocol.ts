@@ -32,7 +32,8 @@ import { BALANCE } from '../engine/balance.ts';
  */
 export type OnlineRequest =
   | { op: 'create'; name: string; deck?: Deck; cards?: CardDef[]; leader?: LeaderId; rules?: MatchRules; mode?: RoomMode }
-  | { op: 'join'; code: string; name: string; deck?: Deck; cards?: CardDef[]; leader?: LeaderId }
+  /** features：この画面ができること（'draft' を送らない古い画面はドラフトの部屋に入れない。決定事項 #120） */
+  | { op: 'join'; code: string; name: string; deck?: Deck; cards?: CardDef[]; leader?: LeaderId; features?: string[] }
   /** 最新の状態を取る。数秒おきに送り、接続中の目印にもする */
   | { op: 'state'; code: string; token: string }
   | { op: 'action'; code: string; token: string; version: number; action: Action }
@@ -45,6 +46,9 @@ export type OnlineRequest =
 
 /** waiting：相手待ち／drafting：ドラフト中（ドラフトの部屋）／playing：対戦中／ended：決着（再戦で playing に戻れる） */
 export type RoomStatus = 'waiting' | 'drafting' | 'playing' | 'ended';
+
+/** 新しい画面だけが join で送る、ドラフトの部屋に入れることの印（features。決定事項 #120） */
+export const DRAFT_FEATURE = 'draft';
 
 /** 部屋の形式：自分のデッキ／ドラフト（決定事項 #115） */
 export type RoomMode = 'deck' | 'draft';
@@ -96,11 +100,13 @@ export const MAX_BODY_CHARS = 400_000;
 /** 行動に含められる ID の数の上限 */
 const MAX_IDS = 100;
 const MAX_ID_CHARS = 100;
+/** join の features の数の上限 */
+const MAX_FEATURES = 10;
 
 /** サーバーが受け取った形（デッキとカードは room.ts の checkDeck で調べる） */
 export type ParsedRequest =
   | { op: 'create'; name: unknown; deck: unknown; cards: unknown; leader: LeaderId; rules?: MatchRules; mode: RoomMode }
-  | { op: 'join'; code: string; name: unknown; deck: unknown; cards: unknown; leader: LeaderId }
+  | { op: 'join'; code: string; name: unknown; deck: unknown; cards: unknown; leader: LeaderId; features: string[] }
   | { op: 'state'; code: string; token: string }
   | { op: 'action'; code: string; token: string; version: number; action: Action }
   | { op: 'take'; code: string; token: string; version: number; cardId: string }
@@ -268,7 +274,10 @@ export function parseRequest(x: unknown): Parsed<ParsedRequest> {
   }
   const code = normalizeCode(x.code);
   if (!code) return bad('部屋コードが正しくありません');
-  if (x.op === 'join') return { ok: true, value: { op: 'join', code, name: x.name, deck: x.deck, cards: x.cards, leader } };
+  if (x.op === 'join') {
+    const features = Array.isArray(x.features) ? x.features.filter(isId).slice(0, MAX_FEATURES) : [];
+    return { ok: true, value: { op: 'join', code, name: x.name, deck: x.deck, cards: x.cards, leader, features } };
+  }
   if (!isToken(x.token)) return bad('合言葉が正しくありません');
   if (x.op === 'state') return { ok: true, value: { op: 'state', code, token: x.token } };
   if (x.op === 'action') {

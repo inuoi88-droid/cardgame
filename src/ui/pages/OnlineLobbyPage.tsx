@@ -19,7 +19,7 @@ import { pickChoice, useDeckChoices } from '../battle/deckChoices.ts';
 import { callServer, clearOnlineSession, loadOnlineName, loadOnlineSession, saveOnlineName, saveOnlineSession } from '../online/client.ts';
 import { navigate } from '../router.ts';
 import { OFFICIAL_SET } from '../../official/index.ts';
-import type { RoomMode } from '../../online/protocol.ts';
+import { DRAFT_FEATURE, type RoomMode } from '../../online/protocol.ts';
 import '../draft/draft.css';
 
 export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) {
@@ -69,7 +69,7 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
     const player = { name, ...deck, ...(leader !== 'none' ? { leader } : {}) };
     const rules = toRules(field, dayNight);
     const res = await callServer(
-      mode === 'create' ? { op: 'create', ...player, ...(rules ? { rules } : {}), ...(draftRoom ? { mode: 'draft' as const } : {}) } : { op: 'join', code: joinCode!, ...player },
+      mode === 'create' ? { op: 'create', ...player, ...(rules ? { rules } : {}), ...(draftRoom ? { mode: 'draft' as const } : {}) } : { op: 'join', code: joinCode!, ...player, features: [DRAFT_FEATURE] },
     );
     setBusy(false);
     if (!res.ok || !res.token) {

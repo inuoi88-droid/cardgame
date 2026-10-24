@@ -10,6 +10,7 @@ export {
   draftCounts,
   takeInfos,
   applyTake,
+  stirDraft,
   autoPick,
   draftDecks,
   compactDraft,

@@ -97,7 +97,12 @@ export function lastPickText(view: Pick<draft.DraftView, 'picks' | 'taken'>, me:
   const last = view.picks[view.picks.length - 1];
   if (!last) return null;
   const def = view.taken[last.player].find((t) => t.card.id === last.cardId)?.card;
-  const who = last.player === me ? 'あなた' : names[last.player];
+  const mine = last.player === me;
+  const who = mine ? 'あなた' : names[last.player];
+  const name = `「${def?.name ?? '？'}」`;
   const extra = last.extra ? `（取れるカードが無かったので、山から${last.extra}枚を追加で出しました）` : '';
-  return `${who}が「${def?.name ?? '？'}」を取りました${extra}`;
+  // 本人ではなくサーバーのおまかせが取ったときは、そうとわかるように書く（決定事項 #120）
+  if (last.by === 'timeout') return `${mine ? '' : `${who}は`}時間切れのため、おまかせで${name}を取りました${extra}`;
+  if (last.by === 'auto') return `${who}（おまかせ）が${name}を取りました${extra}`;
+  return `${who}が${name}を取りました${extra}`;
 }

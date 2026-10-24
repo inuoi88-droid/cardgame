@@ -119,7 +119,9 @@ export function applyTake(state: DraftState, player: PlayerId, cardId: string): 
   const info = takeInfos(state, player)[i]!;
   if (!info.ok) return { ok: false, error: info.message ?? 'そのカードは取れません', reason: 'untakeable' };
   const s = structuredClone(state);
-  s.field.splice(i, 1);
+  // 取ったカードの場所にそのまま補充する（ほかのカードは動かさない）。場が一時的に field 枚を超えているとき（追加で出した分）は詰める
+  if (s.field.length <= D.field && s.pile.length > 0 && s.picks.length + 1 < 2 * D.takes) s.field[i] = s.pile.shift()!;
+  else s.field.splice(i, 1);
   s.picks.push({ player, cardId });
   if (!isDraftDone(s)) {
     refill(s);
@@ -127,6 +129,18 @@ export function applyTake(state: DraftState, player: PlayerId, cardId: string): 
     if (extra > 0) s.picks[s.picks.length - 1]!.extra = extra;
   }
   return { ok: true, state: s };
+}
+
+/**
+ * 伏せた山を混ぜ直したドラフト（サーバーが取る前に、そのリクエストの暗号学的な乱数で行う）。
+ * 乱数の状態は31ビットなので、最初の場から状態を総当たりで当てられると山の順番がわかってしまう。取るたびに外からの乱数を混ぜて防ぐ。
+ * 山の中身は変わらず、並びだけが変わる（どの並びも等しく出るので、配られるカードの確率は変わらない）。元の状態は変えない
+ */
+export function stirDraft(state: DraftState, entropy: number): DraftState {
+  const s = structuredClone(state);
+  s.rng = normalizeSeed((s.rng ^ Math.imul(entropy | 0, 0x9e3779b1)) | 0);
+  shuffle(s, s.pile);
+  return s;
 }
 
 /**

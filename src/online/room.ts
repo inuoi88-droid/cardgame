@@ -12,7 +12,6 @@ import { toLeaderId, type LeaderId } from '../engine/leaders.ts';
 import { applyAction } from '../engine/battle/apply.ts';
 import { other } from '../engine/battle/core.ts';
 import { createGame, type PlayerSetup } from '../engine/battle/setup.ts';
-import { randInt } from '../engine/battle/rng.ts';
 import type { Action, GameState, PlayerId } from '../engine/battle/types.ts';
 import { viewFor } from '../engine/battle/view.ts';
 import {
@@ -25,10 +24,11 @@ import {
   draftTurn,
   draftView,
   isDraftDone,
+  stirDraft,
 } from '../engine/draft/field.ts';
-import type { DraftState } from '../engine/draft/types.ts';
+import type { DraftPick, DraftState } from '../engine/draft/types.ts';
 import { NAME_MAX_LENGTH, normalizeName } from './codes.ts';
-import type { ErrorReason, RoomMode, RoomStatus, RoomView } from './protocol.ts';
+import { DRAFT_FEATURE, type ErrorReason, type RoomMode, type RoomStatus, type RoomView } from './protocol.ts';
 
 const O = BALANCE.online;
 
@@ -41,8 +41,8 @@ export const MAX_CARDS = 60;
 export const MAX_ENTRIES = 60;
 /** 時間切れのときに自動で進める手数の上限（無限に続かないように） */
 const AUTO_STEP_LIMIT = 50;
-/** 対戦のシードの範囲（http.ts と同じ） */
-const SEED_RANGE = 0x7fffffff;
+/** 伏せた山を混ぜ直す乱数を、対戦のシードと別の値にするための定数 */
+const STIR_SALT = 0x2545f491;
 /** ドラフトの「おまかせ」の強さ */
 const AUTO_PICK_LEVEL = 'normal';
 
@@ -98,6 +98,11 @@ export interface RoomMeta {
   rematch?: [boolean, boolean];
   /** この部屋で始めた対戦の数 */
   games?: number;
+  /**
+   * ドラフトで最後にカードが取られた（場が変わった）ときの版。take はこの版より前を見ていたときだけやり直してもらう
+   * （相手の「おまかせ」の切り替えなど、場の変わらない操作で版が上がっても取れるように。決定事項 #120）
+   */
+  pickVersion?: number;
 }
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string; reason?: ErrorReason };
@@ -130,6 +135,8 @@ export interface PlayerInput {
   cards: unknown;
   /** リーダー（MTG 要素 △ バッチD。無い・知らない値は none） */
   leader?: unknown;
+  /** 入る画面ができること（join だけ。'draft' が無い古い画面はドラフトの部屋に入れない） */
+  features?: readonly string[];
 }
 
 export function roomMode(room: RoomRecord): RoomMode {
@@ -190,6 +197,8 @@ export function joinRoom(
   const guest: Seat = { name, tokenHash: ctx.tokenHash, lastSeen: ctx.now, timeouts: 0, ...(leader !== 'none' ? { leader } : {}) };
 
   if (roomMode(room) === 'draft') {
+    // 古い画面（ドラフトを知らない）で入ると、取る画面が出ないまま時間切れが続くので断る
+    if (!input.features?.includes(DRAFT_FEATURE)) return fail('この部屋はドラフト戦です。アプリを新しくしてから入ってください', 'invalid');
     const created = createDraft({ seed: ctx.seed, pool: ctx.pool ?? [] });
     if (!created.ok) return fail(`ドラフトを始められません：${created.error}`, 'invalid');
     const next: RoomRecord = {
@@ -201,7 +210,7 @@ export function joinRoom(
       meta: { ...room.meta!, draft: created.value, auto: [false, false] },
       updatedAt: ctx.now,
     };
-    return { ok: true, value: progressDraft(next, ctx.now) };
+    return { ok: true, value: progressDraft(next, ctx.now, ctx.seed, -1) };
   }
 
   if (!room.hostDeck) return fail('この部屋はもう対戦が始まっています', 'invalid');
@@ -233,6 +242,7 @@ function startGame(room: RoomRecord, decks: [RoomDeck, RoomDeck], seed: number, 
   if (!created.ok) return fail(created.error, 'invalid');
   const meta: RoomMeta = { ...(room.meta ?? { mode: 'deck' }), decks, rematch: [false, false], games: (room.meta?.games ?? 0) + 1 };
   delete meta.auto;
+  delete meta.pickVersion;
   if (rules) meta.rules = rules;
   return {
     ok: true,
@@ -256,59 +266,77 @@ function setupOf(room: RoomRecord, decks: [RoomDeck, RoomDeck], p: PlayerId): Pl
 
 /**
  * ドラフトを進めた部屋（版は1つ上げる）：手番の人が「おまかせ」なら代わりに取り、終わったら対戦を始める
- * （後から取り始めた人が先攻。シードはドラフトの乱数から決める＝サーバーの中だけの値）。終わっていなければピックの締め切りを置き直す
+ * （後から取り始めた人が先攻）。終わっていなければピックの締め切りを置き直す。
+ * seed はこのリクエストの暗号学的な乱数（http.ts）：おまかせで取る前に山を混ぜ直し、対戦のシードにも使う
+ * （ドラフトの乱数から対戦のシードを作ると、山から当てた乱数で相手の手札まで読めてしまう。決定事項 #120）。
+ * prevPicks は操作の前の取得の数（取られて場が変わったら pickVersion を置き直す）
  */
-function progressDraft(room: RoomRecord, now: number): RoomRecord {
+function progressDraft(room: RoomRecord, now: number, seed: number, prevPicks: number): RoomRecord {
   let draft = room.meta!.draft!;
   const auto = room.meta!.auto ?? [false, false];
+  const first = draftTurn(draft);
+  if (first !== null && auto[first]) draft = stirDraft(draft, seed ^ STIR_SALT);
   for (let i = 0; i < AUTO_STEP_LIMIT; i++) {
     const turn = draftTurn(draft);
     if (turn === null || !auto[turn]) break;
-    const next = autoTake(draft, turn);
+    const next = autoTake(draft, turn, 'auto');
     if (!next) break;
     draft = next;
   }
-  const next: RoomRecord = { ...room, meta: { ...room.meta!, draft, auto }, updatedAt: now };
-  if (!isDraftDone(draft)) return { ...next, status: 'drafting', version: room.version + 1, deadline: now + O.draftPickSeconds * 1000 };
-  const seedState = { rng: draft.rng };
-  const seed = randInt(seedState, SEED_RANGE);
+  const version = room.version + 1;
+  const picked = draft.picks.length !== prevPicks;
+  const pickVersion = picked ? version : (room.meta!.pickVersion ?? room.version);
+  const next: RoomRecord = { ...room, meta: { ...room.meta!, draft, auto, pickVersion }, updatedAt: now };
+  if (!isDraftDone(draft)) {
+    // 締め切りは、取られて手番が変わったときだけ置き直す（おまかせの切り替えだけなら今の締め切りのまま）
+    const deadline = picked || room.deadline === null ? now + O.draftPickSeconds * 1000 : room.deadline;
+    return { ...next, status: 'drafting', version, deadline };
+  }
   const decks = draftDecks(draft);
   const started = startGame({ ...next, meta: { ...next.meta!, draft: compactDraft(draft) } }, decks, seed, battleFirstAfterDraft(draft), now);
   // ドラフトのカードはどれもデッキのルールを守るので、ここで失敗するのはエンジンの不具合
   if (!started.ok) throw new Error(`draft game failed: ${started.error}`);
-  return { ...started.value, version: room.version + 1 };
+  return { ...started.value, version };
 }
 
-/** おまかせで1枚取ったドラフト（取れるものが無ければ null） */
-function autoTake(draft: DraftState, p: PlayerId): DraftState | null {
+/** おまかせで1枚取ったドラフト（取れるものが無ければ null）。by はその取得に付ける印（画面が「時間切れのため、おまかせで」と書く） */
+function autoTake(draft: DraftState, p: PlayerId, by: NonNullable<DraftPick['by']>): DraftState | null {
   const cardId = autoPick(draft, p, AUTO_PICK_LEVEL);
   if (!cardId) return null;
   const r = applyTake(draft, p, cardId);
-  return r.ok ? r.state : null;
+  if (!r.ok) return null;
+  const s = r.state;
+  s.picks[s.picks.length - 1] = { ...s.picks[s.picks.length - 1]!, by };
+  return s;
 }
 
-/** ドラフトで1枚取る。先に applyTimeouts() を済ませた部屋に対して呼ぶ。送り主が見ていた版が今と違えばやり直してもらう */
-export function handleTake(room: RoomRecord, seat: PlayerId, version: number, cardId: string, now: number): Result<RoomRecord> {
+/**
+ * ドラフトで1枚取る。先に applyTimeouts() を済ませた部屋に対して呼ぶ。
+ * 送り主が見ていた版が、最後にカードが取られた版（pickVersion）より前ならやり直してもらう（場の変わらない操作で版が上がっただけなら受け付ける）。
+ * seed はこのリクエストの乱数（取る前に山を混ぜ直す・ドラフトが終われば対戦のシード）
+ */
+export function handleTake(room: RoomRecord, seat: PlayerId, version: number, cardId: string, now: number, seed: number): Result<RoomRecord> {
   const draft = room.meta?.draft;
   if (room.status !== 'drafting' || !draft) return fail('ドラフト中ではありません', 'invalid');
-  if (version !== room.version) return fail('状態が更新されました。もう一度選んでください', 'version');
-  const r = applyTake(draft, seat, cardId);
+  if (version > room.version || version < (room.meta?.pickVersion ?? room.version)) return fail('状態が更新されました。もう一度選んでください', 'version');
+  const r = applyTake(stirDraft(draft, seed ^ STIR_SALT), seat, cardId);
   if (!r.ok) return fail(r.error, 'invalid');
   // 自分で取ったら、続けて時間切れになった回数を0に戻し、おまかせもやめる
   const seats = room.seats.map((s, i) => (i === seat ? { ...s, timeouts: 0 } : s));
   const auto = withSeat(room.meta?.auto, seat, false);
-  return { ok: true, value: progressDraft({ ...room, seats, meta: { ...room.meta!, draft: r.state, auto } }, now) };
+  return { ok: true, value: progressDraft({ ...room, seats, meta: { ...room.meta!, draft: r.state, auto } }, now, seed, draft.picks.length) };
 }
 
-/** ドラフトの「おまかせ」を入れる・切る（いつ送ってもよい。入れたときに自分の番なら、すぐ代わりに取る） */
-export function handleAuto(room: RoomRecord, seat: PlayerId, on: boolean, now: number): Result<RoomRecord> {
+/**
+ * ドラフトの「おまかせ」を入れる・切る（いつ送ってもよい。入れたときに自分の番なら、すぐ代わりに取る）。
+ * 今と同じ値なら何もしない（版を上げない＝相手の取る操作をやり直させない）
+ */
+export function handleAuto(room: RoomRecord, seat: PlayerId, on: boolean, now: number, seed: number): Result<RoomRecord> {
   if (room.status !== 'drafting' || !room.meta?.draft) return fail('ドラフト中ではありません', 'invalid');
+  if ((room.meta.auto?.[seat] ?? false) === on) return { ok: true, value: room };
   const seats = on ? room.seats : room.seats.map((s, i) => (i === seat ? { ...s, timeouts: 0 } : s));
   const auto = withSeat(room.meta.auto, seat, on);
-  const next: RoomRecord = { ...room, seats, meta: { ...room.meta, auto } };
-  // 締め切りは、おまかせで手番が進んだときだけ置き直す
-  const progressed = progressDraft(next, now);
-  return { ok: true, value: progressed.meta?.draft?.picks.length === room.meta.draft.picks.length ? { ...progressed, deadline: room.deadline } : progressed };
+  return { ok: true, value: progressDraft({ ...room, seats, meta: { ...room.meta, auto } }, now, seed, room.meta.draft.picks.length) };
 }
 
 /**
@@ -401,8 +429,8 @@ function autoChoice(g: GameState): Action | null {
  * - 続けて規定回数の時間切れになったプレイヤーは負け。
  * 処理のあとは新しい締め切りを置く（同じ時間切れを何度も数えないように）。
  */
-export function applyTimeouts(room: RoomRecord, now: number): RoomRecord {
-  if (room.status === 'drafting') return draftTimeout(room, now);
+export function applyTimeouts(room: RoomRecord, now: number, seed = 0): RoomRecord {
+  if (room.status === 'drafting') return draftTimeout(room, now, seed);
   if (room.status !== 'playing' || !room.state || room.deadline === null || now <= room.deadline) return room;
   let g = room.state;
   const seats = room.seats.map((s) => ({ ...s }));
@@ -448,15 +476,15 @@ export function applyTimeouts(room: RoomRecord, now: number): RoomRecord {
  * ドラフトの時間切れ（決定事項 #115）：遅れた人の代わりにおまかせで1枚取る。ドラフトの時間切れでは負けにならず、
  * 続けて timeoutLoseCount 回になったら、その人は「おまかせ」になる（自分で取るか、おまかせを切るまで、番が来たらすぐ代わりに取る）
  */
-function draftTimeout(room: RoomRecord, now: number): RoomRecord {
+function draftTimeout(room: RoomRecord, now: number, seed: number): RoomRecord {
   const draft = room.meta?.draft;
   if (!draft || room.deadline === null || now <= room.deadline) return room;
   const late = draftTurn(draft);
   if (late === null) return room;
   const seats = room.seats.map((s, i) => (i === late ? { ...s, timeouts: s.timeouts + 1 } : s));
   const auto = withSeat(room.meta!.auto, late, (room.meta!.auto?.[late] ?? false) || seats[late]!.timeouts >= O.timeoutLoseCount);
-  const taken = autoTake(draft, late) ?? draft;
-  return progressDraft({ ...room, seats, meta: { ...room.meta!, draft: taken, auto } }, now);
+  const taken = autoTake(stirDraft(draft, seed ^ STIR_SALT), late, 'timeout') ?? draft;
+  return progressDraft({ ...room, seats, meta: { ...room.meta!, draft: taken, auto } }, now, seed, draft.picks.length);
 }
 
 /** 1人のプレイヤーに返す部屋の様子（相手の非公開情報は隠す） */

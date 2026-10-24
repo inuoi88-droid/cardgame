@@ -27,7 +27,7 @@ export interface ServeDeps {
   tokenHash: string;
   /** create：新しい部屋コード */
   code: string;
-  /** join：対戦（ドラフトの部屋はドラフト）のシード。rematch：次の対戦のシード */
+  /** このリクエストの乱数。join：対戦（ドラフトの部屋はドラフト）のシード。rematch：次の対戦のシード。ドラフト中：山を混ぜ直す・終われば対戦のシード */
   seed: number;
   /** ドラフトに使うカード（無ければ公式のカード ONLINE_DRAFT_CARDS） */
   draftPool?: readonly CardDef[];
@@ -66,7 +66,7 @@ export function serve(req: ParsedRequest, room: RoomRecord | null, deps: ServeDe
 
   const seat = seatOf(room, deps.tokenHash);
   if (seat === null) return none({ ok: false, error: 'この部屋の参加者ではありません', reason: 'auth' });
-  const current = touch(applyTimeouts(room, now), seat, now);
+  const current = touch(applyTimeouts(room, now, deps.seed), seat, now);
   const changed = current.version !== room.version;
 
   if (req.op === 'state') {
@@ -74,8 +74,8 @@ export function serve(req: ParsedRequest, room: RoomRecord | null, deps: ServeDe
   }
 
   let r: Result<RoomRecord>;
-  if (req.op === 'take') r = handleTake(current, seat, req.version, req.cardId, now);
-  else if (req.op === 'auto') r = handleAuto(current, seat, req.on, now);
+  if (req.op === 'take') r = handleTake(current, seat, req.version, req.cardId, now, deps.seed);
+  else if (req.op === 'auto') r = handleAuto(current, seat, req.on, now, deps.seed);
   else if (req.op === 'rematch') r = handleRematch(current, seat, now, deps.seed);
   else r = handleAction(current, seat, req.version, req.action, now);
   if (!r.ok) return { save: current, insert: false, notify: changed, response: r };

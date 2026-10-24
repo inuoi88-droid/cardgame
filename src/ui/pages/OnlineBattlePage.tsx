@@ -10,6 +10,7 @@ import { BattleBoard } from '../battle/BattleBoard.tsx';
 import { ONLINE_OPP_PORTRAIT } from '../battle/portraits.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
+import { useToast } from '../components/Toast.tsx';
 import { clearOnlineSession, loadOnlineSession, type OnlineSession } from '../online/client.ts';
 import { WARN_SECONDS } from '../online/config.ts';
 import { useOnlineRoom } from '../online/useOnlineRoom.ts';
@@ -49,6 +50,28 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
   const [decksSeen, setDecksSeen] = useState(false);
   const [decksOpen, setDecksOpen] = useState(false);
   if (room?.status === 'drafting') sawDrafting.current = true;
+  // 再戦（2戦目から）が始まったら、何戦目か・なぜその人が先攻かを一度だけ知らせる
+  const toast = useToast();
+  const games = room?.games ?? 0;
+  const firstOfGame = room?.view?.first;
+  const seat = room?.seat;
+  const announced = useRef(games);
+  /** 決着した対戦の勝者（再戦が始まったときの説明に使う。undefined はまだ見ていない） */
+  const lastWinner = useRef<battle.PlayerId | null | undefined>(undefined);
+  if (room?.status === 'ended' && room.view?.result) lastWinner.current = room.view.result.winner;
+  useEffect(() => {
+    if (games <= 1 || announced.current >= games || firstOfGame === undefined || seat === undefined) return;
+    announced.current = games;
+    const mine = firstOfGame === seat;
+    const prev = lastWinner.current;
+    const why =
+      prev === undefined
+        ? `${mine ? 'あなた' : '相手'}が先攻です`
+        : prev === null
+          ? `前の対戦は引き分けだったので、前に後攻だった${mine ? 'あなた' : '相手'}が先攻です`
+          : `前の対戦で負けた${mine ? 'あなた' : '相手'}が先攻です`;
+    toast({ text: `${games}戦目：${why}`, duration: 6000 });
+  }, [games, firstOfGame, seat, toast]);
 
   if (r.fatal) {
     return (
@@ -156,6 +179,8 @@ function OnlineDraft({ room, r }: { room: RoomView; r: ReturnType<typeof useOnli
         oppGi={ONLINE_OPP_PORTRAIT}
         timeLeft={view.turn === null ? null : left}
         warnSeconds={10}
+        timerHint={`1回の制限時間は${BALANCE.online.draftPickSeconds}秒。時間切れになると「おまかせ」で代わりに取ります（負けにはなりません）`}
+        timeouts={room.timeouts[room.seat]}
         busy={r.busy}
         onTake={r.take}
         onAuto={r.setAuto}
@@ -192,7 +217,9 @@ function useSecondsLeft(deadline: number | null, serverNow: () => number): numbe
 
 function MulliganLeft({ room, serverNow }: { room: RoomView; serverNow: () => number }) {
   const left = useSecondsLeft(room.deadline, serverNow);
-  return left === null ? null : <>マリガンの残り {left}秒。</>;
+  if (left === null) return null;
+  // 残りが少なくなったら赤く（デッキを見ている間にマリガンの時間が切れないように）
+  return <span className={cx(left <= WARN_SECONDS && 'text-ng')}>マリガンの残り {left}秒。</span>;
 }
 
 /** 「同じデッキでもう一戦」：押したら相手を待つ。相手が押したかも出す */

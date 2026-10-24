@@ -20,9 +20,13 @@ interface Props {
   actions?: ReactNode;
   /** 操作の上に出す補足（デッキに入っている枚数・入れられない理由など） */
   status?: ReactNode;
+  /** 補足を札の上（いちばん先）に出す（ドラフトの「取れない理由」など、まず読んでほしいとき） */
+  statusFirst?: boolean;
+  /** 「使用できます」の札を出さない（公式カードなど、どれも使えるものしか出ない場面。要修正は出す） */
+  hideValidity?: boolean;
 }
 
-export function CardDetail({ card, analysis, onClose, actions, status }: Props) {
+export function CardDetail({ card, analysis, onClose, actions, status, statusFirst = false, hideValidity = false }: Props) {
   const a = useMemo(() => analysis ?? analyzeCard(card), [analysis, card]);
   const p = a.points;
   // エディターと同じ「使用 / 予算」で見せる（予算＝レアリティ上限＋コストの分）
@@ -36,12 +40,13 @@ export function CardDetail({ card, analysis, onClose, actions, status }: Props) 
           <CardView card={card} analysis={a} />
         </div>
         <div className="cd__info">
+          {status && statusFirst && <div className="cd__status cd__status--first">{status}</div>}
           <div className="cd__badges">
             <span className="badge">{CARD_TYPE_LABEL[a.cardType]}</span>
             <span className={cx('badge', `badge--${card.rarity}`)}>{RARITY_LABEL[card.rarity]}</span>
             {a.isCurse && <span className="badge badge--curse">{CURSE_LABEL}</span>}
             <span className="badge">コスト {card.cost}</span>
-            {a.valid ? <span className="badge badge--ok">使用できます</span> : <span className="badge badge--ng">要修正</span>}
+            {a.valid ? !hideValidity && <span className="badge badge--ok">使用できます</span> : <span className="badge badge--ng">要修正</span>}
           </div>
 
           {!a.valid && (
@@ -81,7 +86,7 @@ export function CardDetail({ card, analysis, onClose, actions, status }: Props) 
             </details>
           </section>
 
-          {status && <div className="cd__status">{status}</div>}
+          {status && !statusFirst && <div className="cd__status">{status}</div>}
           {actions && <div className="cd__actions btn-row">{actions}</div>}
         </div>
       </div>

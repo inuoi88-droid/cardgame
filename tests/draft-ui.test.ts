@@ -100,6 +100,24 @@ describe('ドラフトの見え方と一言', () => {
     expect(lastPickText(draft.draftView(s, 0), 0, ['あなた', 'CPU'])).toBe(`あなたが「${name}」を取りました`);
     expect(lastPickText(draft.draftView(s, 1), 1, ['アリス', 'ボブ'])).toBe(`アリスが「${name}」を取りました`);
   });
+
+  it('おまかせ・時間切れで取ったものはそう書く（決定事項 #120）', () => {
+    const card = pool[0]!;
+    const view = (by: 'timeout' | 'auto', player: 0 | 1) => ({
+      picks: [{ player, cardId: card.id, by }],
+      taken: [player === 0 ? [{ card, count: 2 }] : [], player === 1 ? [{ card, count: 2 }] : []] as [draft.DraftTaken[], draft.DraftTaken[]],
+    });
+    expect(lastPickText(view('timeout', 0), 0, ['A', 'B'])).toBe(`時間切れのため、おまかせで「${card.name}」を取りました`);
+    expect(lastPickText(view('timeout', 1), 0, ['A', 'B'])).toBe(`Bは時間切れのため、おまかせで「${card.name}」を取りました`);
+    expect(lastPickText(view('auto', 1), 0, ['A', 'B'])).toBe(`B（おまかせ）が「${card.name}」を取りました`);
+  });
+
+  it('取った場所に補充されたカードだけが新しいキーになり、ほかのカードのキーは変わらない', () => {
+    const t1 = trackField(EMPTY_TRACK, ['a', 'b', 'c', 'd', 'e', 'f']);
+    const t2 = trackField(t1, ['a', 'b', 'x', 'd', 'e', 'f']);
+    expect(t2.keys.filter((_, i) => i !== 2)).toEqual(t1.keys.filter((_, i) => i !== 2));
+    expect(t2.fresh).toEqual([t2.keys[2]]);
+  });
 });
 
 describe('CPU 戦のドラフトの再戦の先攻', () => {

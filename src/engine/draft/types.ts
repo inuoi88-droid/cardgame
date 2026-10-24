@@ -11,6 +11,8 @@ export interface DraftPick {
   cardId: string;
   /** この取得のあと、次の人が取れるカードが場に無かったので山から追加で出した枚数（無ければ省略） */
   extra?: number;
+  /** 本人ではなく「おまかせ」が取った（timeout：時間切れ・auto：おまかせにしていた。オンラインのサーバーが付ける） */
+  by?: 'timeout' | 'auto';
 }
 
 /**

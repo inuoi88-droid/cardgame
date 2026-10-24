@@ -119,6 +119,10 @@
   display: grid;
   gap: 4px;
 }
+.cd__status--first {
+  font-size: var(--fs-md);
+  color: var(--text);
+}
 .cd__status .text-ng,
 .cd__status .text-warn {
   font-weight: bold;

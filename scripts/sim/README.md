@@ -16,6 +16,8 @@ node scripts/sim/length.mts 200         # 試合の長さの分布
 node scripts/sim/aicheck.mts 10         # CPU のリーサル検査
 node scripts/sim/run-all.mts 40         # まとめ（n はプリセットの試合数。他はそれに比例。n=10 で 7〜8 分）
 node scripts/sim/final.mts after 200 rr mirror burn mono   # 最終調整（#84）の基準をまとめて測る（グループは final.mts 冒頭）
+node scripts/sim/official.mts common 60   # 公式カード（src/official）：色ごとのコモンだけのデッキの総当たり
+node scripts/sim/official.mts draft 600 2 # 公式カード：「場から交互に取る」ドラフト600回×2試合（アーキタイプ・先に取った側・カードごとの勝率）
 ```
 
 `npm run gen`（索引の生成）は npm script の pre フックで自動で走る。`node` で直接動かすときは、`src/engine/registry.generated.ts` がなければ先に `npm run gen`。
@@ -40,6 +42,7 @@ node scripts/sim/final.mts after 200 rr mirror burn mono   # 最終調整（#84�
 | `aicheck.mts` | 作った場面で CPU がリーサルを取れるか＋実戦での見逃し数 |
 | `run-all.mts` | 全部回してまとめる |
 | `final.mts` | 最終調整（#84）の測定：プリセット総当たり・ミラー・BURN・モンスターだけのデッキ MONO・挑発に寄せた TAUNTX・パワーの極端デッキ。`node scripts/sim/final.mts after 200 valid rr mirror burn mono taunt tauntvs`、`node scripts/sim/final.mts power 150 power`。結果の読み方は `out/final.md`（git には入れない）と決定事項 #84 |
+| `official.mts` | 公式カード（ドラフト戦の山。決定事項 #116）の測定：色ごとのコモンだけのデッキ（`officialCommonDeck`）の総当たりと、簡単な CPU による「場から交互に取る」ドラフトの勝率（主なアーキタイプ・先に取った側・カードごと）。ドラフトの取り方はこのスクリプトだけの目安 |
 
 ## 基準デッキ（`lib.mts`）
 

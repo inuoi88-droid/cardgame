@@ -1,11 +1,13 @@
 /**
  * ドラフト戦（MTG 要素 △ バッチD：#119 リミテッドのアレンジ。CPU 戦だけ）。
  * カードの山から3枚ずつ見せられて1枚を選ぶのを15回くり返し（1回で2枚ずつ入る）、30枚のデッキを作って CPU と戦う。
+ * 山は既定で公式カード「黎明の大陸」（決定事項 #117）。「あなたのカード＋プリセット」も選べる。
  * 選び方の判断は battle/draft.ts（純粋な関数）。乱数は UI の Math.random（エンジンの外）
  */
 import { useMemo, useState } from 'react';
 import { ai, BALANCE, uniqueName, type CardDef } from '../../engine/index.ts';
 import { PRESET_DECKS } from '../../presets.ts';
+import { OFFICIAL_CARDS, OFFICIAL_SET } from '../../official/index.ts';
 import { CardDetail } from '../components/CardDetail.tsx';
 import { CardArtOf } from '../components/CardArt.tsx';
 import { CardView } from '../components/CardView.tsx';
@@ -19,11 +21,18 @@ import '../battle/battle.css';
 import { navigate } from '../router.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { actions, useStore } from '../store.ts';
-import { uuid } from '../util.ts';
+import { cx, uuid } from '../util.ts';
 import { MedalGroup } from '../battle/Medal.tsx';
 import { CPU_PIPS, CPU_PORTRAIT } from '../battle/portraits.ts';
 
 const D = BALANCE.draft;
+
+/** ドラフトの山：公式カード（既定）か、あなたのカード＋プリセットのカード */
+type PoolKind = 'official' | 'own';
+const POOL_CHOICES: { id: PoolKind; label: string; note: string }[] = [
+  { id: 'official', label: `公式カード「${OFFICIAL_SET.name}」`, note: 'オンラインのドラフト戦と同じカード（レジェンドなし）' },
+  { id: 'own', label: 'あなたのカード＋プリセット', note: 'カード一覧のカードとプリセットデッキのカード' },
+];
 
 interface Draft {
   round: number;
@@ -35,7 +44,11 @@ export function DraftPage() {
   const { cards, decks } = useStore();
   const confirm = useConfirm();
   const toast = useToast();
-  const pool = useMemo(() => draftPool([...cards, ...PRESET_DECKS.flatMap((p) => p.cards)]), [cards]);
+  const [poolKind, setPoolKind] = useState<PoolKind>('official');
+  const pool = useMemo(
+    () => draftPool(poolKind === 'official' ? OFFICIAL_CARDS : [...cards, ...PRESET_DECKS.flatMap((p) => p.cards)]),
+    [cards, poolKind],
+  );
   const [level, setLevel] = useState<ai.CpuLevel>('normal');
   const [draft, setDraft] = useState<Draft | null>(null);
   const [zoom, setZoom] = useState<CardDef | null>(null);
@@ -82,7 +95,7 @@ export function DraftPage() {
     navigate('/battle/play');
   };
 
-  /** デッキとして保存：コレクションに無いカード（プリセットのカード）は、名前が重ならないように写して加える */
+  /** デッキとして保存：コレクションに無いカード（公式・プリセットのカード）は、名前が重ならないように写して加える */
   const save = () => {
     if (!draft) return;
     const own = new Set(cards.map((c) => c.id));
@@ -99,7 +112,7 @@ export function DraftPage() {
     const entries = Object.entries(draft.counts).map(([cardId, count]) => ({ cardId: idMap.get(cardId) ?? cardId, count }));
     actions.saveDeck({ v: 1, id: uuid(), name: uniqueName('ドラフトのデッキ', new Set(decks.map((d) => d.name.trim()))), entries });
     setSaved(true);
-    toast({ text: 'デッキに保存しました（プリセットのカードはカード一覧にも加えました）', kind: 'ok' });
+    toast({ text: idMap.size > 0 ? 'デッキに保存しました（使ったカードはカード一覧にも加えました）' : 'デッキに保存しました', kind: 'ok' });
   };
 
   return (
@@ -117,8 +130,20 @@ export function DraftPage() {
             カードの山から{D.offer}枚ずつ見せられ、1枚を選ぶのを{D.rounds}回くり返します（1回で{D.copies}枚ずつデッキに入る）。できた{D.rounds * D.copies}
             枚のデッキで、同じ山からドラフトした CPU と戦います。
           </p>
+          <h3 className="draft__sub">カードの山</h3>
+          <div className="choice-list" role="radiogroup" aria-label="カードの山">
+            {POOL_CHOICES.map((c) => (
+              <label key={c.id} className={cx('choice', poolKind === c.id && 'is-active')}>
+                <input type="radio" name="draft-pool" checked={poolKind === c.id} onChange={() => setPoolKind(c.id)} />
+                <span>
+                  <b>{c.label}</b>
+                  <small>{c.note}</small>
+                </span>
+              </label>
+            ))}
+          </div>
           <p className="hint">
-            山はあなたのカードとプリセットのカード（{pool.length}種類。ルール違反・レジェンドは除く）。レアリティの枚数・同名の上限を破るカードは出ません。
+            {pool.length}種類（ルール違反・レジェンドは除く）。レアリティの枚数・同名の上限を破るカードは出ません。
           </p>
           <h3 className="draft__sub">CPU の強さ</h3>
           <MedalGroup label="CPU の強さ" name="draft-level" value={level} onChange={setLevel} options={ai.CPU_LEVELS.map((l) => ({ id: l, label: ai.CPU_LEVEL_LABEL[l], gi: CPU_PORTRAIT[l], pips: CPU_PIPS[l] }))} />

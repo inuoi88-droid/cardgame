@@ -4,11 +4,12 @@
  *   node scripts/sim/official.mts common 40      # アーキタイプのコモンだけのデッキ（officialCommonDeck）の総当たり（汎用を含む6つ）
  *   node scripts/sim/official.mts draft 300 2     # 「場から交互に取る」ドラフトを簡単な CPU で300回して、各2試合。
  *                                                  # 主なアーキタイプごとの勝率・先に取った側の勝率・カードごとの勝率
+ *   node scripts/sim/official.mts pickers 40 2    # 取り方どうし（おまかせ・燃やしだけ・汎用だけ・でたらめ・簡単な取り方）の対戦
  *
- * ドラフトの取り方はここだけの目安（レアリティ・すでに多いアーキタイプ・汎用を好む＋乱数）。本物のドラフトの CPU とは別。
- * 場は BALANCE.draft の数字があればそれを使い、なければ6枚・2枚ずつ・15回。山は公式カードを1種類1枚ずつ混ぜたもの。
+ * ドラフトはエンジンの createDraft・applyTake（山は BALANCE.draft.pileCopies：コモン2枚・レアとエピック1枚ずつ。#117）。
+ * draft の取り方はここだけの目安（レアリティ・すでに多いアーキタイプ・汎用を好む＋乱数）。本物のおまかせは pickers の autoXxx。
  */
-import { BALANCE } from '../../src/engine/index.ts';
+import { BALANCE, battle, draft } from '../../src/engine/index.ts';
 import {
   OFFICIAL_ARCHETYPE_IDS,
   OFFICIAL_CARDS,
@@ -21,17 +22,13 @@ import { argN, pct, series, table, writeOut, type DeckSpec } from './lib.mts';
 
 const byId = new Map(OFFICIAL_CARDS.map((c) => [c.id, c]));
 const archOf = new Map(OFFICIAL_ENTRIES.map((e) => [e.card.id, e.archetype]));
-const D = BALANCE.draft as {
-  copies: number;
-  rounds: number;
-  field?: number;
-  takes?: number;
-};
-const COPIES = D.copies;
-const TAKES = D.takes ?? D.rounds;
-const FIELD = D.field ?? 6;
+const COPIES = BALANCE.draft.copies;
 
-function specOf(name: string, entries: { cardId: string; count: number }[]): DeckSpec {
+function specOf(name: string, raw: { cardId: string; count: number }[]): DeckSpec {
+  // 同じカードを2回取ることがある（山にコモンは2枚ずつ）ので、まとめる
+  const counts = new Map<string, number>();
+  for (const e of raw) counts.set(e.cardId, (counts.get(e.cardId) ?? 0) + e.count);
+  const entries = [...counts].map(([cardId, count]) => ({ cardId, count }));
   return {
     name,
     deck: { v: 1, id: `sim-${name}`, name, entries },
@@ -71,15 +68,6 @@ function rng(seed: number): () => number {
   };
 }
 
-/** このピックでデッキのルール（レアリティの枚数）を破らないか */
-function takeable(picks: string[], id: string): boolean {
-  const r = byId.get(id)!.rarity;
-  const limit = BALANCE.rarity[r].deckLimit;
-  if (limit === null) return true;
-  const n = picks.filter((x) => byId.get(x)!.rarity === r).length;
-  return (n + 1) * COPIES <= limit;
-}
-
 function pickScore(picks: string[], id: string, rand: () => number): number {
   const a = archOf.get(id)!;
   const counts: Record<string, number> = {};
@@ -103,29 +91,84 @@ function primary(picks: string[]): OfficialArchetype {
   return (Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'neutral') as OfficialArchetype;
 }
 
-function draft(seed: number): [string[], string[]] {
+/** ドラフトの取り方：その人が取れる場のカードから1枚選ぶ */
+type Picker = (s: draft.DraftState, p: battle.PlayerId, rand: () => number) => string;
+
+const takeableIds = (s: draft.DraftState, p: battle.PlayerId) => draft.takeInfos(s, p).filter((t) => t.ok).map((t) => t.cardId);
+const myPicks = (s: draft.DraftState, p: battle.PlayerId) => s.picks.filter((x) => x.player === p).map((x) => x.cardId);
+function bestBy(ids: string[], score: (id: string) => number): string {
+  let best = ids[0]!;
+  let bestScore = -Infinity;
+  for (const id of ids) {
+    const v = score(id);
+    if (v > bestScore) [best, bestScore] = [id, v];
+  }
+  return best;
+}
+/** 顔（相手プレイヤー）に届くダメージの合計（燃やしの目安） */
+function burnOf(id: string): number {
+  return byId.get(id)!.effects.filter((e) => e.id === 'damage' && ['chosen', 'enemyPlayer', 'enemyAll', 'random'].includes(e.target)).reduce((n, e) => n + (e.value ?? 0), 0);
+}
+const PICKERS: Record<string, Picker> = {
+  /** 測定用の簡単な取り方（レアリティ・多いアーキタイプ・汎用を好む＋乱数） */
+  simple: (s, p, rand) => bestBy(takeableIds(s, p), (id) => pickScore(myPicks(s, p), id, rand)),
+  /** 本物のおまかせ（engine の autoPick） */
+  autoEasy: (s, p) => draft.autoPick(s, p, 'easy')!,
+  autoNormal: (s, p) => draft.autoPick(s, p, 'normal')!,
+  autoHard: (s, p) => draft.autoPick(s, p, 'hard')!,
+  /** 燃やし（顔へのダメージ）ばかり取る。無ければレアリティ順 */
+  burn: (s, p, rand) => bestBy(takeableIds(s, p), (id) => burnOf(id) * 10 + (byId.get(id)!.rarity === 'common' ? 0 : 1) + rand()),
+  /** 汎用だけ取る（無ければ乱数） */
+  neutral: (s, p, rand) => bestBy(takeableIds(s, p), (id) => (archOf.get(id) === 'neutral' ? 10 : 0) + (byId.get(id)!.rarity === 'common' ? 0 : 1) + rand()),
+  /** でたらめ */
+  random: (s, p, rand) => bestBy(takeableIds(s, p), () => rand()),
+};
+
+/** engine の「場から交互に取る」ドラフト（公式カード・山はコモン2枚ずつ）。席0が a、席1が b の取り方 */
+function runDraft(seed: number, a: Picker = PICKERS.simple!, b: Picker = PICKERS.simple!): [string[], string[]] {
   const rand = rng(seed);
-  const pile = OFFICIAL_CARDS.map((c) => c.id);
-  for (let i = pile.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [pile[i], pile[j]] = [pile[j]!, pile[i]!];
+  const created = draft.createDraft({ seed, pool: OFFICIAL_CARDS, first: (seed % 2) as battle.PlayerId });
+  if (!created.ok) throw new Error(created.error);
+  let s = created.value;
+  while (!draft.isDraftDone(s)) {
+    const p = draft.draftTurn(s)!;
+    const r = draft.applyTake(s, p, (p === 0 ? a : b)(s, p, rand));
+    if (!r.ok) throw new Error(r.error);
+    s = r.state;
   }
-  const field = pile.splice(0, FIELD);
-  const picks: [string[], string[]] = [[], []];
-  for (let t = 0; t < TAKES * 2; t++) {
-    const mine = picks[t % 2]!;
-    while (!field.some((id) => takeable(mine, id)) && pile.length > 0) field.push(pile.shift()!);
-    let best = '';
-    let bestScore = -Infinity;
-    for (const id of field.filter((x) => takeable(mine, x))) {
-      const s = pickScore(mine, id, rand);
-      if (s > bestScore) [best, bestScore] = [id, s];
+  return [myPicks(s, 0), myPicks(s, 1)];
+}
+
+/** 取り方どうしの対戦：席0の取り方 a 対 席1の b を drafts 回、各 games 試合（先攻は交互） */
+async function pickerSeries(drafts: number, games: number): Promise<void> {
+  const pairs: [string, string][] = [
+    ['autoHard', 'random'],
+    ['autoHard', 'autoEasy'],
+    ['autoHard', 'simple'],
+    ['burn', 'autoNormal'],
+    ['neutral', 'autoNormal'],
+    ['burn', 'simple'],
+    ['neutral', 'simple'],
+  ];
+  const rows: (string | number)[][] = [];
+  const turns: number[] = [];
+  for (const [ka, kb] of pairs) {
+    let win = 0;
+    let n = 0;
+    for (let d = 0; d < drafts; d++) {
+      const [a, b] = runDraft(7000 + d, PICKERS[ka]!, PICKERS[kb]!);
+      const deckOf = (picks: string[], name: string) => specOf(name, picks.map((cardId) => ({ cardId, count: COPIES })));
+      const r = await series(deckOf(a, ka), deckOf(b, kb), games, { seedBase: 300 * d });
+      win += r.winA + r.drawRate * games * 0.5;
+      n += games;
+      turns.push(r.turnsMedian);
     }
-    mine.push(best);
-    field.splice(field.indexOf(best), 1);
-    if (field.length < FIELD && pile.length > 0) field.push(pile.shift()!);
+    rows.push([`${ka} 対 ${kb}`, n, pct(win / n)]);
   }
-  return picks;
+  turns.sort((x, y) => x - y);
+  console.log(table(['取り方（A 対 B）', '試合', 'A の勝率'], rows));
+  console.log(`試合の長さの中央値 ${turns[turns.length >> 1]}T（p90 ${turns[Math.floor(turns.length * 0.9)]}T）`);
+  writeOut('official-pickers.json', { rows });
 }
 
 async function draftSeries(drafts: number, games: number): Promise<void> {
@@ -135,7 +178,7 @@ async function draftSeries(drafts: number, games: number): Promise<void> {
   let firstPicker = 0;
   let total = 0;
   for (let d = 0; d < drafts; d++) {
-    const [a, b] = draft(9000 + d);
+    const [a, b] = runDraft(9000 + d);
     const deckOf = (p: string[], name: string) =>
       specOf(
         name,
@@ -183,5 +226,6 @@ async function draftSeries(drafts: number, games: number): Promise<void> {
 
 const mode = process.argv[2] ?? 'common';
 if (mode === 'draft') await draftSeries(argN(300, 3), argN(2, 4));
+else if (mode === 'pickers') await pickerSeries(argN(40, 3), argN(2, 4));
 else await commonRoundRobin(argN(40, 3));
 process.exit(0);

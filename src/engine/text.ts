@@ -4,10 +4,11 @@ import { cardBase } from './classify.ts';
 import { CONDITIONS, TIMINGS, loyaltySpec, targetNoun } from './options.ts';
 import { effectModifiers } from './points.ts';
 import { getAbility, getDrawback, getEffect, getKeyword } from './registry.ts';
-import { MODE_LABEL, type AbilityInstance, type CardDef, type CardText, type DrawbackInstance, type EffectInstance, type ModeId, type TimingId } from './types.ts';
+import { MODE_LABEL, TRIBE_LABEL, type AbilityInstance, type CardDef, type CardText, type DrawbackInstance, type EffectInstance, type ModeId, type TimingId } from './types.ts';
 
 /**
- * タイミングの前置き。起動・魂力（MTG 要素 ○ バッチC1）はカードの能力のエナジーを入れる（「起動（エナジー1）：」）。
+ * タイミングの前置き。魂力（MTG 要素 ○ バッチC1）はカードの能力のエナジーを入れる（「魂力（エナジー1）：」）。
+ * 起動はエナジーを能力の行（「起動（エナジー1）」）だけに書き、効果の前置きは「起動：」（同じ見出しが2行出ないように。決定事項 #117）。
  * abilities を省略するとエナジーなし
  */
 export function timingPrefix(timing: EffectInstance['timing'], abilities?: CardDef['abilities']): string {
@@ -19,7 +20,7 @@ export function timingPrefix(timing: EffectInstance['timing'], abilities?: CardD
     return v === undefined ? def.textPrefix : `出来事${v}：`;
   }
   if (timing === 'loyaltyMinus' && (abilities ?? []).some((a) => a.id === 'loyalty')) return `−${loyaltySpec(abilities).cut}：`;
-  const id = timing === 'activated' ? 'activate' : timing === 'channel' ? 'channel' : null;
+  const id = timing === 'channel' ? 'channel' : null;
   const v = id ? (abilities ?? []).find((a) => a.id === id)?.value : undefined;
   return v === undefined ? def.textPrefix : `${def.label}（エナジー${v}）：`;
 }
@@ -82,6 +83,20 @@ export function modeTexts(card: Pick<CardDef, 'effects' | 'abilities'>, timing: 
  * 「A：…」「B：…」の行にまとめる（MTG 要素 ○ バッチC2）
  */
 export function describeEffects(card: CardDef): string[] {
+  return describeEffectsRaw(card).map((t) => withTribeName(t, card.tribe));
+}
+
+/**
+ * 種族のあるカードの文では「同じ種族の自分のモンスター」を種族の名前で書く（「自分の獣」。決定事項 #117）。
+ * エディターの選択肢・用語の説明は「同じ種族」のまま（カードの種族が決まる前にも読むため）
+ */
+function withTribeName(text: string, tribe: CardDef['tribe']): string {
+  if (!tribe) return text;
+  const label = TRIBE_LABEL[tribe];
+  return text.replaceAll('同じ種族の自分のモンスター', `自分の${label}`).replaceAll('同じ種族のカード', `${label}のカード`);
+}
+
+function describeEffectsRaw(card: CardDef): string[] {
   const out: string[] = [];
   const done = new Set<TimingId>();
   for (const e of card.effects) {

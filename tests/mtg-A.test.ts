@@ -345,9 +345,9 @@ describe('条件（○ バッチA）：判定の表', () => {
 describe('タイミング（○ バッチA）', () => {
   it.each([
     ['drawn', 'spell', fx({ id: 'draw', value: 1, timing: 'drawn', target: 'self' }), 4, '引いたとき、カードを1枚引く。'],
-    ['targeted', 'monster', fx({ id: 'heal', value: 2, timing: 'targeted', target: 'self' }), 12, '自分のカードの対象になるたび、HPを2回復する。'],
-    ['bigCardPlayed（モンスター）', 'monster', fx({ id: 'heal', value: 2, timing: 'bigCardPlayed', target: 'self' }), 10, 'コスト3以上のカードを使うたび、HPを2回復する。'],
-    ['bigCardPlayed（パワー）', 'spell', fx({ id: 'heal', value: 2, timing: 'bigCardPlayed', target: 'self' }), 28, 'コスト3以上のカードを使うたび、HPを2回復する。'],
+    ['targeted', 'monster', fx({ id: 'heal', value: 2, timing: 'targeted', target: 'self' }), 12, '自分のカードの対象になるたび、自分のHPを2回復する。'],
+    ['bigCardPlayed（モンスター）', 'monster', fx({ id: 'heal', value: 2, timing: 'bigCardPlayed', target: 'self' }), 10, 'コスト3以上のカードを使うたび、自分のHPを2回復する。'],
+    ['bigCardPlayed（パワー）', 'spell', fx({ id: 'heal', value: 2, timing: 'bigCardPlayed', target: 'self' }), 28, 'コスト3以上のカードを使うたび、自分のHPを2回復する。'],
   ] as const)('%s：ポイントとテキスト', (_n, base, e, pts, text) => {
     const c = card({ rarity: 'legend', cost: 5, effects: [e], ...(base === 'monster' ? { stats: { attack: 1, hp: 1, defense: 0 } } : {}) });
     expect(analyzeCard(c).violations).toEqual([]);

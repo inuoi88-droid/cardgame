@@ -128,9 +128,10 @@ describe('カードの能力（○ バッチC1）：ポイントとテキスト'
     expect(conditionMultiplier('kicked', { abilities: [AB('kicker', 2)] })).toBe(0.45);
   });
 
-  it('効果のテキスト：起動・魂力はエナジーつき、捨て札から使ったとき・キッカー', () => {
+  it('効果のテキスト：起動のエナジーは能力の行だけ（#117）・魂力はエナジーつき、捨て札から使ったとき・キッカー', () => {
     const c = MON(1, 2, { abilities: [AB('activate', 2)], effects: [fx({ id: 'damage', value: 2, timing: 'activated' })] });
-    expect(analyzeCard(c).text.effects[0]).toBe('起動（エナジー2）：相手1体に2ダメージを与える。');
+    expect(analyzeCard(c).text.effects[0]).toBe('起動：相手1体に2ダメージを与える。');
+    expect(analyzeCard(c).text.abilities.map((a) => a.name)).toEqual(['起動（エナジー2）']);
     const ch = SPELL([fx({ id: 'draw', value: 2, timing: 'channel', target: 'self' })], { abilities: [AB('channel', 0)] });
     expect(analyzeCard(ch).text.effects[0]).toBe('魂力（エナジー0）：カードを2枚引く。');
     expect(describeEffect(fx({ id: 'damage', value: 3, timing: 'fromDiscard' }))).toBe('捨て札から使ったとき、相手1体に3ダメージを与える。');

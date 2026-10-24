@@ -25,7 +25,7 @@ describe('playInfo の注意', () => {
   it('条件を満たしていないと、条件の名前つきで注意する', () => {
     const g = startGame();
     const uid = giveCard(g, 0, card({ id: 'todome', name: 'とどめ', effects: [fx({ id: 'damage', value: 20, condition: 'enemyPoisoned' })] }));
-    expect(infoOf(g, uid).warnings).toEqual(['条件を満たしていません：相手が毒状態']);
+    expect(infoOf(g, uid).warnings).toEqual(['条件を満たしていません：相手プレイヤーが毒状態']);
     // 条件を満たせば注意は消える
     g.players[1].status.poison = 3;
     expect(infoOf(g, uid).warnings).toEqual([]);

@@ -86,10 +86,12 @@ export function poolProblem(pool: readonly CardDef[]): string | null {
   let free = 0;
   let limited = 0;
   for (const rarity of ['common', 'rare', 'epic'] as const) {
+    const copies: number = D.pileCopies[rarity];
+    if (copies === 0) continue;
     const cards = pool.filter((c) => c.rarity === rarity);
     const max = maxTakesOf(rarity);
-    // 制限なしは1枚ずつ数える。制限ありは同名を1つに数える（同名は合わせて上限を数えるため）
-    if (max === null) free += cards.length;
+    // 制限なしは山に入る枚数（pileCopies）で数える。制限ありは同名を1つに数える（同名は合わせて上限を数えるため）
+    if (max === null) free += cards.length * copies;
     else limited += Math.min(new Set(cards.map((c) => normalizeName(c.name))).size, max);
   }
   const need = 2 * T - limited;

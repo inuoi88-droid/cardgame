@@ -907,9 +907,11 @@ export const BALANCE = {
   /**
    * ドラフト戦（決定事項 #115。元は MTG 要素 △ バッチD）。1回取ると copies 枚ずつデッキに入る。
    * 場から交互に取る形式（オンラインと CPU 戦の既定）：表向きの場にいつも field 枚、1人 takes 回ずつ取り、取ったら山から1枚補充。
-   * ひとりで選ぶ形式（CPU 戦の旧形式）：offer 枚から1枚を選ぶのを rounds 回
+   * ひとりで選ぶ形式（CPU 戦の旧形式）：offer 枚から1枚を選ぶのを rounds 回。
+   * pileCopies：場から交互に取る形式の伏せた山に、1種類を何枚ずつ入れるか（レアリティごと。決定事項 #117：
+   * コモンを2枚にしてレア・エピックを珍しくする。公式120種類なら 72×2＋32＋16＝192枚）
    */
-  draft: { rounds: 15, offer: 3, copies: 2, field: 6, takes: 15 },
+  draft: { rounds: 15, offer: 3, copies: 2, field: 6, takes: 15, pileCopies: { common: 2, rare: 1, epic: 1, legend: 0 } },
 } as const;
 
 export type Balance = typeof BALANCE;

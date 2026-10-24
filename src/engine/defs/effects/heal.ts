@@ -16,7 +16,8 @@ export default defineEffect({
   scalable: true,
   basePoints: (e) => B.perValue * n(e),
   baseFormula: (e) => `${n(e)}×${B.perValue}`,
-  describe: (e) => `HPを${n(e)}回復する`,
+  // 「お互い」のときは前に「お互い、」が付くので「自分の」を付けない（決定事項 #117）
+  describe: (e) => `${e.target === 'bothPlayers' ? '' : '自分の'}HPを${n(e)}回復する`,
   battle: {
     resolve(rt, e) {
       for (const t of rt.targets) rt.heal(t, n(e));

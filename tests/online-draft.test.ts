@@ -94,7 +94,9 @@ function expectPileHidden(s: FakeServer, v: RoomView) {
   const d = s.room!.meta!.draft!;
   expect(json).not.toContain('"pile"');
   expect(json).not.toContain('"rng"');
-  for (const id of d.pile) expect(json).not.toContain(`"${id}"`);
+  // 山にしか無いカード（場・取ったカードと重ならないもの。コモンは山に2枚ずつ入る：#117）は見え方に出ない
+  const shown = new Set([...d.field, ...d.picks.map((x) => x.cardId)]);
+  for (const id of d.pile) if (!shown.has(id)) expect(json).not.toContain(`"${id}"`);
   expect(v.draft!.pileSize).toBe(d.pile.length);
 }
 
@@ -126,7 +128,8 @@ describe('ドラフトの部屋を作る・入る', () => {
     expect(d.takesLeft).toEqual([D.takes, D.takes]);
     expect(d.turn).toBe(d.first);
     expect(d.auto).toEqual([false, false]);
-    expect(d.pileSize).toBe(Object.keys(s.room!.meta!.draft!.cards).length - D.field);
+    const pileTotal = Object.values(s.room!.meta!.draft!.cards).reduce((n, c) => n + D.pileCopies[c.rarity], 0);
+    expect(d.pileSize).toBe(pileTotal - D.field);
     expect(d.field.some((c) => c.rarity === 'legend')).toBe(false);
     expectPileHidden(s, joined);
     expectPileHidden(s, s.state(0));
@@ -150,7 +153,7 @@ describe('ドラフトで取る', () => {
     const v = s.room!.version;
     expect(s.take(other, d.field[0]!)).toMatchObject({ ok: false, reason: 'invalid' });
     expect(s.take(turn, d.field[0]!, v - 1)).toMatchObject({ ok: false, reason: 'version' });
-    expect(s.take(turn, d.pile[0]!)).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(s.take(turn, d.pile.find((id) => !d.field.includes(id))!)).toMatchObject({ ok: false, reason: 'invalid' });
     expect(s.take(turn, 'x'.repeat(101))).toMatchObject({ ok: false, reason: 'invalid' });
     expect(s.send({ op: 'take', code: 'ABC234', token: 'f'.repeat(64), version: v, cardId: d.field[0] }, 'f'.repeat(64))).toMatchObject({ ok: false, reason: 'auth' });
     expect(s.room!.version).toBe(v);

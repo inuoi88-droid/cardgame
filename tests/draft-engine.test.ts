@@ -64,7 +64,10 @@ describe('ドラフトの始まり', () => {
     expect(all).not.toContain('zz-legend');
     expect(all).not.toContain('zz-bad');
     expect(Object.values(s.cards).some((c) => c.rarity === 'legend')).toBe(false);
-    expect(new Set(all).size).toBe(all.length);
+    // 1種類が山に入る枚数はレアリティで決まる（コモン2枚・レアとエピック1枚。#117）
+    const byCount = new Map<string, number>();
+    for (const id of all) byCount.set(id, (byCount.get(id) ?? 0) + 1);
+    for (const [id, n] of byCount) expect(n, id).toBe(D.pileCopies[s.cards[id]!.rarity]);
   });
 
   it('先手はシードで決まり、指定もできる。対戦の先攻は後から取り始めた人', () => {
@@ -80,8 +83,9 @@ describe('ドラフトの始まり', () => {
     const r = draft.createDraft({ seed: 1, pool: pool(10, 4, 2) });
     expect(r.ok).toBe(false);
     expect(draft.poolProblem(draft.draftPool(PRESET_CARDS))).toBeNull();
-    expect(draft.poolProblem(pool(24, 4, 2))).toBeNull();
-    expect(draft.poolProblem(pool(23, 4, 2))).not.toBeNull();
+    // コモンは山に pileCopies.common（2）枚ずつ入るので、2人分30回 − レア4・エピック2 ＝ 24枚 ＝ 12種類
+    expect(draft.poolProblem(pool(12, 4, 2))).toBeNull();
+    expect(draft.poolProblem(pool(11, 4, 2))).not.toBeNull();
   });
 });
 
@@ -111,8 +115,10 @@ describe('交互に取る', () => {
         expect(rarityCount(s, p, 'rare')).toBeLessThanOrEqual(BALANCE.rarity.rare.deckLimit! / D.copies);
         expect(rarityCount(s, p, 'epic')).toBeLessThanOrEqual(BALANCE.rarity.epic.deckLimit! / D.copies);
       }
-      // 同じカードは1人しか取れない（場から消える）
-      expect(new Set(s.picks.map((x) => x.cardId)).size).toBe(s.picks.length);
+      // 同じカードは山に入った枚数までしか取れない（取ったら場から消える）
+      const taken = new Map<string, number>();
+      for (const x of s.picks) taken.set(x.cardId, (taken.get(x.cardId) ?? 0) + 1);
+      for (const [id, n] of taken) expect(n, id).toBeLessThanOrEqual(D.pileCopies[s.cards[id]!.rarity]);
       // ドラフトのデッキでそのまま対戦を始められる（後から取り始めた人が先攻）
       const g = battle.createGame({
         seed,
@@ -275,7 +281,9 @@ describe('見え方と保存', () => {
       const json = JSON.stringify(v);
       expect(json).not.toContain('"pile"');
       expect(json).not.toContain('"rng"');
-      for (const id of s.pile) expect(json).not.toContain(`"${id}"`);
+      // 山にしか無いカード（場・取ったカードと重ならないもの）は見え方に出ない
+      const shown = new Set([...s.field, ...s.picks.map((x) => x.cardId)]);
+      for (const id of s.pile) if (!shown.has(id)) expect(json).not.toContain(`"${id}"`);
       expect(v.pileSize).toBe(s.pile.length);
       expect(v.field.map((c) => c.id)).toEqual(s.field);
       expect(v.takeable.map((t) => t.cardId)).toEqual(s.field);

@@ -92,10 +92,10 @@ describe('定義（○ バッチC2）：ポイント・テキスト', () => {
     ['王冠を得る', SPELL([fx({ id: 'crown', target: 'self' })], { cost: 1 }), 10, ['王冠を得る。']],
     ['速度が最大なら', SPELL([fx({ ...DMG5, condition: 'maxSpeed' })]), 8, ['速度が最大なら、相手1体に5ダメージを与える。']],
     ['王冠を持っていれば', SPELL([fx({ ...DMG5, condition: 'hasCrown' })]), 12, ['王冠を持っていれば、相手1体に5ダメージを与える。']],
-    ['同じ種族がいれば', SPELL([fx({ ...DMG5, condition: 'tribeAlly' })], { tribe: 'beast' }), 11, ['同じ種族の自分のモンスターがいれば、相手1体に5ダメージを与える。']],
-    ['同じ種族1体につき', SPELL([fx({ ...DMG5, mods: ['perTribeAlly'] })], { tribe: 'dragon' }), 30, ['相手1体に5ダメージを与える（数値は同じ種族の自分のモンスター1体につき、最大3体）。']],
-    ['同じ種族の全体（ロード）', SPELL([fx({ id: 'train', value: 1, target: 'tribeAllies' })], { tribe: 'undead' }), 9, ['同じ種族の自分のモンスター全体の攻撃力と体力を+1する。']],
-    ['同じ種族のサーチ', SPELL([fx({ id: 'search', option: 'tribe', target: 'self' })], { tribe: 'machine' }), 8, ['山札から同じ種族のカードを1枚選んで手札に加える。']],
+    ['同じ種族がいれば', SPELL([fx({ ...DMG5, condition: 'tribeAlly' })], { tribe: 'beast' }), 11, ['自分の獣がいれば、相手1体に5ダメージを与える。']],
+    ['同じ種族1体につき', SPELL([fx({ ...DMG5, mods: ['perTribeAlly'] })], { tribe: 'dragon' }), 30, ['相手1体に5ダメージを与える（数値は自分の竜1体につき、最大3体）。']],
+    ['同じ種族の全体（ロード）', SPELL([fx({ id: 'train', value: 1, target: 'tribeAllies' })], { tribe: 'undead' }), 9, ['自分の不死全体の攻撃力と体力を+1する。']],
+    ['同じ種族のサーチ', SPELL([fx({ id: 'search', option: 'tribe', target: 'self' })], { tribe: 'machine' }), 8, ['山札から機械のカードを1枚選んで手札に加える。']],
   ];
   it.each(table)('%s', (_label, c, sum, text) => {
     expect(analyzeCard(c).violations).toEqual([]);

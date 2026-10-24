@@ -1,9 +1,9 @@
 /**
- * オンラインのドラフトに使うカード（決定事項 #115：公式のカードだけ）。
- * 公式のカードの一式ができるまでは、仮にプリセットデッキのカードを使う（レジェンドはエンジンの draftPool が外す）。
- * TODO(統合)：公式のカード（OFFICIAL_CARDS）ができたら、ここをそれに差し替える。サーバーのテストは ServeDeps.draftPool で山を渡す
+ * オンラインのドラフトに使うカード（決定事項 #115・#117：公式カード「黎明の大陸」だけ）。
+ * サーバーの中にあるこの一覧だけを使い、送られてきたカードは使わない（create・join のデッキはドラフトの部屋では無視する）。
+ * サーバーのテストは ServeDeps.draftPool で別の山を渡せる
  */
-import { PRESET_DECKS } from '../presets.ts';
+import { OFFICIAL_CARDS } from '../official/index.ts';
 import type { CardDef } from '../engine/types.ts';
 
-export const ONLINE_DRAFT_CARDS: readonly CardDef[] = PRESET_DECKS.flatMap((p) => p.cards);
+export const ONLINE_DRAFT_CARDS: readonly CardDef[] = OFFICIAL_CARDS;

@@ -804,7 +804,7 @@ export function targetNoun(target: TargetId, rule: TargetRule, timing: TimingId)
     case 'chosen':
       if (rule === 'allyMonsterOne') return chosen === 'triggerAlly' ? '出たモンスター' : '自分のモンスター1体';
       if (rule === 'fight') return '自分のモンスター1体と相手モンスター1体';
-      if (chosen === 'attackTarget') return monsterOnly ? '攻撃したモンスター' : '相手';
+      if (chosen === 'attackTarget') return monsterOnly ? '攻撃したモンスター' : '攻撃した相手';
       if (chosen === 'damageSource') return monsterOnly ? 'ダメージを与えてきたモンスター' : 'ダメージを与えてきた相手';
       return monsterOnly ? '相手モンスター1体' : '相手1体';
     case 'random':
@@ -1011,8 +1011,8 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
   enemyPoisoned: {
     id: 'enemyPoisoned',
     tier: 'normal',
-    label: '相手が毒状態',
-    textPrefix: '相手が毒状態なら、',
+    label: '相手プレイヤーが毒状態',
+    textPrefix: '相手プレイヤーが毒状態なら、',
     timings: null,
     group: '状態',
     description: '相手プレイヤーに毒が残っていれば発動',

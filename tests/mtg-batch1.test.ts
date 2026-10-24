@@ -405,7 +405,7 @@ describe('修飾（数値の倍数。バッチ1）', () => {
 
   it('テキスト・ポイント（基礎 × (1＋上乗せ率)）', () => {
     expect(describeEffect(X.effects[0]!)).toBe('残りのエナジーをすべて使い、相手1体に5ダメージを与える（数値は使ったエナジー1につき）。');
-    expect(describeEffect(fx({ id: 'heal', value: 2, target: 'self', mods: ['perEnemyMonster'] }))).toBe('HPを2回復する（数値は相手モンスター1体につき、最大3体）。');
+    expect(describeEffect(fx({ id: 'heal', value: 2, target: 'self', mods: ['perEnemyMonster'] }))).toBe('自分のHPを2回復する（数値は相手モンスター1体につき、最大3体）。');
     expect(describeEffect(fx({ id: 'draw', value: 1, target: 'self', mods: ['perCardPlayed'] }))).toBe('カードを1枚引く（数値はこのターン使ったカード1枚につき、最大3枚）。');
     expect(describeEffect(fx({ id: 'damage', value: 5, mods: ['pierce', 'xEnergy'] }))).toBe('残りのエナジーをすべて使い、相手1体に防御無視の5ダメージを与える（数値は使ったエナジー1につき）。');
     expect(value(fx({ id: 'damage', value: 5, mods: ['xEnergy'] }))).toBe(18);

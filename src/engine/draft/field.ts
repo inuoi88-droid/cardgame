@@ -35,7 +35,7 @@ export function createDraft(input: CreateDraftInput): DraftResult<DraftState> {
     v: 1,
     rng: normalizeSeed(input.seed),
     cards: Object.fromEntries(pool.map((c) => [c.id, c])),
-    pile: pool.map((c) => c.id),
+    pile: pileOf(pool),
     field: [],
     picks: [],
     first: 0,
@@ -45,6 +45,11 @@ export function createDraft(input: CreateDraftInput): DraftResult<DraftState> {
   refill(s);
   settle(s);
   return { ok: true, value: s };
+}
+
+/** 伏せた山の中身（混ぜる前）：1種類を pileCopies[レアリティ] 枚ずつ。同じカードが場に2枚並ぶこともある */
+function pileOf(pool: readonly CardDef[]): string[] {
+  return pool.flatMap((c) => Array.from({ length: D.pileCopies[c.rarity] }, () => c.id));
 }
 
 /** 終わったか（2人とも takes 回取った） */

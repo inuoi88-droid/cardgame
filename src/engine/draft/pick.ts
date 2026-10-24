@@ -1,6 +1,6 @@
 /**
  * CPU のドラフトの判断（決定事項 #115。元は src/ui/battle/draft.ts の cpuPickScore）。
- * 点 = 中身の強さ（コストで引く前のポイント）× コストの散らばり × 種類の釣り合い × 手持ちとの相性。
+ * 点 = 中身の強さ（コストを差し引いた後のポイント。#117）× コストの散らばり × 種類の釣り合い × 手持ちとの相性。
  * 場から交互に取る形式では、相手がいちばん欲しそうなカードを少しだけ先に取る（妨害）。よわい・ふつうは点にばらつきを足す。
  * 重みは CPU の判断の目安なので、ai/evaluate.ts と同じくここに置く（バランスの数値ではない）。
  */
@@ -29,14 +29,22 @@ const TRIBE_STEP = 0.04;
 const TRIBE_MAX = 0.16;
 const FEATURE_STEP = 0.012;
 const FEATURE_MAX = 0.1;
+/** コストで引く前のポイントを足す割合（同点を分けるためだけの小さな値） */
+const PRE_COST_TIEBREAK = 0.02;
 /** 相手の点を自分の点に足す割合（妨害） */
 const DENIAL: Record<CpuLevel, number> = { easy: 0, normal: 0.08, hard: 0.18 };
 /** 点のばらつき（±この割合） */
 const NOISE: Record<CpuLevel, number> = { easy: 0.7, normal: 0.15, hard: 0 };
 
-/** コストで引く分を戻した「中身の強さ」（デメリットは引いたまま） */
+/**
+ * カードの強さの目安：コストを差し引いた後のポイント（＝予算のうち使った分。レアリティの上限が高いほど大きい）。
+ * 以前（#115）はコストで引く前のポイントだったが、それだとコスト4〜5のカードがいつも上位になり、重いカードばかり取った（#117）
+ */
 export function cardPower(def: CardDef): number {
-  return analyzeCard(def).points.lines.filter((l) => l.kind !== 'cost').reduce((sum, l) => sum + l.value, 0);
+  const pts = analyzeCard(def).points;
+  const before = pts.lines.filter((l) => l.kind !== 'cost').reduce((sum, l) => sum + l.value, 0);
+  // 予算を使い切っていない手作りのカード（差し引き後が0以下）どうしでも差が付くよう、引く前の大きさを少しだけ足す
+  return Math.max(0, pts.total) + PRE_COST_TIEBREAK * Math.max(0, before);
 }
 
 const curveBucket = (cost: number): number => Math.max(0, Math.min(CURVE_SHARE.length - 1, cost - 1));
@@ -55,7 +63,7 @@ export interface PickContext {
 }
 
 /**
- * CPU のピックの点：ポイント（コストで引く前の強さの目安）に、コストの散らばり・種類の釣り合い・手持ちとの相性を掛ける。
+ * CPU のピックの点：ポイント（コストを差し引いた後の強さの目安）に、コストの散らばり・種類の釣り合い・手持ちとの相性を掛ける。
  * ばらつきと妨害は含まない（pickBest が足す）
  */
 export function cpuPickScore(def: CardDef, counts: DraftCounts, byId: ReadonlyMap<string, CardDef>): number {

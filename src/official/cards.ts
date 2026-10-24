@@ -101,17 +101,17 @@ const POISON: OfficialEntry[] = [
     fx: [fx('poison', { value: 3 }), fx('damage', { value: 1 })],
     desc: '沼の底から舞い上がる胞子。吸えば肺から腐る',
   }),
-  P('dokunuri-tanken', '毒塗りの短剣', 'gi:curvy-knife', 'common', 1, '小さなダメージと毒の両方', {
-    fx: [fx('damage', { value: 2 }), fx('poison', { value: 2 })],
+  P('dokunuri-tanken', '毒塗りの短剣', 'gi:curvy-knife', 'common', 1, '毒を入れ、毒の回った相手にはダメージ。コモンの決め手', {
+    fx: [fx('poison', { value: 2 }), fx('damage', { value: 5, condition: 'enemyPoisoned' })],
     desc: '刃が浅くても、毒は深く入る',
   }),
   P('kumo-no-ito', '蜘蛛の糸', 'gi:spider-web', 'common', 1, '攻撃力を奪い、毒を入れる', {
     fx: [fx('weaken', { value: 2 }), fx('poison', { value: 2 })],
     desc: '絡め取られた獲物は、もがくほど毒が回る',
   }),
-  P('yowarime', '弱り目の一刺し', 'gi:stiletto', 'common', 1, '毒の回った相手への安い大ダメージ', {
-    fx: [fx('damage', { value: 11, condition: 'enemyPoisoned' })],
-    desc: '毒で弱った相手なら、細い針でも急所に届く',
+  P('moudoku-kiri', '猛毒の霧', 'gi:poison-cloud', 'common', 2, '相手モンスター全体に毒と、1体にダメージ', {
+    fx: [fx('poison', { value: 2, target: 'enemyMonsters' }), fx('damage', { value: 3 })],
+    desc: '霧が晴れたとき、立っているのは毒に慣れた者だけ',
   }),
   P('doku-no-ame', '毒の雨', 'gi:acid', 'common', 2, '相手モンスター全体を削り、1体に毒', {
     fx: [fx('damage', { value: 2, target: 'enemyMonsters' }), fx('poison', { value: 3 })],
@@ -154,21 +154,22 @@ const POISON: OfficialEntry[] = [
     tribe: 'human',
     desc: '蛇神に仕える巫女。祈りの言葉はすべて毒の名前',
   }),
-  P('moudoku-kiri', '猛毒の霧', 'gi:poison-cloud', 'rare', 2, '相手モンスター全体に毒と、1体にダメージ', {
-    fx: [fx('poison', { value: 2, target: 'enemyMonsters' }), fx('damage', { value: 4 })],
-    desc: '霧が晴れたとき、立っているのは毒に慣れた者だけ',
+  P('yowarime', '弱り目の一刺し', 'gi:stiletto', 'rare', 1, '毒の回った相手への安い大ダメージ', {
+    fx: [fx('damage', { value: 13, condition: 'enemyPoisoned' })],
+    desc: '毒で弱った相手なら、細い針でも急所に届く',
   }),
-  P('doku-myakudou', '毒の脈動', 'gi:heart-beats', 'rare', 1, '毒・出血を増やし、さらに毒を入れる', {
-    fx: [me('proliferate', { value: 2 }), fx('poison', { value: 2 })],
+  P('doku-myakudou', '毒の脈動', 'gi:heart-beats', 'rare', 1, '毒を入れ、毒の回った相手にはさらに毒を入れる', {
+    fx: [fx('poison', { value: 2 }), fx('poison', { value: 3, condition: 'enemyPoisoned' }), me('draw', { value: 1 })],
     desc: '体に回った毒が、心臓の鼓動に合わせて暴れ出す',
   }),
   P('numa-no-saidan', '毒沼の祭壇', 'gi:star-altar', 'rare', 2, '毎ターン相手に毒を足すパワー', {
     fx: [fx('poison', { value: 1, timing: 'turnStart', target: 'enemyPlayer' }), fx('poison', { value: 1 })],
     desc: '沼に沈んだ古い祭壇。今も誰かが供物を捧げている',
   }),
-  P('numa-no-nushi', '沼の主', 'gi:sea-serpent', 'rare', 4, '大きな体で、殴るたびに毒', {
+  P('numa-no-nushi', '沼の主', 'gi:sea-serpent', 'rare', 4, '挑発の大きな壁で時間を稼ぎ、殴るたびに毒', {
     stats: [6, 12],
-    fx: [fx('poison', { value: 2, timing: 'attack' })],
+    kw: [kw('taunt')],
+    fx: [fx('poison', { value: 1, timing: 'attack' })],
     desc: '沼が濁るのは、主が寝返りを打ったときだという',
   }),
   // ---- エピック
@@ -179,9 +180,9 @@ const POISON: OfficialEntry[] = [
     tribe: 'dragon',
     desc: '腐った沼で千年眠った竜。吐く息は緑に濁っている',
   }),
-  P('shidoku-senkoku', '死毒の宣告', 'gi:death-note', 'epic', 1, '毒がたまった相手への決め手', {
-    fx: [fx('damage', { value: 18, condition: 'enemyPoisonHigh' })],
-    desc: '毒が十分に回ったら、名前を呼ぶだけでいい',
+  P('shidoku-senkoku', '死毒の宣告', 'gi:death-note', 'epic', 1, '毒の回った相手への決め手', {
+    fx: [fx('damage', { value: 15, condition: 'enemyPoisoned' })],
+    desc: '毒が回ったら、名前を呼ぶだけでいい',
   }),
   P('sendoku-hiyaku', '千毒の秘薬', 'gi:potion-of-madness', 'epic', 2, '毒を入れてから、相手の毒を倍にする', {
     fx: [fx('poison', { value: 4 }), fx('double', { option: 'poison', target: 'self' }), me('draw', { value: 1 })],
@@ -206,8 +207,8 @@ const BEAST: OfficialEntry[] = [
     tribe: 'beast',
     desc: '群れの後ろを走る若い狼。仲間の匂いがすると牙が鋭くなる',
   }),
-  B('yamaneko', '茂みの山猫', 'gi:cat', 'common', 1, '効率のよい1マナの体', {
-    stats: [3, 4],
+  B('yamaneko', '茂みの山猫', 'gi:cat', 'common', 1, '打たれ弱いが攻撃力の高い1マナのアタッカー', {
+    stats: [4, 2],
     tribe: 'beast',
     desc: '茂みの影から、音もなく飛びかかる',
   }),
@@ -219,8 +220,8 @@ const BEAST: OfficialEntry[] = [
     fx: [fx('damage', { value: 4 }), fx('attackUp', { value: 1 })],
     desc: '爪の一閃は、獣の誇りそのもの',
   }),
-  B('tooboe', '遠吠え', 'gi:wolf-howl', 'common', 1, '自分のモンスター全体の攻撃力アップと2枚ドロー', {
-    fx: [fx('attackUp', { value: 1, target: 'allyMonsters' }), me('draw', { value: 2 })],
+  B('tooboe', '遠吠え', 'gi:wolf-howl', 'common', 1, 'このターン自分のモンスター全体の攻撃力を上げる一斉攻撃の決め手。傷も少し癒す', {
+    fx: [fx('pump', { value: 3, target: 'allyMonsters' }), fx('repair', { value: 1, target: 'allyMonsters' }), me('draw', { value: 1 })],
     desc: '一匹が吠えれば、群れのすべてが応える',
   }),
   B('oozuno', '大角の雄鹿', 'gi:deer', 'common', 2, '貫通で壁の上から削る', {
@@ -318,7 +319,7 @@ const CURSE: OfficialEntry[] = [
   // ---- コモン
   C('hone-ryouken', '骨の猟犬', 'gi:bone-gnawer', 'common', 1, '自傷と引き換えの大きな1マナ', {
     stats: [4, 5],
-    dr: [dr('selfDamage', 'summon', 6)],
+    dr: [dr('selfDamage', 'summon', 4)],
     tribe: 'undead',
     desc: '主人の血を一滴なめさせれば、どこまでも追いかける',
   }),
@@ -336,7 +337,7 @@ const CURSE: OfficialEntry[] = [
   }),
   C('senketsu-tanken', '鮮血の短剣', 'gi:bloody-sword', 'common', 1, '自傷と引き換えにダメージと1枚ドロー', {
     fx: [fx('damage', { value: 5 }), me('draw', { value: 1 })],
-    dr: [dr('selfDamage', 'play', 5)],
+    dr: [dr('selfDamage', 'play', 4)],
     desc: '振るう者の血も吸う刃。だから切れ味が落ちない',
   }),
   C('daishou-hirameki', '代償の閃き', 'gi:brain-tentacle', 'common', 1, '自傷と引き換えにエナジーと1枚', {
@@ -344,32 +345,32 @@ const CURSE: OfficialEntry[] = [
     dr: [dr('selfDamage', 'play', 5)],
     desc: '頭の奥で何かがちぎれる音。そのかわり、すべてが見える',
   }),
-  C('kyuuketsu-kiba', '吸血の牙', 'gi:vampire-dracula', 'common', 2, '吸収ダメージで HP を取り戻す。手札1枚と相手の1枚が代償', {
+  C('kyuuketsu-kiba', '吸血の牙', 'gi:vampire-dracula', 'common', 2, '吸収ダメージで HP を取り戻す。自傷と相手の1枚が代償', {
     fx: [fx('damage', { value: 7, mods: ['drain'] })],
-    dr: [dr('discardRandom', 'play'), dr('gift', 'play')],
+    dr: [dr('selfDamage', 'play', 3), dr('gift', 'play')],
     desc: '奪った血は、払った血の埋め合わせになる',
   }),
   C('sasayaku-shiryou', '囁く死霊', 'gi:spectre', 'common', 2, '出たときに吸収ダメージ', {
     stats: [4, 6],
     fx: [fx('damage', { value: 2, timing: 'summon', mods: ['drain'] })],
-    dr: [dr('selfDamage', 'summon', 6)],
+    dr: [dr('selfDamage', 'summon', 4)],
     tribe: 'undead',
     desc: '耳元の囁きを聞いた者は、少しずつ命を抜かれていく',
   }),
   C('shokushi-ghoul', '屍食いのグール', 'gi:ghost', 'common', 2, '自傷と引き換えの大きな2マナ', {
     stats: [6, 8],
-    dr: [dr('selfDamage', 'summon', 6)],
+    dr: [dr('selfDamage', 'summon', 4)],
     tribe: 'undead',
     desc: '飢えたグールは、敵も味方も区別しない',
   }),
-  C('kusare-shouki', '腐れた瘴気', 'gi:poison-gas', 'common', 2, '相手モンスター全体と1体を削る。手札1枚と自傷が代償', {
-    fx: [fx('damage', { value: 3, target: 'enemyMonsters' }), fx('damage', { value: 4 })],
-    dr: [dr('discardRandom', 'play'), dr('selfDamage', 'play', 2)],
+  C('kusare-shouki', '腐れた瘴気', 'gi:poison-gas', 'common', 2, '相手モンスター全体を少し削り、1体を大きく削る。自傷が代償', {
+    fx: [fx('damage', { value: 2, target: 'enemyMonsters' }), fx('damage', { value: 6 })],
+    dr: [dr('selfDamage', 'play', 4)],
     desc: '吸い込んだ者の肺を腐らせる霧。使い手も無事では済まない',
   }),
   C('tamashii-kari', '魂刈り', 'gi:scythe', 'common', 2, '中くらいまでのモンスターを処刑し、1枚引く', {
     fx: [fx('execute', { value: 10 }), me('draw', { value: 1 })],
-    dr: [dr('selfDamage', 'play', 5)],
+    dr: [dr('selfDamage', 'play', 4)],
     desc: '鎌は命の長さを測らない。ただ刈るだけ',
   }),
   C('chisui-yoroi', '血吸いの鎧', 'gi:black-knight-helm', 'common', 3, '絆魂で維持費と自傷を取り返す', {
@@ -382,7 +383,7 @@ const CURSE: OfficialEntry[] = [
   C('meifu-kyojin', '冥府の巨人', 'gi:giant', 'common', 4, '自傷つきの重量級。出たときにダメージ', {
     stats: [8, 14],
     fx: [fx('damage', { value: 3, timing: 'summon' })],
-    dr: [dr('selfDamage', 'summon', 6)],
+    dr: [dr('selfDamage', 'summon', 4)],
     tribe: 'undead',
     desc: '冥府の門を背負って歩く巨人。一歩ごとに地面が裂ける',
   }),
@@ -428,9 +429,9 @@ const CURSE: OfficialEntry[] = [
     tribe: 'undead',
     desc: '王が目覚めると、生者の兵はみな膝をつく',
   }),
-  C('chi-no-ame', '血の雨', 'gi:bleeding-wound', 'epic', 2, '相手の全員にダメージ。自傷と手札1枚と、相手の1枚が代償', {
+  C('chi-no-ame', '血の雨', 'gi:bleeding-wound', 'epic', 2, '相手の全員にダメージ。自傷と相手の1枚が代償', {
     fx: [fx('damage', { value: 4, target: 'enemyAll' })],
-    dr: [dr('selfDamage', 'play', 4), dr('discardRandom', 'play'), dr('gift', 'play')],
+    dr: [dr('selfDamage', 'play', 6), dr('gift', 'play')],
     desc: '空が赤く染まるとき、敵も味方も血を流す',
   }),
   C('akuma-sasayaki', '悪魔の囁き', 'gi:devil-mask', 'epic', 1, 'エナジーとダメージ。次のターンが苦しい', {
@@ -470,9 +471,10 @@ const GUARD: OfficialEntry[] = [
     tribe: 'human',
     desc: '村にひとりはいる、頼りになる薬師',
   }),
-  G('jouheki-yumi', '城壁の弓兵', 'gi:bowman', 'common', 2, '出たときにダメージ', {
-    stats: [3, 4],
-    fx: [fx('damage', { value: 3, timing: 'summon' })],
+  G('jouheki-yumi', '城壁の弓兵', 'gi:bowman', 'common', 2, '対空で飛行を止め、出たときにダメージ', {
+    stats: [3, 5],
+    kw: [kw('reach')],
+    fx: [fx('damage', { value: 2, timing: 'summon' })],
     tribe: 'human',
     desc: '城壁の上から、近づく敵を一人ずつ射抜く',
   }),
@@ -480,13 +482,13 @@ const GUARD: OfficialEntry[] = [
     fx: [fx('train', { value: 2 }), fx('defenseUp', { value: 1 }), me('heal', { value: 3 })],
     desc: '剣に誓いを立てた者は、仲間の盾となる',
   }),
-  G('kishi-totsugeki', '騎士の突撃', 'gi:thrown-spear', 'common', 2, '大きめのダメージの除去', {
-    fx: [fx('damage', { value: 8 })],
+  G('kishi-totsugeki', '騎士の突撃', 'gi:thrown-spear', 'common', 2, 'ダメージの除去とシールド', {
+    fx: [fx('damage', { value: 6 }), me('shield', { value: 2 })],
     desc: '馬上の槍は、城壁さえ貫く',
   }),
-  G('juusou-hohei', '重装歩兵', 'gi:closed-barbute', 'common', 3, '守備力つきの挑発の壁', {
-    stats: [4, 8, 1],
-    kw: [kw('taunt')],
+  G('juusou-hohei', '重装歩兵', 'gi:closed-barbute', 'common', 3, '守備力つきの体。出たときに味方1体の守備力を上げる', {
+    stats: [4, 11, 1],
+    fx: [fx('defenseUp', { value: 1, timing: 'summon' })],
     tribe: 'human',
     desc: '重い鎧で一歩も動かない。それが一番の仕事',
   }),
@@ -496,17 +498,17 @@ const GUARD: OfficialEntry[] = [
     tribe: 'human',
     desc: '傷の数だけ、守り方を知っている',
   }),
-  G('ishi-no-bannin', '石の番人', 'gi:stone-tower', 'common', 4, '硬い挑発の巨体', {
-    stats: [6, 13, 1],
+  G('ishi-no-bannin', '石の番人', 'gi:stone-tower', 'common', 4, '体力の高い挑発の巨体', {
+    stats: [6, 15],
     kw: [kw('taunt')],
     desc: '城の門に据えられた石像。動き出すのは敵が来たときだけ',
   }),
-  G('kishidanchou', '聖騎士団長', 'gi:knight-banner', 'common', 5, '挑発と回復を持つ切り札', {
+  G('kishidanchou', '城塞の大盾兵', 'gi:knight-banner', 'common', 5, '挑発と回復を持つ切り札', {
     stats: [8, 17],
     kw: [kw('taunt')],
     fx: [me('heal', { value: 1, timing: 'summon' })],
     tribe: 'human',
-    desc: '団長の旗が立つ限り、砦は落ちない',
+    desc: '大盾の列が立つ限り、砦は落ちない',
   }),
   // ---- レア
   G('seijun-kishi', '聖盾の騎士', 'gi:shield-reflect', 'rare', 2, '聖盾と挑発。一度は必ず耐える', {
@@ -515,20 +517,20 @@ const GUARD: OfficialEntry[] = [
     tribe: 'human',
     desc: '女神の祝福を受けた盾は、最初の一撃を必ず防ぐ',
   }),
-  G('iyashi-seidou', '癒しの聖堂', 'gi:church', 'rare', 2, '毎ターン回復するパワー', {
-    fx: [me('heal', { value: 1, timing: 'turnStart' }), me('heal', { value: 1 })],
+  G('iyashi-seidou', '癒しの聖堂', 'gi:church', 'rare', 2, '毎ターン味方のモンスター全体の傷を癒すパワー。置いたときに HP も回復', {
+    fx: [fx('repair', { value: 2, timing: 'turnStart', target: 'allyMonsters' }), me('heal', { value: 1 })],
     desc: '鐘が鳴るたび、人々は少しだけ元気になる',
   }),
-  G('shinpan-tettsui', '審判の鉄槌', 'gi:thor-hammer', 'rare', 2, '中くらいまでのモンスターを処刑し、シールド', {
-    fx: [fx('execute', { value: 8 }), me('shield', { value: 2 })],
+  G('shinpan-tettsui', '審判の鉄槌', 'gi:thor-hammer', 'rare', 3, '大きめのモンスターまで処刑し、シールド', {
+    fx: [fx('execute', { value: 13 }), me('shield', { value: 2 })],
     desc: '罪の重さは、鉄槌が量ってくれる',
   }),
   G('seikou-nami', '聖光の波', 'gi:sunbeams', 'rare', 1, '相手モンスター全体にダメージ。群れを払う', {
     fx: [fx('damage', { value: 3, target: 'enemyMonsters' })],
     desc: '光の波が城壁を越えて広がり、押し寄せる影を洗い流す',
   }),
-  G('hakugin-kyozou', '白銀の巨像', 'gi:stone-bust', 'rare', 4, '厚い守備力の挑発。崩れない', {
-    stats: [7, 10, 2],
+  G('hakugin-kyozou', '白銀の巨像', 'gi:stone-bust', 'rare', 4, '守備力つきの挑発の巨体。崩れない', {
+    stats: [7, 13, 1],
     kw: [kw('taunt')],
     desc: '白銀で鋳られた巨像。刃は鈍り、矢は弾かれる',
   }),
@@ -540,8 +542,8 @@ const GUARD: OfficialEntry[] = [
     tribe: 'human',
     desc: '夜明けとともに現れ、闇が退くまで剣を振るう',
   }),
-  G('megami-kago', '女神の加護', 'gi:angel-wings', 'epic', 2, '次のダメージを0にし、シールドと回復', {
-    fx: [me('nullify'), me('shield', { value: 5 }), me('heal', { value: 1 })],
+  G('megami-kago', '女神の加護', 'gi:angel-wings', 'epic', 2, '味方のモンスター全体に聖盾を与え、シールドと回復', {
+    fx: [fx('grantKeyword', { option: 'divineShield', target: 'allyMonsters' }), me('shield', { value: 4 }), me('heal', { value: 2 })],
     desc: '女神の翼が広がると、どんな刃も届かない',
   }),
   G('sabaki-seikou', '裁きの聖光', 'gi:sun', 'epic', 3, '毎ターン相手にダメージのパワー', {
@@ -566,7 +568,7 @@ const MACHINE: OfficialEntry[] = [
     tribe: 'machine',
     desc: '鉄板を何枚も重ねた兵。小石くらいなら気づきもしない',
   }),
-  M('teisatsu-drone', '偵察ドローン', 'gi:delivery-drone', 'common', 1, '飛行の小型', {
+  M('teisatsu-drone', '偵察のからくり鳥', 'gi:delivery-drone', 'common', 1, '飛行の小型', {
     stats: [2, 4],
     kw: [kw('flying')],
     tribe: 'machine',
@@ -581,8 +583,8 @@ const MACHINE: OfficialEntry[] = [
     tribe: 'machine',
     desc: '一つの歯車が鳴れば、工房じゅうの歯車が共に鳴る',
   }),
-  M('jouki-cannon', '蒸気キャノン', 'gi:cannon', 'common', 1, '1マナの除去', {
-    fx: [fx('damage', { value: 5 })],
+  M('jouki-cannon', '蒸気キャノン', 'gi:cannon', 'common', 2, '1体への除去と、相手モンスター全体への小さな散弾', {
+    fx: [fx('damage', { value: 6 }), fx('damage', { value: 1, target: 'enemyMonsters' })],
     desc: '蒸気の圧で鉄の玉を飛ばす。うるさいが、よく当たる',
   }),
   M('tekkou-hakobi', '鉄甲の運び車', 'gi:steam-locomotive', 'common', 2, '守備力つきの中型', {
@@ -596,11 +598,11 @@ const MACHINE: OfficialEntry[] = [
     tribe: 'machine',
     desc: '鋼の牙の番犬。吠えないが、決して通さない',
   }),
-  M('minarai-gishi', '工房の見習い技師', 'gi:mechanic-garage', 'common', 2, '出たときに次のカードを1軽く', {
+  M('minarai-gishi', 'からくりの助手', 'gi:mechanic-garage', 'common', 2, '出たときに次のカードを1軽く', {
     stats: [3, 5],
     fx: [me('discount', { timing: 'summon' })],
-    tribe: 'human',
-    desc: '師匠の工具を借りて、次の仕事の段取りをする',
+    tribe: 'machine',
+    desc: '技師が作った小さな助手。次の仕事の段取りは任せておけ',
   }),
   M('jidou-houtou', '自動砲塔', 'gi:sentry-gun', 'common', 2, '毎ターン相手プレイヤーにダメージ', {
     stats: [2, 5, 1],
@@ -633,11 +635,11 @@ const MACHINE: OfficialEntry[] = [
     tribe: 'machine',
     desc: '本物の竜を見た職人が、一生をかけて作った',
   }),
-  M('ryousan-golem', '量産型ゴーレム', 'gi:robot-grab', 'rare', 2, '守備力つきの体と、おまけの小鬼', {
-    stats: [4, 4, 1],
-    fx: [me('token', { value: 1, hits: 1, option: 'normal', timing: 'summon' })],
+  M('ryousan-golem', '量産型ゴーレム', 'gi:robot-grab', 'rare', 2, '守備力つきの体。出たときに味方1体の守備力を上げる', {
+    stats: [4, 5, 1],
+    fx: [fx('defenseUp', { value: 1, timing: 'summon' })],
     tribe: 'machine',
-    desc: '一体作れば、もう一体はおまけでついてくる',
+    desc: '同じ型の仲間の装甲を、一体ずつ締め直していく',
   }),
   M('rensha-hou', '連射砲', 'gi:minigun', 'rare', 1, 'このターン使ったカードが多いほど強い', {
     fx: [fx('damage', { value: 3, mods: ['perCardPlayed'] })],
@@ -664,9 +666,8 @@ const MACHINE: OfficialEntry[] = [
     tribe: 'machine',
     desc: '工房の最高傑作。小さな刃は装甲に触れることさえできない',
   }),
-  M('kajou-shutsuryoku', '過剰出力', 'gi:electric', 'epic', 1, 'エナジーを返してダメージ。キッカーでさらにダメージ', {
-    fx: [me('energy', { value: 1 }), fx('damage', { value: 2 }), fx('damage', { value: 4, condition: 'kicked' })],
-    ab: [{ id: 'kicker', value: 1 }],
+  M('kajou-shutsuryoku', '過剰出力', 'gi:electric', 'epic', 2, 'このターン使ったカードが多いほど相手モンスター全体を焼き、エナジーを返す', {
+    fx: [fx('damage', { value: 2, target: 'enemyMonsters', mods: ['perCardPlayed'] }), me('energy', { value: 1 })],
     desc: '安全弁を外せば、もう一段上がる',
   }),
 ];
@@ -686,6 +687,7 @@ const NEUTRAL: OfficialEntry[] = [
   }),
   N('yakusou', '薬草の束', 'gi:herbs-bundle', 'common', 1, '回復とシールド', {
     fx: [me('heal', { value: 2 }), me('shield', { value: 2 })],
+    desc: '旅人の荷物には、いつも一束入っている',
   }),
   N('tabi-youhei', '旅の傭兵', 'gi:swordman', 'common', 1, '効率のよい1マナの体', {
     stats: [3, 4],
@@ -714,15 +716,17 @@ const NEUTRAL: OfficialEntry[] = [
   }),
   N('fuuin-fuda', '封印の札', 'gi:scroll-unfurled', 'common', 1, '効果とキーワードを消し、ダメージ', {
     fx: [fx('seal'), fx('damage', { value: 2 })],
+    desc: '札を貼られた者は、生まれ持った力を思い出せなくなる',
   }),
-  N('itetsuku-ibuki', '凍てつく息吹', 'gi:frozen-orb', 'common', 2, '相手モンスター全体を凍結', {
-    fx: [fx('freeze', { target: 'enemyMonsters' }), me('draw', { value: 1 })],
+  N('itetsuku-ibuki', '凍てつく息吹', 'gi:frozen-orb', 'common', 1, '相手モンスター1体を凍結し、1枚引く', {
+    fx: [fx('freeze'), me('draw', { value: 1 })],
     desc: '北の果てから吹く風は、戦場の時間を止める',
   }),
-  N('reijuu', '森の霊獣', 'gi:unicorn', 'common', 3, '飛行の中型', {
+  N('reijuu', '森の大精霊', 'gi:unicorn', 'common', 3, '飛行の中型', {
     stats: [6, 10],
     kw: [kw('flying')],
     tribe: 'spirit',
+    desc: '森の奥の泉に宿る精霊。白い角の姿で空を駆ける',
   }),
   N('iwayama-hiryuu', '岩山の飛竜', 'gi:wyvern', 'common', 5, '飛行の超大型', {
     stats: [10, 20],
@@ -739,9 +743,9 @@ const NEUTRAL: OfficialEntry[] = [
     fx: [fx('damage', { value: 7, mode: 1 }), me('draw', { value: 2, mode: 2 }), me('energy', { value: 1, mode: 2 }), me('shield', { value: 1, mode: 2 })],
     desc: '右は戦の道、左は知恵の道',
   }),
-  N('ryuu-kishi', '竜騎士', 'gi:dragon-shield', 'rare', 3, '飛行と速攻', {
-    stats: [5, 8],
-    kw: [kw('flying'), kw('haste')],
+  N('ryuu-kishi', '竜騎士', 'gi:dragon-shield', 'rare', 3, '飛行の中型。攻撃力が高い', {
+    stats: [7, 10],
+    kw: [kw('flying')],
     tribe: 'human',
     desc: '竜と心を通わせた騎士は、空から戦場を駆ける',
   }),
@@ -758,9 +762,9 @@ const NEUTRAL: OfficialEntry[] = [
     tribe: 'human',
     desc: '金の払いがいいうちは、部下の士気も高い',
   }),
-  N('kenja-chie', '賢者の知恵', 'gi:open-book', 'rare', 1, '山札の上3枚から1枚を選び、2枚引く', {
-    fx: [me('discover'), me('draw', { value: 2 })],
-    ab: [{ id: 'cycling' }],
+  N('kenja-chie', '賢者の知恵', 'gi:open-book', 'rare', 1, '山札の上3枚から1枚を選び、相手1体にダメージ', {
+    fx: [me('discover'), fx('damage', { value: 4 })],
+    desc: '賢者は答えを教えない。三つの道を見せるだけだ',
   }),
   N('shippuu-yumite', '疾風の弓手', 'gi:archer', 'rare', 2, '出たときに相手モンスター全体にダメージ', {
     stats: [3, 4],
@@ -769,9 +773,10 @@ const NEUTRAL: OfficialEntry[] = [
     desc: '一息に三本。矢をつがえる音を聞いた者はいない',
   }),
   // ---- エピック
-  N('koryuu', '古竜', 'gi:double-dragon', 'epic', 5, '飛行の切り札', {
-    stats: [12, 18, 1],
+  N('koryuu', '古竜', 'gi:double-dragon', 'epic', 5, '飛行の切り札。出たときに相手モンスター全体を焼く', {
+    stats: [9, 15, 1],
     kw: [kw('flying')],
+    fx: [fx('damage', { value: 2, timing: 'summon', target: 'enemyMonsters' })],
     tribe: 'dragon',
     desc: '世界が若かったころから生きている竜。目覚めは災いを告げる',
   }),

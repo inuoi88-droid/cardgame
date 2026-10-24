@@ -36,7 +36,7 @@ describe('作成例', () => {
     expect(a.cardType).toBe('monster');
     expect(a.valid).toBe(true);
     // 仕様の効果テキスト例と一致する
-    expect(a.text.effects).toEqual(['攻撃するたび、相手に毒1を与える。']);
+    expect(a.text.effects).toEqual(['攻撃するたび、攻撃した相手に毒1を与える。']);
   });
 
   it('3. とどめの一撃：条件「相手が毒状態」で20ダメージ、60×0.45＝27pt。コスト2で−20pt。合計7pt、アタック', () => {
@@ -45,12 +45,12 @@ describe('作成例', () => {
       ['ダメージ20', 27],
       ['コスト2', -20],
     ]);
-    expect(a.points.lines[0]!.formula).toBe('60 × 0.45（相手が毒状態）');
+    expect(a.points.lines[0]!.formula).toBe('60 × 0.45（相手プレイヤーが毒状態）');
     expect(a.points.total).toBe(7);
     expect(a.points.cap).toBe(8);
     expect(a.cardType).toBe('attack');
     expect(a.valid).toBe(true);
-    expect(a.text.effects).toEqual(['相手が毒状態なら、相手1体に20ダメージを与える。']);
+    expect(a.text.effects).toEqual(['相手プレイヤーが毒状態なら、相手1体に20ダメージを与える。']);
   });
 
   it('4. 狂戦士の契約：筋力+5で45pt、デメリット1.5×4×6.0＝36pt（差し引けるのは上限の18まで）、コスト1で−10pt。合計17pt、呪いのパワー', () => {

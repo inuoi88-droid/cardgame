@@ -1,7 +1,7 @@
 /** Edge Function の呼び出し、Realtime の購読、部屋の合言葉の保存（再接続用） */
 import { RealtimeClient, type RealtimeChannel } from '@supabase/realtime-js';
 import type { OnlineRequest, OnlineResponse } from '../../online/protocol.ts';
-import { FUNCTION_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './config.ts';
+import { FUNCTION_URL, LOCAL_SERVER_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './config.ts';
 
 /** 通信そのものの失敗（サーバーの返事がない）も含めた結果 */
 export type ClientResponse = OnlineResponse | { ok: false; error: string; reason: 'network' };
@@ -25,6 +25,8 @@ let realtime: RealtimeClient | null = null;
 
 /** 部屋の「版が上がった」通知を購読する。戻り値で購読をやめる */
 export function subscribeRoom(code: string, onUpdate: (version: number) => void): () => void {
+  // 手元の開発用サーバーには通知が無い（定期的な取得で進む）
+  if (LOCAL_SERVER_URL) return () => {};
   realtime ??= new RealtimeClient(`${SUPABASE_URL}/realtime/v1`, { params: { apikey: SUPABASE_PUBLISHABLE_KEY } });
   let channel: RealtimeChannel | null = realtime.channel(`cardgame:${code}`, { config: { broadcast: { self: false }, private: false } });
   channel

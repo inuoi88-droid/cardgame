@@ -735,8 +735,10 @@ export const BALANCE = {
     turnSeconds: 90,
     /** マリガンの制限時間（秒） */
     mulliganSeconds: 90,
-    /** 続けて時間切れになったら負けになる回数 */
+    /** 続けて時間切れになったら負けになる回数（ドラフト中は負けにならず、この回数で「おまかせ」になる：決定事項 #115） */
     timeoutLoseCount: 3,
+    /** ドラフト戦の1回のピックの制限時間（秒。決定事項 #115） */
+    draftPickSeconds: 30,
   },
 
   /** 対戦ルール（Phase 2 で使う。効果テキストにも出てくる） */
@@ -902,8 +904,12 @@ export const BALANCE = {
   },
   /** MTG 要素 △ バッチD：昼と夜。昼のターンに手番の人が使ったカードが toNight 枚以下なら夜に、夜のターンに toDay 枚以上なら昼に */
   dayNight: { toNight: 0, toDay: 2 },
-  /** MTG 要素 △ バッチD：ドラフト戦（CPU 戦。UI だけ）。rounds 回、offer 枚から1枚を選び、1回で copies 枚ずつ入る */
-  draft: { rounds: 15, offer: 3, copies: 2 },
+  /**
+   * ドラフト戦（決定事項 #115。元は MTG 要素 △ バッチD）。1回取ると copies 枚ずつデッキに入る。
+   * 場から交互に取る形式（オンラインと CPU 戦の既定）：表向きの場にいつも field 枚、1人 takes 回ずつ取り、取ったら山から1枚補充。
+   * ひとりで選ぶ形式（CPU 戦の旧形式）：offer 枚から1枚を選ぶのを rounds 回
+   */
+  draft: { rounds: 15, offer: 3, copies: 2, field: 6, takes: 15 },
 } as const;
 
 export type Balance = typeof BALANCE;

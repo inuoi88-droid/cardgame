@@ -23,7 +23,9 @@
     "presim:presets": "npm run gen",
     "sim:presets": "node scripts/sim/presets.mts",
     "preview": "vite preview",
-    "sim:options": "node scripts/sim/options.mts"
+    "sim:options": "node scripts/sim/options.mts",
+    "predev:server": "npm run gen",
+    "dev:server": "node scripts/dev-online-server.mts"
   },
   "dependencies": {
     "@iconify-json/game-icons": "^1.2.4",

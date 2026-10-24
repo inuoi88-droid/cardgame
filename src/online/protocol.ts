@@ -18,6 +18,7 @@ import {
   type TargetRef,
 } from '../engine/battle/types.ts';
 import type { CardDef, Deck } from '../engine/types.ts';
+import type { DraftView } from '../engine/draft/types.ts';
 import { normalizeRules, type MatchRules } from '../engine/fields.ts';
 import { toLeaderId, type LeaderId } from '../engine/leaders.ts';
 import { normalizeCode } from './codes.ts';
@@ -25,16 +26,34 @@ import { BALANCE } from '../engine/balance.ts';
 
 /**
  * create・join の leader（MTG 要素 △ バッチD）はリーダーの ID（知らない値は none）。create の rules は対戦のルールのオプション
- * （次元・昼と夜。知らない値は無し扱い）
+ * （次元・昼と夜。知らない値は無し扱い）。
+ * create の mode（決定事項 #115）：'deck'（省略時。自分のデッキで戦う）か 'draft'（入室後に場から交互に取るドラフト。デッキは送らない）。
+ * join のデッキは自分のデッキの部屋だけ要る（ドラフトの部屋では無視する）
  */
 export type OnlineRequest =
-  | { op: 'create'; name: string; deck: Deck; cards: CardDef[]; leader?: LeaderId; rules?: MatchRules }
-  | { op: 'join'; code: string; name: string; deck: Deck; cards: CardDef[]; leader?: LeaderId }
+  | { op: 'create'; name: string; deck?: Deck; cards?: CardDef[]; leader?: LeaderId; rules?: MatchRules; mode?: RoomMode }
+  | { op: 'join'; code: string; name: string; deck?: Deck; cards?: CardDef[]; leader?: LeaderId }
   /** 最新の状態を取る。数秒おきに送り、接続中の目印にもする */
   | { op: 'state'; code: string; token: string }
-  | { op: 'action'; code: string; token: string; version: number; action: Action };
+  | { op: 'action'; code: string; token: string; version: number; action: Action }
+  /** ドラフトで場から1枚取る（自分の番だけ。version は見ていた版） */
+  | { op: 'take'; code: string; token: string; version: number; cardId: string }
+  /** ドラフトの「おまかせ」を入れる・切る */
+  | { op: 'auto'; code: string; token: string; on: boolean }
+  /** 対戦が終わったあと「同じデッキでもう一戦」（両者が押したら始まる） */
+  | { op: 'rematch'; code: string; token: string };
 
-export type RoomStatus = 'waiting' | 'playing' | 'ended';
+/** waiting：相手待ち／drafting：ドラフト中（ドラフトの部屋）／playing：対戦中／ended：決着（再戦で playing に戻れる） */
+export type RoomStatus = 'waiting' | 'drafting' | 'playing' | 'ended';
+
+/** 部屋の形式：自分のデッキ／ドラフト（決定事項 #115） */
+export type RoomMode = 'deck' | 'draft';
+export const ROOM_MODES: readonly RoomMode[] = ['deck', 'draft'];
+
+/** ドラフトの見え方（伏せた山は枚数だけ）。auto は両者の「おまかせ」 */
+export interface RoomDraftView extends DraftView {
+  auto: [boolean, boolean];
+}
 
 /** 1人のプレイヤーから見た部屋の様子 */
 export interface RoomView {
@@ -56,6 +75,14 @@ export interface RoomView {
   rules?: MatchRules;
   /** 両者のリーダー（MTG 要素 △ バッチD。まだ入っていない席は null） */
   leaders?: [LeaderId, LeaderId | null];
+  /** 部屋の形式（決定事項 #115。古いサーバーの返事には無い＝deck） */
+  mode?: RoomMode;
+  /** ドラフトの部屋で、ドラフトが始まってから（終わったあとも記録として残る。終わると done） */
+  draft?: RoomDraftView;
+  /** 決着したあと「同じデッキでもう一戦」を押したか（席ごと）。再戦できる部屋で決着しているときだけ */
+  rematch?: [boolean, boolean];
+  /** この部屋で始めた対戦の数（1戦目から1） */
+  games?: number;
 }
 
 export type ErrorReason = 'version' | 'notFound' | 'auth' | 'invalid';
@@ -72,10 +99,13 @@ const MAX_ID_CHARS = 100;
 
 /** サーバーが受け取った形（デッキとカードは room.ts の checkDeck で調べる） */
 export type ParsedRequest =
-  | { op: 'create'; name: unknown; deck: unknown; cards: unknown; leader: LeaderId; rules?: MatchRules }
+  | { op: 'create'; name: unknown; deck: unknown; cards: unknown; leader: LeaderId; rules?: MatchRules; mode: RoomMode }
   | { op: 'join'; code: string; name: unknown; deck: unknown; cards: unknown; leader: LeaderId }
   | { op: 'state'; code: string; token: string }
-  | { op: 'action'; code: string; token: string; version: number; action: Action };
+  | { op: 'action'; code: string; token: string; version: number; action: Action }
+  | { op: 'take'; code: string; token: string; version: number; cardId: string }
+  | { op: 'auto'; code: string; token: string; on: boolean }
+  | { op: 'rematch'; code: string; token: string };
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -232,7 +262,9 @@ export function parseRequest(x: unknown): Parsed<ParsedRequest> {
   const leader = toLeaderId(x.leader);
   if (x.op === 'create') {
     const rules = normalizeRules(x.rules);
-    return { ok: true, value: { op: 'create', name: x.name, deck: x.deck, cards: x.cards, leader, ...(rules ? { rules } : {}) } };
+    if (x.mode !== undefined && !(ROOM_MODES as readonly unknown[]).includes(x.mode)) return bad('部屋の形式が正しくありません');
+    const mode: RoomMode = x.mode === 'draft' ? 'draft' : 'deck';
+    return { ok: true, value: { op: 'create', name: x.name, deck: x.deck, cards: x.cards, leader, ...(rules ? { rules } : {}), mode } };
   }
   const code = normalizeCode(x.code);
   if (!code) return bad('部屋コードが正しくありません');
@@ -245,5 +277,15 @@ export function parseRequest(x: unknown): Parsed<ParsedRequest> {
     if (!action) return bad('行動の形式が正しくありません');
     return { ok: true, value: { op: 'action', code, token: x.token, version: x.version, action } };
   }
+  if (x.op === 'take') {
+    if (typeof x.version !== 'number' || !Number.isInteger(x.version)) return bad('版番号が正しくありません');
+    if (!isId(x.cardId)) return bad('カードの指定が正しくありません');
+    return { ok: true, value: { op: 'take', code, token: x.token, version: x.version, cardId: x.cardId } };
+  }
+  if (x.op === 'auto') {
+    if (typeof x.on !== 'boolean') return bad('おまかせの指定が正しくありません');
+    return { ok: true, value: { op: 'auto', code, token: x.token, on: x.on } };
+  }
+  if (x.op === 'rematch') return { ok: true, value: { op: 'rematch', code, token: x.token } };
   return bad('知らない操作です');
 }

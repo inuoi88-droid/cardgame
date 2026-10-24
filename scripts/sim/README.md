@@ -19,6 +19,8 @@ node scripts/sim/final.mts after 200 rr mirror burn mono   # 最終調整（#84�
 node scripts/sim/official.mts common 60   # 公式カード（src/official）：色ごとのコモンだけのデッキの総当たり
 node scripts/sim/official.mts draft 600 2 # 公式カード：「場から交互に取る」ドラフト600回×2試合（アーキタイプ・先に取った側・カードごとの勝率）
 node scripts/sim/official.mts pickers 40 2 # 公式カード：取り方どうし（おまかせ・燃やしだけ・汎用だけ・でたらめ）のドラフトのデッキで対戦
+npm run sim:draft                          # ドラフト戦の本番の形（公式カード・場から交互に取る・後から取った人が先攻・再戦）：400回×2試合＋つよいどうし50回＋リーサル検査20回
+node scripts/sim/draft.mts 800 2 --hard 100 --lethal 30 --tag after   # 回数と出力の名前（out/draft-<tag>.json・.md）を指定。--seed で最初のシード
 ```
 
 `npm run gen`（索引の生成）は npm script の pre フックで自動で走る。`node` で直接動かすときは、`src/engine/registry.generated.ts` がなければ先に `npm run gen`。
@@ -43,6 +45,7 @@ node scripts/sim/official.mts pickers 40 2 # 公式カード：取り方どう�
 | `aicheck.mts` | 作った場面で CPU がリーサルを取れるか＋実戦での見逃し数 |
 | `run-all.mts` | 全部回してまとめる |
 | `final.mts` | 最終調整（#84）の測定：プリセット総当たり・ミラー・BURN・モンスターだけのデッキ MONO・挑発に寄せた TAUNTX・パワーの極端デッキ。`node scripts/sim/final.mts after 200 valid rr mirror burn mono taunt tauntvs`、`node scripts/sim/final.mts power 150 power`。結果の読み方は `out/final.md`（git には入れない）と決定事項 #84 |
+| `draft.mts` | ドラフト戦の本番の形の測定（決定事項 #118）：公式カードでエンジンの createDraft・applyTake のドラフトをして、1戦目は後から取り始めた人が先攻（`battleFirstAfterDraft`）、2戦目は「同じデッキでもう一戦」（前の負けが先攻）。席ごとの取り方は `draftlib.mts` の PROFILES（本物のおまかせ よわい・ふつう・つよい と、色をそろえる focus・ばらつきの大きい focus-wide）からシードで選ぶ。出すもの：デッキがルールどおりか・先に取った人と先攻の勝率・主な色（いちばん多い色が4回以下なら「混色」）ごとのデッキの割合と勝率・色ごとの取られ方（場に出た割合との比）・取り方ごとの勝率・色どうしの勝率・カードごとの「場に出た回数・取られた割合・平均の取った順・入っていたデッキの勝率」と外れ値の印・試合の長さの分布・引き分け・リーサルの見逃し。並列は `draft-worker.mts`（ドラフト2回ずつ） |
 | `official.mts` | 公式カード（ドラフト戦の山。決定事項 #116）の測定：色ごとのコモンだけのデッキ（`officialCommonDeck`）の総当たりと、簡単な CPU による「場から交互に取る」ドラフトの勝率（主なアーキタイプ・先に取った側・カードごと）。ドラフトはエンジンの createDraft・applyTake（山はコモン2枚ずつ）。draft の取り方はこのスクリプトだけの目安で、pickers は本物のおまかせ（autoPick）と、燃やし（顔へのダメージ）だけ・汎用だけ・でたらめに取る人との対戦（#117） |
 
 ## 基準デッキ（`lib.mts`）

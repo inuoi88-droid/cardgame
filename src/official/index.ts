@@ -19,7 +19,7 @@ export {
 export const OFFICIAL_SET = {
   id: 'dawn',
   name: '黎明の大陸',
-  version: 1,
+  version: 2,
 } as const;
 
 /** 公式カードの ID の前置き */

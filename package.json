@@ -24,6 +24,8 @@
     "sim:presets": "node scripts/sim/presets.mts",
     "preview": "vite preview",
     "sim:options": "node scripts/sim/options.mts",
+    "presim:draft": "npm run gen",
+    "sim:draft": "node scripts/sim/draft.mts",
     "predev:server": "npm run gen",
     "dev:server": "node scripts/dev-online-server.mts"
   },

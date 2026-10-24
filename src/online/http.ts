@@ -2,6 +2,7 @@
  * Edge Function の受付の中身。DB・時刻・乱数・ハッシュ・通知は外から渡す（Vitest でも同じものを試せる）。
  * Edge Function（supabase/functions/cardgame/index.ts）は、これに本物の DB などをつなぐだけにする。
  */
+import type { CardDef } from '../engine/types.ts';
 import { generateCode } from './codes.ts';
 import { MAX_BODY_CHARS, parseRequest, type OnlineResponse } from './protocol.ts';
 import { ROOM_TTL_MS, type RoomRecord } from './room.ts';
@@ -29,6 +30,8 @@ export interface HttpDeps {
   /** 部屋の版が上がったことを、購読しているブラウザに知らせる（中身は送らない） */
   notify(code: string, version: number): Promise<void>;
   log?(message: string): void;
+  /** ドラフトに使うカード（無ければ公式のカード。テストと開発用のサーバーで差し替える） */
+  draftPool?: readonly CardDef[];
 }
 
 export interface HttpResult {
@@ -70,7 +73,7 @@ export async function handleBody(text: string, deps: HttpDeps): Promise<HttpResu
     const tokenHash = await deps.hash(token);
     const seed = deps.randomInt(SEED_RANGE);
     const r: ServeResult = await deps.store.update(req.code, (room) => {
-      const result = serve(req, room, { now, tokenHash, code: req.code, seed });
+      const result = serve(req, room, { now, tokenHash, code: req.code, seed, ...(deps.draftPool ? { draftPool: deps.draftPool } : {}) });
       return { save: result.save, value: result };
     });
     if (r.notify && r.save) {

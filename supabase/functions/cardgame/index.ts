@@ -13,13 +13,15 @@ interface Seat {
 }
 interface RoomRecord {
   code: string;
-  status: 'waiting' | 'playing' | 'ended';
+  status: 'waiting' | 'drafting' | 'playing' | 'ended';
   version: number;
   state: unknown;
   seats: Seat[];
   hostDeck: unknown;
   deadline: number | null;
   updatedAt: number;
+  /** 部屋の形式・ドラフト・両者のデッキ・再戦の印（決定事項 #115。古い部屋は null） */
+  meta?: unknown;
 }
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 4, idle_timeout: 20 });
@@ -51,6 +53,7 @@ type Row = {
   state: unknown;
   seats: Seat[];
   host_deck: unknown;
+  meta: unknown;
   deadline_ms: number | null;
   updated_ms: number;
 };
@@ -62,6 +65,7 @@ const fromRow = (r: Row): RoomRecord => ({
   state: r.state,
   seats: r.seats,
   hostDeck: r.host_deck,
+  meta: r.meta,
   deadline: r.deadline_ms,
   updatedAt: r.updated_ms,
 });
@@ -73,9 +77,9 @@ const time = (ms: number | null) => (ms === null ? null : new Date(ms));
 const store = {
   async insert(room: RoomRecord): Promise<boolean> {
     const rows = await sql`
-      insert into cardgame.rooms (code, status, version, state, seats, host_deck, deadline, updated_at)
+      insert into cardgame.rooms (code, status, version, state, seats, host_deck, meta, deadline, updated_at)
       values (${room.code}, ${room.status}, ${room.version}, ${json(sql, room.state)}, ${json(sql, room.seats)},
-              ${json(sql, room.hostDeck)}, ${time(room.deadline)}, ${time(room.updatedAt)})
+              ${json(sql, room.hostDeck)}, ${json(sql, room.meta)}, ${time(room.deadline)}, ${time(room.updatedAt)})
       on conflict (code) do nothing
       returning code`;
     return rows.length === 1;
@@ -83,7 +87,7 @@ const store = {
   async update<T>(code: string, fn: (room: RoomRecord | null) => { save: RoomRecord | null; value: T }): Promise<T> {
     return await sql.begin(async (tx) => {
       const rows = await tx<Row[]>`
-        select code, status, version, state, seats, host_deck,
+        select code, status, version, state, seats, host_deck, meta,
                (extract(epoch from deadline) * 1000)::float8 as deadline_ms,
                (extract(epoch from updated_at) * 1000)::float8 as updated_ms
         from cardgame.rooms where code = ${code} for update`;
@@ -92,7 +96,7 @@ const store = {
         await tx`
           update cardgame.rooms set
             status = ${save.status}, version = ${save.version}, state = ${json(tx, save.state)},
-            seats = ${json(tx, save.seats)}, host_deck = ${json(tx, save.hostDeck)},
+            seats = ${json(tx, save.seats)}, host_deck = ${json(tx, save.hostDeck)}, meta = ${json(tx, save.meta)},
             deadline = ${time(save.deadline)}, updated_at = ${time(save.updatedAt)}
           where code = ${code}`;
       }

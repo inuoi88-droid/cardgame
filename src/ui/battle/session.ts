@@ -26,7 +26,18 @@ export interface BattleSession {
     myLeader?: LeaderChoice;
     cpuLeader?: LeaderChoice;
     rules?: MatchRules;
+    /**
+     * 場から交互に取るドラフトのあとの対戦（決定事項 #119）。first は1戦目の先攻（後から取り始めた人）。
+     * 「同じデッキでもう一度」は前の対戦で負けた人（引き分けなら前の後攻）が先攻（オンラインの再戦と同じ）
+     */
+    draft?: boolean;
+    first?: battle.PlayerId;
   };
+}
+
+/** ドラフトのあとの「同じデッキでもう一度」の先攻：前の対戦で負けた人、引き分けなら前の後攻 */
+export function rematchFirst(prev: battle.GameState): battle.PlayerId {
+  return prev.result && prev.result.winner !== null ? battle.other(prev.result.winner) : battle.other(prev.first);
 }
 
 /** 対戦の CPU の強さ（保存データに無ければ「ふつう」） */
@@ -71,6 +82,7 @@ export function startSession(setup: BattleSession['setup']): { ok: true; session
       { name: `CPU（${setup.cpuDeckName}）`, deck: setup.cpuDeck, cards: setup.cpuCards, leader: resolveLeader(isLeaderChoice(setup.cpuLeader) ? setup.cpuLeader : undefined) },
     ],
     ...(rules ? { rules } : {}),
+    ...(setup.first === 0 || setup.first === 1 ? { first: setup.first } : {}),
   });
   if (!r.ok) return r;
   const session: BattleSession = { v: 2, state: r.state, setup };

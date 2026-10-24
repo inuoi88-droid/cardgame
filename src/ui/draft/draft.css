@@ -1,0 +1,592 @@
+/* 場から交互に取るドラフトの画面（決定事項 #119）。UI2「黒鉄と金の卓」のトークンだけを使う。
+   カードの部品（.tcg など）には規則を置かない（包む .dcard__face に色の抜きだけ掛ける）。 */
+
+.dboard {
+  display: grid;
+  gap: 10px;
+}
+
+/* ---------------------------------------------------------------- 上に固定した帯 */
+.dbar {
+  position: sticky;
+  top: var(--topbar-h, 0px);
+  z-index: 15;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 calc(-1 * var(--gutter));
+  padding: 8px var(--gutter);
+  border-image: linear-gradient(180deg, #171b2c, #0e111f calc(100% - 2px), #000 calc(100% - 2px) calc(100% - 1px), #3a404d calc(100% - 1px)) fill 0 / 0 / 0 100vmax 1px;
+}
+.dbar__turn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 12px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, var(--u-slate-0), var(--u-slate-1)) padding-box,
+    var(--u-rim-iron) border-box;
+  box-shadow: var(--u-lift-1);
+  font-size: var(--fs-md);
+  font-weight: 800;
+  color: var(--u-ink);
+}
+/* 手番の銘板：自分の番だけ金の縁（金の数え方＝手番の銘板） */
+.dbar__turn.is-mine {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(233, 196, 106, 0.18), transparent 70%) padding-box,
+    linear-gradient(180deg, var(--u-slate-0), var(--u-slate-1)) padding-box,
+    var(--u-rim-gold) border-box;
+  animation: dbar-turn 900ms var(--ease) 1;
+}
+.dbar__turn.is-opp {
+  background:
+    linear-gradient(180deg, var(--u-slate-0), var(--u-slate-1)) padding-box,
+    var(--u-rim-crimson) border-box;
+  color: var(--u-ink-2);
+}
+@keyframes dbar-turn {
+  0% {
+    box-shadow:
+      var(--u-lift-1),
+      0 0 0 rgba(233, 196, 106, 0);
+  }
+  40% {
+    box-shadow:
+      var(--u-lift-1),
+      0 0 16px rgba(233, 196, 106, 0.55);
+  }
+  100% {
+    box-shadow:
+      var(--u-lift-1),
+      0 0 0 rgba(233, 196, 106, 0);
+  }
+}
+.dbar__gi {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.dbar__turn.is-mine .dbar__gi {
+  color: var(--u-gold);
+}
+.dbar__who {
+  white-space: nowrap;
+  max-width: 14em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 相手（CPU）が選んでいる間の点（動きを減らす設定では点のまま） */
+.dbar__think {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--u-crim-hi);
+  animation: dbar-think 900ms ease-in-out infinite alternate;
+}
+@keyframes dbar-think {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.dbar__time {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 8px;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(180deg, var(--u-well-0), var(--u-well-1));
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.5);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--u-ink);
+}
+.dbar__time.is-warn {
+  color: var(--u-crim-hi);
+  box-shadow:
+    inset 0 1px 0 rgba(0, 0, 0, 0.5),
+    0 0 0 1px var(--u-crim);
+}
+.dbar__stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.dstat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 2px 9px;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(180deg, var(--u-well-0), var(--u-well-1));
+  border: 1px solid #2a2f3c;
+  border-bottom-color: #464d5e;
+  font-size: var(--fs-sm);
+  color: var(--u-ink-2);
+  white-space: nowrap;
+}
+.dstat b {
+  color: var(--u-ink);
+  font-variant-numeric: tabular-nums;
+}
+.dstat.is-out b,
+.dstat__rar.is-out b {
+  color: var(--u-crim-hi);
+}
+.dstat--rar {
+  gap: 10px;
+}
+.dstat__rar {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.dstat > .gi {
+  width: 16px;
+  height: 16px;
+}
+.dstat--auto {
+  color: var(--u-sap-hi);
+}
+.dboard__info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.dboard__auto {
+  margin-left: auto;
+}
+.dboard__auto.is-on {
+  --b-rim: var(--u-rim-sapphire);
+  color: var(--u-sap-hi);
+}
+.dbar .dboard__info {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+.dboard__last {
+  flex: 1 1 200px;
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--u-ink-2);
+}
+@media (max-width: 919px) {
+  .dboard__last {
+    flex-basis: 100%;
+  }
+}
+@media (max-width: 480px) {
+  .dbar {
+    gap: 6px;
+    padding-block: 6px;
+  }
+  .dbar__turn {
+    padding: 4px 8px;
+    gap: 6px;
+    font-size: 15px;
+  }
+  .dbar__gi {
+    display: none;
+  }
+  .dbar__time {
+    padding: 1px 6px;
+  }
+  .dbar__stats {
+    gap: 4px;
+  }
+  .dstat {
+    padding: 2px 6px;
+  }
+}
+
+/* ---------------------------------------------------------------- 場と横の欄 */
+.dboard__main {
+  display: grid;
+  gap: 14px;
+}
+@media (min-width: 920px) {
+  .dboard__main {
+    grid-template-columns: auto minmax(320px, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+  .dboard__side {
+    position: sticky;
+    top: calc(var(--topbar-h, 0px) + 70px);
+    display: grid;
+    gap: 10px;
+    max-height: calc(100vh - var(--topbar-h, 0px) - 84px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+.dfield {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 12px;
+  align-content: start;
+}
+@media (min-width: 600px) {
+  .dfield {
+    /* PC は2段が1画面に収まる幅（高さから決める。200px まで） */
+    grid-template-columns: repeat(3, minmax(0, clamp(170px, calc((100vh - 290px) / 2 * 0.7), 210px)));
+    justify-content: start;
+    gap: 14px 16px;
+  }
+}
+.dcard {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding-top: 7px; /* 宝石のはみ出し */
+}
+.dcard__face {
+  border-radius: 12px;
+}
+.dcard.is-new .dcard__face {
+  animation: dcard-in var(--dur-slow) var(--ease) both;
+}
+@keyframes dcard-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* 新しく出たカードの縁の光（擬似要素ではなく包みの影を一度だけ） */
+.dcard.is-new {
+  animation: dcard-glow 1400ms var(--ease) 1;
+  border-radius: 12px;
+}
+@keyframes dcard-glow {
+  0%,
+  30% {
+    box-shadow: 0 0 0 2px rgba(111, 160, 255, 0.75), 0 0 18px rgba(111, 160, 255, 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 2px rgba(111, 160, 255, 0), 0 0 18px rgba(111, 160, 255, 0);
+  }
+}
+/* 取れないカード：文字は読めるまま、色だけ抜く */
+.dcard.is-blocked .dcard__face {
+  filter: saturate(0.4);
+}
+.dcard__foot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 40px;
+}
+.dcard__take {
+  width: 100%;
+  min-height: 40px;
+}
+.dcard__no {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-xs);
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #2a1420, #1c0f18) padding-box,
+    var(--u-rim-crimson) border-box;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--u-crim-hi);
+}
+.dcard__no > .gi {
+  width: 15px;
+  height: 15px;
+}
+.dcard__ok {
+  font-size: var(--fs-sm);
+  color: var(--u-ink-3);
+}
+
+/* ---------------------------------------------------------------- デッキの欄 */
+.dboard__tabs {
+  margin-bottom: 8px;
+}
+.dpanel {
+  display: grid;
+  gap: 8px;
+}
+.dpanel--bare {
+  padding: 0;
+}
+.dpanel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.dpanel__head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  flex: 1 1 100%;
+}
+.dpanel__gi {
+  width: 20px;
+  height: 20px;
+  color: var(--u-iron-hi);
+}
+.dpanel__count {
+  font-size: var(--fs-sm);
+  color: var(--u-ink-2);
+}
+.dpanel__count b {
+  font-size: var(--fs-lg);
+  color: var(--u-ink);
+  font-variant-numeric: tabular-nums;
+}
+.dpanel__rar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-sm);
+  color: var(--u-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.dpanel__rar.is-out {
+  color: var(--u-crim-hi);
+}
+.drows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.drow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 2px 10px 2px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, #262b40, #191d2e) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  box-shadow: var(--u-lift-1);
+  font: inherit;
+  color: var(--u-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.drow:hover {
+  filter: brightness(1.1);
+}
+.drow:focus-visible {
+  outline: 2px solid var(--u-sap);
+  outline-offset: 2px;
+}
+.drow__cost {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 26px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: var(--u-sap-fill);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.drow__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--u-font-name);
+  font-size: var(--fs-sm);
+}
+.drow__n {
+  flex: none;
+  color: var(--u-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- 終わったあと */
+.dboard__donehead h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: var(--fs-lg);
+}
+.dboard__donehead h2 > .gi {
+  color: var(--ok);
+}
+.dboard__donenote {
+  font-size: var(--fs-sm);
+  color: var(--u-ink-2);
+}
+.dboard__decks {
+  display: grid;
+  gap: 12px;
+}
+@media (min-width: 760px) {
+  .dboard__decks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+.dboard__donebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 10px;
+  margin: 4px calc(-1 * var(--gutter)) 0;
+  padding: 10px var(--gutter) calc(10px + env(safe-area-inset-bottom));
+  border-image: linear-gradient(180deg, #000 0 1px, #3a404d 1px 2px, #1b1f32 2px, #0c0e1a) fill 0 / 0 / 0 100vmax;
+}
+.dboard__donebar .btn--big {
+  order: -1;
+  flex: 1 1 100%;
+}
+@media (min-width: 720px) {
+  .dboard__donebar .btn--big {
+    order: 0;
+    flex: none;
+  }
+}
+
+/* ---------------------------------------------------------------- 準備（CPU 戦のドラフト）・公式カードの案内 */
+.dsetup {
+  display: grid;
+  gap: 12px;
+}
+.dsetup__choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+}
+.dchoice {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  align-items: center;
+  min-height: 56px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, #232842, #171b2c) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  box-shadow: var(--u-lift-1);
+  cursor: pointer;
+}
+.dchoice:has(input:checked) {
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(111, 160, 255, 0.18), transparent 70%) padding-box,
+    linear-gradient(180deg, #26304f, #172036) padding-box,
+    var(--u-rim-sapphire) border-box;
+}
+.dchoice:has(input:focus-visible) {
+  outline: 2px solid var(--u-sap);
+  outline-offset: 2px;
+}
+.dchoice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.dchoice > .gi {
+  grid-row: span 2;
+  width: 28px;
+  height: 28px;
+  color: var(--u-iron-hi);
+}
+.dchoice:has(input:checked) > .gi {
+  color: var(--u-sap-hi);
+}
+.dchoice b {
+  font-size: var(--fs-md);
+}
+.dchoice small {
+  font-size: var(--fs-xs);
+  color: var(--u-ink-2);
+  line-height: 1.4;
+}
+.dlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dbar__turn.is-mine,
+  .dcard.is-new,
+  .dbar__think,
+  .dcard.is-new .dcard__face {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------- 再戦（オンライン。決定事項 #119） */
+.online-chip--ok {
+  border-color: rgba(60, 207, 145, 0.6);
+  color: #b9f5da;
+  background: var(--ok-bg);
+}
+.rematch-note {
+  flex-basis: 100%;
+  order: 1;
+  font-size: var(--fs-sm);
+  color: var(--u-ink-2);
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- ロビーの形式の切り替えとドラフトの説明 */
+.lobby__mode {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.lobby__steps {
+  margin: 0 0 8px;
+  padding-left: 1.4em;
+  display: grid;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+.lobby__steps li::marker {
+  color: var(--u-iron-hi);
+  font-weight: 700;
+}
+
+@media (min-width: 1100px) {
+  .dboard__side .drows,
+  .dboard__decks .drows {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}

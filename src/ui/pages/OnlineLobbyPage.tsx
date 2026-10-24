@@ -2,7 +2,9 @@
  * オンライン対戦のロビー：名前とデッキを選び、部屋を作る／コードで入る。
  * UI2「黒鉄と金の卓」（決定事項 #111 の D）：フォームの羅列をやめ、
  * 「あなた（名前・リーダー）」→「使うデッキ（デッキ箱のタイル）」→「部屋を作る／コードで入る」の切り替え（井戸の溝）と、
- * 下に固定した金の主ボタン1つ（切り替えで「部屋を作る」「入る」に変わる）。対戦のルールは畳む。部屋コードは井戸に大きな等幅の字
+ * 下に固定した金の主ボタン1つ（切り替えで「部屋を作る」「入る」に変わる）。対戦のルールは畳む。部屋コードは井戸に大きな等幅の字。
+ * 部屋を作るときは形式を選ぶ（決定事項 #119）：「自分のデッキ」か「ドラフト（公式カード）」。ドラフトの部屋はデッキを選ばない
+ * （入る人も、ドラフトの部屋ならデッキは使われない）。リーダーと対戦のルールはどちらの形式でも選べる
  */
 import { useState } from 'react';
 import { BALANCE, type LeaderId, type PlanarMode } from '../../engine/index.ts';
@@ -16,6 +18,9 @@ import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { pickChoice, useDeckChoices } from '../battle/deckChoices.ts';
 import { callServer, clearOnlineSession, loadOnlineName, loadOnlineSession, saveOnlineName, saveOnlineSession } from '../online/client.ts';
 import { navigate } from '../router.ts';
+import { OFFICIAL_SET } from '../../official/index.ts';
+import type { RoomMode } from '../../online/protocol.ts';
+import '../draft/draft.css';
 
 export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) {
   const choices = useDeckChoices();
@@ -26,6 +31,8 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
   const [code, setCode] = useState(initialCode ?? '');
   /** 下の主ボタンが「部屋を作る」か「入る」か（コード付きのリンクで来たら入る） */
   const [mode, setMode] = useState<'create' | 'join'>(initialCode ? 'join' : 'create');
+  /** 作る部屋の形式（自分のデッキ／ドラフト） */
+  const [roomMode, setRoomMode] = useState<RoomMode>('deck');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // MTG 要素 △ バッチD：リーダー（作る・入る）と、部屋を作るときの次元・昼と夜
@@ -34,8 +41,12 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
   const [dayNight, setDayNight] = useState(false);
   const selected = pickChoice(choices, deckKey);
 
+  const draftRoom = mode === 'create' && roomMode === 'draft';
+  /** 部屋を作る：自分のデッキの部屋は使えるデッキが要る。入る：コードが要る（デッキはドラフトの部屋なら使われない） */
+  const canEnter = mode === 'create' ? draftRoom || !!selected?.valid : code.trim() !== '';
   const enter = async (mode: 'create' | 'join') => {
-    if (!selected?.valid || busy) return;
+    if (busy) return;
+    if (mode === 'create' && !draftRoom && !selected?.valid) return;
     const joinCode = normalizeCode(code);
     if (mode === 'join' && !joinCode) {
       setError(`部屋コードは${CODE_LENGTH}文字です`);
@@ -54,12 +65,15 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
     setBusy(true);
     setError(null);
     saveOnlineName(name);
-    const player = { name, deck: selected.deck, cards: selected.cards, ...(leader !== 'none' ? { leader } : {}) };
+    const deck = selected?.valid && !draftRoom ? { deck: selected.deck, cards: selected.cards } : {};
+    const player = { name, ...deck, ...(leader !== 'none' ? { leader } : {}) };
     const rules = toRules(field, dayNight);
-    const res = await callServer(mode === 'create' ? { op: 'create', ...player, ...(rules ? { rules } : {}) } : { op: 'join', code: joinCode!, ...player });
+    const res = await callServer(
+      mode === 'create' ? { op: 'create', ...player, ...(rules ? { rules } : {}), ...(draftRoom ? { mode: 'draft' as const } : {}) } : { op: 'join', code: joinCode!, ...player },
+    );
     setBusy(false);
     if (!res.ok || !res.token) {
-      setError(res.ok ? 'サーバーから合言葉が届きませんでした' : res.error);
+      setError(res.ok ? 'サーバーから合言葉が届きませんでした' : mode === 'join' && !selected?.valid ? `${res.error}（自分のデッキで戦う部屋です。使うデッキを選んでください）` : res.error);
       return;
     }
     saveOnlineSession({ v: 1, code: res.code, token: res.token });
@@ -108,10 +122,6 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
           <LeaderField label="あなたのリーダー" title="あなたのリーダー" value={leader} onChange={(v) => setLeader(v === 'random' ? 'none' : v)} id="online-leader" />
         </div>
       </section>
-      <section className="panel">
-        <h2>使うデッキ</h2>
-        <DeckPicker choices={choices} selected={selected} onSelect={setDeckKey} />
-      </section>
       <section className="panel lobby__entry">
         <div className="tabs lobby__tabs" role="tablist" aria-label="部屋を作るか、コードで入るか">
           <button type="button" role="tab" id="lobby-tab-create" aria-controls="lobby-pane-create" aria-selected={mode === 'create'} className={cx('tab', mode === 'create' && 'is-active')} onClick={() => setMode('create')}>
@@ -123,7 +133,21 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
         </div>
         {mode === 'create' ? (
           <div role="tabpanel" id="lobby-pane-create" aria-labelledby="lobby-tab-create" className="lobby__pane">
-            <p className="hint">{CODE_LENGTH}文字の部屋コードが出ます。相手に伝えてください。対戦のルールは部屋を作る人が決めます。</p>
+            <div className="lobby__mode" role="radiogroup" aria-label="部屋の形式">
+              <label className="dchoice">
+                <input type="radio" name="room-mode" checked={roomMode === 'deck'} onChange={() => setRoomMode('deck')} />
+                <UiIcon name="chest" />
+                <b>自分のデッキ</b>
+                <small>お互いに自分で作ったデッキで戦う</small>
+              </label>
+              <label className="dchoice">
+                <input type="radio" name="room-mode" checked={roomMode === 'draft'} onChange={() => setRoomMode('draft')} />
+                <UiIcon name="card-pick" />
+                <b>ドラフト（公式カード）</b>
+                <small>公式カードの場から交互に取ってデッキを作り、そのまま戦う</small>
+              </label>
+            </div>
+            <p className="hint">{CODE_LENGTH}文字の部屋コードが出ます。相手に伝えてください。形式と対戦のルールは部屋を作る人が決めます。</p>
             <details className="fold">
               <summary>
                 <span className="fold__title">対戦のルール</span>
@@ -154,26 +178,53 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
           </div>
         )}
       </section>
+      {draftRoom ? (
+        <section className="panel lobby__draft">
+          <h2>ドラフト戦の流れ</h2>
+          <ol className="lobby__steps">
+            <li>
+              公式カード「{OFFICIAL_SET.name}」の表向きの場（いつも{BALANCE.draft.field}枚）から、2人で交互に1枚ずつ取ります。取るたびに伏せた山から1枚補充されます。
+            </li>
+            <li>
+              1回取ると同じカードが{BALANCE.draft.copies}枚デッキに入ります。{BALANCE.draft.takes}回ずつ取ると、どちらも{BALANCE.deck.size}枚のデッキが完成します（レア・エピックはデッキの上限まで）。
+            </li>
+            <li>できたデッキでそのまま対戦。先攻は後から取り始めた人です。終わったら「同じデッキでもう一戦」もできます。</li>
+          </ol>
+          <p className="hint">
+            1回の制限時間は{BALANCE.online.draftPickSeconds}秒（時間切れは「おまかせ」で代わりに取り、負けにはなりません）。
+            <a className="dlink" href="#/official">
+              <UiIcon name="book-cover" />
+              公式カードを見る
+            </a>
+          </p>
+        </section>
+      ) : (
+        <section className="panel">
+          <h2>使うデッキ</h2>
+          {mode === 'join' && <p className="hint">入る部屋がドラフトの部屋なら、デッキは使いません（そのまま「入る」でかまいません）。</p>}
+          <DeckPicker choices={choices} selected={selected} onSelect={setDeckKey} />
+        </section>
+      )}
       {busy && <div className="notice">サーバーとやりとりしています…</div>}
       {error && <div className="notice notice--ng">{error}</div>}
       <p className="hint">
-        先攻・後攻はランダム。1ターンの制限時間は{BALANCE.online.turnSeconds}秒で、{BALANCE.online.timeoutLoseCount}
+        先攻・後攻はランダム（ドラフトの部屋は後から取り始めた人が先攻）。1ターンの制限時間は{BALANCE.online.turnSeconds}秒で、{BALANCE.online.timeoutLoseCount}
         回続けて時間切れになると負けです。同じブラウザで開き直せば、対戦の続きに戻れます。
       </p>
       <div className="savebar lobby-bar">
         <span className="lobby-bar__sum">
           <UiIcon name="world" />
           <span>
-            <b className="u-name">{selected?.name || selected?.label || 'デッキ未選択'}</b>
+            {draftRoom ? <b>ドラフト（公式カード）</b> : <b className="u-name">{selected?.name || selected?.label || 'デッキ未選択'}</b>}
             <small>{mode === 'create' ? rulesSummary(toRules(field, dayNight)) : code.trim() ? `コード ${code.trim()}` : 'コードを入れてください'}</small>
           </span>
         </span>
         {mode === 'create' ? (
-          <button type="button" className="btn btn--primary btn--big" disabled={!selected?.valid || busy} onClick={() => void enter('create')}>
+          <button type="button" className="btn btn--primary btn--big" disabled={!canEnter || busy} onClick={() => void enter('create')}>
             部屋を作る
           </button>
         ) : (
-          <button type="button" className="btn btn--primary btn--big" disabled={!selected?.valid || busy || code.trim() === ''} onClick={() => void enter('join')}>
+          <button type="button" className="btn btn--primary btn--big" disabled={!canEnter || busy} onClick={() => void enter('join')}>
             入る
           </button>
         )}

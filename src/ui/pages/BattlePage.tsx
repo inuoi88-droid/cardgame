@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ai, battle } from '../../engine/index.ts';
 import { BattleBoard } from '../battle/BattleBoard.tsx';
 import { CPU_PORTRAIT } from '../battle/portraits.ts';
-import { CPU, HUMAN, clearSession, loadSession, saveSession, sessionLevel, startSession, type BattleSession } from '../battle/session.ts';
+import { CPU, HUMAN, clearSession, loadSession, rematchFirst, saveSession, sessionLevel, startSession, type BattleSession } from '../battle/session.ts';
 import { navigate } from '../router.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
 
@@ -108,7 +108,8 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
             type="button"
             className="btn btn--primary"
             onClick={() => {
-              const r = startSession(session.setup);
+              // ドラフトのデッキは、前の対戦で負けた人が先攻（決定事項 #119）。ほかは今までどおりランダム
+              const r = startSession(session.setup.draft ? { ...session.setup, first: rematchFirst(state) } : session.setup);
               if (r.ok) setSession(r.session);
             }}
           >

@@ -36,6 +36,7 @@ import { RarityGem } from '../components/cardParts.tsx';
 import { UiIcon, type UiIconProps } from '../components/UiIcon.tsx';
 
 const B = BALANCE.battle;
+const D = BALANCE.draft;
 
 function Section({ id, icon, title, open, children }: { id: string; icon: SectionIcon; title: string; open?: boolean; children: ReactNode }) {
   return (
@@ -85,6 +86,7 @@ const SECTIONS: { id: string; icon: SectionIcon; title: string }[] = [
   { id: 'match', icon: 'treasure-map', title: 'リーダー・フィールド・昼と夜' },
   { id: 'mtg', icon: 'open-book', title: 'MTG の仕組みの作り方（対応表）' },
   { id: 'limits', icon: 'hazard-sign', title: '安全装置（1ターンの上限）' },
+  { id: 'draft', icon: 'card-pick', title: 'ドラフト戦' },
   { id: 'online', icon: 'world', title: 'オンライン対戦' },
 ];
 
@@ -583,7 +585,7 @@ export function RulesPage() {
         <h3>ドラフト戦とコスト分布</h3>
         <ul>
           <li>
-            <b>{mechanicGlossary.draft!.name}</b>：{mechanicGlossary.draft!.short}。候補は保存したカードとプリセットのカード（ルール違反・レジェンドは除く）で、デッキのルール（レアリティの枚数・同名の上限）を破るものは出ません。
+            <b>{mechanicGlossary.draft!.name}</b>：{mechanicGlossary.draft!.short}。くわしくは「ドラフト戦」の節。
           </li>
           <li>
             <b>{mechanicGlossary.manaCurve!.name}</b>：{mechanicGlossary.manaCurve!.short}。デッキ構築・CPU 戦の準備・ドラフト戦の画面に出ます。
@@ -631,9 +633,60 @@ export function RulesPage() {
         </ul>
       </Section>
 
+      <Section {...sec('draft')}>
+        <p>
+          場のカードを2人で取り合ってデッキを作り、そのデッキで戦います。オンライン対戦（部屋の形式「ドラフト（公式カード）」）と CPU 戦（
+          <a href="#/battle/draft">ドラフト戦</a>）で遊べます。
+        </p>
+        <h3>場から交互に取る</h3>
+        <ol>
+          <li>
+            表向きの場にいつも <b>{D.field}枚</b>。2人が交互に場から1枚ずつ取り、取るたびに伏せた山から1枚補充されます。最初に取る人はランダムです。
+          </li>
+          <li>
+            1回取ると同じカードが <b>{D.copies}枚</b> デッキに入ります。1人 <b>{D.takes}回</b> ずつ取ると、どちらも {D.takes * D.copies}枚のデッキが完成し、そのまま（組み直さずに）対戦します。
+          </li>
+          <li>
+            デッキのルールを破るカードは、その人は取れません（場には見えたまま「レアは上限」などの札が付きます）：
+            {(['rare', 'epic'] as const).map((r) => (
+              <span key={r}>
+                {' '}
+                {RARITY_LABEL[r]}はデッキに{BALANCE.rarity[r].deckLimit}枚・同名{BALANCE.rarity[r].perNameLimit}枚まで（{RARITY_LABEL[r]}を取れるのは{Math.floor((BALANCE.rarity[r].deckLimit ?? 0) / D.copies)}回まで）。
+              </span>
+            ))}
+            レジェンドは出ません。
+          </li>
+          <li>手番の人が場のどれも取れないときは、取れるカードが出るまで山から追加で場に出します（その間、場は{D.field}枚を超えます）。</li>
+          <li>場と、2人が取ったカードはどちらからも見えます。伏せた山の中身と順番は見えません（枚数だけ）。</li>
+          <li>対戦の先攻は、後から取り始めた人です。</li>
+          <li>決着したら「同じデッキでもう一戦」ができます（両者が押すと始まる）。先攻は前の対戦で負けた人、引き分けなら前の対戦で後攻だった人です。</li>
+        </ol>
+        <h3>オンライン</h3>
+        <ul>
+          <li>
+            カードは<a href="#/official">公式カード</a>だけです（コモン{D.pileCopies.common}枚ずつ・レアとエピック{D.pileCopies.rare}枚ずつの山）。リーダーと対戦のルールは、ふつうの部屋と同じように選べます。
+          </li>
+          <li>
+            1回の制限時間は <b>{BALANCE.online.draftPickSeconds}秒</b>。時間切れになると「おまかせ」（CPU の取り方）で代わりに取ります。ドラフトの時間切れでは負けになりません。
+          </li>
+          <li>
+            {BALANCE.online.timeoutLoseCount}回続けて時間切れになると、自分で取るまで「おまかせ」のままになり、自分の番がすぐに進みます。いつでも「おまかせ」を自分で入れたり切ったりできます。
+          </li>
+        </ul>
+        <h3>CPU 戦</h3>
+        <ul>
+          <li>既定は公式カードで、オンラインと同じ「交互に取る」形式（CPU が同じ場から取ります）。</li>
+          <li>
+            カードの山は「あなたのカード＋プリセット」も選べます。形式は今までの「{D.offer}枚から1枚（ひとりで）」も選べます（{D.offer}枚ずつ見せられて1枚を選ぶのを{D.rounds}回）。
+          </li>
+          <li>できたデッキは「デッキとして保存」でデッキ一覧に入ります（公式・プリセットのカードはカード置き場に写します）。</li>
+        </ul>
+      </Section>
+
       <Section {...sec('online')}>
         <ul>
-          <li>部屋コードを相手に伝えて同じ部屋に入ります。先攻・後攻はランダムです。</li>
+          <li>部屋コードを相手に伝えて同じ部屋に入ります。先攻・後攻はランダムです（ドラフトの部屋は「ドラフト戦」の節）。</li>
+          <li>決着したら「同じデッキでもう一戦」ができます（両者が押すと始まり、前の対戦で負けた人が先攻）。</li>
           <li>
             1ターンの制限時間は <b>{BALANCE.online.turnSeconds}秒</b>（マリガンは{BALANCE.online.mulliganSeconds}秒）。時間切れになるとターンが自動で終わります。
           </li>

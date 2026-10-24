@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { battle } from '../../engine/index.ts';
-import type { RoomView } from '../../online/protocol.ts';
+import type { OnlineRequest, RoomView } from '../../online/protocol.ts';
 import { callServer, subscribeRoom, type OnlineSession } from './client.ts';
 import { DEADLINE_GRACE_MS, POLL_MS } from './config.ts';
 
@@ -23,8 +23,20 @@ export interface OnlineRoom {
   /** サーバーの時計で今の時刻（ミリ秒） */
   serverNow: () => number;
   send: (action: battle.Action) => void;
+  /** ドラフトで場から1枚取る（決定事項 #119） */
+  take: (cardId: string) => void;
+  /** ドラフトの「おまかせ」を入れる・切る */
+  setAuto: (on: boolean) => void;
+  /** 「同じデッキでもう一戦」 */
+  rematch: () => void;
   refresh: () => void;
 }
+
+/** 版が合わなかったときの言葉（ドラフト中と対戦中で変える） */
+const VERSION_MSG = {
+  action: '相手の操作か時間切れが先に起きました。画面を確かめて、もう一度操作してください',
+  take: '場が変わりました（相手が取ったか、時間切れ）。場を確かめて、もう一度選んでください',
+} as const;
 
 export function useOnlineRoom(session: OnlineSession): OnlineRoom {
   const [room, setRoom] = useState<RoomView | null>(null);
@@ -67,27 +79,40 @@ export function useOnlineRoom(session: OnlineSession): OnlineRoom {
     });
   }, [session.code, session.token, accept]);
 
-  const send = useCallback(
-    (action: battle.Action) => {
+  /** 操作を送る（版の付いた操作は見ていた版を付ける）。断られたら理由を出して取り直す */
+  const request = useCallback(
+    (make: (version: number) => OnlineRequest, kind: keyof typeof VERSION_MSG = 'action') => {
       const cur = roomRef.current;
       if (!cur) return;
       setBusy(true);
       setError(null);
-      void callServer({ op: 'action', code: session.code, token: session.token, version: cur.version, action }).then((res) => {
+      void callServer(make(cur.version)).then((res) => {
         setBusy(false);
         if (res.ok) {
           accept(res);
           return;
         }
         if (res.reason === 'network') setOnline(false);
-        setError(res.reason === 'version' ? '相手の操作か時間切れが先に起きました。画面を確かめて、もう一度操作してください' : res.error);
+        setError(res.reason === 'version' ? VERSION_MSG[kind] : res.error);
         refresh();
       });
     },
-    [session.code, session.token, accept, refresh],
+    [accept, refresh],
   );
 
-  const ended = room?.status === 'ended';
+  const send = useCallback(
+    (action: battle.Action) => request((version) => ({ op: 'action', code: session.code, token: session.token, version, action })),
+    [request, session.code, session.token],
+  );
+  const take = useCallback(
+    (cardId: string) => request((version) => ({ op: 'take', code: session.code, token: session.token, version, cardId }), 'take'),
+    [request, session.code, session.token],
+  );
+  const setAuto = useCallback((on: boolean) => request(() => ({ op: 'auto', code: session.code, token: session.token, on })), [request, session.code, session.token]);
+  const rematch = useCallback(() => request(() => ({ op: 'rematch', code: session.code, token: session.token })), [request, session.code, session.token]);
+
+  // 決着したあとも、再戦できる部屋なら取りに行き続ける（相手が「もう一戦」を押したか・次の対戦が始まったかを知るため）
+  const ended = room?.status === 'ended' && !room.rematch;
 
   // 最初の取得・一定間隔の取得・画面に戻ったときの取得
   useEffect(() => {
@@ -121,5 +146,5 @@ export function useOnlineRoom(session: OnlineSession): OnlineRoom {
 
   const serverNow = useCallback(() => Date.now() + offset.current, []);
 
-  return { room, error, fatal, busy, online, serverNow, send, refresh };
+  return { room, error, fatal, busy, online, serverNow, send, take, setAuto, rematch, refresh };
 }

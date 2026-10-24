@@ -9,6 +9,7 @@ export type Route =
   | { page: 'battleSetup' }
   | { page: 'battle' }
   | { page: 'draft' }
+  | { page: 'official' }
   | { page: 'online'; code: string | null }
   | { page: 'onlineBattle' }
   | { page: 'rules'; section: string | null }
@@ -30,6 +31,7 @@ export function parseRoute(hash: string): Route {
   if (section === 'rules') return { page: 'rules', section: id ?? null };
   if (section === 'ui-kit') return { page: 'uiKit' };
   if (section === 'credits') return { page: 'credits' };
+  if (section === 'official') return { page: 'official' };
   if (section === 'cards' && id !== undefined) return { page: 'cardEdit', id: id === 'new' ? null : id };
   return { page: 'cards' };
 }

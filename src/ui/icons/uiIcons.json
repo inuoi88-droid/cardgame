@@ -137,5 +137,9 @@
   "domino-mask": "裏向き",
   "castle": "砦（攻城）",
   "portal": "ワープ",
-  "exit-door": "中断して準備画面へ"
+  "exit-door": "中断して準備画面へ",
+  "robot-grab": "ドラフト：おまかせ",
+  "card-random": "ドラフト：伏せた山",
+  "anticlockwise-rotation": "同じデッキでもう一戦（再戦）",
+  "book-cover": "公式カードの一覧"
 }

@@ -10,7 +10,9 @@ export type Route =
   | { page: 'battle' }
   | { page: 'draft' }
   | { page: 'official' }
-  | { page: 'online'; code: string | null }
+  | { page: 'online'; code: string | null; tab?: 'friends' }
+  /** 招待リンク（#/friend/<フレンドコード>/<鍵>/<名前>。決定事項 #123） */
+  | { page: 'friendLink'; parts: string[] }
   | { page: 'onlineBattle' }
   | { page: 'rules'; section: string | null }
   | { page: 'credits' }
@@ -21,8 +23,10 @@ export function parseRoute(hash: string): Route {
   const [section, id, extra] = parts;
   if (section === 'online') {
     if (id === 'play') return { page: 'onlineBattle' };
+    if (id === 'friends') return { page: 'online', code: null, tab: 'friends' };
     return { page: 'online', code: id === 'join' && extra ? extra : null };
   }
+  if (section === 'friend') return { page: 'friendLink', parts: parts.slice(1) };
   if (section === 'battle') return id === 'play' ? { page: 'battle' } : id === 'draft' ? { page: 'draft' } : { page: 'battleSetup' };
   if (section === 'decks') {
     if (id === undefined) return { page: 'decks' };

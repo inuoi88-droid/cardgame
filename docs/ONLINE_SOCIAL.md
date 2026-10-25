@@ -52,7 +52,7 @@
 | `unshareDeck` | `deckId` | snapshot（何度でもよい） |
 | `friendDecks` | `friendCode`・`deckId?` | `friend: { friendCode, name }`・`decks: SharedDeckView[]`（中身あり・新しい順）。フレンドか自分だけ |
 
-招待リンクの URL の形は画面が決める（例 `https://…/#/friend/<friendCode>/<token>`。LINE などで送る）。
+招待リンクの URL の形は画面が決める。画面（決定事項 #123）は `https://…/#/friend/<friendCode>/<token>/<名前>`（名前は確かめの画面の表示用で、サーバーには送らない。LINE などで送る）。
 
 ### snapshot（`SocialSnapshot`）
 

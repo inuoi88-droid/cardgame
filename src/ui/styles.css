@@ -1978,6 +1978,10 @@ input[type='checkbox'].u-toggle:checked::before {
   padding: 12px;
   animation: fade-in var(--dur) var(--ease);
 }
+/* 確かめのダイアログ（useConfirm）は、開いているシートの上に重ねる（シートの中の操作から確かめるとき。決定事項 #123） */
+.modal:has(> [role='alertdialog']) {
+  z-index: 55;
+}
 .modal__body {
   width: min(640px, 100%);
   max-height: calc(100dvh - 24px);

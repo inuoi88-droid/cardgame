@@ -16,6 +16,10 @@ import { OnlineLobbyPage } from './pages/OnlineLobbyPage.tsx';
 import { CreditsPage } from './pages/CreditsPage.tsx';
 import { RulesPage } from './pages/RulesPage.tsx';
 import { UiKitPage } from './pages/UiKitPage.tsx';
+import { FriendLinkPage } from './social/FriendLinkPage.tsx';
+import { SocialRuntime } from './social/SocialRuntime.tsx';
+import { badgeCount } from './social/socialLogic.ts';
+import { useSocial } from './social/socialStore.ts';
 import { navigate, useRoute } from './router.ts';
 import { useStore } from './store.ts';
 import { cx } from './util.ts';
@@ -35,6 +39,8 @@ const NAV: { id: Section; icon: UiIconName; label: string; path: string }[] = [
 export function App() {
   const route = useRoute();
   const { saveError } = useStore();
+  // オンラインのタブの印：届いたフレンド申請と対戦の招待の数（決定事項 #123）
+  const badge = badgeCount(useSocial().snap);
   // 公式カードの一覧（#/official）は CPU 戦・オンラインのどちらからも開くので、どのタブも光らせない
   const section: Section | null =
     route.page === 'official'
@@ -43,7 +49,7 @@ export function App() {
       ? 'decks'
       : route.page === 'battle' || route.page === 'battleSetup' || route.page === 'draft'
         ? 'battle'
-        : route.page === 'online' || route.page === 'onlineBattle'
+        : route.page === 'online' || route.page === 'onlineBattle' || route.page === 'friendLink'
           ? 'online'
           : route.page === 'rules' || route.page === 'credits'
             ? 'rules'
@@ -63,6 +69,7 @@ export function App() {
     <ToastProvider>
       <ConfirmProvider>
         <CardSymbols />
+        <SocialRuntime route={route} />
         <div className="app">
           <header className="topbar">
             <div className="topbar__title">
@@ -82,8 +89,10 @@ export function App() {
                 >
                   <span className="nav-btn__icon" aria-hidden="true">
                     <UiIcon name={n.icon} />
+                    {n.id === 'online' && badge > 0 && <span className="nav-btn__badge">{badge > 9 ? '9+' : badge}</span>}
                   </span>
                   <span className="nav-btn__label">{n.label}</span>
+                  {n.id === 'online' && badge > 0 && <span className="u-sr-only">（新しいお知らせ {badge}件）</span>}
                 </button>
               ))}
             </nav>
@@ -102,7 +111,8 @@ export function App() {
             {route.page === 'battle' && <BattlePage />}
             {route.page === 'draft' && <DraftPage />}
             {route.page === 'official' && <OfficialCardsPage />}
-            {route.page === 'online' && <OnlineLobbyPage code={route.code} />}
+            {route.page === 'online' && <OnlineLobbyPage code={route.code} tab={route.tab === 'friends' ? 'friends' : 'battle'} />}
+            {route.page === 'friendLink' && <FriendLinkPage parts={route.parts} />}
             {route.page === 'onlineBattle' && <OnlineBattlePage />}
             {route.page === 'rules' && <RulesPage />}
             {route.page === 'uiKit' && <UiKitPage />}

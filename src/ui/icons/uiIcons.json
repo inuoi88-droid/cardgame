@@ -29,8 +29,8 @@
   "cursed-star": "呪い",
   "stone-tower": "砦・守り",
   "gears": "歯車・コンボ",
-  "files": "複製・取り込み",
-  "share": "書き出し",
+  "files": "複製・取り込み・コピー",
+  "share": "書き出し・共有（外へ送る）",
   "trash-can": "削除",
   "trophy-cup": "ルール：勝敗",
   "cycle": "ルール：ターンの流れ",
@@ -141,5 +141,14 @@
   "robot-grab": "ドラフト：おまかせ",
   "card-random": "ドラフト：伏せた山",
   "anticlockwise-rotation": "同じデッキでもう一戦（再戦）",
-  "book-cover": "公式カードの一覧"
+  "book-cover": "公式カードの一覧",
+  "three-friends": "フレンド",
+  "shaking-hands": "フレンドになる（申請・承認）",
+  "linked-rings": "招待リンク",
+  "key": "引き継ぎコード",
+  "envelope": "対戦への招待",
+  "open-gate": "公開の部屋（募集中の部屋）",
+  "locked-door": "合言葉の部屋（コードを知っている人だけ）",
+  "clockwise-rotation": "取り直す（更新）",
+  "ticket": "フレンドコード"
 }

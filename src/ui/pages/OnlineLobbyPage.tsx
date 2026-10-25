@@ -5,8 +5,11 @@
  * 下に固定した金の主ボタン1つ（切り替えで「部屋を作る」「入る」に変わる）。対戦のルールは畳む。部屋コードは井戸に大きな等幅の字。
  * 部屋を作るときは形式を選ぶ（決定事項 #119）：「自分のデッキ」か「ドラフト（公式カード）」。ドラフトの部屋はデッキを選ばない
  * （入る人も、ドラフトの部屋ならデッキは使われない）。リーダーと対戦のルールはどちらの形式でも選べる
+ * フレンド機能（決定事項 #123）：上に「対戦」「フレンド」のタブ。対戦のタブは「募集中の部屋」（公開の部屋の一覧。1タップで入る）→
+ * 部屋を作る（公開／合言葉）・コードで入る。開いたときにこの端末のプレイヤーを自動で作る（ログイン・パスワードなし）。
+ * 見出しの右にプロフィール（名前・フレンドコード・招待リンク・引き継ぎコード）
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BALANCE, type LeaderId, type PlanarMode } from '../../engine/index.ts';
 import { LeaderField, RulesFields } from '../battle/MatchOptionsForm.tsx';
 import { rulesSummary, toRules } from '../battle/matchOptions.ts';
@@ -16,18 +19,101 @@ import { CODE_LENGTH, NAME_MAX_LENGTH, normalizeCode } from '../../online/codes.
 import { DeckPicker } from '../battle/DeckPicker.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { pickChoice, useDeckChoices } from '../battle/deckChoices.ts';
-import { callServer, clearOnlineSession, loadOnlineName, loadOnlineSession, saveOnlineName, saveOnlineSession } from '../online/client.ts';
+import { clearOnlineSession, loadOnlineName, loadOnlineSession } from '../online/client.ts';
 import { navigate } from '../router.ts';
 import { OFFICIAL_SET } from '../../official/index.ts';
 import { DRAFT_FEATURE, type RoomMode } from '../../online/protocol.ts';
+import type { ListedRoomView } from '../../online/social/protocol.ts';
+import { confirmLeaveRoom, enterRoom, goToRoom, loadOnlineDeckKey, saveOnlineDeckKey } from '../social/enterRoom.ts';
+import { FriendsTab } from '../social/FriendsTab.tsx';
+import { JoinSheet } from '../social/JoinSheet.tsx';
+import { ProfileSheet } from '../social/ProfileSheet.tsx';
+import { PublicRooms } from '../social/PublicRooms.tsx';
+import { badgeCount } from '../social/socialLogic.ts';
+import { ensurePlayer, setPlayerName, useSocial } from '../social/socialStore.ts';
+import { MODE_LABEL } from '../social/useInviteAnswer.tsx';
 import '../draft/draft.css';
+import '../social/social.css';
 
-export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) {
+const LISTED_KEY = 'cardgame.v1.onlineListed';
+
+/** 前に選んだ「公開／合言葉」（見る人ごとの便利さだけ。既定は公開） */
+function loadListed(): boolean {
+  try {
+    return localStorage.getItem(LISTED_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+function saveListed(on: boolean): void {
+  try {
+    localStorage.setItem(LISTED_KEY, on ? '1' : '0');
+  } catch {
+    // 何もしない
+  }
+}
+
+export function OnlineLobbyPage({ code: initialCode, tab = 'battle' }: { code: string | null; tab?: 'battle' | 'friends' }) {
+  const social = useSocial();
+  const [profileOpen, setProfileOpen] = useState(false);
+  // この端末のプレイヤーを用意する（初めてなら作る。名前は前に使ったオンラインの名前）
+  useEffect(() => {
+    void ensurePlayer();
+  }, []);
+  const badge = badgeCount(social.snap);
+  const meName = social.snap?.me.name ?? social.identity?.name ?? '';
+  return (
+    <>
+      <div className="page-head lobby-head">
+        <h1>オンライン対戦</h1>
+        <button type="button" className="btn btn--small lobby-head__me" onClick={() => setProfileOpen(true)} aria-label={`プロフィール（${meName || 'プレイヤー'}）`}>
+          <UiIcon name="visored-helm" />
+          <span className="u-name">{meName || 'プレイヤー'}</span>
+        </button>
+      </div>
+      <div className="tabs lobby__top-tabs" role="tablist" aria-label="対戦かフレンドか">
+        <button type="button" role="tab" aria-selected={tab === 'battle'} className={cx('tab', tab === 'battle' && 'is-active')} onClick={() => navigate('/online')}>
+          <UiIcon name="crossed-swords" />
+          対戦
+        </button>
+        <button type="button" role="tab" aria-selected={tab === 'friends'} className={cx('tab', tab === 'friends' && 'is-active')} onClick={() => navigate('/online/friends')}>
+          <UiIcon name="three-friends" />
+          フレンド
+          {badge > 0 && (
+            <span className="count-badge" aria-label={`新しいお知らせ ${badge}件`}>
+              {badge}
+            </span>
+          )}
+        </button>
+      </div>
+      {tab === 'friends' ? <FriendsTab onProfile={() => setProfileOpen(true)} /> : <BattleTab initialCode={initialCode} meName={meName} />}
+      {profileOpen && <ProfileSheet onClose={() => setProfileOpen(false)} />}
+    </>
+  );
+}
+
+function BattleTab({ initialCode, meName }: { initialCode: string | null; meName: string }) {
   const choices = useDeckChoices();
   const confirm = useConfirm();
   const [existing, setExisting] = useState(() => loadOnlineSession());
-  const [name, setName] = useState(() => loadOnlineName());
-  const [deckKey, setDeckKey] = useState('');
+  const [name, setName] = useState(() => meName || loadOnlineName());
+  const [deckKey, setDeckKeyState] = useState(() => loadOnlineDeckKey());
+  const setDeckKey = (k: string) => {
+    setDeckKeyState(k);
+    saveOnlineDeckKey(k);
+  };
+  /** 公開（募集中の部屋に出す）か合言葉か */
+  const [listed, setListedState] = useState(() => loadListed());
+  const setListed = (on: boolean) => {
+    setListedState(on);
+    saveListed(on);
+  };
+  const [joiningRoom, setJoiningRoom] = useState<ListedRoomView | null>(null);
+  const [busyCode, setBusyCode] = useState<string | null>(null);
+  // プロフィールで名前を変えたら、ここの名前もそろえる
+  useEffect(() => {
+    if (meName) setName(meName);
+  }, [meName]);
   const [code, setCode] = useState(initialCode ?? '');
   /** 下の主ボタンが「部屋を作る」か「入る」か（コード付きのリンクで来たら入る） */
   const [mode, setMode] = useState<'create' | 'join'>(initialCode ? 'join' : 'create');
@@ -44,6 +130,10 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
   const draftRoom = mode === 'create' && roomMode === 'draft';
   /** 部屋を作る：自分のデッキの部屋は使えるデッキが要る。入る：コードが要る（デッキはドラフトの部屋なら使われない） */
   const canEnter = mode === 'create' ? draftRoom || !!selected?.valid : code.trim() !== '';
+  /** 名前をプレイヤーの名前にもそろえる（変わっていれば） */
+  const syncName = () => {
+    if (name.trim() !== meName) void setPlayerName(name.trim());
+  };
   const enter = async (mode: 'create' | 'join') => {
     if (busy) return;
     if (mode === 'create' && !draftRoom && !selected?.valid) return;
@@ -52,39 +142,45 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
       setError(`部屋コードは${CODE_LENGTH}文字です`);
       return;
     }
-    if (
-      existing &&
-      !(await confirm({
-        title: '新しい部屋に移りますか？',
-        message: `いま参加している部屋（コード ${existing.code}）を抜けます。対戦中なら、その対戦には戻れなくなります。`,
-        okLabel: '移る',
-        danger: true,
-      }))
-    )
-      return;
+    if (!(await confirmLeaveRoom(confirm))) return;
     setBusy(true);
     setError(null);
-    saveOnlineName(name);
+    syncName();
     const deck = selected?.valid && !draftRoom ? { deck: selected.deck, cards: selected.cards } : {};
     const player = { name, ...deck, ...(leader !== 'none' ? { leader } : {}) };
     const rules = toRules(field, dayNight);
-    const res = await callServer(
-      mode === 'create' ? { op: 'create', ...player, ...(rules ? { rules } : {}), ...(draftRoom ? { mode: 'draft' as const } : {}) } : { op: 'join', code: joinCode!, ...player, features: [DRAFT_FEATURE] },
+    const res = await enterRoom(
+      mode === 'create'
+        ? { op: 'create', ...player, ...(rules ? { rules } : {}), ...(draftRoom ? { mode: 'draft' as const } : {}), listed }
+        : { op: 'join', code: joinCode!, ...player, features: [DRAFT_FEATURE] },
     );
     setBusy(false);
-    if (!res.ok || !res.token) {
-      setError(res.ok ? 'サーバーから合言葉が届きませんでした' : mode === 'join' && !selected?.valid ? `${res.error}（自分のデッキで戦う部屋です。使うデッキを選んでください）` : res.error);
+    if (!res.ok) {
+      setError(mode === 'join' && !selected?.valid ? `${res.error}（自分のデッキで戦う部屋です。使うデッキを選んでください）` : res.error);
       return;
     }
-    saveOnlineSession({ v: 1, code: res.code, token: res.token });
-    navigate('/online/play');
+    goToRoom();
+  };
+
+  /** 募集中の部屋に入る：ドラフトの部屋はそのまま、自分のデッキの部屋はデッキを選ぶシートを挟む */
+  const joinListed = async (r: ListedRoomView) => {
+    if (busyCode) return;
+    // 参加中の部屋を抜けてよいかは、シートを開く前に確かめる（シートの上に確認を重ねない）
+    if (!(await confirmLeaveRoom(confirm))) return;
+    if (r.mode === 'deck') {
+      setJoiningRoom(r);
+      return;
+    }
+    setBusyCode(r.code);
+    syncName();
+    const res = await enterRoom({ op: 'join', code: r.code, name, ...(leader !== 'none' ? { leader } : {}), features: [DRAFT_FEATURE] });
+    setBusyCode(null);
+    if (!res.ok) setError(res.error);
+    else goToRoom();
   };
 
   return (
     <>
-      <div className="page-head">
-        <h1>オンライン対戦</h1>
-      </div>
       {existing && (
         <div className="notice">
           参加中の部屋があります（コード {existing.code}）。
@@ -112,17 +208,27 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
           </span>
         </div>
       )}
+      <PublicRooms
+        myRoom={existing?.code ?? null}
+        busyCode={busyCode}
+        onJoin={(r) => void joinListed(r)}
+        onCreate={() => {
+          setMode('create');
+          setListed(true);
+          document.getElementById('lobby-entry')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }}
+      />
       <section className="panel lobby__you">
         <h2>あなた</h2>
         <div className="lobby__you-grid">
           <label className="field">
             <span>名前（{NAME_MAX_LENGTH}文字まで。空なら「プレイヤー」）</span>
-            <input type="text" className="u-name-input" value={name} maxLength={NAME_MAX_LENGTH} placeholder="プレイヤー" onChange={(e) => setName(e.target.value)} />
+            <input type="text" className="u-name-input" value={name} maxLength={NAME_MAX_LENGTH} placeholder="プレイヤー" onChange={(e) => setName(e.target.value)} onBlur={syncName} />
           </label>
           <LeaderField label="あなたのリーダー" title="あなたのリーダー" value={leader} onChange={(v) => setLeader(v === 'random' ? 'none' : v)} id="online-leader" />
         </div>
       </section>
-      <section className="panel lobby__entry">
+      <section className="panel lobby__entry" id="lobby-entry">
         <div className="tabs lobby__tabs" role="tablist" aria-label="部屋を作るか、コードで入るか">
           <button type="button" role="tab" id="lobby-tab-create" aria-controls="lobby-pane-create" aria-selected={mode === 'create'} className={cx('tab', mode === 'create' && 'is-active')} onClick={() => setMode('create')}>
             部屋を作る
@@ -147,7 +253,23 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
                 <small>公式カードの場から交互に取ってデッキを作り、そのまま戦う</small>
               </label>
             </div>
-            <p className="hint">{CODE_LENGTH}文字の部屋コードが出ます。相手に伝えてください。形式と対戦のルールは部屋を作る人が決めます。</p>
+            <div className="lobby__mode lobby__vis" role="radiogroup" aria-label="だれが入れるか">
+              <label className="dchoice">
+                <input type="radio" name="room-vis" checked={listed} onChange={() => setListed(true)} />
+                <UiIcon name="open-gate" />
+                <b>公開</b>
+                <small>だれでも入れる</small>
+              </label>
+              <label className="dchoice">
+                <input type="radio" name="room-vis" checked={!listed} onChange={() => setListed(false)} />
+                <UiIcon name="locked-door" />
+                <b>合言葉</b>
+                <small>コードを知る人だけ</small>
+              </label>
+            </div>
+            <p className="hint">
+              公開の部屋は「募集中の部屋」に出て、1タップで入ってもらえます。どちらも{CODE_LENGTH}文字の部屋コードでも入れます。フレンドとなら「フレンド」のタブの「招待」が手軽です。
+            </p>
             <details className="fold">
               <summary>
                 <span className="fold__title">対戦のルール</span>
@@ -216,7 +338,9 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
           <UiIcon name="world" />
           <span>
             {draftRoom ? <b>ドラフト（公式カード）</b> : <b className="u-name">{selected?.name || selected?.label || 'デッキ未選択'}</b>}
-            <small>{mode === 'create' ? rulesSummary(toRules(field, dayNight)) : code.trim() ? `コード ${code.trim()}` : 'コードを入れてください'}</small>
+            <small>
+              {mode === 'create' ? `${listed ? '公開' : '合言葉'}・${rulesSummary(toRules(field, dayNight))}` : code.trim() ? `コード ${code.trim()}` : 'コードを入れてください'}
+            </small>
           </span>
         </span>
         {mode === 'create' ? (
@@ -229,6 +353,33 @@ export function OnlineLobbyPage({ code: initialCode }: { code: string | null }) 
           </button>
         )}
       </div>
+      {joiningRoom && (
+        <JoinSheet
+          title={`${joiningRoom.hostName || 'プレイヤー'}さんの部屋に入る`}
+          mode={joiningRoom.mode}
+          info={
+            <p>
+              {MODE_LABEL[joiningRoom.mode]}・{rulesSummary(joiningRoom.rules)}・部屋コード {joiningRoom.code}
+            </p>
+          }
+          onJoin={async (c) => {
+            syncName();
+            const res = await enterRoom({
+              op: 'join',
+              code: joiningRoom.code,
+              name,
+              ...(c ? { deck: c.deck, cards: c.cards } : {}),
+              ...(leader !== 'none' ? { leader } : {}),
+              features: [DRAFT_FEATURE],
+            });
+            if (!res.ok) return res.error;
+            setJoiningRoom(null);
+            goToRoom();
+            return null;
+          }}
+          onClose={() => setJoiningRoom(null)}
+        />
+      )}
     </>
   );
 }

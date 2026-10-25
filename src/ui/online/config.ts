@@ -36,3 +36,13 @@ export const POLL_MS = 4000;
 export const DEADLINE_GRACE_MS = 800;
 /** 残り時間がこの秒数以下になったら目立たせる */
 export const WARN_SECONDS = 15;
+
+/** 公開しているアプリの場所（1ファイル版を file:// で開いているときの招待リンクの行き先。決定事項 #63） */
+export const PUBLIC_APP_URL = 'https://cardgame-swart.vercel.app/';
+
+/** 招待リンクなどに使う、このアプリの場所（ハッシュの前まで。手元の ?server= も残す） */
+export function appBaseUrl(): string {
+  const loc = globalThis.location;
+  if (!loc || (loc.protocol !== 'http:' && loc.protocol !== 'https:')) return PUBLIC_APP_URL;
+  return `${loc.origin}${loc.pathname}${loc.search}`;
+}

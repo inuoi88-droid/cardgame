@@ -15,6 +15,9 @@ import { navigate } from '../router.ts';
 import { actions, getState, useStore } from '../store.ts';
 import { todayStamp, uuid } from '../util.ts';
 import { OpponentHistory } from '../copy/OpponentHistory.tsx';
+import { shareBlock, shareDeckNow, unshareDeckNow } from '../social/sharing.ts';
+import { sharedDeckIds } from '../social/socialLogic.ts';
+import { useSocial } from '../social/socialStore.ts';
 
 export function DeckListPage() {
   const { cards, decks } = useStore();
@@ -22,6 +25,27 @@ export function DeckListPage() {
   const confirm = useConfirm();
   const cardsById = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
   const [importing, setImporting] = useState(false);
+  // フレンドに公開中のデッキ（決定事項 #123。サーバーの様子から）
+  const shared = sharedDeckIds(useSocial().snap);
+  const toggleShare = async (deck: Deck) => {
+    const name = deck.name || '（名前なし）';
+    if (shared.has(deck.id)) {
+      const e = await unshareDeckNow(deck.id);
+      toast(e ? { text: e, kind: 'ng' } : { text: `「${name}」のフレンドへの公開をやめました`, kind: 'info' });
+      return;
+    }
+    const block = shareBlock(deck, cards);
+    if (block) {
+      toast({ text: `「${name}」は公開できません：${block}`, kind: 'ng' });
+      return;
+    }
+    const e = await shareDeckNow(deck, cards);
+    toast(
+      e
+        ? { text: e, kind: 'ng' }
+        : { text: `「${name}」をフレンドに公開しました。直して保存すると、公開中のものも新しくなります`, kind: 'ok', action: { label: 'フレンドへ', onClick: () => navigate('/online/friends') } },
+    );
+  };
   const [exporting, setExporting] = useState<{ bundle: ExportBundle; name: string } | null>(null);
   // 使えるデッキが先、要修正は最後（同じ中では保存の順）
   const rows = useMemo(() => {
@@ -32,11 +56,13 @@ export function DeckListPage() {
   const remove = async (deck: Deck) => {
     const ok = await confirm({
       title: `デッキ「${deck.name}」を削除しますか？`,
-      message: 'カードは消えません。削除したあと、しばらくの間は「元に戻す」で戻せます。',
+      message: `カードは消えません。削除したあと、しばらくの間は「元に戻す」で戻せます。${shared.has(deck.id) ? 'フレンドへの公開もやめます。' : ''}`,
       okLabel: '削除',
       danger: true,
     });
     if (!ok) return;
+    // 公開中なら公開もやめる（消したデッキがフレンドに見え続けないように）
+    if (shared.has(deck.id)) void unshareDeckNow(deck.id);
     const index = getState().decks.findIndex((d) => d.id === deck.id);
     actions.deleteDeck(deck.id);
     toast({ text: `デッキ「${deck.name}」を削除しました`, kind: 'info', action: { label: '元に戻す', onClick: () => actions.restoreDeck(deck, index) } });
@@ -92,6 +118,8 @@ export function DeckListPage() {
               onDuplicate={() => duplicate(deck)}
               onExport={() => setExporting({ bundle: exportDeck(deck, cardsById), name: deck.name })}
               onRemove={() => void remove(deck)}
+              shared={shared.has(deck.id)}
+              onShare={() => void toggleShare(deck)}
             />
           ))}
         </ul>

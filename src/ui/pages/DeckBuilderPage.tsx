@@ -33,6 +33,10 @@ import { useToast } from '../components/Toast.tsx';
 import { navigate } from '../router.ts';
 import { NEW_DRAFT, actions, deckDrafts, useStore } from '../store.ts';
 import { cx, uuid } from '../util.ts';
+import { shareDeckNow, unshareDeckNow } from '../social/sharing.ts';
+import { sharedDeckIds } from '../social/socialLogic.ts';
+import { useSocial } from '../social/socialStore.ts';
+import { UiIcon } from '../components/UiIcon.tsx';
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const emptyDeck = (id: string): Deck => ({ v: 1, id, name: '', entries: [] });
@@ -75,6 +79,10 @@ function Builder({ saved }: { saved: Deck | null }) {
     return d && !sameJson(d, saved) ? d : null;
   });
   const [deck, setDeck] = useState<Deck>(() => restored ?? saved ?? emptyDeck(uuid()));
+  const isShared = sharedDeckIds(useSocial().snap).has(deck.id);
+  /** 保存したときにフレンドに公開するか（公開中なら最初から入っている） */
+  const [shareChoice, setShareChoice] = useState<boolean | null>(null);
+  const share = shareChoice ?? isShared;
   const [draftNotice, setDraftNotice] = useState(restored !== null);
   const [tab, setTab] = useState<'pool' | 'deck'>('pool');
   const [prefs, setPrefs] = usePrefs(PREF_KEYS.deckPool);
@@ -183,9 +191,13 @@ function Builder({ saved }: { saved: Deck | null }) {
   const save = () => {
     if (!a.valid) return;
     const name = deck.name.trim();
-    actions.saveDeck({ ...deck, name });
+    const next = { ...deck, name };
+    actions.saveDeck(next);
     deckDrafts.clear(draftKey);
-    toast({ text: `デッキ「${name || '（名前なし）'}」を保存しました`, kind: 'ok' });
+    // フレンドへの公開（決定事項 #123）：入れたなら公開、外したならやめる。公開中のまま直したら SocialRuntime が送り直す
+    if (share && !isShared) void shareDeckNow(next, cards).then((e) => e && toast({ text: `フレンドに公開できませんでした：${e}`, kind: 'ng' }));
+    if (!share && isShared) void unshareDeckNow(next.id);
+    toast({ text: `デッキ「${name || '（名前なし）'}」を保存しました${share && !isShared ? '（フレンドに公開）' : ''}`, kind: 'ok' });
     navigate('/decks');
   };
 
@@ -215,6 +227,14 @@ function Builder({ saved }: { saved: Deck | null }) {
         <label className="field deck-summary__name">
           <span>デッキ名</span>
           <input type="text" className="u-name-input" value={deck.name} placeholder="例：毒デッキ" onChange={(e) => setDeck({ ...deck, name: e.target.value })} />
+        </label>
+        <label className="share-toggle">
+          <input type="checkbox" checked={share} onChange={(e) => setShareChoice(e.target.checked)} />
+          <UiIcon name="three-friends" />
+          <span>
+            フレンドに公開
+            <small>{isShared ? (share ? '公開中。保存すると公開中の中身も新しくなります' : '保存すると公開をやめます') : '保存すると、フレンドが見てコピーできます'}</small>
+          </span>
         </label>
         {/* PC は「枚数とレアリティ」「コスト分布」「要修正」の3列、スマホは縦に積む */}
         <div className="deck-summary__grid">

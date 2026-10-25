@@ -24,7 +24,11 @@ import { DeckCopySheet } from '../copy/DeckCopySheet.tsx';
 import { OppDeckButton } from '../copy/OppDeckButton.tsx';
 import { recordOpponent, resultFor } from '../copy/history.ts';
 import { opponentDeckOf } from '../copy/roomDeck.ts';
+import { FriendRequestButton } from '../social/FriendRequestButton.tsx';
+import { InviteToRoomSheet } from '../social/InviteFriendSheet.tsx';
+import { useSocial, useSocialBoost } from '../social/socialStore.ts';
 import '../draft/draft.css';
+import '../social/social.css';
 
 export function OnlineBattlePage() {
   const [session] = useState(() => loadOnlineSession());
@@ -77,6 +81,7 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
       deck: oppDeck.deck,
       cards: oppDeck.cards,
       result: resultFor(room.view?.result, room.seat),
+      ...(room.opponentFriendCode ? { friendCode: room.opponentFriendCode } : {}),
     });
     // 決着した対戦ごとに1回
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -170,12 +175,20 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
           <>
             {room.rematch && <RematchButton room={room} busy={r.busy} onRematch={r.rematch} />}
             {oppDeck && <OppDeckButton onClick={() => setOppOpen(true)} />}
+            <FriendRequestButton roomCode={room.code} friendCode={room.opponentFriendCode} name={oppName} />
             <button type="button" className={cx('btn', !room.rematch && 'btn--primary')} onClick={leave}>
               ロビーに戻る
             </button>
           </>
         }
-        endActions={oppDeck ? <OppDeckButton onClick={() => setOppOpen(true)} /> : undefined}
+        endActions={
+          oppDeck || room.opponentFriendCode ? (
+            <>
+              {oppDeck && <OppDeckButton onClick={() => setOppOpen(true)} />}
+              <FriendRequestButton roomCode={room.code} friendCode={room.opponentFriendCode} name={oppName} />
+            </>
+          ) : undefined
+        }
       />
       {decksOpen && room.draft && <DraftDecksSheet room={room} onClose={() => setDecksOpen(false)} />}
       {oppOpen && oppDeck && (
@@ -307,6 +320,11 @@ function WaitingRoom({ code, online, room }: { code: string; online: boolean; ro
   const leader = room.leaders?.[0] ?? 'none';
   const confirm = useConfirm();
   const [copied, setCopied] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const { snap } = useSocial();
+  // 招待の返事を早めに知る
+  useSocialBoost();
+  const invites = (snap?.sentInvites ?? []).filter((i) => i.roomCode === code);
   const copy = () => {
     void navigator.clipboard?.writeText(code).then(
       () => setCopied(true),
@@ -317,8 +335,18 @@ function WaitingRoom({ code, online, room }: { code: string; online: boolean; ro
     <section className="panel online-wait">
       <h1>相手を待っています…</h1>
       <p>
-        この部屋コードを相手に伝えてください。相手が「コードで入る」に入力すると
+        {room.listed ? (
+          <>
+            「募集中の部屋」に出ています。だれかが入ると
+          </>
+        ) : (
+          <>この部屋コードを相手に伝えてください。相手が「コードで入る」に入力すると</>
+        )}
         {room.mode === 'draft' ? 'ドラフトが始まります（公式カード。デッキは要りません）。' : '対戦が始まります。'}
+      </p>
+      <p className="online-wait__vis">
+        <UiIcon name={room.listed ? 'open-gate' : 'locked-door'} />
+        {room.listed ? '公開の部屋（コードでも入れます）' : '合言葉の部屋（一覧には出ません）'}
       </p>
       <div className="online-wait__code" aria-label="部屋コード">
         {code}
@@ -327,10 +355,28 @@ function WaitingRoom({ code, online, room }: { code: string; online: boolean; ro
         このルールで対戦：{rulesSummary(room.rules)}
         {leader !== 'none' && `・あなたのリーダー ${LEADERS[leader].name}`}
       </p>
+      {invites.length > 0 && (
+        <ul className="online-wait__invites" aria-live="polite">
+          {invites.map((i) => (
+            <li key={i.id} className={cx('wait-inv', `wait-inv--${i.status}`)}>
+              <UiIcon name="envelope" />
+              <span>
+                <span className="u-name">{i.to.name}</span>さん：{INVITE_STATUS[i.status]}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="btn-row">
         <button type="button" className="btn" onClick={copy}>
           {copied ? 'コピーしました' : 'コードをコピー'}
         </button>
+        {snap && (
+          <button type="button" className="btn" onClick={() => setInviteOpen(true)}>
+            <UiIcon name="envelope" />
+            フレンドを招待
+          </button>
+        )}
         <button
           type="button"
           className="btn"
@@ -342,9 +388,12 @@ function WaitingRoom({ code, online, room }: { code: string; online: boolean; ro
         </button>
       </div>
       {!online && <p className="text-ng">サーバーにつながりません（自動でつなぎ直します）</p>}
+      {inviteOpen && <InviteToRoomSheet roomCode={code} onClose={() => setInviteOpen(false)} />}
     </section>
   );
 }
+
+const INVITE_STATUS = { pending: '招待を送りました（返事待ち）', accepted: '参加します。まもなく入ってきます', declined: '今回は断られました', expired: '招待の期限が切れました' } as const;
 
 /** 見出しに出す：残り時間・相手の接続状態・時間切れの回数 */
 function OnlineStatus({ room, online, serverNow }: { room: RoomView; online: boolean; serverNow: () => number }) {

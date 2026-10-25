@@ -70,21 +70,31 @@ export interface DeckBoxProps {
   onDuplicate: () => void;
   onExport: () => void;
   onRemove: () => void;
+  /** フレンドに公開中か（決定事項 #123）。onShare が無ければメニューに出さない */
+  shared?: boolean;
+  onShare?: () => void;
 }
 
-export function DeckBox({ deck, a, cards, onOpen, onDuplicate, onExport, onRemove }: DeckBoxProps) {
+export function DeckBox({ deck, a, cards, onOpen, onDuplicate, onExport, onRemove, shared = false, onShare }: DeckBoxProps) {
   const s = useMemo(() => deckSummary(deck, cards), [deck, cards]);
   const name = deck.name || '（名前なし）';
   const note = a.valid ? (a.total === a.size ? '使えます' : `${a.total} / ${a.size}枚`) : `要修正 ${a.violations.length}件：${a.violations[0]?.message ?? ''}`;
   return (
     <li className={cx('dbox', !a.valid && 'is-ng')}>
-      <button type="button" className="dbox__open" onClick={onOpen} aria-label={`デッキ「${name}」を編集（${a.total} / ${a.size}枚${a.valid ? '' : `・要修正 ${a.violations.length}件`}）`} />
+      <button type="button" className="dbox__open" onClick={onOpen} aria-label={`デッキ「${name}」を編集（${a.total} / ${a.size}枚${a.valid ? '' : `・要修正 ${a.violations.length}件`}${shared ? '・フレンドに公開中' : ''}）`} />
       <DeckBoxFace s={s} name={name} count={a.total} note={note} ng={!a.valid} />
+      {shared && (
+        <span className="dbox__shared" title="フレンドに公開中（フレンドが見て、コピーできます）">
+          <UiIcon name="three-friends" />
+          公開中
+        </span>
+      )}
       <TileMenu
         label={`デッキ「${name}」の操作`}
         items={[
           { icon: 'files', label: '複製', onClick: onDuplicate },
           { icon: 'share', label: '書き出し', onClick: onExport },
+          ...(onShare ? [{ icon: 'three-friends' as const, label: shared ? 'フレンドへの公開をやめる' : 'フレンドに公開', onClick: onShare }] : []),
           { icon: 'trash-can', label: '削除', onClick: onRemove, danger: true },
         ]}
       />

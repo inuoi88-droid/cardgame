@@ -22,6 +22,7 @@ import { SocialRuntime } from './social/SocialRuntime.tsx';
 import { badgeCount } from './social/socialLogic.ts';
 import { useSocial } from './social/socialStore.ts';
 import { navigate, useRoute } from './router.ts';
+import { sceneForPage, setBaseBgmScene } from './sound/bgmScene.ts';
 import { useStore } from './store.ts';
 import { cx } from './util.ts';
 
@@ -58,6 +59,9 @@ export function App() {
           : route.page === 'rules' || route.page === 'credits'
             ? 'rules'
             : 'cards';
+
+  // BGM の場面（決定事項 #128）：画面から決まる土台。対戦・ドラフトの盤面はその中で上書きする
+  useEffect(() => setBaseBgmScene(sceneForPage(route.page)), [route.page]);
 
   // ルールページの節（#/rules/status など）を開いた状態で表示する
   useEffect(() => {

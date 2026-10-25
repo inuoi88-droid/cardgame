@@ -58,6 +58,21 @@
 
 ゲームの中では「クレジット」の画面（`#/credits`）にも素材と作者を載せています。
 
+## BGM
+
+BGM（7曲。`public/bgm/1/*.mp3`、決定事項 #128）は [OpenGameArt.org](https://opengameart.org/) の曲です。ライセンスはどれもページの License(s) 欄で確かめました。
+
+- 変更点（どの曲も）：頭と終わりの無音を削り、統合ラウドネス -18 LUFS 前後に音量をそろえ、MP3（112kbps）にしました。くり返す曲は前後に1秒の写しを付け、The Old Tower Inn は継ぎ目の段差をならしています。手順と元のファイルは `src/ui/sound/bgm.manifest.json` にあります。
+- **CC BY 3.0 の曲（表記が必要）**
+  - "Dark Descent" by Matthew Pablo（<http://www.matthewpablo.com>）— [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) — 出典：<https://opengameart.org/content/dark-descent> — 上の変更をしています（対戦）
+- CC0 1.0 の曲（表記は必須ではありませんが、出典を残します）
+  - [Medieval: The Old Tower Inn](https://opengameart.org/content/medieval-the-old-tower-inn)（RandomMind）：ロビー・メニュー（作者のループ用の版）
+  - [Medieval: Exploration](https://opengameart.org/content/medieval-exploration)（RandomMind）：カード・デッキ作り
+  - [Medieval: The Bard's Tale](https://opengameart.org/content/medieval-the-bards-tale)（RandomMind）：ドラフト（作者のループ用の版）
+  - [Medieval: Battle](https://opengameart.org/content/medieval-battle)（RandomMind）：対戦
+  - [Epic Boss Battle](https://opengameart.org/content/boss-battle-music)（Juhani Junkala／SubspaceAudio）：対戦（継ぎ目なしループの版）
+  - [The Final Battle](https://opengameart.org/content/the-final-battle)（skrjablin）：対戦
+
 ## 画面の記号
 
 メニュー・ボタン・帯の記号（`src/ui/icons/uiIcons.json` の約50個）も game-icons.net のアイコン（CC BY 3.0）を単色で使っています（`UiIcon`）。

@@ -2,9 +2,11 @@
  * クレジット（決定事項 #105）。カードの絵に使っている game-icons.net のアイコンは CC BY 3.0 なので、
  * 作者・出典・ライセンス・変更点（色）をここに書く。ナビの下の帯・ルールページ・アイコンの選択パネルからリンクする。
  * 効果音（決定事項 #127）はどれも CC0（表記は必須ではない）だが、素材の作者と出典を載せる（sound/credits.ts）。
+ * BGM（決定事項 #128）は CC0 が6曲・CC BY 3.0 が1曲（Dark Descent。作者・題名・ライセンス・出典・変更点の表記が要る）。
  */
 import { CardArt } from '../components/CardArt.tsx';
 import { ICON_SET_VERSION, ICON_TOTAL } from '../icons/generated/info.ts';
+import { BGM_SCENE_LABEL, BGM_SCENES, BGM_TRACKS, LICENSE_URL, type BgmScene } from '../sound/bgmCatalog.ts';
 import { SOUND_IDS } from '../sound/catalog.ts';
 import { SFX_CREDITS } from '../sound/credits.ts';
 
@@ -15,6 +17,14 @@ const SAMPLES: { icon: string; rarity: 'common' | 'rare' | 'epic' | 'legend'; ca
   { icon: 'gi:dragon-head', rarity: 'legend', cardType: 'monster' },
   { icon: 'gi:aura', rarity: 'epic', cardType: 'power' },
 ];
+
+/** 曲を流す場面（「対戦」など） */
+function scenesOf(id: string): string {
+  return (Object.keys(BGM_SCENES) as BgmScene[])
+    .filter((s) => BGM_SCENES[s].includes(id))
+    .map((s) => BGM_SCENE_LABEL[s])
+    .join('・');
+}
 
 export function CreditsPage() {
   return (
@@ -74,6 +84,29 @@ export function CreditsPage() {
                 {c.pack}
               </a>
               <span className="credits__by">（{c.author}）</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="panel credits__sec">
+        <h2>BGM</h2>
+        <p>
+          BGM（{BGM_TRACKS.length}曲）は OpenGameArt.org の曲です。どの曲も、頭と終わりの無音を削り、音量をそろえて MP3（112kbps）にしました（くり返す曲は継ぎ目をならしています）。
+          CC BY 3.0 の曲は、作者・題名・ライセンス・出典をここに表記しています。
+        </p>
+        <ul className="credits__sfx">
+          {BGM_TRACKS.map((t) => (
+            <li key={t.id}>
+              <a href={t.url} target="_blank" rel="noreferrer">
+                {t.title}
+              </a>
+              <span className="credits__by">
+                （{t.author}・
+                <a href={LICENSE_URL[t.license]} target="_blank" rel="noreferrer">
+                  {t.license}
+                </a>
+                ）{scenesOf(t.id)}
+              </span>
             </li>
           ))}
         </ul>

@@ -1,4 +1,12 @@
-/* 効果音の設定（決定事項 #127）：対戦のメニューとルールの画面 */
+/* 効果音と BGM の設定（決定事項 #127・#128）：対戦のメニューとルールの画面。2つの行のあいだに細い線 */
+.sound-settings {
+  display: grid;
+  gap: 12px;
+}
+.sound-settings > .sound-setting + .sound-setting {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
 .sound-setting {
   display: grid;
   gap: 4px 12px;

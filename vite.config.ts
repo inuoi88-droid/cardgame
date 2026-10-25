@@ -32,13 +32,16 @@ export default defineConfig(({ mode }) => ({
     mode === 'single'
       ? { rolldownOptions: { output: { codeSplitting: false } }, chunkSizeWarningLimit: 20_000, copyPublicDir: false, assetsInlineLimit: 100_000_000 }
       : { assetsInlineLimit: (file: string) => (file.endsWith('.mp3') ? false : undefined) },
-  // 1ファイル版はアイコンの形と効果音を fetch できない（file://）ので、HTML に埋め込んだデータから読む読み方に差し替える
+  // 1ファイル版はアイコンの形と効果音を fetch できない（file://）ので、HTML に埋め込んだデータから読む読み方に差し替える。
+  // BGM（public/bgm）は1ファイル版に入れず（copyPublicDir: false）、公開サイトの同じ場所から読む
   resolve:
     mode === 'single'
       ? {
           alias: [
             { find: './iconSource.ts', replacement: fileURLToPath(new URL('./src/ui/icons/iconSource.single.ts', import.meta.url)) },
             { find: './sfxSource.ts', replacement: fileURLToPath(new URL('./src/ui/sound/sfxSource.single.ts', import.meta.url)) },
+            // BGM（決定事項 #128）は埋め込まず、公開サイトから読む
+            { find: './bgmSource.ts', replacement: fileURLToPath(new URL('./src/ui/sound/bgmSource.single.ts', import.meta.url)) },
           ],
         }
       : undefined,

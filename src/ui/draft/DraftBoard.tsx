@@ -17,6 +17,7 @@ import { RarityGem } from '../components/cardParts.tsx';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { useMediaQuery } from '../components/dialogUtil.ts';
 import { useHeightVar } from '../collection/sticky.ts';
+import { useBgmScene } from '../sound/bgmScene.ts';
 import { sfx } from '../sound/index.ts';
 import { cx } from '../util.ts';
 import { EMPTY_TRACK, deckRows, lastPickText, rarityRoom, shortReason, takenDeck, takenTotal, trackField } from './draftUi.ts';
@@ -69,6 +70,8 @@ export function DraftBoard(props: DraftBoardProps) {
   // 狭いスマホでは銘板に相手の名前を出さない（名前は接続の札にある。手番が替わっても帯の高さを変えない）
   const narrow = useMediaQuery('(max-width: 480px)');
   useHeightVar('--topbar-h', '.topbar');
+  // BGM（決定事項 #128）：ドラフトの曲（オンラインの部屋の画面でも、取っている間とできたデッキを見ている間）
+  useBgmScene('draft');
   const [zoom, setZoom] = useState<Zoom | null>(null);
   const [tab, setTab] = useState<'me' | 'opp'>('me');
 

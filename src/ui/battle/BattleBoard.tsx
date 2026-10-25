@@ -23,6 +23,7 @@ import { iconText } from '../icons/ref.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { sfx } from '../sound/index.ts';
 import { SoundSettings } from '../sound/SoundSettings.tsx';
+import { useBgmScene } from '../sound/bgmScene.ts';
 import './battle.css';
 import { CardDetailBody, CardDetailSheet, NoiseDetailBody } from './CardDetail.tsx';
 import {
@@ -259,6 +260,9 @@ export function BattleBoard({
   useEffect(() => {
     if (resultSound) sfx(resultSound);
   }, [resultSound]);
+  // BGM（決定事項 #128）：対戦中は対戦の曲。決着の演出が終わって結果が出たら（勝ち・負けの音と一緒に）消す。もう一戦で次の曲。
+  // replay.playing は決着の直後に一瞬 false になるので、それを待つ resultReady で決める（消してまた流すのを防ぐ）
+  useBgmScene(resultReady ? null : 'battle');
 
   useEffect(() => {
     if (error) toast({ text: error, kind: 'ng' });

@@ -1,0 +1,248 @@
+{
+  "note": "BGM（決定事項 #128）。ユーザーが試聴ページで選んだ曲（2026-10-25）。どれも OpenGameArt.org のページの License(s) 欄で確かめた（CC0 1.0 が6曲、CC BY 3.0 が1曲＝Dark Descent。CC BY はクレジットの画面と docs/CREDITS.md に作者・題名・ライセンス・出典・変更点を表記）。",
+  "processing": [
+    "元のファイルを 44.1kHz・ステレオの浮動小数に展開",
+    "ループでない曲：-60 dBFS より小さい頭の無音と、-66 dBFS より小さい終わりの無音を削る（終わりは 0.3 秒残す）。頭と終わりに 5ms のフェード",
+    "ループ曲：作者のループ用の版を1周そのまま使う。The Old Tower Inn は継ぎ目で波形が跳ぶ（約 0.3）ので、ループの頭と終わりの 96 サンプル（約 2ms）を 0 へならす",
+    "音量：統合ラウドネス -18 LUFS にそろえる（真のピークが -1.5 dBTP を超える曲はそこまで。Exploration は -20.4 LUFS）",
+    "ループ曲は前後に1秒の「のりしろ」（ループの終わり1秒・始め1秒の写し）を付け、loop.start〜loop.end をくり返す（MP3 の頭の無音をブラウザが削っても削らなくても、継ぎ目の前後が同じ中身になる）。seamCheck は、ffmpeg で戻した音で継ぎ目の段差（step）とふだんの段差の 99 パーセンタイル（p99）を比べたもの（頭の無音 0・1105・2257 サンプルの3通り）",
+    "MP3 112kbps（libmp3lame・CBR・44.1kHz・ステレオ）。タグは付けない"
+  ],
+  "tracks": [
+    {
+      "id": "old-tower-inn",
+      "file": "public/bgm/1/old-tower-inn.mp3",
+      "scene": "lobby",
+      "picked": "bgm.lobby=A",
+      "page": "https://opengameart.org/content/medieval-the-old-tower-inn",
+      "author": "RandomMind",
+      "license": "CC0 1.0",
+      "sourceFile": "Loop_The_Old_Tower_Inn.wav",
+      "download": "https://opengameart.org/sites/default/files/Loop_The_Old_Tower_Inn.wav",
+      "kind": "loop",
+      "duration": 51.9514,
+      "bytes": 728181,
+      "loudness": {
+        "I": -18.5,
+        "TP": -3.5,
+        "sourceI": -17.4,
+        "sourceTP": -2.6,
+        "gainDb": -0.6
+      },
+      "loop": {
+        "startFrame": 44100,
+        "lengthFrames": 2202856,
+        "sampleRate": 44100,
+        "start": 1.0,
+        "end": 50.95138321995465
+      },
+      "seamCheck": {
+        "trimmed": {
+          "step": 0.0177,
+          "p99": 0.0442,
+          "sameDiff": 0.0622
+        },
+        "untrimmed+1105": {
+          "step": 0.0185,
+          "p99": 0.0454,
+          "sameDiff": 0.0125
+        },
+        "+2257": {
+          "step": 0.0069,
+          "p99": 0.0454,
+          "sameDiff": 0.0156
+        }
+      }
+    },
+    {
+      "id": "bards-tale",
+      "file": "public/bgm/1/bards-tale.mp3",
+      "scene": "draft",
+      "picked": "bgm.draft=A",
+      "page": "https://opengameart.org/content/medieval-the-bards-tale",
+      "author": "RandomMind",
+      "license": "CC0 1.0",
+      "sourceFile": "Loop_The_Bards_Tale.wav",
+      "download": "https://opengameart.org/sites/default/files/Loop_The_Bards_Tale.wav",
+      "kind": "loop",
+      "duration": 59.7299,
+      "bytes": 837164,
+      "loudness": {
+        "I": -18.5,
+        "TP": -6.5,
+        "sourceI": -12.0,
+        "sourceTP": -0.4,
+        "gainDb": -6.0
+      },
+      "loop": {
+        "startFrame": 44100,
+        "lengthFrames": 2545887,
+        "sampleRate": 44100,
+        "start": 1.0,
+        "end": 58.72986394557823
+      },
+      "seamCheck": {
+        "trimmed": {
+          "step": 0.0099,
+          "p99": 0.0215,
+          "sameDiff": 0.0155
+        },
+        "untrimmed+1105": {
+          "step": 0.0136,
+          "p99": 0.0215,
+          "sameDiff": 0.0139
+        },
+        "+2257": {
+          "step": 0.0066,
+          "p99": 0.0215,
+          "sameDiff": 0.0144
+        }
+      }
+    },
+    {
+      "id": "epic-boss-battle",
+      "file": "public/bgm/1/epic-boss-battle.mp3",
+      "scene": "battle",
+      "picked": "bgm.tense=A",
+      "page": "https://opengameart.org/content/boss-battle-music",
+      "author": "Juhani Junkala（SubspaceAudio）",
+      "license": "CC0 1.0",
+      "sourceFile": "Juhani Junkala - Epic Boss Battle [Seamlessly Looping].wav",
+      "download": "https://opengameart.org/sites/default/files/Juhani%20Junkala%20-%20Epic%20Boss%20Battle%20%5BSeamlessly%20Looping%5D.wav",
+      "kind": "loop",
+      "duration": 125.4286,
+      "bytes": 1756935,
+      "loudness": {
+        "I": -18.4,
+        "TP": -9.0,
+        "sourceI": -6.8,
+        "sourceTP": 0.3,
+        "gainDb": -11.2
+      },
+      "loop": {
+        "startFrame": 44100,
+        "lengthFrames": 5443201,
+        "sampleRate": 44100,
+        "start": 1.0,
+        "end": 124.42859410430839
+      },
+      "seamCheck": {
+        "trimmed": {
+          "step": 0.0664,
+          "p99": 0.0672,
+          "sameDiff": 0.0864
+        },
+        "untrimmed+1105": {
+          "step": 0.0038,
+          "p99": 0.0672,
+          "sameDiff": 0.0296
+        },
+        "+2257": {
+          "step": 0.0109,
+          "p99": 0.0672,
+          "sameDiff": 0.04
+        }
+      }
+    },
+    {
+      "id": "exploration",
+      "file": "public/bgm/1/exploration.mp3",
+      "scene": "deck",
+      "picked": "bgm.deck=B",
+      "page": "https://opengameart.org/content/medieval-exploration",
+      "author": "RandomMind",
+      "license": "CC0 1.0",
+      "sourceFile": "Exploration_0.mp3",
+      "download": "https://opengameart.org/sites/default/files/Exploration_0.mp3",
+      "kind": "once",
+      "duration": 234.913,
+      "bytes": 3289644,
+      "loudness": {
+        "I": -20.4,
+        "TP": -1.9,
+        "sourceI": -22.0,
+        "sourceTP": -3.6,
+        "gainDb": 2.1
+      },
+      "trimmedSeconds": {
+        "lead": 1.098,
+        "trail": 0.345
+      }
+    },
+    {
+      "id": "dark-descent",
+      "file": "public/bgm/1/dark-descent.mp3",
+      "scene": "battle",
+      "picked": "bgm.battle=D",
+      "page": "https://opengameart.org/content/dark-descent",
+      "author": "Matthew Pablo (http://www.matthewpablo.com)",
+      "license": "CC BY 3.0",
+      "sourceFile": "Dark Descent_0.mp3",
+      "download": "https://opengameart.org/sites/default/files/Dark%20Descent_0.mp3",
+      "kind": "once",
+      "duration": 79.7539,
+      "bytes": 1117667,
+      "loudness": {
+        "I": -18.4,
+        "TP": -7.1,
+        "sourceI": -9.4,
+        "sourceTP": 1.3,
+        "gainDb": -8.6
+      },
+      "trimmedSeconds": {
+        "lead": 0.009,
+        "trail": 3.568
+      }
+    },
+    {
+      "id": "medieval-battle",
+      "file": "public/bgm/1/medieval-battle.mp3",
+      "scene": "battle",
+      "picked": "メモ：対戦の C も採用",
+      "page": "https://opengameart.org/content/medieval-battle",
+      "author": "RandomMind",
+      "license": "CC0 1.0",
+      "sourceFile": "battle_8.mp3",
+      "download": "https://opengameart.org/sites/default/files/battle_8.mp3",
+      "kind": "once",
+      "duration": 74.5859,
+      "bytes": 1045255,
+      "loudness": {
+        "I": -18.4,
+        "TP": -4.8,
+        "sourceI": -13.5,
+        "sourceTP": -0.7,
+        "gainDb": -4.5
+      },
+      "trimmedSeconds": {
+        "lead": 0.013,
+        "trail": 4.317
+      }
+    },
+    {
+      "id": "final-battle",
+      "file": "public/bgm/1/final-battle.mp3",
+      "scene": "battle",
+      "picked": "メモ：ボス用に提示した曲も採用",
+      "page": "https://opengameart.org/content/the-final-battle",
+      "author": "skrjablin",
+      "license": "CC0 1.0",
+      "sourceFile": "the_final_battle.ogg",
+      "download": "https://opengameart.org/sites/default/files/the_final_battle.ogg",
+      "kind": "once",
+      "duration": 145.8213,
+      "bytes": 2042558,
+      "loudness": {
+        "I": -18.4,
+        "TP": -4.6,
+        "sourceI": -13.8,
+        "sourceTP": -0.1,
+        "gainDb": -4.2
+      },
+      "trimmedSeconds": {
+        "lead": 0.0,
+        "trail": 0.0
+      }
+    }
+  ]
+}

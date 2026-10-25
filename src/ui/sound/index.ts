@@ -10,12 +10,26 @@
  * - iPhone・iPad：navigator.audioSession.type を 'ambient' にする（対応している Safari 16.4 以降）。ほかのアプリの音楽を止めずに混ぜて鳴らし、
  *   消音スイッチ（マナーモード）がオンなら鳴らない（Web Audio のもともとの扱いと同じ）。'playback' にすると消音スイッチを無視して
  *   鳴り、聞いている音楽も止まるので使わない
- * - 画面が見えていない間は鳴らさない。Web Audio が無い・作れない端末では何もしない（エラーを出さない）
+ * - 画面が見えていない間は鳴らさない（AudioContext を止め、戻ったら動かし直す）。Web Audio が無い・作れない端末では何もしない（エラーを出さない）
+ * - BGM（決定事項 #128）：効果音とは別のオン・オフと音量（settings.ts の cardgame.v1.bgm）。同じ AudioContext に BGM の音量（musicOut）を
+ *   つなぎ、流す本体（music.ts）は BGM をオンにしてから読む。場面は bgmScene.ts（画面と、対戦・ドラフトの盤面が決める）
  */
 import { setCueHandler, type CueId, type CueOpts } from '../battle/fx/cues.ts';
 import type { SoundId } from './catalog.ts';
+import { getBgmScene, subscribeBgmScene } from './bgmScene.ts';
+import type { Music } from './music.ts';
 import type { Player, PlayOpts } from './player.ts';
-import { getSoundPref, reloadSoundPref, SOUND_PREF_KEY, subscribeSoundPref, volumeGain } from './settings.ts';
+import {
+  getMusicPref,
+  getSoundPref,
+  MUSIC_PREF_KEY,
+  reloadMusicPref,
+  reloadSoundPref,
+  SOUND_PREF_KEY,
+  subscribeMusicPref,
+  subscribeSoundPref,
+  volumeGain,
+} from './settings.ts';
 import { classifyUi, type UiTarget } from './uiClass.ts';
 
 export interface SfxOpts extends PlayOpts {
@@ -36,6 +50,9 @@ let ctx: AudioContext | null = null;
 let out: GainNode | null = null;
 let player: Player | null = null;
 let playerLoad: Promise<typeof import('./player.ts')> | null = null;
+let musicOut: GainNode | null = null;
+let music: Music | null = null;
+let musicLoad: Promise<typeof import('./music.ts')> | null = null;
 let unavailable = false;
 let resumeAt = -Infinity;
 let lastExplicit = -Infinity;
@@ -47,6 +64,9 @@ let installed = false;
 
 const now = () => performance.now();
 const isOn = () => getSoundPref().on && !unavailable;
+const musicOn = () => getMusicPref().on && !unavailable;
+/** 効果音か BGM のどちらかがオン（AudioContext が要る） */
+const audioWanted = () => (getSoundPref().on || getMusicPref().on) && !unavailable;
 
 function audioCtor(): typeof AudioContext | undefined {
   if (typeof window === 'undefined') return undefined;
@@ -95,9 +115,25 @@ function activeGesture(): boolean {
   return !ua || ua.isActive;
 }
 
+function loadMusic(): void {
+  musicLoad ??= import('./music.ts');
+  if (music || !ctx || !musicOut) return;
+  const c = ctx;
+  const o = musicOut;
+  void musicLoad
+    .then((m) => {
+      if (music || ctx !== c) return;
+      music = m.createMusic({ ctx: c, out: o });
+      if (musicOn()) music.setScene(getBgmScene());
+    })
+    .catch(() => {
+      musicLoad = null;
+    });
+}
+
 /** 操作（タップ・クリック・キー）の中で呼ぶ：AudioContext を作って動かす（iPhone の解錠） */
 function unlock(): void {
-  if (!isOn()) return;
+  if (!audioWanted()) return;
   if ((!ctx || ctx.state !== 'running') && !activeGesture()) {
     arm();
     return;
@@ -115,15 +151,19 @@ function unlock(): void {
       out = ctx.createGain();
       out.gain.value = volumeGain(getSoundPref().volume);
       out.connect(ctx.destination);
+      musicOut = ctx.createGain();
+      musicOut.gain.value = volumeGain(getMusicPref().volume);
+      musicOut.connect(ctx.destination);
       ctx.onstatechange = () => {
         if (ctx?.state === 'running') disarm();
-        else if (isOn() && ctx?.state !== 'closed') arm();
+        else if (audioWanted() && ctx?.state !== 'closed') arm();
       };
       created = true;
     } catch {
       unavailable = true;
       ctx = null;
       out = null;
+      musicOut = null;
       return;
     }
   }
@@ -143,7 +183,8 @@ function unlock(): void {
     }
   }
   if (running) disarm();
-  loadPlayer();
+  if (isOn()) loadPlayer();
+  if (musicOn()) loadMusic();
 }
 
 const GESTURES = ['pointerdown', 'pointerup', 'touchend', 'keydown', 'click'] as const;
@@ -227,26 +268,49 @@ function onClick(e: MouseEvent): void {
   }, 0);
 }
 
-function applyPref(): void {
+/** 効果音も BGM もオフなら、操作を待つのをやめて AudioContext を止める */
+function idleIfUnwanted(): void {
+  if (audioWanted()) return;
+  disarm();
+  if (ctx && ctx.state === 'running') void ctx.suspend().catch(() => undefined);
+}
+
+function setGain(node: GainNode | null, value: number): void {
+  if (!node || !ctx) return;
+  try {
+    node.gain.setTargetAtTime(value, ctx.currentTime, 0.02);
+  } catch {
+    node.gain.value = value;
+  }
+}
+
+function applySoundPref(): void {
   const p = getSoundPref();
   if (!p.on) {
-    disarm();
     waiting = null;
     player?.hush();
-    if (ctx && ctx.state === 'running') void ctx.suspend().catch(() => undefined);
+    idleIfUnwanted();
     return;
   }
-  if (out && ctx) {
-    try {
-      out.gain.setTargetAtTime(volumeGain(p.volume), ctx.currentTime, 0.02);
-    } catch {
-      out.gain.value = volumeGain(p.volume);
-    }
-  }
+  setGain(out, volumeGain(p.volume));
   playerLoad ??= import('./player.ts');
   // オンにしたのが操作の中ならここで解錠できる。そうでなければ次の操作で
   unlock();
   if (!ctx || ctx.state !== 'running') arm();
+}
+
+function applyMusicPref(): void {
+  const p = getMusicPref();
+  if (!p.on) {
+    music?.stop();
+    idleIfUnwanted();
+    return;
+  }
+  setGain(musicOut, volumeGain(p.volume));
+  musicLoad ??= import('./music.ts');
+  unlock();
+  if (!ctx || ctx.state !== 'running') arm();
+  music?.setScene(getBgmScene());
 }
 
 /** main.tsx から1回 */
@@ -257,22 +321,28 @@ export function initSound(): void {
   window.addEventListener('click', onClick, true);
   window.addEventListener('storage', (e) => {
     if (e.key === SOUND_PREF_KEY) reloadSoundPref();
+    else if (e.key === MUSIC_PREF_KEY) reloadMusicPref();
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       player?.hush();
+      // 見えていない間は止める（BGM は止まったところから続く）
+      if (ctx && ctx.state === 'running') void ctx.suspend().catch(() => undefined);
       return;
     }
     // 戻ってきたら動かし直す（iPhone は次の操作で）
-    if (ctx && ctx.state !== 'running' && isOn()) {
+    if (ctx && ctx.state !== 'running' && audioWanted()) {
       resumeAt = now();
       void ctx.resume().catch(() => undefined);
       arm();
     }
   });
-  subscribeSoundPref(applyPref);
-  if (getSoundPref().on) {
-    playerLoad ??= import('./player.ts');
-    arm();
-  }
+  subscribeSoundPref(applySoundPref);
+  subscribeMusicPref(applyMusicPref);
+  subscribeBgmScene(() => {
+    if (musicOn()) music?.setScene(getBgmScene());
+  });
+  if (getSoundPref().on) playerLoad ??= import('./player.ts');
+  if (getMusicPref().on) musicLoad ??= import('./music.ts');
+  if (audioWanted()) arm();
 }

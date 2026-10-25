@@ -7,7 +7,9 @@ import postgres from 'npm:postgres@3.4.5';
 import { handleBody } from './engine.js';
 import { makeFeedbackStore, makeRoomStore, makeSocialStore } from './sqlStore.ts';
 
-const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 4, idle_timeout: 20 });
+// DB はほかのアプリと共用で、同時接続は全体で 60 まで。関数は同時にいくつも動くので、1つが持つ接続は1本・使わなければ5秒で返す
+// （以前は4本を20秒持ち、アクセスが重なると「remaining connection slots are reserved」で失敗していた：決定事項 #129 の確認で見つけた）
+const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 1, idle_timeout: 5, max_lifetime: 60 * 5, connect_timeout: 10 });
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 
 /** Realtime に通知するための鍵（新しい秘密鍵があればそれ、なければ従来の service_role） */
@@ -62,6 +64,10 @@ async function clientKey(req: Request): Promise<string | undefined> {
   return hex(new Uint8Array(digest)).slice(0, 32);
 }
 
+/** 接続の枠が足りないときのエラー（Postgres の 53300・接続の上限） */
+const BUSY = /remaining connection slots|too many (clients|connections)|53300/i;
+const RETRIES = 2;
+
 const store = makeRoomStore(sql);
 const social = makeSocialStore(sql);
 const feedback = makeFeedbackStore(sql);
@@ -89,6 +95,21 @@ Deno.serve(async (req: Request) => {
       headers: { ...CORS, 'Content-Type': 'application/json' },
     });
   }
-  const { status, body } = await handleBody(await req.text(), deps, { clientKey: await clientKey(req) });
-  return new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' } });
+  const text = await req.text();
+  const ctx = { clientKey: await clientKey(req) };
+  // 接続の枠が空いていない（too many connections）ときは、少し待ってやり直す（2回まで）。
+  // 接続できなかった送信は DB に何も書いていないので、やり直しても二重にならない
+  for (let attempt = 0; ; attempt++) {
+    let busy = false;
+    const log = (message: string) => {
+      if (BUSY.test(message)) busy = true;
+      console.error(message);
+    };
+    const { status, body } = await handleBody(text, { ...deps, log }, ctx);
+    if (status === 500 && busy && attempt < RETRIES) {
+      await new Promise((r) => setTimeout(r, 200 * (attempt + 1) + randomInt(200)));
+      continue;
+    }
+    return new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' } });
+  }
 });

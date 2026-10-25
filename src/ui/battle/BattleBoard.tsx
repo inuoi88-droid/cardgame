@@ -7,7 +7,7 @@
  *   攻撃できるモンスターを相手へ。タップ（クリック）はどのカードでも詳細を開く。
  *   詳細の「使う」「攻撃する」からは、候補ボタンで対象を選ぶ（キーボード・ドラッグしにくいとき用）
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BALANCE, FIELDS, LEADERS, battle, describeEffect, getEffect, type CardDef } from '../../engine/index.ts';
 import { abilityGlossary, mechanicGlossary } from '../glossary.ts';
 import { CardView } from '../components/CardView.tsx';
@@ -41,10 +41,16 @@ import {
 import { DragLayer } from './DragLayer.tsx';
 import { resolveDrop, resolveModeDrop, parseSpot, targetKey, type DragSource } from './dragLogic.ts';
 import { keyOf } from './events.ts';
+import type { FxDirector, FxEnv } from './fx/director.ts';
+import { FxLayer } from './fx/FxLayer.tsx';
+import { buildRecap } from './fx/recap.ts';
+import { RecapButton, RecapLogButton, RecapPanel, RecapStrip, useRecapState } from './fx/Recap.tsx';
+import { fxPreload } from './fx/registry.ts';
+import { FX_LEVEL_LABEL, useFxLevel } from './fx/settings.ts';
 import { logNamesOf } from './logFormat.ts';
 import { EnergyGem, grownDef, HandCard, MatchBand, LogPanel, LogText, MonsterTile, PlayerPanel, PowersList, type ActivateButton } from './parts.tsx';
 import { useBattleDrag, type DropResult } from './useDrag.ts';
-import { useReplay } from './useReplay.ts';
+import { useOverlay, useReplay, type OverlayStore } from './useReplay.ts';
 
 type GameState = battle.GameState;
 type TargetRef = battle.TargetRef;
@@ -177,6 +183,8 @@ export function BattleBoard({
       b.siegeArt,
       ...Object.values(LEADERS).map((l) => l.art),
       ...Object.values(FIELDS).map((f) => f.art),
+      // 演出の形（決定事項 #126）：見えているカードの効果・キーワード・デメリット・能力と、知らせの形
+      ...fxPreload(Object.values(view.cards)).map((n) => `gi:${n}`),
     ]);
     // view.cards は手番ごとに作り直されるので、カードの数が変わったときだけ
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -199,7 +207,32 @@ export function BattleBoard({
   const skipEndConfirm = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const replay = useReplay(view, me, onReplayDone);
+  // 演出（決定事項 #126）：1枚の層と、その本体（FxDirector）。位置の手がかりは最新の view から
+  const fx = useFxLevel();
+  const fxRef = useRef<FxDirector | null>(null);
+  const viewRefForFx = useRef(view);
+  viewRefForFx.current = view;
+  const fxEnv = useRef<FxEnv>({ me, playerHp: view.players[me].maxHp, ownerOfKey: () => null });
+  fxEnv.current = {
+    me,
+    playerHp: view.players[me].maxHp,
+    ownerOfKey: (key) => {
+      const v = viewRefForFx.current;
+      const m = battle.findMonster(v, key);
+      if (m) return m.controller;
+      for (const p of [0, 1] as const) if ([...v.players[p].powers, ...(v.players[p].emblems ?? [])].some((pw) => pw.uid === key)) return p;
+      return null;
+    },
+  };
+  const replay = useReplay(view, me, onReplayDone, { fx: fxRef, level: fx.level });
+  // 盤面が描き直されたら（タイルが出た・消えた・状態が進んだ）、演出の層の位置の読み置きを捨てる
+  useLayoutEffect(() => {
+    fxRef.current?.invalidate();
+  }, [view, replay.hidden, replay.ghosts, phone]);
+  // 相手のターンのまとめ（決定事項 #126）：自分のターンになって演出が終わったら帯を出し、少しして畳む
+  const recap = useMemo(() => (view.phase === 'main' || view.phase === 'ended' ? buildRecap(view.log, view, me) : null), [view, me]);
+  const recapReady = !!recap && view.phase === 'main' && view.active === me && !replay.playing;
+  const recapUi = useRecapState(recap ? recap.turn : null, recapReady);
   const ended = view.phase === 'ended' && !!view.result;
   useEffect(() => {
     if (!ended || replay.playing) {
@@ -1037,7 +1070,6 @@ export function BattleBoard({
                     }
                   : undefined
               }
-              floats={replay.floats[m.uid]}
               flash={replay.flash[m.uid]}
               hidden={replay.hidden.has(m.uid)}
               dying={ghost && (replay.ghosts.get(m.uid)?.dying ?? false)}
@@ -1051,7 +1083,6 @@ export function BattleBoard({
     );
   };
 
-  const revealDef = replay.reveal ? view.cards[replay.reveal.cardId] : undefined;
   const oppRef: TargetRef = { kind: 'player', player: opp };
   const meRef: TargetRef = { kind: 'player', player: me };
   const dragSrc = drag.drag?.src;
@@ -1514,6 +1545,7 @@ export function BattleBoard({
         <MatchBand view={view} flash={replay.flash} />
         <div className="battle__status">{status}</div>
         <div className="battle__headbtns">
+          {recap && <RecapButton onOpen={recapUi.open} />}
           <button type="button" className="btn btn--small btn--ghost battle__logbtn" aria-label="ログ" onClick={() => setLogOpen(true)}>
             <UiIcon name="gi:scroll-unfurled" />
             <span className="battle__logtext">ログ</span>
@@ -1543,13 +1575,15 @@ export function BattleBoard({
           hasCrown={view.crown === opp}
           powerDef={(pw) => view.cards[pw.cardId]}
           powerFlash={replay.flash}
-          floats={replay.floats[keyOf(oppRef)]}
           flash={replay.flash[keyOf(oppRef)]}
           hpShown={replay.hp[opp]}
         />
       </div>
       <div className="battle__board battle__board--opp">{renderBoard(opp)}</div>
-      <div className="battle__board battle__board--me">{renderBoard(me)}</div>
+      <div className="battle__board battle__board--me">
+        {renderBoard(me)}
+        {recap && recapUi.mode === 'auto' && recapReady && <RecapStrip recap={recap} onOpen={recapUi.open} onClose={recapUi.close} />}
+      </div>
       <div className="battle__pp battle__pp--me">
         <PlayerPanel
           ps={mine}
@@ -1565,7 +1599,6 @@ export function BattleBoard({
           hasCrown={view.crown === me}
           powerDef={(pw) => view.cards[pw.cardId]}
           powerFlash={replay.flash}
-          floats={replay.floats[keyOf(meRef)]}
           flash={replay.flash[keyOf(meRef)]}
           hpShown={replay.hp[me]}
           powerActivate={(pw) => activateButtons(pw.uid)}
@@ -1582,7 +1615,7 @@ export function BattleBoard({
         />
       </div>
 
-      <div className={cx('battle__hand', !myTurn && 'is-dim')} data-drop="hand">
+      <div className={cx('battle__hand', !myTurn && 'is-dim')} data-drop="hand" data-fx="hand:me">
         <div className="hand__meta">
           <span>手札 {mine.hand.length}枚</span>
           {myTurn && <span className={cx('hand__usable', playableCount > 0 && 'is-some')}>使える：{playableCount}枚</span>}
@@ -1622,6 +1655,7 @@ export function BattleBoard({
 
       <aside className="battle__log" aria-label="ログ">
         <h2>ログ</h2>
+        {!phone && recap && <RecapLogButton onOpen={recapUi.open} />}
         {!phone && <LogPanel log={view.log} me={me} names={names} onCard={openCard} />}
       </aside>
 
@@ -1631,7 +1665,7 @@ export function BattleBoard({
             <UiIcon name="gi:scroll-unfurled" />
           </span>
           <span className="battle-bar__ticktext">
-            <LogText text={replay.ticker || lastLog?.text || ''} names={names} me={me} />
+            <ReplayTicker store={replay.overlay} fallback={lastLog?.text ?? ''} names={names} me={me} />
           </span>
         </button>
         {candidates.length > 0 && (
@@ -1682,22 +1716,10 @@ export function BattleBoard({
         </div>
       </div>
 
-      {/* 演出のオーバーレイ */}
-      {replay.banner && (
-        <div className={cx('fx-banner', `fx-banner--${replay.banner.tone}`, replay.banner.big && 'fx-banner--big')} aria-hidden="true">
-          {replay.banner.text}
-        </div>
-      )}
-      {replay.reveal && revealDef && (
-        <div className="fx-reveal" aria-hidden="true">
-          <div className="fx-reveal__card">
-            <CardView card={revealDef} />
-          </div>
-          <div className="fx-reveal__text">
-            {opponentLabel}が「{revealDef.name}」を使った
-          </div>
-        </div>
-      )}
+      {/* 演出のオーバーレイ（飾りは演出の層 FxLayer、見出しとカードの提示は React） */}
+      <FxLayer rootRef={rootRef} env={fxEnv} level={fx.level} directorRef={fxRef} />
+      <ReplayOverlays store={replay.overlay} cards={view.cards} opponentLabel={opponentLabel} fxRef={fxRef} />
+      {recap && recapUi.mode === 'open' && <RecapPanel recap={recap} onClose={recapUi.close} onCard={openCard} />}
       {hover && canHover && !sel && !drag.drag && !detail && <HoverPreview anchor={hover.el} def={hover.def} />}
       {drag.drag && (
         <DragLayer
@@ -1924,6 +1946,14 @@ export function BattleBoard({
       <ZoomModal def={zoom} onClose={() => setZoom(null)} />
       {phone && (
         <Sheet open={logOpen} title="ログ" onClose={() => setLogOpen(false)}>
+          {recap && (
+            <RecapLogButton
+              onOpen={() => {
+                setLogOpen(false);
+                recapUi.open();
+              }}
+            />
+          )}
           <LogPanel log={view.log} me={me} names={names} onCard={openCard} />
         </Sheet>
       )}
@@ -1941,6 +1971,20 @@ export function BattleBoard({
             ルールを見る
           </button>
           {menuItems}
+          {/* 演出（決定事項 #126）：標準／控えめ。端末の「動きを減らす」なら控えめに固定 */}
+          <div className="fx-setting" role="group" aria-label="演出">
+            <span>
+              <UiIcon name="gi:sparkles" /> 演出
+            </span>
+            <span className="fx-setting__seg" role="radiogroup" aria-label="演出">
+              {(['full', 'calm'] as const).map((l) => (
+                <button key={l} type="button" role="radio" aria-checked={fx.chosen === l} className={cx('chip', fx.chosen === l && 'is-active')} disabled={fx.reduce} onClick={() => fx.setLevel(l)}>
+                  {FX_LEVEL_LABEL[l]}
+                </button>
+              ))}
+            </span>
+            <span className="fx-setting__note">{fx.reduce ? '端末の「視差効果を減らす／動きを減らす」がオンなので、控えめで表示しています' : '控えめ：飛ぶ演出や粒を出さず、その場で短く光るだけ'}</span>
+          </div>
           <button type="button" className="btn btn--danger" disabled={view.phase === 'ended'} onClick={() => void concede()}>
             <UiIcon name="gi:flying-flag" />
             降参する
@@ -2026,4 +2070,52 @@ function HoverPreview({ anchor, def }: { anchor: HTMLElement; def: CardDef }) {
       <CardView card={def} />
     </div>
   );
+}
+
+/** 相手が使ったカードの提示。出たときに1回だけ、演出の層に動かしてもらう（飛んで来る → 照準 → 対象へ） */
+function RevealOverlay({ children, onMount }: { children: ReactNode; onMount: (el: HTMLElement) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const mounted = useRef(onMount);
+  mounted.current = onMount;
+  useLayoutEffect(() => {
+    if (ref.current) mounted.current(ref.current);
+  }, []);
+  return (
+    <div className="fx-reveal" aria-hidden="true" ref={ref}>
+      <div className="fx-reveal__fly">{children}</div>
+    </div>
+  );
+}
+
+/** 見出しとカードの提示（演出の1件ごとに変わる。盤面を描き直さないよう、ここだけが読む） */
+function ReplayOverlays({ store, cards, opponentLabel, fxRef }: { store: OverlayStore; cards: Record<string, CardDef>; opponentLabel: string; fxRef: { current: FxDirector | null } }) {
+  const { banner, reveal } = useOverlay(store);
+  const def = reveal ? cards[reveal.cardId] : undefined;
+  return (
+    <>
+      {banner && (
+        <div className={cx('fx-banner', `fx-banner--${banner.tone}`, banner.big && 'fx-banner--big')} aria-hidden="true">
+          {banner.gi && <UiIcon name={`gi:${banner.gi}`} className="fx-banner__gi" />}
+          {banner.text}
+        </div>
+      )}
+      {reveal && def && (
+        <RevealOverlay key={reveal.id} onMount={(el) => fxRef.current?.revealCard(el, reveal.show, reveal.ms)}>
+          <div className="fx-reveal__card">
+            <CardView card={def} />
+          </div>
+          <div className="fx-reveal__text">
+            {opponentLabel}が「{def.name}」を使った
+            {reveal.show.abilityId && abilityGlossary[reveal.show.abilityId] ? `（${abilityGlossary[reveal.show.abilityId]!.name}）` : ''}
+          </div>
+        </RevealOverlay>
+      )}
+    </>
+  );
+}
+
+/** 操作バーの直近の出来事（演出中はその1件、終わったら最後のログ） */
+function ReplayTicker({ store, fallback, names, me }: { store: OverlayStore; fallback: string; names: ReturnType<typeof logNamesOf>; me: battle.PlayerId }) {
+  const { ticker } = useOverlay(store);
+  return <LogText text={ticker || fallback} names={names} me={me} />;
 }

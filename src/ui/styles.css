@@ -154,6 +154,26 @@
   --u-chamfer: 0 0 0 1px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(0, 0, 0, 0.45), inset 0 1px 0 1px rgba(255, 255, 255, 0.07);
   /* 彫った細い線（暗い 1px＋明るい 1px）：節の区切り */
   --u-groove: 0 1px 0 rgba(255, 255, 255, 0.05);
+  /* 対戦の演出（決定事項 #126）：属性の色は宝石と金属（トパーズ・ペリドット・アクアマリン・金・アメジスト・ルビー・サファイア・鉄銀）。-hi は芯の明るい色 */
+  --fx-fire: #ff9d4a;
+  --fx-fire-hi: #ffe2a8;
+  --fx-poison: #9be15d;
+  --fx-poison-hi: #e4ffbd;
+  --fx-ice: #7fe0ff;
+  --fx-ice-hi: #e8fbff;
+  --fx-holy: #ffd36e;
+  --fx-holy-hi: #fff6d8;
+  --fx-shadow: #b07cff;
+  --fx-shadow-hi: #ecdcff;
+  --fx-blood: #ff4d6a;
+  --fx-blood-hi: #ffc6cf;
+  --fx-arcane: #6fa8ff;
+  --fx-arcane-hi: #dce9ff;
+  --fx-physical: #d6dde8;
+  --fx-physical-hi: #ffffff;
+  /* 誰の行動か：自分はサファイア、相手は深紅 */
+  --fx-mine: #6fb0ff;
+  --fx-enemy: #ff5d78;
 }
 
 @media (prefers-reduced-motion: reduce) {

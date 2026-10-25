@@ -1,0 +1,314 @@
+/* 対戦の演出の層の中身（決定事項 #126）。FxLayer.tsx が影の DOM（shadow root）に入れる：
+   短命の要素を足し引きしても、ページ側の :has() などの選び直しが起きないように（重い相手のターンでもカクつかない）。
+   要素は director.ts が作って Web Animations で動かす（transform と opacity だけ）。ここは見た目（色・形）だけで、keyframes は置かない。
+   色は styles.css の --fx-* のトークン（影の DOM にも受け継がれる） */
+
+.fx-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+}
+.fx-n {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* 属性の色 */
+.fx-el--fire {
+  --c: var(--fx-fire);
+  --c2: var(--fx-fire-hi);
+}
+.fx-el--poison {
+  --c: var(--fx-poison);
+  --c2: var(--fx-poison-hi);
+}
+.fx-el--ice {
+  --c: var(--fx-ice);
+  --c2: var(--fx-ice-hi);
+}
+.fx-el--holy {
+  --c: var(--fx-holy);
+  --c2: var(--fx-holy-hi);
+}
+.fx-el--shadow {
+  --c: var(--fx-shadow);
+  --c2: var(--fx-shadow-hi);
+}
+.fx-el--blood {
+  --c: var(--fx-blood);
+  --c2: var(--fx-blood-hi);
+}
+.fx-el--arcane {
+  --c: var(--fx-arcane);
+  --c2: var(--fx-arcane-hi);
+}
+.fx-el--physical {
+  --c: var(--fx-physical);
+  --c2: var(--fx-physical-hi);
+}
+.fx-side--me {
+  --side: var(--fx-mine);
+}
+.fx-side--opp {
+  --side: var(--fx-enemy);
+}
+
+/* 着弾：輪・芯・火花 */
+.fx-ring {
+  border-radius: 50%;
+  border: 3px solid var(--c);
+  box-shadow:
+    0 0 10px var(--c),
+    inset 0 0 8px var(--c);
+}
+.fx-core {
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--c2) 0%, var(--c) 32%, transparent 68%);
+}
+.fx-spark,
+.fx-mote {
+  border-radius: 50%;
+  background: var(--c2);
+  box-shadow: 0 0 6px 1px var(--c);
+}
+
+/* 弾：右端が頭、左へ尾 */
+.fx-bolt__head {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, var(--c2) 30%, var(--c) 62%, transparent 72%);
+}
+.fx-bolt__tail {
+  position: absolute;
+  left: 0;
+  right: 6px;
+  top: 4px;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--c) 70%, transparent) 70%, var(--c2));
+}
+/* 全体の掃き */
+.fx-sweep {
+  border-radius: 45%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--c) 55%, transparent) 30%, var(--c2) 52%, color-mix(in srgb, var(--c) 55%, transparent) 72%, transparent);
+}
+
+/* 何の効果か：形のバッジ（鉄の円盤に属性の縁） */
+.fx-badge {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--c2);
+  background: radial-gradient(circle at 50% 35%, #2a3150, #0d1020 75%);
+  border: 1.5px solid var(--c);
+  box-shadow:
+    0 0 0 2px var(--side, transparent),
+    0 4px 10px rgba(0, 0, 0, 0.55);
+}
+.fx-badge svg {
+  width: 21px;
+  height: 21px;
+  fill: currentColor;
+}
+
+/* 浮かぶ文字（中心に寄せる中身） */
+.fx-f__in {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.6);
+  text-shadow:
+    0 2px 2px rgba(0, 0, 0, 0.75),
+    0 0 10px rgba(0, 0, 0, 0.55);
+}
+.fx-f__in svg {
+  width: 0.85em;
+  height: 0.85em;
+  fill: currentColor;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 24px;
+  paint-order: stroke;
+}
+.fx-f--damage .fx-f__in {
+  color: #ff7d6e;
+}
+.fx-f--retaliate .fx-f__in {
+  color: #9fd2ff;
+}
+.fx-f--poison .fx-f__in {
+  color: var(--fx-poison);
+}
+.fx-f--burn .fx-f__in {
+  color: var(--fx-fire);
+}
+.fx-f--heal .fx-f__in {
+  color: #5ce0a0;
+}
+.fx-f--shield .fx-f__in {
+  color: var(--fx-ice);
+  font-size: 18px;
+}
+.fx-f--energy .fx-f__in {
+  color: var(--fx-arcane-hi);
+  font-size: 18px;
+}
+/* 状態・強化の札（文字だけの小さな札。12px 以上・AA） */
+.fx-f--bad .fx-f__in,
+.fx-f--good .fx-f__in {
+  font-size: 14px;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  background: #8f1b31;
+  color: #fff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 3px 8px rgba(0, 0, 0, 0.5);
+}
+.fx-f--good .fx-f__in {
+  background: #13704a;
+}
+.fx-f--bad .fx-f__in svg,
+.fx-f--good .fx-f__in svg {
+  stroke: none;
+}
+
+/* 回復の光・守りの輪 */
+.fx-glow {
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--c2) 70%, transparent) 0%, color-mix(in srgb, var(--c) 35%, transparent) 45%, transparent 70%);
+}
+.fx-ward {
+  border-radius: 50%;
+  border: 2px solid var(--c);
+  background: radial-gradient(circle, transparent 52%, color-mix(in srgb, var(--c) 30%, transparent) 68%, transparent 71%);
+}
+.fx-pulse {
+  border-radius: 50%;
+  border: 2px solid var(--c2);
+  box-shadow: 0 0 8px var(--c);
+}
+
+/* 強化・弱体の山形 */
+.fx-chev svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--c2);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.fx-chev--down svg {
+  transform: rotate(180deg);
+}
+.fx-chev--up {
+  --c: #6fe0a0;
+  --c2: #d9ffe9;
+}
+.fx-chev--down {
+  --c: #ff6e86;
+  --c2: #ffd0d8;
+}
+
+/* 封じる鎖 */
+.fx-chain {
+  border-radius: 3px;
+  background: repeating-linear-gradient(90deg, var(--c2) 0 7px, var(--c) 7px 9px, transparent 9px 11px);
+  box-shadow: 0 0 6px var(--c);
+}
+
+/* 召喚の円陣 */
+.fx-rune {
+  border-radius: 50%;
+  border: 2px dashed var(--c);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 60%, transparent);
+}
+.fx-rune > i {
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  border: 1.5px solid var(--c2);
+}
+
+/* 破片 */
+.fx-shard {
+  background: linear-gradient(160deg, var(--c2), var(--c));
+  clip-path: polygon(50% 0, 100% 100%, 0 72%);
+}
+
+/* カード（裏・表） */
+.fx-cardback {
+  border-radius: 3px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(233, 196, 106, 0.55) 0 3px, transparent 4px),
+    linear-gradient(160deg, #2c3762, #141a33);
+  border: 1.5px solid #c9a24a;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6);
+}
+.fx-cardback--face {
+  background: linear-gradient(170deg, #efe3c6, #b9a77f);
+  border-color: #6b7180;
+}
+
+/* 照準と線（誰の行動かの色） */
+.fx-reticle {
+  color: var(--side);
+}
+.fx-reticle svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.fx-aimline {
+  transform-origin: 0 50%;
+  border-radius: 1px;
+  background: repeating-linear-gradient(90deg, var(--side) 0 8px, transparent 8px 13px);
+}
+
+/* 斬撃 */
+.fx-slash {
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent, var(--side), #fff 50%, var(--side), transparent);
+}
+
+/* あなたがダメージを受けた：下の縁 */
+.fx-vignette {
+  background: linear-gradient(0deg, rgba(224, 74, 99, 0.6), rgba(224, 74, 99, 0.18) 45%, transparent);
+}
+
+/* 盤面の色（フィールド・昼・夜） */
+.fx-tint--field {
+  background: radial-gradient(ellipse at 50% 50%, rgba(233, 196, 106, 0.24), transparent 72%);
+}
+.fx-tint--day {
+  background: radial-gradient(ellipse at 50% 0%, rgba(255, 217, 138, 0.26), transparent 72%);
+}
+.fx-tint--night {
+  background: radial-gradient(ellipse at 50% 0%, rgba(90, 110, 220, 0.3), transparent 72%);
+}
+

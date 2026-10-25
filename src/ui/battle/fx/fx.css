@@ -1,0 +1,181 @@
+/* 対戦の演出（決定事項 #126）のうち、ページ側に置くもの：演出の層の置き場・相手のターンのまとめ・演出の設定。
+   演出の層の中身（弾・輪・数字など）は layer.css（影の DOM） */
+
+.fx-host {
+  position: absolute;
+  inset: 0;
+  z-index: 33;
+  pointer-events: none;
+  contain: strict;
+}
+
+/* ------------------------------------------------------------ 相手のターンのまとめ */
+.recap-strip {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  z-index: 8;
+  transform: translateX(-50%);
+  max-width: calc(100% - 8px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  min-height: 44px;
+  border-radius: var(--u-r-lg, 10px);
+  background:
+    linear-gradient(180deg, #2a1622, #170c14) padding-box,
+    var(--u-rim-crimson) border-box;
+  border: 1px solid transparent;
+  box-shadow: var(--shadow-2);
+  color: var(--u-ink);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.recap-strip__title {
+  flex: none;
+  font-weight: bold;
+  font-size: var(--fs-xs);
+  color: #ffd0d8;
+}
+.recap-strip__chips {
+  display: flex;
+  gap: 4px;
+  overflow: hidden;
+  min-width: 0;
+}
+.recap-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 9em;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.07);
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recap-chip .gi,
+.recap-row .gi {
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+}
+.recap-chip--bad,
+.recap-row--bad .gi {
+  color: #ffb3bf;
+}
+.recap-chip--good,
+.recap-row--good .gi {
+  color: #8fe8bd;
+}
+.recap-strip__close {
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  margin: -4px -6px -4px -4px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+}
+.recap-panel {
+  position: absolute;
+  left: 50%;
+  top: 52px;
+  z-index: 40;
+  transform: translateX(-50%);
+  width: min(420px, calc(100% - 2 * var(--gutter)));
+  max-height: min(calc(100% - 180px), 420px);
+  overflow-y: auto;
+  padding: 8px 10px 10px;
+  border-radius: var(--u-r-lg, 10px);
+  background:
+    linear-gradient(180deg, #2a1622, #140b12) padding-box,
+    var(--u-rim-crimson) border-box;
+  border: 1px solid transparent;
+  box-shadow: var(--shadow-3);
+  color: var(--u-ink);
+}
+.recap-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-weight: bold;
+  font-size: var(--fs-sm);
+}
+.recap-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-size: var(--fs-sm);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.recap-row:first-of-type {
+  border-top: 0;
+}
+.recap-row__card {
+  color: var(--card-name, #ffd36e);
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: bold;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+.recap-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #3a1a28, #241320) padding-box,
+    var(--u-rim-crimson) border-box;
+  color: #ffd0d8;
+  font-size: var(--fs-xs);
+  font-weight: bold;
+}
+.recap-pill .gi {
+  width: 18px;
+  height: 18px;
+}
+.recap-logbtn {
+  margin: 0 0 8px;
+}
+
+/* 演出の設定（メニュー） */
+.fx-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.fx-setting__seg {
+  display: inline-flex;
+  gap: 4px;
+}
+.fx-setting__seg .chip {
+  min-height: var(--tap);
+  min-width: 72px;
+  justify-content: center;
+}
+.fx-setting__note {
+  width: 100%;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}

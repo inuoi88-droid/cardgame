@@ -8,7 +8,6 @@ import { glossary, keywordGlossary, mechanicGlossary, type GlossaryEntry } from 
 import { cx } from '../util.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { logGi, stripOptionIcons, tokenizeLog, type LogNames } from './logFormat.ts';
-import type { Float } from './useReplay.ts';
 import { monsterForecasts, summarizeCard } from './summary.ts';
 import { dayNightBand, fieldBand } from './matchOptions.ts';
 import { briefFace, briefLabel, HAND_BADGE_ICON, isTauntChip, overflowItems, tileChipOrder } from './compact.ts';
@@ -130,20 +129,6 @@ export function Chips({ chips, className }: { chips: Chip[]; className?: string 
   );
 }
 
-/** 浮かぶ数字（ダメージ・回復・状態異常） */
-export function Floats({ items }: { items: Float[] | undefined }) {
-  if (!items || items.length === 0) return null;
-  return (
-    <span className="fx-floats" aria-hidden="true">
-      {items.map((f, i) => (
-        <span key={f.id} className={`fx-float fx-float--${f.tone}`} style={{ '--i': i } as CSSProperties}>
-          {f.text}
-        </span>
-      ))}
-    </span>
-  );
-}
-
 // ---------------------------------------------------------------- プレイヤー
 
 interface PlayerPanelProps {
@@ -154,7 +139,6 @@ interface PlayerPanelProps {
   /** 対象として選ばれている（あなたのターン中、攻撃・効果の対象候補） */
   onClick: () => void;
   onPile: (pile: 'discard' | 'exile') => void;
-  floats?: Float[];
   flash?: string;
   /** 演出中の HP（なければ実際の値） */
   hpShown?: number;
@@ -251,9 +235,9 @@ export function ActivateBtn({ a, name, className }: { a: ActivateButton; name: s
 }
 
 /** HP：カードの体力の紋章と同じハート＋数（UI2）。max を渡すと「/最大」を小さく添える */
-export function HpHeart({ hp, max, className }: { hp: number; max?: number; className?: string }) {
+export function HpHeart({ hp, max, className, zone }: { hp: number; max?: number; className?: string; zone?: string }) {
   return (
-    <span className={cx('u-hp', className)}>
+    <span className={cx('u-hp', className)} data-fx-zone={zone}>
       <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
         <use href="#emb-hp" />
       </svg>
@@ -264,9 +248,9 @@ export function HpHeart({ hp, max, className }: { hp: number; max?: number; clas
 }
 
 /** エナジー：カードのコストと同じ六角の宝石（UI2。読み上げは呼び出し側の aria-label） */
-export function EnergyGem({ n, size, className }: { n: number; size?: 'lg' | 'btn' | 'sm'; className?: string }) {
+export function EnergyGem({ n, size, className, zone }: { n: number; size?: 'lg' | 'btn' | 'sm'; className?: string; zone?: string }) {
   return (
-    <span className={cx('cgem u-egem', size && `u-egem--${size}`, className)} aria-hidden="true">
+    <span className={cx('cgem u-egem', size && `u-egem--${size}`, className)} aria-hidden="true" data-fx-zone={zone}>
       <i>{n}</i>
     </span>
   );
@@ -290,7 +274,6 @@ export function PlayerPanel({
   targetable,
   onClick,
   onPile,
-  floats,
   flash,
   hpShown,
   roleLabel,
@@ -373,18 +356,18 @@ export function PlayerPanel({
         {targetable && <span className="pp__target">対象</span>}
         {/* CPU の名前の「（デッキ名）」は詳細で */}
         <b className="ppc__name">{ps.name.replace(/（[^（）]*）$/, '') || ps.name}</b>
-        <HpHeart hp={hp} className="ppc__hp" />
+        <HpHeart hp={hp} className="ppc__hp" zone="hp" />
         {ps.shield > 0 && (
           <span className="ppc__shield" aria-hidden="true">
             <ChipIcon gi={glossary.shield.gi!} />
             {ps.shield}
           </span>
         )}
-        <EnergyGem n={ps.energy} className="ppc__energy" />
-        <span className="ppc__cnt ppc__hand" aria-label={`手札${ps.hand.length}枚`}>
+        <EnergyGem n={ps.energy} className="ppc__energy" zone="energy" />
+        <span className="ppc__cnt ppc__hand" aria-label={`手札${ps.hand.length}枚`} data-fx-zone="hand">
           <CntFace gi="hand" n={ps.hand.length} />
         </span>
-        <span className="ppc__cnt ppc__deck" aria-label={`山札${ps.deck.length}枚`}>
+        <span className="ppc__cnt ppc__deck" aria-label={`山札${ps.deck.length}枚`} data-fx-zone="deck">
           <CntFace gi="stack" n={ps.deck.length} />
         </span>
         {isMe && (
@@ -395,6 +378,7 @@ export function PlayerPanel({
             aria-label={`捨て札${ps.discard.length}枚を見る${discardUsable > 0 ? `（捨て札から使えるカード${discardUsable}枚）` : ''}`}
             data-drop="pile"
             data-fx="pile"
+            data-fx-zone="discard"
           >
             <CntFace gi="card-discard" n={ps.discard.length} />
           </button>
@@ -416,13 +400,14 @@ export function PlayerPanel({
             <button
               type="button"
               className={cx('ppc__cnt ppc__cnt--btn ppc__powers', ps.powers.some((pw) => (powerActivate?.(pw) ?? []).some((a) => !a.blocked)) && 'is-usable', pwFlash)}
+              data-fx-zone="powers"
               onClick={(e) => (e.stopPropagation(), onPowers())}
               aria-label={`パワー${ps.powers.length}つ（${ps.powers.map((pw) => pw.name).join('・')}）を見る`}
             >
               <CntFace gi="magic-swirl" n={ps.powers.length} />
             </button>
           ) : (
-            <span className={cx('ppc__cnt ppc__powers', pwFlash)} aria-label={`パワー${ps.powers.length}つ`}>
+            <span className={cx('ppc__cnt ppc__powers', pwFlash)} aria-label={`パワー${ps.powers.length}つ`} data-fx-zone="powers">
               <CntFace gi="magic-swirl" n={ps.powers.length} />
             </span>
           ))}
@@ -445,7 +430,6 @@ export function PlayerPanel({
         <span className="ppc__bar" aria-hidden="true">
           <span className="hpbar__fill" style={{ width: `${pct}%` }} />
         </span>
-        <Floats items={floats} />
       </div>
     );
   }
@@ -479,12 +463,12 @@ export function PlayerPanel({
         )}
         {targetable && <span className="pp__target">対象</span>}
         <span className="pp__energy" role="img" aria-label={`エナジー${ps.energy}`}>
-          <EnergyGem n={ps.energy} size="lg" />
+          <EnergyGem n={ps.energy} size="lg" zone="energy" />
         </span>
       </div>
       <div className="pp__hp">
         <span className="pp__hpnum" role="img" aria-label={`HP${hp}／${ps.maxHp}`}>
-          <HpHeart hp={hp} max={ps.maxHp} />
+          <HpHeart hp={hp} max={ps.maxHp} zone="hp" />
         </span>
         <div className="hpbar" aria-hidden="true">
           <div className="hpbar__fill" style={{ width: `${pct}%` }} />
@@ -511,7 +495,7 @@ export function PlayerPanel({
           }}
           placement="top"
         >
-          <span className="pile" aria-label={`山札${ps.deck.length}枚`}>
+          <span className="pile" aria-label={`山札${ps.deck.length}枚`} data-fx-zone="deck">
             <CntFace gi="stack" n={ps.deck.length} />
             {(ps.fatigue ?? 0) > 0 && <span className="pile__usable pile__fatigue">疲労{ps.fatigue}</span>}
           </span>
@@ -523,6 +507,7 @@ export function PlayerPanel({
           aria-label={`捨て札${ps.discard.length}枚を見る${discardUsable > 0 ? `（捨て札から使えるカード${discardUsable}枚）` : ''}`}
           data-drop={isMe ? 'pile' : undefined}
           data-fx={isMe ? 'pile' : undefined}
+          data-fx-zone="discard"
         >
           <CntFace gi="card-discard" n={ps.discard.length} />
           {discardUsable > 0 && <span className="pile__usable">使える{discardUsable}</span>}
@@ -552,7 +537,7 @@ export function PlayerPanel({
         )}
         {!isMe && (
           <Popover content={{ title: `🂠 手札 ${ps.hand.length}枚`, description: '相手の手札の中身は見えない' }} placement="top">
-            <span className="pile" aria-label={`手札${ps.hand.length}枚`}>
+            <span className="pile" aria-label={`手札${ps.hand.length}枚`} data-fx-zone="hand">
               <CntFace gi="hand" n={ps.hand.length} />
             </span>
           </Popover>
@@ -570,7 +555,7 @@ export function PlayerPanel({
             }}
             placement="top"
           >
-            <span className="pp__next pp__powers">
+            <span className="pp__next pp__powers" data-fx-zone="powers">
               パワー {ps.powers.length}/{BALANCE.battle.maxPowers}
             </span>
           </Popover>
@@ -680,7 +665,6 @@ export function PlayerPanel({
           );
         })}
       </div>
-      <Floats items={floats} />
     </div>
   );
 }
@@ -861,7 +845,6 @@ interface MonsterTileProps {
   onDetail?: () => void;
   /** ドラッグの始まり（攻撃） */
   onPointerDown?: (e: PointerEvent<HTMLElement>) => void;
-  floats?: Float[];
   flash?: string;
   /** まだ出現の演出をしていない（見えない） */
   hidden?: boolean;
@@ -1118,7 +1101,6 @@ export function MonsterTile({
   onClick,
   onDetail,
   onPointerDown,
-  floats,
   flash,
   hidden,
   dying,
@@ -1230,7 +1212,6 @@ export function MonsterTile({
           ))}
         </span>
       )}
-      <Floats items={floats} />
     </div>
   );
 }

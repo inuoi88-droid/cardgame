@@ -152,7 +152,8 @@ describe('疲労（山札切れ）', () => {
     const n = g.log.length;
     g = endTurn(endTurn(g));
     const evs = buildEvents(g.log.slice(n), battle.viewFor(g, 0), 0, 0);
-    expect(evs.some((e) => e.show.t === 'notice' && e.show.text === '📭 疲労（5）')).toBe(true);
+    // 決定事項 #126：知らせの文に絵文字は使わない（形は gi）
+    expect(evs.some((e) => e.show.t === 'notice' && e.show.text === '疲労（5）' && e.show.gi !== undefined)).toBe(true);
     const floats = evs.flatMap((e) => (e.show.t === 'float' && e.show.key === 'p0' && e.show.tone === 'poison' ? [e.show.text] : []));
     expect(floats).toEqual(steps(1, 5).map((x) => `−${x}`));
   });

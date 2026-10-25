@@ -680,10 +680,11 @@ describe('演出（○ バッチC2）：速度・王冠・英雄譚・蓄積の�
     const shows = buildEvents(g.log.slice(from), g, 0, 1).map((e) => e.show);
     expect(shows).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ t: 'float', key: 'p0', text: '🏁速度1' }),
-        expect.objectContaining({ t: 'float', key: 'p0', text: '👑王冠' }),
-        expect.objectContaining({ t: 'notice', text: '📖 『小さな物語』 第1章' }),
-        expect.objectContaining({ t: 'float', key: 'p0', text: '🏁速度2' }),
+        // 決定事項 #126：浮かぶ文字・知らせに絵文字は使わない（形は gi）
+        expect.objectContaining({ t: 'float', key: 'p0', text: '速度1', gi: 'checkered-flag' }),
+        expect.objectContaining({ t: 'float', key: 'p0', text: '王冠', gi: 'crown' }),
+        expect.objectContaining({ t: 'notice', text: '『小さな物語』 第1章', gi: 'open-book' }),
+        expect.objectContaining({ t: 'float', key: 'p0', text: '速度2', gi: 'checkered-flag' }),
       ]),
     );
   });

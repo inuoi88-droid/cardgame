@@ -5,7 +5,7 @@
  * - 同時に生きている要素は MAX_NODES まで。超えそうなら粒（火花など）を省き、数字と輪だけ出す。
  * - 位置は [data-fx]（モンスター・パワー・プレイヤーの枠）と [data-fx-zone]（山札・手札・捨て札・エナジー）から、1回の出来事につき1回だけ読む。
  * - 控えめ（calm：アプリの設定・動きを減らす）は飛ぶもの・粒・揺れを出さず、その場で光って消えるだけ（opacity）。
- * - 合図（cues.ts の playCue）は演出ごとに1回。音はまだ付けない。
+ * - 合図（cues.ts の playCue）は演出ごとに1回。効果音（決定事項 #127）は sound/ が合図につなぐ。組・型・対象の数・遅れを添える。
  * React の状態（バナー・カードの提示・出現・消える途中のタイル・HP の追従）は useReplay.ts が持つ。ここは見た目の飾りだけ。
  */
 import { UI_ICON_PATHS } from '../../icons/generated/uiIcons.ts';
@@ -13,7 +13,7 @@ import { peekIconPath } from '../../icons/load.ts';
 import { isPathData } from '../../icons/ref.ts';
 import type { battle } from '../../../engine/index.ts';
 import type { BattleEvent, FxKey, Show } from '../events.ts';
-import { playCue, sizeOf, type CueId } from './cues.ts';
+import { hushCues, playCue, sizeOf, type CueId, type CueOpts } from './cues.ts';
 import { ARCH_GI, type FxArch, type FxElement } from './registry.ts';
 import { TRAVEL_MS, travels, type FxLevel } from './timeline.ts';
 
@@ -76,6 +76,8 @@ export class FxDirector {
    */
   private rects = new Map<HTMLElement, Box | null>();
   private rectsAt = 0;
+  /** いま演じている出来事の組（合図に添える） */
+  private group: number | undefined;
 
   constructor(
     private root: HTMLElement,
@@ -92,6 +94,7 @@ export class FxDirector {
     this.recent.clear();
     this.impacts = [];
     this.cardAt = {};
+    hushCues();
   }
 
   /** 粒を出してよいか（直近 200ms の着弾が2つまで） */
@@ -227,8 +230,8 @@ export class FxDirector {
     this.anims.add(a);
     a.onfinish = a.oncancel = () => this.anims.delete(a);
   }
-  private cue(cue: CueId, mine: boolean, magnitude?: number): void {
-    playCue(cue, { mine, ...(magnitude !== undefined ? { magnitude } : {}) });
+  private cue(cue: CueId, mine: boolean, magnitude?: number, extra: Omit<CueOpts, 'mine' | 'magnitude'> = {}): void {
+    playCue(cue, { mine, ...(magnitude !== undefined ? { magnitude } : {}), ...(this.group !== undefined ? { group: this.group } : {}), ...extra });
   }
 
   // ------------------------------------------------------------ 部品
@@ -485,7 +488,7 @@ export class FxDirector {
       const at = (s: number) => `translate(${from.x.toFixed(1)}px, ${from.y.toFixed(1)}px) rotate(${ang.toFixed(1)}deg) scaleX(${s})`;
       this.run(line, [{ transform: at(0), opacity: 0.9 }, { transform: at(1), opacity: 0.9, offset: 0.35 }, { transform: at(1), opacity: 0.75, offset: 0.8 }, { transform: at(1), opacity: 0 }], { duration: hold, delay });
     });
-    if (targets.length > 0) this.cue('target.lock', side === 'me');
+    if (targets.length > 0) this.cue('target.lock', side === 'me', undefined, delay > 0 ? { delay } : {});
   }
 
   /** 自分の側の縁が赤く光る（あなたがダメージを受けた） */
@@ -501,7 +504,9 @@ export class FxDirector {
   /** 1件の出来事の演出（useReplay の step から） */
   play(e: BattleEvent): void {
     const me = this.env().me;
+    this.group = e.group;
     this.show(e.show, e.player === me, me, e);
+    this.group = undefined;
   }
 
   private show(s: Show, mine: boolean, me: PlayerId, e: BattleEvent): void {
@@ -629,7 +634,7 @@ export class FxDirector {
     const targets = s.targets.map((k) => ({ k, b: this.box(k) })).filter((x): x is { k: FxKey; b: Box } => x.b !== null && x.k !== s.src);
     if (src) this.badge(src, s.gi, s.arch, s.el, side);
     else if (targets[0]) this.badge(targets[0].b, s.gi, s.arch, s.el, side);
-    this.cue(`cast.${s.el}`, mine);
+    this.cue(`cast.${s.el}`, mine, undefined, { arch: s.arch, count: targets.length });
     if (!travels(e) || !src) {
       // 飛ばない型：出どころか対象でその場の飾り（召喚・その他）
       if (s.arch === 'summon' && src && targets.length === 0) this.archAt(src, 'summon', s.el);
@@ -665,20 +670,29 @@ export class FxDirector {
         if (s.tone === 'retaliate') this.slash(at, mineKey || this.env().ownerOfKey(s.key) === me ? 'opp' : 'me', 0);
         this.burst(spot, el, size);
         this.shake(target, isPlayer ? 4 : 5);
-        if (mineKey) {
-          this.vignette();
-          this.cue('player.hit', false, amount / this.env().playerHp);
+        if (s.guard) {
+          // シールドが全部受け止めた（HP は減っていない）
+          this.cue('block', mineKey);
+        } else {
+          if (mineKey) {
+            this.vignette();
+            this.cue('player.hit', false, amount / this.env().playerHp);
+          }
+          this.cue(s.tone === 'retaliate' ? 'retaliate' : `hit.${el}.${size}`, !mineKey, amount / this.env().playerHp);
         }
-        this.cue(s.tone === 'retaliate' ? 'retaliate' : `hit.${el}.${size}`, !mineKey, amount / this.env().playerHp);
+      } else {
+        // 0 ダメージ（無効化などで防いだ）
+        this.cue('block', mineKey);
       }
     } else if (s.flash === 'heal') {
       const arch: FxArch = s.arch ?? (s.tone === 'shield' ? 'ward' : 'heal');
       this.archAt(spot, arch, el, s.blocked === true);
-      if (!s.blocked) this.cue(arch === 'ward' ? 'ward' : 'heal', true);
+      if (!s.blocked) this.cue(arch === 'ward' ? 'ward' : 'heal', true, undefined, { arch });
     } else {
       const arch = s.arch ?? (s.tone === 'good' ? 'buff' : 'debuff');
       this.archAt(at, arch, el);
-      this.cue(arch === 'buff' || arch === 'heal' || arch === 'ward' ? 'buff' : arch === 'bind' ? 'bind' : 'debuff', s.tone === 'good');
+      const variant = s.keyword === 'divineShield' ? 'divine' : s.keyword ? 'keyword' : undefined;
+      this.cue(arch === 'buff' || arch === 'heal' || arch === 'ward' ? 'buff' : arch === 'bind' ? 'bind' : 'debuff', s.tone === 'good', undefined, { arch, ...(variant ? { variant } : {}) });
     }
     this.floatText(spot, s.key, s.text, s.tone, s.gi);
   }
@@ -776,6 +790,6 @@ export class FxDirector {
     this.anims.add(back);
     back.onfinish = back.oncancel = () => this.anims.delete(back);
     this.aim(targets, side, center, inMs, hold + outMs);
-    if (!this.calm) this.cue('card.fly', side === 'me');
+    if (!this.calm) this.cue('card.fly', side === 'me', undefined, { delay: inMs + hold });
   }
 }

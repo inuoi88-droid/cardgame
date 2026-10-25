@@ -1,0 +1,2637 @@
+{
+ "title": "効果音（決定版）",
+ "generated": "2026-10-25",
+ "note": "ユーザーが聞いて選んだ音。ファイル名はキューの ID。まだ決まっていない場面：なし（第2弾で選び直し中）",
+ "license": "すべて CC0 1.0 の素材から作った。出典は CREDITS.md",
+ "processing": {
+  "script": "listen/build.mjs（node listen/build.mjs で candidates/・listen/audio/・final/ をまとめて作り直す）",
+  "format": "MP3 モノラル 44.1kHz（効果音 96kbps・結果のジングル 128kbps）",
+  "loudness": {
+   "ui": "短時間ラウドネス（100ms 窓・K 特性の近似）の最大 -22・ピーク -4 dBTP 以下・長さの上限 0.25秒（キューごとに上書きあり）",
+   "card": "短時間ラウドネス（100ms 窓・K 特性の近似）の最大 -19・ピーク -2 dBTP 以下・長さの上限 0.5秒（キューごとに上書きあり）",
+   "turn": "短時間ラウドネス（100ms 窓・K 特性の近似）の最大 -15・ピーク -1 dBTP 以下・長さの上限 1.2秒（キューごとに上書きあり）",
+   "hit": "短時間ラウドネス（100ms 窓・K 特性の近似）の最大 -13・ピーク -1 dBTP 以下・長さの上限 0.7秒（キューごとに上書きあり）",
+   "magic": "短時間ラウドネス（100ms 窓・K 特性の近似）の最大 -14・ピーク -1 dBTP 以下・長さの上限 1.2秒（キューごとに上書きあり）",
+   "effect": "短時間ラウドネス（100ms 窓・K 特性の近似）の最大 -16・ピーク -1 dBTP 以下・長さの上限 1秒（キューごとに上書きあり）",
+   "stinger": "統合 -14 LUFS・ピーク -1 dBTP 以下・長さの上限 3秒（キューごとに上書きあり）"
+  },
+  "measures": "k100＝100ms 窓の短時間ラウドネスの最大（LUFS 相当）、truePeak＝dBTP、balance＝全体の RMS に対する帯域ごとの dB（低 <200Hz・中 200–2500Hz・高 >5kHz）"
+ },
+ "fxCueMap": {
+  "source": "src/ui/battle/fx/cues.ts の CueId。2026-10-25 時点、別の担当が作業中なので変わることがある",
+  "rows": [
+   {
+    "fx": "turn.mine",
+    "cues": [
+     "turn.mine"
+    ]
+   },
+   {
+    "fx": "turn.enemy",
+    "cues": [
+     "turn.enemy"
+    ]
+   },
+   {
+    "fx": "card.reveal",
+    "cues": [
+     "card.play.enemy"
+    ]
+   },
+   {
+    "fx": "card.play",
+    "cues": [
+     "card.play"
+    ]
+   },
+   {
+    "fx": "card.fly",
+    "cues": [
+     "card.fly"
+    ]
+   },
+   {
+    "fx": "target.lock",
+    "cues": [
+     "target.lock"
+    ]
+   },
+   {
+    "fx": "cast.fire",
+    "cues": [
+     "spell.fire"
+    ]
+   },
+   {
+    "fx": "cast.poison",
+    "cues": [
+     "spell.poison"
+    ]
+   },
+   {
+    "fx": "cast.ice",
+    "cues": [
+     "spell.ice"
+    ]
+   },
+   {
+    "fx": "cast.holy",
+    "cues": [
+     "spell.holy"
+    ]
+   },
+   {
+    "fx": "cast.shadow",
+    "cues": [
+     "spell.dark"
+    ]
+   },
+   {
+    "fx": "cast.blood",
+    "cues": [
+     "spell.blood"
+    ]
+   },
+   {
+    "fx": "cast.arcane",
+    "cues": [
+     "spell.arcane"
+    ]
+   },
+   {
+    "fx": "cast.physical",
+    "cues": [
+     "attack.swing",
+     "spell.earth"
+    ],
+    "note": "属性なしの物理。攻撃の振りか、岩・地形なら大地"
+   },
+   {
+    "fx": "hit.<属性>.s",
+    "cues": [
+     "hit.small"
+    ],
+    "note": "大きさ s・m・l で3段。属性の色を足すなら spell.* を小さく重ねる"
+   },
+   {
+    "fx": "hit.<属性>.m",
+    "cues": [
+     "hit.medium"
+    ]
+   },
+   {
+    "fx": "hit.<属性>.l",
+    "cues": [
+     "hit.heavy"
+    ]
+   },
+   {
+    "fx": "heal",
+    "cues": [
+     "heal"
+    ]
+   },
+   {
+    "fx": "ward",
+    "cues": [
+     "shield.gain",
+     "spell.holy"
+    ],
+    "note": "シールド・守護は shield.gain、聖盾は spell.holy"
+   },
+   {
+    "fx": "ward.break",
+    "cues": [
+     "ward.break"
+    ]
+   },
+   {
+    "fx": "buff",
+    "cues": [
+     "buff",
+     "keyword.grant"
+    ],
+    "note": "キーワードを得たときは keyword.grant"
+   },
+   {
+    "fx": "debuff",
+    "cues": [
+     "debuff"
+    ]
+   },
+   {
+    "fx": "bind",
+    "cues": [
+     "bind"
+    ]
+   },
+   {
+    "fx": "summon",
+    "cues": [
+     "summon"
+    ]
+   },
+   {
+    "fx": "token",
+    "cues": [
+     "token.create"
+    ]
+   },
+   {
+    "fx": "destroy",
+    "cues": [
+     "destroy"
+    ]
+   },
+   {
+    "fx": "draw",
+    "cues": [
+     "card.draw"
+    ]
+   },
+   {
+    "fx": "discard",
+    "cues": [
+     "card.discard"
+    ]
+   },
+   {
+    "fx": "mill",
+    "cues": [
+     "card.mill"
+    ]
+   },
+   {
+    "fx": "energy",
+    "cues": [
+     "energy.gain"
+    ]
+   },
+   {
+    "fx": "field",
+    "cues": [
+     "field"
+    ]
+   },
+   {
+    "fx": "move",
+    "cues": [
+     "card.fly"
+    ],
+    "note": "手札・相手の場への移動"
+   },
+   {
+    "fx": "rune",
+    "cues": [
+     "status.apply"
+    ]
+   },
+   {
+    "fx": "attack",
+    "cues": [
+     "attack.swing"
+    ]
+   },
+   {
+    "fx": "retaliate",
+    "cues": [
+     "retaliate"
+    ]
+   },
+   {
+    "fx": "player.hit",
+    "cues": [
+     "hit.player"
+    ]
+   },
+   {
+    "fx": "notice",
+    "cues": [
+     "ui.confirm"
+    ],
+    "note": "中央の短い知らせ。目立たせたいなら invite.notify"
+   },
+   {
+    "fx": "recap",
+    "cues": [
+     "ui.tab"
+    ],
+    "note": "相手のターンのまとめ（本をめくる B が合う）"
+   }
+  ],
+  "outsideFx": [
+   "ui.click",
+   "ui.cancel",
+   "ui.error",
+   "ui.toggle",
+   "card.shuffle",
+   "card.hover",
+   "turn.end",
+   "shield.block",
+   "draft.pick",
+   "invite.notify",
+   "mulligan",
+   "victory",
+   "defeat",
+   "draw-game"
+  ]
+ },
+ "pending": [],
+ "totalBytes": 530050,
+ "cues": [
+  {
+   "id": "ui.click",
+   "ja": "ボタンを押す",
+   "desc": "ボタンや項目をタップしたとき。いちばんよく鳴る音",
+   "group": "ui",
+   "file": "ui.click.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "ui.click-C.mp3",
+   "kind": "加工",
+   "note": "金具の留め金を少し低くした音。鉄の卓らしい手応え",
+   "dur": 0.249,
+   "k100": -22.5,
+   "truePeak": -7.3,
+   "bytes": 3761,
+   "sources": [
+    {
+     "pack": "Kenney – RPG Audio",
+     "file": "metalLatch.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/rpg-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/rpg-audio/8e99002d76-1677590336/kenney_rpg-audio.zip"
+     ],
+     "ops": [
+      "ピッチ×0.850（-2.8半音・速さも変わる）",
+      "ローパス 6000Hz"
+     ]
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.25秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -22",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "ui.confirm",
+   "ja": "決定",
+   "desc": "確定・OK・保存",
+   "group": "ui",
+   "file": "ui.confirm.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "ui.confirm-B.mp3",
+   "kind": "合成",
+   "note": "クリックに宝石の小さなきらめきを重ねた案",
+   "dur": 0.253,
+   "k100": -25.6,
+   "truePeak": -5,
+   "bytes": 3761,
+   "sources": [
+    {
+     "pack": "Kenney – UI Audio",
+     "file": "click3.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/ui-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/ui-audio/490d233f68-1677590494/kenney_ui-audio.zip"
+     ],
+     "ops": []
+    },
+    {
+     "pack": "80 CC0 RPG SFX",
+     "file": "item_gem_01.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/80-cc0-rpg-sfx",
+     "download": [
+      "https://opengameart.org/sites/default/files/80-CC0-RPG-SFX_0.zip"
+     ],
+     "ops": [
+      "ピッチ×0.850（-2.8半音・速さも変わる）",
+      "-8dB",
+      "12ms 遅らせる"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "頭と尻の無音を切る（元の長さ 0.25秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -22（ピークの上限で 1.5dB 届かず）（リミッターでピークを -4.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "ui.cancel",
+   "ja": "キャンセル・戻る",
+   "desc": "閉じる・戻る・やめる",
+   "group": "ui",
+   "file": "ui.cancel.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "ui.cancel-B.mp3",
+   "kind": "加工",
+   "note": "本をパタンと閉じる音。ファンタジー寄り",
+   "dur": 0.208,
+   "k100": -22.4,
+   "truePeak": -5.9,
+   "bytes": 3134,
+   "sources": [
+    {
+     "pack": "Kenney – RPG Audio",
+     "file": "bookClose.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/rpg-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/rpg-audio/8e99002d76-1677590336/kenney_rpg-audio.zip"
+     ],
+     "ops": [
+      "ローパス 5000Hz"
+     ]
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.21秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -22",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "ui.error",
+   "ja": "操作できない",
+   "desc": "エナジー不足などで出せない・置けないとき",
+   "group": "ui",
+   "file": "ui.error.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "ui.error-B.mp3",
+   "kind": "素材",
+   "note": "カードゲーム Cockatrice 用に作られた低いエラー音",
+   "dur": 0.236,
+   "k100": -22.4,
+   "truePeak": -11.8,
+   "bytes": 3761,
+   "sources": [
+    {
+     "pack": "Card Game sounds (Cockatrice)",
+     "file": "error.wav",
+     "author": "HaelDB",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/card-game-sounds",
+     "download": [
+      "https://opengameart.org/sites/default/files/Cardsounds.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.24秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -22",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "ui.toggle",
+   "ja": "スイッチの切り替え",
+   "desc": "設定のオン・オフ（効果音のオンなど）",
+   "group": "ui",
+   "file": "ui.toggle.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "ui.toggle-B.mp3",
+   "kind": "素材",
+   "note": "実物のスイッチの録音（明るめ）",
+   "dur": 0.166,
+   "k100": -23.7,
+   "truePeak": -4.3,
+   "bytes": 2821,
+   "sources": [
+    {
+     "pack": "Kenney – UI Audio",
+     "file": "switch2.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/ui-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/ui-audio/490d233f68-1677590494/kenney_ui-audio.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.17秒）・25Hz 以下を切る（直流分）",
+    "尻に 33ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -22（リミッターでピークを -4.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "ui.tab",
+   "ja": "タブ・ページ切り替え",
+   "desc": "画面のタブや一覧の切り替え",
+   "group": "ui",
+   "file": "ui.tab.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "ui.tab-B.mp3",
+   "kind": "素材",
+   "note": "本のページをめくる音",
+   "dur": 0.202,
+   "k100": -24.3,
+   "truePeak": -4.8,
+   "bytes": 3134,
+   "sources": [
+    {
+     "pack": "Kenney – RPG Audio",
+     "file": "bookFlip3.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/rpg-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/rpg-audio/8e99002d76-1677590336/kenney_rpg-audio.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.20秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -22（リミッターでピークを -4.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "card.draw",
+   "ja": "カードを引く",
+   "desc": "山札から手札へ",
+   "group": "card",
+   "file": "card.draw.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "card.draw-B.mp3",
+   "kind": "素材",
+   "note": "Cockatrice のドロー音。短く軽い",
+   "dur": 0.171,
+   "k100": -20.3,
+   "truePeak": -2.9,
+   "bytes": 2821,
+   "sources": [
+    {
+     "pack": "Card Game sounds (Cockatrice)",
+     "file": "draw.wav",
+     "author": "HaelDB",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/card-game-sounds",
+     "download": [
+      "https://opengameart.org/sites/default/files/Cardsounds.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.17秒）・25Hz 以下を切る（直流分）",
+    "尻に 34ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -19（リミッターでピークを -2.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "card.shuffle",
+   "ja": "シャッフル",
+   "desc": "山札を切る（対戦の始めなど）",
+   "group": "card",
+   "file": "card.shuffle.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "card.shuffle-B.mp3",
+   "kind": "加工",
+   "note": "長いシャッフルの頭1秒",
+   "dur": 1,
+   "k100": -19.9,
+   "truePeak": -2.2,
+   "bytes": 12852,
+   "sources": [
+    {
+     "pack": "Kenney – Casino Audio",
+     "file": "card-shuffle.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/casino-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/casino-audio/2472606a04-1721639069/kenney_casino-audio.zip"
+     ],
+     "ops": [
+      "切り出し 0s〜+1.1s"
+     ]
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 1.10秒）・25Hz 以下を切る（直流分）",
+    "1秒で切ってフェードアウト 0.30秒",
+    "音量：短時間ラウドネス（100ms）最大 -19（リミッターでピークを -2.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "card.hover",
+   "ja": "カードを持ち上げる",
+   "desc": "手札に触れる・つまむ（ドラッグの始め）",
+   "group": "card",
+   "file": "card.hover.mp3",
+   "chosen": "第1弾の A",
+   "candidateFile": "card.hover-A.mp3",
+   "kind": "加工",
+   "note": "カードがこすれる音の頭だけ",
+   "dur": 0.22,
+   "k100": -21.9,
+   "truePeak": -2.9,
+   "bytes": 3448,
+   "sources": [
+    {
+     "pack": "Kenney – Casino Audio",
+     "file": "card-slide-5.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/casino-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/casino-audio/2472606a04-1721639069/kenney_casino-audio.zip"
+     ],
+     "ops": [
+      "切り出し 0s〜+0.22s"
+     ]
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.22秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -19（リミッターでピークを -2.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "card.play",
+   "ja": "カードを使う",
+   "desc": "自分がカードを場に出す。重い着地とかすかなきらめき",
+   "group": "card",
+   "file": "card.play.mp3",
+   "chosen": "第1弾の A",
+   "candidateFile": "card.play-A.mp3",
+   "kind": "合成",
+   "note": "叩きつけ＋低い胴鳴り＋かすかなきらめき（依頼の形そのまま）",
+   "dur": 0.6,
+   "k100": -19.4,
+   "truePeak": -4.2,
+   "bytes": 7836,
+   "sources": [
+    {
+     "pack": "Kenney – Casino Audio",
+     "file": "card-place-1.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/casino-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/casino-audio/2472606a04-1721639069/kenney_casino-audio.zip"
+     ],
+     "ops": []
+    },
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactSoft_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.800（-3.9半音・速さも変わる）",
+      "ローパス 400Hz",
+      "-5dB"
+     ]
+    },
+    {
+     "pack": "80 CC0 RPG SFX",
+     "file": "item_gem_04.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/80-cc0-rpg-sfx",
+     "download": [
+      "https://opengameart.org/sites/default/files/80-CC0-RPG-SFX_0.zip"
+     ],
+     "ops": [
+      "ハイパス 2500Hz",
+      "-17dB",
+      "40ms 遅らせる"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "頭と尻の無音を切る（元の長さ 0.69秒）・25Hz 以下を切る（直流分）",
+    "0.6秒で切ってフェードアウト 0.18秒",
+    "音量：短時間ラウドネス（100ms）最大 -19",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "card.play.enemy",
+   "ja": "相手がカードを使う",
+   "desc": "相手の手。自分のときと聞き分けられ、少し不穏",
+   "group": "card",
+   "file": "card.play.enemy.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "card.play.enemy-C.mp3",
+   "kind": "合成",
+   "note": "低くこもった金属の着地",
+   "dur": 0.7,
+   "k100": -19.8,
+   "truePeak": -2.7,
+   "bytes": 9090,
+   "sources": [
+    {
+     "pack": "Kenney – Casino Audio",
+     "file": "card-slide-6.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/casino-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/casino-audio/2472606a04-1721639069/kenney_casino-audio.zip"
+     ],
+     "ops": [
+      "左チャンネルだけ",
+      "ピッチ×0.900（-1.8半音・速さも変わる）"
+     ]
+    },
+    {
+     "pack": "Kenney – Sci-fi Sounds",
+     "file": "impactMetal_001.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/sci-fi-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/sci-fi-sounds/6b296f9ecf-1677589334/kenney_sci-fi-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.800（-3.9半音・速さも変わる）",
+      "-4dB"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "頭と尻の無音を切る（元の長さ 0.86秒）・25Hz 以下を切る（直流分）",
+    "0.7秒で切ってフェードアウト 0.21秒",
+    "音量：短時間ラウドネス（100ms）最大 -19（リミッターでピークを -2.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "card.discard",
+   "ja": "カードを捨てる",
+   "desc": "手札から捨て札へ",
+   "group": "card",
+   "file": "card.discard.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "card.discard-B.mp3",
+   "kind": "素材",
+   "note": "軽く払う短い音（Cockatrice の tap）",
+   "dur": 0.309,
+   "k100": -19.5,
+   "truePeak": -11,
+   "bytes": 4388,
+   "sources": [
+    {
+     "pack": "Card Game sounds (Cockatrice)",
+     "file": "tap.wav",
+     "author": "HaelDB",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/card-game-sounds",
+     "download": [
+      "https://opengameart.org/sites/default/files/Cardsounds.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.31秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -19",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "card.mill",
+   "ja": "山札から捨て札へ",
+   "desc": "切削など、山札の上が直接捨て札へ",
+   "group": "card",
+   "file": "card.mill.mp3",
+   "chosen": "第1弾の A",
+   "candidateFile": "card.mill-A.mp3",
+   "kind": "合成",
+   "note": "3枚が続けて滑り落ちる",
+   "dur": 0.6,
+   "k100": -19.3,
+   "truePeak": -3.1,
+   "bytes": 7836,
+   "sources": [
+    {
+     "pack": "Kenney – Casino Audio",
+     "file": "card-slide-1.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/casino-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/casino-audio/2472606a04-1721639069/kenney_casino-audio.zip"
+     ],
+     "ops": [
+      "ピッチ×0.920（-1.4半音・速さも変わる）"
+     ]
+    },
+    {
+     "pack": "Kenney – Casino Audio",
+     "file": "card-slide-4.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/casino-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/casino-audio/2472606a04-1721639069/kenney_casino-audio.zip"
+     ],
+     "ops": [
+      "-2dB",
+      "70ms 遅らせる"
+     ]
+    },
+    {
+     "pack": "Kenney – Casino Audio",
+     "file": "card-slide-7.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/casino-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/casino-audio/2472606a04-1721639069/kenney_casino-audio.zip"
+     ],
+     "ops": [
+      "ピッチ×0.900（-1.8半音・速さも変わる）",
+      "-3dB",
+      "140ms 遅らせる"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "頭と尻の無音を切る（元の長さ 0.78秒）・25Hz 以下を切る（直流分）",
+    "0.6秒で切ってフェードアウト 0.18秒",
+    "音量：短時間ラウドネス（100ms）最大 -19",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "card.fly",
+   "ja": "カードが飛ぶ",
+   "desc": "見せたカードが対象へ飛ぶ・モンスターが手札や相手の場へ移る",
+   "group": "card",
+   "file": "card.fly.mp3",
+   "chosen": "第1弾の A",
+   "candidateFile": "card.fly-A.mp3",
+   "kind": "素材",
+   "note": "軽い風切り",
+   "dur": 0.106,
+   "k100": -19.4,
+   "truePeak": -4.7,
+   "bytes": 2194,
+   "sources": [
+    {
+     "pack": "Swishes Sound Pack",
+     "file": "swish-1.wav",
+     "author": "artisticdude",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/swishes-sound-pack",
+     "download": [
+      "https://opengameart.org/sites/default/files/swishes.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.10秒）・25Hz 以下を切る（直流分）",
+    "尻に 21ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -19",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "turn.mine",
+   "ja": "自分のターン開始",
+   "desc": "明るく前向き。いちばん大事な合図",
+   "group": "turn",
+   "file": "turn.mine.mp3",
+   "chosen": "第1弾の A",
+   "candidateFile": "turn.mine-A.mp3",
+   "kind": "合成",
+   "note": "鐘が5度上がる＋柔らかい魔力のうねり",
+   "dur": 1.2,
+   "k100": -15.4,
+   "truePeak": -3.3,
+   "bytes": 15046,
+   "sources": [
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactBell_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.794（-4.0半音・速さも変わる）"
+     ]
+    },
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactBell_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×1.189（3.0半音・速さも変わる）",
+      "-2dB",
+      "110ms 遅らせる"
+     ]
+    },
+    {
+     "pack": "Kenney – Sci-fi Sounds",
+     "file": "forceField_002.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/sci-fi-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/sci-fi-sounds/6b296f9ecf-1677589334/kenney_sci-fi-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.800（-3.9半音・速さも変わる）",
+      "ローパス 1200Hz",
+      "-14dB"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "短い残響 aecho=0.8:0.55:45|80:0.28|0.18",
+    "頭と尻の無音を切る（元の長さ 1.84秒）・25Hz 以下を切る（直流分）",
+    "1.2秒で切ってフェードアウト 0.35秒",
+    "音量：短時間ラウドネス（100ms）最大 -15",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "turn.enemy",
+   "ja": "相手のターン開始",
+   "desc": "自分のターンより低く、落ち着いた合図",
+   "group": "turn",
+   "file": "turn.enemy.mp3",
+   "chosen": "第1弾の A",
+   "candidateFile": "turn.enemy-A.mp3",
+   "kind": "合成",
+   "note": "低い鐘＋地鳴り",
+   "dur": 1.2,
+   "k100": -15.4,
+   "truePeak": -6.5,
+   "bytes": 15046,
+   "sources": [
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactBell_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.530（-11.0半音・速さも変わる）"
+     ]
+    },
+    {
+     "pack": "Kenney – Sci-fi Sounds",
+     "file": "lowFrequency_explosion_001.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/sci-fi-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/sci-fi-sounds/6b296f9ecf-1677589334/kenney_sci-fi-sounds.zip"
+     ],
+     "ops": [
+      "切り出し 0s〜+0.9s",
+      "ローパス 150Hz",
+      "-12dB"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "短い残響 aecho=0.8:0.55:45|80:0.28|0.18",
+    "頭と尻の無音を切る（元の長さ 2.78秒）・25Hz 以下を切る（直流分）",
+    "1.2秒で切ってフェードアウト 0.35秒",
+    "音量：短時間ラウドネス（100ms）最大 -15",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "turn.end",
+   "ja": "ターン終了ボタン",
+   "desc": "金のターン終了ボタンを押したとき",
+   "group": "turn",
+   "file": "turn.end.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "turn.end-C.mp3",
+   "kind": "素材",
+   "note": "重い木の扉が閉まる「ドン」",
+   "dur": 0.5,
+   "k100": -15.4,
+   "truePeak": -2.9,
+   "bytes": 6896,
+   "sources": [
+    {
+     "pack": "Kenney – RPG Audio",
+     "file": "doorClose_4.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/rpg-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/rpg-audio/8e99002d76-1677590336/kenney_rpg-audio.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.60秒）・25Hz 以下を切る（直流分）",
+    "0.5秒で切ってフェードアウト 0.15秒",
+    "音量：短時間ラウドネス（100ms）最大 -15",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "energy.gain",
+   "ja": "エナジー回復",
+   "desc": "ターンの始めにエナジーが満ちる",
+   "group": "turn",
+   "file": "energy.gain.mp3",
+   "chosen": "第1弾の A",
+   "candidateFile": "energy.gain-A.mp3",
+   "kind": "素材",
+   "note": "宝石の澄んだ音",
+   "dur": 0.513,
+   "k100": -19.8,
+   "truePeak": -1.4,
+   "bytes": 6896,
+   "sources": [
+    {
+     "pack": "80 CC0 RPG SFX",
+     "file": "item_gem_04.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/80-cc0-rpg-sfx",
+     "download": [
+      "https://opengameart.org/sites/default/files/80-CC0-RPG-SFX_0.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.51秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -16（ピークの上限で 0.8dB 届かず）（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "field",
+   "ja": "フィールド・昼と夜が変わる",
+   "desc": "場のルールが入れ替わる。めったに鳴らない大きめの合図",
+   "group": "turn",
+   "file": "field.mp3",
+   "chosen": "第1弾の A",
+   "candidateFile": "field-A.mp3",
+   "kind": "合成",
+   "note": "魔力が満ちて低い銅鑼",
+   "dur": 1.2,
+   "k100": -14.4,
+   "truePeak": -8.1,
+   "bytes": 15046,
+   "sources": [
+    {
+     "pack": "Kenney – Sci-fi Sounds",
+     "file": "forceField_004.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/sci-fi-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/sci-fi-sounds/6b296f9ecf-1677589334/kenney_sci-fi-sounds.zip"
+     ],
+     "ops": [
+      "切り出し 0s〜+0.5s",
+      "逆再生",
+      "ローパス 2500Hz",
+      "フェードイン 0.3s",
+      "-4dB"
+     ]
+    },
+    {
+     "pack": "100 CC0 SFX",
+     "file": "gong_02.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/100-cc0-sfx",
+     "download": [
+      "https://opengameart.org/sites/default/files/100-CC0-SFX_0.zip"
+     ],
+     "ops": [
+      "ピッチ×0.800（-3.9半音・速さも変わる）",
+      "-2dB",
+      "450ms 遅らせる"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "短い残響 aecho=0.8:0.6:90|170:0.3|0.18",
+    "頭と尻の無音を切る（元の長さ 1.75秒）・25Hz 以下を切る（直流分）",
+    "1.2秒で切ってフェードアウト 0.35秒",
+    "音量：短時間ラウドネス（100ms）最大 -14",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "attack.swing",
+   "ja": "攻撃の振り",
+   "desc": "モンスターが攻撃に入る瞬間",
+   "group": "combat",
+   "file": "attack.swing.mp3",
+   "chosen": "第1弾の A",
+   "candidateFile": "attack.swing-A.mp3",
+   "kind": "素材",
+   "note": "重めの風切り",
+   "dur": 0.142,
+   "k100": -14,
+   "truePeak": -1.9,
+   "bytes": 2507,
+   "sources": [
+    {
+     "pack": "Swishes Sound Pack",
+     "file": "swish-9.wav",
+     "author": "artisticdude",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/swishes-sound-pack",
+     "download": [
+      "https://opengameart.org/sites/default/files/swishes.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.14秒）・25Hz 以下を切る（直流分）",
+    "尻に 28ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -13（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "hit.small",
+   "ja": "小ダメージ",
+   "desc": "少ないダメージが入った",
+   "group": "combat",
+   "file": "hit.small.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "hit.small-C.mp3",
+   "kind": "素材",
+   "note": "乾いた当たり（物が当たる実録）",
+   "dur": 0.49,
+   "k100": -15.4,
+   "truePeak": -2.2,
+   "bytes": 6582,
+   "sources": [
+    {
+     "pack": "75 CC0 breaking / falling / hit sfx",
+     "file": "bfh1_hit_01.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx",
+     "download": [
+      "https://opengameart.org/sites/default/files/sfx_breaking_and_falling.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.49秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -13（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "hit.medium",
+   "ja": "中ダメージ",
+   "desc": "ふつうのダメージ",
+   "group": "combat",
+   "file": "hit.medium.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "hit.medium-B.mp3",
+   "kind": "加工",
+   "note": "本物の武器どうしの打撃（メイス×剣、実録）",
+   "dur": 0.42,
+   "k100": -14.1,
+   "truePeak": -1.4,
+   "bytes": 5955,
+   "sources": [
+    {
+     "pack": "Medieval sound effects – Weapon impacts",
+     "file": "Mace Norse Sword Blade.wav",
+     "author": "MedicineStorm（Still North Media）",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/medieval-sound-effects-weapon-impacts",
+     "download": [
+      "https://opengameart.org/sites/default/files/medieval_sfx_weapon_on_weapon_1_of_2.7z",
+      "https://opengameart.org/sites/default/files/medieval_sfx_weapon_on_weapon_2_of_2.7z"
+     ],
+     "packNote": "192kHz/24bit の実録。Still North Media は CC0 と明記",
+     "ops": [
+      "切り出し 0.58s〜+0.5s"
+     ]
+    }
+   ],
+   "processing": [
+    "仕上げ acompressor=threshold=0.1:ratio=4:attack=0.3:release=60:makeup=1",
+    "頭と尻の無音を切る（元の長さ 0.42秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -13（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "hit.heavy",
+   "ja": "大ダメージ",
+   "desc": "大きなダメージ。いちばん重い",
+   "group": "combat",
+   "file": "hit.heavy.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "hit.heavy-B.mp3",
+   "kind": "合成",
+   "note": "重い金属＋砕けて爆ぜる",
+   "dur": 0.7,
+   "k100": -14.3,
+   "truePeak": -1.9,
+   "bytes": 9090,
+   "sources": [
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactMetal_heavy_001.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": []
+    },
+    {
+     "pack": "Kenney – Sci-fi Sounds",
+     "file": "explosionCrunch_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/sci-fi-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/sci-fi-sounds/6b296f9ecf-1677589334/kenney_sci-fi-sounds.zip"
+     ],
+     "ops": [
+      "ローパス 4000Hz",
+      "-8dB"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "頭と尻の無音を切る（元の長さ 0.76秒）・25Hz 以下を切る（直流分）",
+    "0.7秒で切ってフェードアウト 0.21秒",
+    "音量：短時間ラウドネス（100ms）最大 -13（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "hit.player",
+   "ja": "プレイヤーがダメージ",
+   "desc": "プレイヤー（HP のハート）に攻撃が通った",
+   "group": "combat",
+   "file": "hit.player.mp3",
+   "chosen": "第1弾の A",
+   "candidateFile": "hit.player-A.mp3",
+   "kind": "合成",
+   "note": "重い打撃＋ガラスのひび。ハートが削れる感じ",
+   "dur": 0.539,
+   "k100": -14,
+   "truePeak": -2,
+   "bytes": 7209,
+   "sources": [
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactPunch_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": []
+    },
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactGlass_heavy_001.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "-9dB",
+      "10ms 遅らせる"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "頭と尻の無音を切る（元の長さ 0.54秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -13（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "target.lock",
+   "ja": "対象に照準",
+   "desc": "効果や攻撃の対象が決まった（照準が付く）",
+   "group": "combat",
+   "file": "target.lock.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "target.lock-C.mp3",
+   "kind": "合成",
+   "note": "金具のカチッ＋宝石の光",
+   "dur": 0.35,
+   "k100": -24.3,
+   "truePeak": -4.6,
+   "bytes": 5015,
+   "sources": [
+    {
+     "pack": "Kenney – RPG Audio",
+     "file": "metalClick.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/rpg-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/rpg-audio/8e99002d76-1677590336/kenney_rpg-audio.zip"
+     ],
+     "ops": []
+    },
+    {
+     "pack": "80 CC0 RPG SFX",
+     "file": "item_gem_03.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/80-cc0-rpg-sfx",
+     "download": [
+      "https://opengameart.org/sites/default/files/80-CC0-RPG-SFX_0.zip"
+     ],
+     "ops": [
+      "ピッチ×1.200（3.2半音・速さも変わる）",
+      "-8dB",
+      "20ms 遅らせる"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "頭と尻の無音を切る（元の長さ 0.38秒）・25Hz 以下を切る（直流分）",
+    "0.35秒で切ってフェードアウト 0.10秒",
+    "音量：短時間ラウドネス（100ms）最大 -22（リミッターでピークを -4.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "retaliate",
+   "ja": "反撃",
+   "desc": "守備側が攻撃力を返す（攻撃と同時）",
+   "group": "combat",
+   "file": "retaliate.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "retaliate-C.mp3",
+   "kind": "加工",
+   "note": "刃と刃（実録を低めに）",
+   "dur": 0.381,
+   "k100": -14.3,
+   "truePeak": -1.5,
+   "bytes": 5329,
+   "sources": [
+    {
+     "pack": "Medieval sound effects – Weapon impacts",
+     "file": "Seax Norse Sword Blade on Blade.wav",
+     "author": "MedicineStorm（Still North Media）",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/medieval-sound-effects-weapon-impacts",
+     "download": [
+      "https://opengameart.org/sites/default/files/medieval_sfx_weapon_on_weapon_1_of_2.7z",
+      "https://opengameart.org/sites/default/files/medieval_sfx_weapon_on_weapon_2_of_2.7z"
+     ],
+     "packNote": "192kHz/24bit の実録。Still North Media は CC0 と明記",
+     "ops": [
+      "切り出し 1.37s〜+0.5s",
+      "ピッチ×0.850（-2.8半音・速さも変わる）"
+     ]
+    }
+   ],
+   "processing": [
+    "仕上げ acompressor=threshold=0.1:ratio=4:attack=0.3:release=60:makeup=1",
+    "頭と尻の無音を切る（元の長さ 0.38秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -13（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "shield.block",
+   "ja": "防御で軽減",
+   "desc": "シールドや守りでダメージを受け止めた",
+   "group": "combat",
+   "file": "shield.block.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "shield.block-C.mp3",
+   "kind": "加工",
+   "note": "メイスを剣で受け止める（実録）",
+   "dur": 0.27,
+   "k100": -15.4,
+   "truePeak": -1,
+   "bytes": 4075,
+   "sources": [
+    {
+     "pack": "Medieval sound effects – Weapon impacts",
+     "file": "Mace Norse Sword Blade.wav",
+     "author": "MedicineStorm（Still North Media）",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/medieval-sound-effects-weapon-impacts",
+     "download": [
+      "https://opengameart.org/sites/default/files/medieval_sfx_weapon_on_weapon_1_of_2.7z",
+      "https://opengameart.org/sites/default/files/medieval_sfx_weapon_on_weapon_2_of_2.7z"
+     ],
+     "packNote": "192kHz/24bit の実録。Still North Media は CC0 と明記",
+     "ops": [
+      "切り出し 5.31s〜+0.4s"
+     ]
+    }
+   ],
+   "processing": [
+    "仕上げ acompressor=threshold=0.1:ratio=4:attack=0.3:release=60:makeup=1",
+    "頭と尻の無音を切る（元の長さ 0.27秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -13（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "ward.break",
+   "ja": "守りが割れる",
+   "desc": "聖盾・加護がダメージを防いで割れた",
+   "group": "combat",
+   "file": "ward.break.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "ward.break-B.mp3",
+   "kind": "素材",
+   "note": "氷の板が割れる",
+   "dur": 0.492,
+   "k100": -15.8,
+   "truePeak": 0,
+   "bytes": 6582,
+   "sources": [
+    {
+     "pack": "Ice breaking/shattering",
+     "file": "LedasLuzta.ogg",
+     "author": "IgnasD",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/ice-breakingshattering",
+     "download": [
+      "https://opengameart.org/sites/default/files/IceShatters_0.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.49秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -13（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "destroy",
+   "ja": "モンスター破壊",
+   "desc": "モンスターが倒れて場を離れる。崩れる・砕ける",
+   "group": "combat",
+   "file": "destroy.mp3",
+   "chosen": "第2弾の A",
+   "candidateFile": "destroy-r2A.mp3",
+   "kind": "合成",
+   "note": "石像が崩れて砂がこぼれる。金属もガラスも使わない",
+   "dur": 1,
+   "k100": -13.4,
+   "truePeak": -2.5,
+   "bytes": 12852,
+   "sources": [
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactSoft_heavy_003.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.800（-3.9半音・速さも変わる）",
+      "ローパス 500Hz"
+     ]
+    },
+    {
+     "pack": "80 CC0 RPG SFX",
+     "file": "stones_03.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/80-cc0-rpg-sfx",
+     "download": [
+      "https://opengameart.org/sites/default/files/80-CC0-RPG-SFX_0.zip"
+     ],
+     "ops": [
+      "-3dB",
+      "30ms 遅らせる"
+     ]
+    },
+    {
+     "pack": "Cave In",
+     "file": "cave_in_-_starninjas_0.ogg",
+     "author": "StarNinjas",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/cave-in",
+     "download": [
+      "https://opengameart.org/sites/default/files/cave_in_-_starninjas_0.ogg"
+     ],
+     "ops": [
+      "切り出し 0.25s〜+0.9s",
+      "ローパス 5000Hz",
+      "フェードイン 0.1s",
+      "-10dB",
+      "120ms 遅らせる"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "頭と尻の無音を切る（元の長さ 1.03秒）・25Hz 以下を切る（直流分）",
+    "1秒で切ってフェードアウト 0.30秒",
+    "音量：短時間ラウドネス（100ms）最大 -13",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "summon",
+   "ja": "モンスター登場",
+   "desc": "モンスターが場に出る。ルーンの気配＋着地",
+   "group": "combat",
+   "file": "summon.mp3",
+   "chosen": "第2弾の A",
+   "candidateFile": "summon-r2A.mp3",
+   "kind": "合成",
+   "note": "重い足で着地して小石と土ぼこり。魔法のうねりなし",
+   "dur": 0.555,
+   "k100": -14.4,
+   "truePeak": -1.6,
+   "bytes": 7523,
+   "sources": [
+    {
+     "pack": "80 CC0 creture SFX #2",
+     "file": "stomp_01.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/80-cc0-creture-sfx-2",
+     "download": [
+      "https://opengameart.org/sites/default/files/80-CC0-creature-sfx-2.zip"
+     ],
+     "ops": [
+      "ピッチ×0.850（-2.8半音・速さも変わる）",
+      "ハイパス 45Hz",
+      "軽い歪みで倍音を足す（+16dB で tanh）"
+     ]
+    },
+    {
+     "pack": "Jump Landing",
+     "file": "Jump%201.wav",
+     "author": "Macro",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/jump-landing",
+     "download": [
+      "https://opengameart.org/sites/default/files/Jump%201.wav",
+      "https://opengameart.org/sites/default/files/Jump%202.wav",
+      "https://opengameart.org/sites/default/files/Jump%203.wav"
+     ],
+     "ops": [
+      "ハイパス 45Hz",
+      "ローパス 900Hz",
+      "-9dB"
+     ]
+    },
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactWood_heavy_002.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.800（-3.9半音・速さも変わる）"
+     ]
+    },
+    {
+     "pack": "80 CC0 RPG SFX",
+     "file": "stones_01.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/80-cc0-rpg-sfx",
+     "download": [
+      "https://opengameart.org/sites/default/files/80-CC0-RPG-SFX_0.zip"
+     ],
+     "ops": [
+      "ハイパス 400Hz",
+      "-4dB",
+      "70ms 遅らせる"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "仕上げ highpass=f=55:p=2,equalizer=f=90:t=q:w=1.2:g=-5,equalizer=f=600:t=q:w=1:g=5",
+    "頭と尻の無音を切る（元の長さ 0.56秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -14",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "spell.fire",
+   "ja": "炎",
+   "desc": "炎の効果・燃やす",
+   "group": "magic",
+   "file": "spell.fire.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "spell.fire-B.mp3",
+   "kind": "素材",
+   "note": "炎の杖：一瞬の発火（さらに短い）",
+   "dur": 0.662,
+   "k100": -15.5,
+   "truePeak": -1.9,
+   "bytes": 8777,
+   "sources": [
+    {
+     "pack": "Fire Staff Sound Effects",
+     "file": "LEGIT_FIR_Fire_Staff 7-Audio.wav",
+     "author": "LEGIT Audio",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/fire-staff-sound-effects",
+     "download": [
+      "https://opengameart.org/sites/default/files/00_-_legit_audio_-_legit_fir_fire_staff_20-audio_0.mp3",
+      "https://opengameart.org/sites/default/files/legit_audio_fire_staff_-_free_0.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.66秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -14（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "spell.ice",
+   "ja": "氷・氷結",
+   "desc": "氷結・凍らせる",
+   "group": "magic",
+   "file": "spell.ice.mp3",
+   "chosen": "第1弾の A",
+   "candidateFile": "spell.ice-A.mp3",
+   "kind": "素材",
+   "note": "氷の呪文（パキッと凍る）",
+   "dur": 0.802,
+   "k100": -16.5,
+   "truePeak": -1.3,
+   "bytes": 10344,
+   "sources": [
+    {
+     "pack": "Ice spells",
+     "file": "ice.wav",
+     "author": "bart",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/ice-spells",
+     "download": [
+      "https://opengameart.org/sites/default/files/icespells.zip"
+     ],
+     "packNote": "pdsounds の公有素材から作られたもの",
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.80秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -14（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "spell.poison",
+   "ja": "毒",
+   "desc": "毒・放射能など、じわじわ削る",
+   "group": "magic",
+   "file": "spell.poison.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "spell.poison-B.mp3",
+   "kind": "加工",
+   "note": "泡立つ音を低くして響きを足す",
+   "dur": 0.915,
+   "k100": -14.5,
+   "truePeak": -2,
+   "bytes": 11911,
+   "sources": [
+    {
+     "pack": "RPG Sound Pack",
+     "file": "inventory/bubble3.wav",
+     "author": "artisticdude",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/rpg-sound-pack",
+     "download": [
+      "https://opengameart.org/sites/default/files/rpg_sound_pack.zip"
+     ],
+     "ops": [
+      "ピッチ×0.700（-6.2半音・速さも変わる）"
+     ]
+    }
+   ],
+   "processing": [
+    "短い残響 aecho=0.8:0.55:45|80:0.28|0.18",
+    "頭と尻の無音を切る（元の長さ 0.91秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -14（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "spell.dark",
+   "ja": "闇・呪い・破滅",
+   "desc": "呪縛・破滅・闇の効果",
+   "group": "magic",
+   "file": "spell.dark.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "spell.dark-C.mp3",
+   "kind": "加工",
+   "note": "亡霊の合唱を低く",
+   "dur": 1.2,
+   "k100": -14.5,
+   "truePeak": -2.7,
+   "bytes": 15046,
+   "sources": [
+    {
+     "pack": "Misc SFX Pack",
+     "file": "GhostOo.ogg",
+     "author": "Timopy",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/misc-sfx-pack",
+     "download": [
+      "https://opengameart.org/sites/default/files/SFX.7z"
+     ],
+     "ops": [
+      "ピッチ×0.800（-3.9半音・速さも変わる）"
+     ]
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 2.31秒）・25Hz 以下を切る（直流分）",
+    "1.2秒で切ってフェードアウト 0.35秒",
+    "音量：短時間ラウドネス（100ms）最大 -14",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "spell.blood",
+   "ja": "血",
+   "desc": "血の代償・吸血など",
+   "group": "magic",
+   "file": "spell.blood.mp3",
+   "chosen": "第2弾の A",
+   "candidateFile": "spell.blood-r2A.mp3",
+   "kind": "合成",
+   "note": "低いうなりが満ちて、心臓が一度だけ「ドクン」",
+   "dur": 0.819,
+   "k100": -14.4,
+   "truePeak": -2.6,
+   "bytes": 10658,
+   "sources": [
+    {
+     "pack": "Kenney – Sci-fi Sounds",
+     "file": "forceField_001.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/sci-fi-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/sci-fi-sounds/6b296f9ecf-1677589334/kenney_sci-fi-sounds.zip"
+     ],
+     "ops": [
+      "切り出し 0s〜+0.3s",
+      "逆再生",
+      "ピッチ×0.700（-6.2半音・速さも変わる）",
+      "ローパス 1200Hz",
+      "フェードイン 0.2s",
+      "-6dB"
+     ]
+    },
+    {
+     "pack": "Heartbeat sounds",
+     "file": "heartbeat_slow_0.wav",
+     "author": "bart",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/heartbeat-sounds",
+     "download": [
+      "https://opengameart.org/sites/default/files/heartbeat_slow_0.wav",
+      "https://opengameart.org/sites/default/files/heartbeat_fast_0.wav",
+      "https://opengameart.org/sites/default/files/heartbeat_slow_reverb.wav",
+      "https://opengameart.org/sites/default/files/heartbeat_fast_reverb.wav",
+      "https://opengameart.org/sites/default/files/heartbeat.flp"
+     ],
+     "packNote": "FL Studio で一から作った心音",
+     "ops": [
+      "切り出し 0s〜+0.6s",
+      "ピッチ×1.250（3.9半音・速さも変わる）",
+      "ハイパス 50Hz",
+      "軽い歪みで倍音を足す（+20dB で tanh）",
+      "400ms 遅らせる"
+     ]
+    },
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactPunch_heavy_003.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ローパス 1500Hz",
+      "-4dB",
+      "400ms 遅らせる"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "仕上げ highpass=f=55:p=2,equalizer=f=90:t=q:w=1.2:g=-5,equalizer=f=600:t=q:w=1:g=5",
+    "頭と尻の無音を切る（元の長さ 0.82秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -14",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "spell.holy",
+   "ja": "聖・聖盾",
+   "desc": "聖なる効果・聖盾",
+   "group": "magic",
+   "file": "spell.holy.mp3",
+   "chosen": "第1弾の A",
+   "candidateFile": "spell.holy-A.mp3",
+   "kind": "素材",
+   "note": "短い合唱（シンセ）",
+   "dur": 1.2,
+   "k100": -14.4,
+   "truePeak": -5.2,
+   "bytes": 15046,
+   "sources": [
+    {
+     "pack": "Misc SFX Pack",
+     "file": "HolyAa.ogg",
+     "author": "Timopy",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/misc-sfx-pack",
+     "download": [
+      "https://opengameart.org/sites/default/files/SFX.7z"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 1.85秒）・25Hz 以下を切る（直流分）",
+    "1.2秒で切ってフェードアウト 0.35秒",
+    "音量：短時間ラウドネス（100ms）最大 -14",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "spell.arcane",
+   "ja": "魔法（汎用）",
+   "desc": "属性のない呪文・ふつうのスペル",
+   "group": "magic",
+   "file": "spell.arcane.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "spell.arcane-B.mp3",
+   "kind": "素材",
+   "note": "短い呪文",
+   "dur": 0.563,
+   "k100": -14.5,
+   "truePeak": -3.4,
+   "bytes": 7523,
+   "sources": [
+    {
+     "pack": "80 CC0 RPG SFX",
+     "file": "spell_01.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/80-cc0-rpg-sfx",
+     "download": [
+      "https://opengameart.org/sites/default/files/80-CC0-RPG-SFX_0.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.56秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -14",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "spell.earth",
+   "ja": "大地",
+   "desc": "大地・岩・地形の効果",
+   "group": "magic",
+   "file": "spell.earth.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "spell.earth-B.mp3",
+   "kind": "合成",
+   "note": "岩が転がる＋重い衝撃",
+   "dur": 0.8,
+   "k100": -15.5,
+   "truePeak": -1.9,
+   "bytes": 10344,
+   "sources": [
+    {
+     "pack": "75 CC0 breaking / falling / hit sfx",
+     "file": "bfh1_rock_falling_01.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx",
+     "download": [
+      "https://opengameart.org/sites/default/files/sfx_breaking_and_falling.zip"
+     ],
+     "ops": []
+    },
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactMining_002.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.800（-3.9半音・速さも変わる）",
+      "-3dB"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "頭と尻の無音を切る（元の長さ 0.80秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -14（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "heal",
+   "ja": "回復",
+   "desc": "HP の回復・再生",
+   "group": "effect",
+   "file": "heal.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "heal-C.mp3",
+   "kind": "加工",
+   "note": "回復呪文・別案（HaelDB）",
+   "dur": 1.2,
+   "k100": -16.4,
+   "truePeak": -5.9,
+   "bytes": 15046,
+   "sources": [
+    {
+     "pack": "Spell sounds",
+     "file": "healing.ogg",
+     "author": "HaelDB",
+     "license": "CC0 1.0（OGA-BY 3.0 との多重ライセンスから CC0 を選択）",
+     "url": "https://opengameart.org/content/spell-sounds",
+     "download": [
+      "https://opengameart.org/sites/default/files/healing.ogg",
+      "https://opengameart.org/sites/default/files/teleport.ogg",
+      "https://opengameart.org/sites/default/files/electricspell.ogg",
+      "https://opengameart.org/sites/default/files/electricspell2.ogg"
+     ],
+     "ops": [
+      "切り出し 11.45s〜+1.4s"
+     ]
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 1.35秒）・25Hz 以下を切る（直流分）",
+    "1.2秒で切ってフェードアウト 0.35秒",
+    "音量：短時間ラウドネス（100ms）最大 -16",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "shield.gain",
+   "ja": "シールドを得る",
+   "desc": "シールド・守備力が付く",
+   "group": "effect",
+   "file": "shield.gain.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "shield.gain-C.mp3",
+   "kind": "素材",
+   "note": "鎖かたびら",
+   "dur": 0.43,
+   "k100": -16.3,
+   "truePeak": -2.6,
+   "bytes": 5955,
+   "sources": [
+    {
+     "pack": "RPG Sound Pack",
+     "file": "inventory/chainmail1.wav",
+     "author": "artisticdude",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/rpg-sound-pack",
+     "download": [
+      "https://opengameart.org/sites/default/files/rpg_sound_pack.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.43秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -16",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "buff",
+   "ja": "強化",
+   "desc": "筋力・攻撃力アップなど",
+   "group": "effect",
+   "file": "buff.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "buff-B.mp3",
+   "kind": "合成",
+   "note": "抜刀＋上がっていく魔力",
+   "dur": 0.563,
+   "k100": -16.3,
+   "truePeak": -6.1,
+   "bytes": 7523,
+   "sources": [
+    {
+     "pack": "RPG Sound Pack",
+     "file": "battle/sword-unsheathe3.wav",
+     "author": "artisticdude",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/rpg-sound-pack",
+     "download": [
+      "https://opengameart.org/sites/default/files/rpg_sound_pack.zip"
+     ],
+     "ops": []
+    },
+    {
+     "pack": "Kenney – Sci-fi Sounds",
+     "file": "forceField_002.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/sci-fi-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/sci-fi-sounds/6b296f9ecf-1677589334/kenney_sci-fi-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×1.250（3.9半音・速さも変わる）",
+      "ローパス 2500Hz",
+      "-10dB"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "頭と尻の無音を切る（元の長さ 0.56秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -16",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "debuff",
+   "ja": "弱体",
+   "desc": "衰弱・脆弱などの悪い効果",
+   "group": "effect",
+   "file": "debuff.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "debuff-B.mp3",
+   "kind": "加工",
+   "note": "力が抜ける低いうなり",
+   "dur": 0.9,
+   "k100": -16.4,
+   "truePeak": -5.1,
+   "bytes": 11598,
+   "sources": [
+    {
+     "pack": "Energy Drain",
+     "file": "qubodup-PowerDrain.flac",
+     "author": "qubodup",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/energy-drain",
+     "download": [
+      "https://opengameart.org/sites/default/files/qubodup-PowerDrain.7z"
+     ],
+     "packNote": "ページに「2024-06-23: terms changed to CC0. Restrictions in the 7z file can be ignored.」とある（7z 内の license.txt は旧 CC-BY-SA 3.0）",
+     "ops": [
+      "切り出し 0s〜+0.8s",
+      "ピッチ×0.700（-6.2半音・速さも変わる）",
+      "ローパス 1500Hz"
+     ]
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 1.14秒）・25Hz 以下を切る（直流分）",
+    "0.9秒で切ってフェードアウト 0.27秒",
+    "音量：短時間ラウドネス（100ms）最大 -16",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "status.apply",
+   "ja": "状態の付与（汎用）",
+   "desc": "状態異常やカウンターが付く（専用の音がないとき）",
+   "group": "effect",
+   "file": "status.apply.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "status.apply-C.mp3",
+   "kind": "素材",
+   "note": "鎖が鳴る（拘束のイメージ）",
+   "dur": 0.372,
+   "k100": -16.4,
+   "truePeak": -7.9,
+   "bytes": 5329,
+   "sources": [
+    {
+     "pack": "80 CC0 RPG SFX",
+     "file": "chain_02.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/80-cc0-rpg-sfx",
+     "download": [
+      "https://opengameart.org/sites/default/files/80-CC0-RPG-SFX_0.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.37秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -16",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "bind",
+   "ja": "封じる",
+   "desc": "封印・凍結・呪縛・封殺",
+   "group": "effect",
+   "file": "bind.mp3",
+   "chosen": "第1弾の A",
+   "candidateFile": "bind-A.mp3",
+   "kind": "素材",
+   "note": "鎖が巻きつく",
+   "dur": 0.748,
+   "k100": -16.4,
+   "truePeak": -6.3,
+   "bytes": 9717,
+   "sources": [
+    {
+     "pack": "80 CC0 RPG SFX",
+     "file": "chain_03.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/80-cc0-rpg-sfx",
+     "download": [
+      "https://opengameart.org/sites/default/files/80-CC0-RPG-SFX_0.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.75秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -16",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "token.create",
+   "ja": "トークン生成",
+   "desc": "トークン・軍団・卵などが場に出る",
+   "group": "effect",
+   "file": "token.create.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "token.create-B.mp3",
+   "kind": "素材",
+   "note": "軽い呪文",
+   "dur": 0.445,
+   "k100": -16.4,
+   "truePeak": -5.9,
+   "bytes": 6269,
+   "sources": [
+    {
+     "pack": "80 CC0 RPG SFX",
+     "file": "spell_02.ogg",
+     "author": "rubberduck",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/80-cc0-rpg-sfx",
+     "download": [
+      "https://opengameart.org/sites/default/files/80-CC0-RPG-SFX_0.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.44秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -16",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "keyword.grant",
+   "ja": "キーワード付与",
+   "desc": "飛行・接死などを得る",
+   "group": "effect",
+   "file": "keyword.grant.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "keyword.grant-B.mp3",
+   "kind": "素材",
+   "note": "金属のディン",
+   "dur": 0.459,
+   "k100": -16.4,
+   "truePeak": -4.5,
+   "bytes": 6269,
+   "sources": [
+    {
+     "pack": "Misc SFX Pack",
+     "file": "MetalDing.ogg",
+     "author": "Timopy",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/misc-sfx-pack",
+     "download": [
+      "https://opengameart.org/sites/default/files/SFX.7z"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.46秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -16",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "draft.pick",
+   "ja": "ドラフトで取る",
+   "desc": "ドラフトの場からカードを取る",
+   "group": "effect",
+   "file": "draft.pick.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "draft.pick-C.mp3",
+   "kind": "素材",
+   "note": "カードを置く（明るめ）",
+   "dur": 0.382,
+   "k100": -22.8,
+   "truePeak": -2.9,
+   "bytes": 5329,
+   "sources": [
+    {
+     "pack": "Kenney – Casino Audio",
+     "file": "card-place-2.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/casino-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/casino-audio/2472606a04-1721639069/kenney_casino-audio.zip"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.38秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -19（ピークの上限で 0.4dB 届かず）（リミッターでピークを -2.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "invite.notify",
+   "ja": "フレンドの招待",
+   "desc": "招待が届いたお知らせ（対戦中でなくても鳴る）",
+   "group": "effect",
+   "file": "invite.notify.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "invite.notify-B.mp3",
+   "kind": "素材",
+   "note": "ベル（公有の楽器サンプル）",
+   "dur": 0.589,
+   "k100": -16.4,
+   "truePeak": -4.9,
+   "bytes": 7836,
+   "sources": [
+    {
+     "pack": "UI Sound Effects (Button Clicks, User Feedback, Notifications)",
+     "file": "Ding.ogg",
+     "author": "Robin Lamb",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/ui-sound-effects-button-clicks-user-feedback-notifications",
+     "download": [
+      "https://opengameart.org/sites/default/files/ui_ogg.zip",
+      "https://opengameart.org/sites/default/files/ui_wav.zip"
+     ],
+     "packNote": "公有の楽器サンプル集 VCSL・VSCO 2 CE（どちらも CC0）から",
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 0.59秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -16",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "mulligan",
+   "ja": "マリガン（引き直し）",
+   "desc": "最初の手札を戻して引き直す",
+   "group": "effect",
+   "file": "mulligan.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "mulligan-C.mp3",
+   "kind": "合成",
+   "note": "戻す→引き直す の2動作",
+   "dur": 0.801,
+   "k100": -21,
+   "truePeak": -2.8,
+   "bytes": 10344,
+   "sources": [
+    {
+     "pack": "Kenney – Casino Audio",
+     "file": "card-shove-2.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/casino-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/casino-audio/2472606a04-1721639069/kenney_casino-audio.zip"
+     ],
+     "ops": []
+    },
+    {
+     "pack": "Kenney – Casino Audio",
+     "file": "card-slide-5.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/casino-audio",
+     "download": [
+      "https://kenney.nl/media/pages/assets/casino-audio/2472606a04-1721639069/kenney_casino-audio.zip"
+     ],
+     "ops": [
+      "200ms 遅らせる"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "頭と尻の無音を切る（元の長さ 0.80秒）・25Hz 以下を切る（直流分）",
+    "尻に 40ms のフェード",
+    "音量：短時間ラウドネス（100ms）最大 -19（リミッターでピークを -2.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 96kbps"
+   ]
+  },
+  {
+   "id": "victory",
+   "ja": "勝利",
+   "desc": "決着で勝ったとき（3秒以内）",
+   "group": "result",
+   "file": "victory.mp3",
+   "chosen": "第1弾の C",
+   "candidateFile": "victory-C.mp3",
+   "kind": "合成",
+   "note": "鐘の上昇アルペジオ（ニ長調）＋低い鐘",
+   "dur": 3,
+   "k100": -11.3,
+   "truePeak": -1.4,
+   "bytes": 48900,
+   "sources": [
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactBell_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.794（-4.0半音・速さも変わる）"
+     ]
+    },
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactBell_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "-1dB",
+      "150ms 遅らせる"
+     ]
+    },
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactBell_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×1.189（3.0半音・速さも変わる）",
+      "-1dB",
+      "300ms 遅らせる"
+     ]
+    },
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactBell_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×1.587（8.0半音・速さも変わる）",
+      "450ms 遅らせる"
+     ]
+    },
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactBell_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.397（-16.0半音・速さも変わる）",
+      "ローパス 1200Hz",
+      "-4dB",
+      "450ms 遅らせる"
+     ]
+    },
+    {
+     "pack": "UI Sound Effects (Button Clicks, User Feedback, Notifications)",
+     "file": "chimes.ogg",
+     "author": "Robin Lamb",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/ui-sound-effects-button-clicks-user-feedback-notifications",
+     "download": [
+      "https://opengameart.org/sites/default/files/ui_ogg.zip",
+      "https://opengameart.org/sites/default/files/ui_wav.zip"
+     ],
+     "packNote": "公有の楽器サンプル集 VCSL・VSCO 2 CE（どちらも CC0）から",
+     "ops": [
+      "-14dB",
+      "450ms 遅らせる"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "短い残響 aecho=0.8:0.6:90|170:0.3|0.18",
+    "仕上げ acompressor=threshold=0.125:ratio=3:attack=8:release=250:makeup=2",
+    "頭と尻の無音を切る（元の長さ 3.96秒）・25Hz 以下を切る（直流分）",
+    "3秒で切ってフェードアウト 0.60秒",
+    "音量：統合ラウドネス -14 LUFS（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 128kbps"
+   ]
+  },
+  {
+   "id": "defeat",
+   "ja": "敗北",
+   "desc": "決着で負けたとき（3秒以内）",
+   "group": "result",
+   "file": "defeat.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "defeat-B.mp3",
+   "kind": "合成",
+   "note": "鐘が短調で下がる＋地鳴り",
+   "dur": 3,
+   "k100": -11.2,
+   "truePeak": -1.9,
+   "bytes": 48900,
+   "sources": [
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactBell_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.794（-4.0半音・速さも変わる）",
+      "ローパス 3000Hz"
+     ]
+    },
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactBell_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.630（-8.0半音・速さも変わる）",
+      "ローパス 2500Hz",
+      "320ms 遅らせる"
+     ]
+    },
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactBell_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.530（-11.0半音・速さも変わる）",
+      "ローパス 2000Hz",
+      "640ms 遅らせる"
+     ]
+    },
+    {
+     "pack": "Kenney – Impact Sounds",
+     "file": "impactBell_heavy_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/impact-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip"
+     ],
+     "ops": [
+      "ピッチ×0.265（-23.0半音・速さも変わる）",
+      "ローパス 800Hz",
+      "960ms 遅らせる"
+     ]
+    },
+    {
+     "pack": "Kenney – Sci-fi Sounds",
+     "file": "lowFrequency_explosion_000.ogg",
+     "author": "Kenney (kenney.nl)",
+     "license": "CC0 1.0",
+     "url": "https://kenney.nl/assets/sci-fi-sounds",
+     "download": [
+      "https://kenney.nl/media/pages/assets/sci-fi-sounds/6b296f9ecf-1677589334/kenney_sci-fi-sounds.zip"
+     ],
+     "ops": [
+      "ローパス 120Hz",
+      "-10dB",
+      "900ms 遅らせる"
+     ]
+    }
+   ],
+   "processing": [
+    "各レイヤーのピークを揃えてから混ぜる",
+    "短い残響 aecho=0.8:0.6:90|170:0.3|0.18",
+    "仕上げ acompressor=threshold=0.125:ratio=3:attack=8:release=250:makeup=2",
+    "頭と尻の無音を切る（元の長さ 6.55秒）・25Hz 以下を切る（直流分）",
+    "3秒で切ってフェードアウト 0.60秒",
+    "音量：統合ラウドネス -14 LUFS（リミッターでピークを -1.5dBFS に抑える）",
+    "MP3 モノラル 44.1kHz 128kbps"
+   ]
+  },
+  {
+   "id": "draw-game",
+   "ja": "引き分け",
+   "desc": "引き分けで終わったとき",
+   "group": "result",
+   "file": "draw-game.mp3",
+   "chosen": "第1弾の B",
+   "candidateFile": "draw-game-B.mp3",
+   "kind": "素材",
+   "note": "スチールタングドラムの余韻（3秒で切る）",
+   "dur": 3,
+   "k100": -10.7,
+   "truePeak": -2,
+   "bytes": 48900,
+   "sources": [
+    {
+     "pack": "Mystery Sting",
+     "file": "mystery_sting.ogg",
+     "author": "railkill",
+     "license": "CC0 1.0",
+     "url": "https://opengameart.org/content/mystery-sting",
+     "download": [
+      "https://opengameart.org/sites/default/files/mystery_sting.ogg"
+     ],
+     "ops": []
+    }
+   ],
+   "processing": [
+    "頭と尻の無音を切る（元の長さ 5.40秒）・25Hz 以下を切る（直流分）",
+    "3秒で切ってフェードアウト 0.60秒",
+    "音量：統合ラウドネス -14 LUFS",
+    "MP3 モノラル 44.1kHz 128kbps"
+   ]
+  }
+ ]
+}

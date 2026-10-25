@@ -1,15 +1,16 @@
 /**
- * 演出の合図（cue）。音はまだ付けない（決定事項 #126：音はユーザーと別に決める）が、
- * 演出のひとつひとつに安定した ID を付けて、ここ1か所の playCue を通す。あとで音を付けるときは setCueHandler に関数を渡すだけで、
- * 呼び出し側（director.ts）は変えなくてよい。
+ * 演出の合図（cue）。演出のひとつひとつに安定した ID を付けて、ここ1か所の playCue を通す（決定事項 #126）。
+ * 効果音（決定事項 #127）は src/ui/sound/ が setCueHandler でつなぐ（どの合図がどの音かは sound/route.ts）。
+ * 呼び出し側（director.ts）は音を知らない。早送り（タップ）・対戦の終わりで演出を消すときは hushCues で鳴っている音も止める。
  *
  * ID の形：
  * - 種類だけ：'heal'・'summon'・'destroy'・'draw' など
  * - 属性つき：'cast.<属性>'（効果を放った）・'hit.<属性>.<s|m|l>'（当たった。大きさはダメージの量）
  * - 側つき：'turn.mine'・'turn.enemy'
- * 一覧（CUES）は説明つき。足したら docs/SPEC.md の決定事項 #126 の一覧にも書く（tests/battle/fx.test.ts が見比べる。表の中の | は全角の ｜）。
+ * 一覧（CUES）は説明つき。足したら docs/SPEC.md の決定事項 #126（#127 で足したものは #127）の一覧にも書き、sound/route.ts で音につなぐ
+ * （tests/battle/fx.test.ts・tests/sound.test.ts が見比べる。表の中の | は全角の ｜）。
  */
-import type { FxElement } from './registry.ts';
+import type { FxArch, FxElement } from './registry.ts';
 
 export const FX_ELEMENTS = ['fire', 'poison', 'ice', 'holy', 'shadow', 'blood', 'arcane', 'physical'] as const satisfies readonly FxElement[];
 export type FxSize = 's' | 'm' | 'l';
@@ -45,6 +46,7 @@ export type CueId =
   | 'attack'
   | 'retaliate'
   | 'player.hit'
+  | 'block'
   | 'notice'
   | 'recap';
 
@@ -77,28 +79,46 @@ export const CUES: Record<string, string> = {
   attack: 'モンスターの攻撃（踏み込みと斬撃）',
   retaliate: '攻撃されたモンスターの反撃',
   'player.hit': 'あなたのHPが減った（画面の下の縁が赤く光る）',
+  block: 'ダメージを0に受け止めた（シールド・無効化などで防いだ）',
   notice: '中央の短い知らせ',
   recap: '相手のターンのまとめを出した',
 };
 
-/** 合図に添える情報：自分の行動か（側の色）・大きさ（0〜1。ダメージなどの量の目安） */
+/** 合図に添える情報：自分の行動か（側の色）・大きさ（0〜1。ダメージなどの量の目安）。ほかは音の選び分けの手がかり（任意） */
 export interface CueOpts {
   mine: boolean;
   magnitude?: number;
+  /** 同じ効果・攻撃の組（events.ts の group。全体効果の着弾を1つの音にまとめる） */
+  group?: number;
+  /** 効果・着弾の型（回復・守り・強化の効果は着弾の音だけにする など） */
+  arch?: FxArch;
+  /** 効果の対象の数（出どころを除く。3つ以上は全体効果） */
+  count?: number;
+  /** 着弾の種類：キーワードを得た 'keyword'・聖盾を得た 'divine' */
+  variant?: 'keyword' | 'divine';
+  /** 演出の中で動きが来るまでの遅れ（ms。カードが対象へ飛ぶ・照準が付く） */
+  delay?: number;
 }
 
 export type CueHandler = (cue: CueId, opts: CueOpts) => void;
 
 let handler: CueHandler | null = null;
+let hush: (() => void) | null = null;
 
-/** 音などをつなぐ口（今は何もつながっていない）。null で外す */
-export function setCueHandler(h: CueHandler | null): void {
+/** 音などをつなぐ口。null で外す。stop は hushCues で呼ぶ（鳴っている音・遅らせた音を止める） */
+export function setCueHandler(h: CueHandler | null, stop?: () => void): void {
   handler = h;
+  hush = h ? (stop ?? null) : null;
 }
 
-/** 演出の合図。今は何もしない（音を付けるときの入口） */
+/** 演出の合図（つながっていなければ何もしない） */
 export function playCue(cue: CueId, opts: CueOpts): void {
   handler?.(cue, opts);
+}
+
+/** 演出を消した（早送り・対戦の終わり）：鳴っている音・これから鳴る音を止める */
+export function hushCues(): void {
+  hush?.();
 }
 
 /** ダメージの大きさ（プレイヤーの最大HPに対する割合で s・m・l） */

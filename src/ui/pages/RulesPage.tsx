@@ -34,6 +34,7 @@ import { ABILITY_GI, DRAWBACK_GI, effectGi } from '../editor/effectIcons.ts';
 import { cx } from '../util.ts';
 import { RarityGem } from '../components/cardParts.tsx';
 import { UiIcon, type UiIconProps } from '../components/UiIcon.tsx';
+import { SoundSettings } from '../sound/SoundSettings.tsx';
 
 const B = BALANCE.battle;
 const D = BALANCE.draft;
@@ -114,6 +115,10 @@ export function RulesPage() {
       <div className="page-head">
         <h1>ルール</h1>
       </div>
+      {/* 効果音の設定（決定事項 #127）：対戦の外から来られる置き場。対戦中はメニュー（歯車）にも同じものがある */}
+      <section className="panel rules__settings" aria-label="設定">
+        <SoundSettings />
+      </section>
       <p className="hint rules__intro">
         自作のカードでデッキを組み、1対1で戦うカードゲームです。数字はすべて今のバランス設定から表示しています。節をタップすると開きます。
         カードの絵は game-icons.net のアイコン（CC BY 3.0）です。作者とライセンスは<a href="#/credits">クレジット</a>へ。

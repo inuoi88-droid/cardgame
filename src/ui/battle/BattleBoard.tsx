@@ -21,6 +21,8 @@ import { cx } from '../util.ts';
 import { preloadIcons } from '../icons/load.ts';
 import { iconText } from '../icons/ref.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
+import { sfx } from '../sound/index.ts';
+import { SoundSettings } from '../sound/SoundSettings.tsx';
 import './battle.css';
 import { CardDetailBody, CardDetailSheet, NoiseDetailBody } from './CardDetail.tsx';
 import {
@@ -248,6 +250,16 @@ export function BattleBoard({
     if (view.phase === 'mulligan') skipEndConfirm.current = false;
   }, [view.phase]);
 
+  // 効果音（決定事項 #127）：対戦の始め（最初の手札を決める）に山札を切る音、決着の結果が出たら勝ち・負け・引き分け
+  const choosingHand = view.phase === 'mulligan' && !view.players[me].mulligan.done;
+  useEffect(() => {
+    if (choosingHand) sfx('card.shuffle');
+  }, [choosingHand]);
+  const resultSound = ended && resultReady && view.result ? (view.result.winner === null ? 'draw-game' : view.result.winner === me ? 'victory' : 'defeat') : null;
+  useEffect(() => {
+    if (resultSound) sfx(resultSound);
+  }, [resultSound]);
+
   useEffect(() => {
     if (error) toast({ text: error, kind: 'ng' });
   }, [error, toast]);
@@ -261,6 +273,11 @@ export function BattleBoard({
         return;
       }
       setSel(null);
+      // 効果音（決定事項 #127）：自分の操作の音はここで（演出の card.play は claim で鳴らさない）
+      if (action.type === 'playCard') sfx('card.play', { claim: true });
+      else if (action.type === 'setAside') sfx('card.play');
+      else if (action.type === 'endTurn') sfx('turn.end');
+      else if (action.type === 'mulligan' && action.mode !== 'keep') sfx('mulligan');
       onAction(action);
     },
     [busy, view, onAction, toast],
@@ -889,6 +906,7 @@ export function BattleBoard({
     reduceMotion,
     // 捨て札の一覧からつかんだら、一覧を閉じて盤面を見せる
     onStart: (src) => {
+      sfx('card.hover');
       if ((src.kind === 'card' && src.from === 'discard') || src.kind === 'discardAbility') setPile(null);
       if (src.kind === 'card' && src.from === 'waiting') setWaitingOpen(null);
       if (src.kind === 'activate') setPowersOpen(false);
@@ -1582,7 +1600,7 @@ export function BattleBoard({
       <div className="battle__board battle__board--opp">{renderBoard(opp)}</div>
       <div className="battle__board battle__board--me">
         {renderBoard(me)}
-        {recap && recapUi.mode === 'auto' && recapReady && <RecapStrip recap={recap} onOpen={recapUi.open} onClose={recapUi.close} />}
+        {recap && recapUi.mode === 'auto' && recapReady && <RecapStrip recap={recap} onOpen={recapUi.open} onClose={recapUi.close} onShown={recapUi.shown} />}
       </div>
       <div className="battle__pp battle__pp--me">
         <PlayerPanel
@@ -1985,6 +2003,8 @@ export function BattleBoard({
             </span>
             <span className="fx-setting__note">{fx.reduce ? '端末の「視差効果を減らす／動きを減らす」がオンなので、控えめで表示しています' : '控えめ：飛ぶ演出や粒を出さず、その場で短く光るだけ'}</span>
           </div>
+          {/* 効果音（決定事項 #127）：オン・オフと音量（既定はオフ） */}
+          <SoundSettings />
           <button type="button" className="btn btn--danger" disabled={view.phase === 'ended'} onClick={() => void concede()}>
             <UiIcon name="gi:flying-flag" />
             降参する

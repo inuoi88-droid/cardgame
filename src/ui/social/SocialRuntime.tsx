@@ -12,6 +12,7 @@ import { analyzeDeck } from '../../engine/index.ts';
 import { useToast } from '../components/Toast.tsx';
 import { subscribeInbox } from '../online/client.ts';
 import { LOCAL_SERVER_URL } from '../online/config.ts';
+import { sfx } from '../sound/index.ts';
 import { useStore } from '../store.ts';
 import { loadSigs, shareDeckNow } from './sharing.ts';
 import { shareSignature, sharedDeckIds } from './socialLogic.ts';
@@ -65,7 +66,22 @@ export function SocialRuntime() {
   }, [has, inboxId]);
 
   useSharedDeckSync();
+  useInviteChime();
   return null;
+}
+
+/** 効果音（決定事項 #127）：新しい対戦の招待が届いたら鳴らす（開いたときにもうあった招待は鳴らさない。オフなら何もしない） */
+function useInviteChime() {
+  const { snap } = useSocial();
+  const seen = useRef<Set<string> | null>(null);
+  const ids = snap ? snap.invites.map((i) => i.id).join(',') : null;
+  useEffect(() => {
+    if (ids === null) return;
+    const now = ids ? ids.split(',') : [];
+    const before = seen.current;
+    seen.current = new Set(now);
+    if (before && now.some((id) => !before.has(id))) sfx('invite.notify');
+  }, [ids]);
 }
 
 /** 公開中のデッキを直したら送り直す。ルールに合わなくなっていれば一度だけ知らせる（公開中のものは前のまま） */

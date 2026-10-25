@@ -464,12 +464,13 @@ describe('合図（fx/cues.ts）と設定（fx/settings.ts）', () => {
     expect(sizeOf(30, 100)).toBe('l');
   });
 
-  it('合図の一覧は docs/SPEC.md の決定事項 #126 にも全部書いてある（表の中の | は全角）', () => {
-    const row = readFileSync(join(ROOT, 'docs/SPEC.md'), 'utf8')
-      .split('\n')
-      .find((l) => l.startsWith('| 126 |'));
+  it('合図の一覧は docs/SPEC.md の決定事項 #126（#127 で足したものは #127）にも全部書いてある（表の中の | は全角）', () => {
+    const lines = readFileSync(join(ROOT, 'docs/SPEC.md'), 'utf8').split('\n');
+    const row = lines.find((l) => l.startsWith('| 126 |'));
+    const added = lines.find((l) => l.startsWith('| 127 |'));
     expect(row).toBeTruthy();
-    for (const k of Object.keys(CUES)) expect(row!.includes(k.replace(/\|/g, '｜')), k).toBe(true);
+    expect(added).toBeTruthy();
+    for (const k of Object.keys(CUES)) expect(`${row}${added}`.includes(k.replace(/\|/g, '｜')), k).toBe(true);
   });
 
   it('演出の設定は「控えめ」だけを読み、壊れていたら標準', () => {

@@ -20,6 +20,44 @@
 - 取り込み元：[google/fonts](https://github.com/google/fonts/tree/main/ofl/shipporiminchob1) の `ShipporiMinchoB1-ExtraBold.ttf`
 - 変更点：画面に使う文字（`src/ui` の固定の文字＋かな・英数字・記号）だけを切り出して woff2 にしたもの（`scripts/gen-display-font.mjs` → `src/ui/theme/fonts/ui-mincho.woff2`）。CSS では `UI Mincho` の名前で使っています。
 
+## 効果音
+
+効果音（52種類。`src/ui/sound/sfx/*.mp3`、決定事項 #127）は、下の素材を切り出し・ピッチ・フィルタ・短い残響・重ね合わせ・音量の正規化をして作ったものです。
+
+- ライセンス：**すべて [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)（パブリックドメイン相当）の素材だけ**を使っています。表記は必須ではありませんが、出典をここに残します。CC-BY など表記が要る素材は使っていません。
+- 音ごとの材料（元のファイル名・ダウンロード元）と加工の手順は `src/ui/sound/sfx/manifest.json` にあります。
+- Energy Drain（qubodup）はページに「2024-06-23: terms changed to CC0. Restrictions in the 7z file can be ignored.」とあり、CC0 で使っています（7z の中の license.txt は以前の CC-BY-SA 3.0）。
+- Spell sounds（HaelDB）は CC0 と OGA-BY 3.0 の多重ライセンスで、CC0 を選んでいます。
+
+使った素材（24 パック。かっこの中は作者とライセンス、後ろはその素材を使った音）：
+
+- [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx)（rubberduck・CC0 1.0）：`field`
+- [75 CC0 breaking / falling / hit sfx](https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx)（rubberduck・CC0 1.0）：`hit.small`・`spell.earth`
+- [80 CC0 creture SFX #2](https://opengameart.org/content/80-cc0-creture-sfx-2)（rubberduck・CC0 1.0）：`summon`
+- [80 CC0 RPG SFX](https://opengameart.org/content/80-cc0-rpg-sfx)（rubberduck・CC0 1.0）：`ui.confirm`・`card.play`・`energy.gain`・`target.lock`・`destroy`・`summon`・`spell.arcane`・`status.apply`・`bind`・`token.create`
+- [Card Game sounds (Cockatrice)](https://opengameart.org/content/card-game-sounds)（HaelDB・CC0 1.0）：`ui.error`・`card.draw`・`card.discard`
+- [Cave In](https://opengameart.org/content/cave-in)（StarNinjas・CC0 1.0）：`destroy`
+- [Energy Drain](https://opengameart.org/content/energy-drain)（qubodup・CC0 1.0）：`debuff`
+- [Fire Staff Sound Effects](https://opengameart.org/content/fire-staff-sound-effects)（LEGIT Audio・CC0 1.0）：`spell.fire`
+- [Heartbeat sounds](https://opengameart.org/content/heartbeat-sounds)（bart・CC0 1.0）：`spell.blood`
+- [Ice breaking/shattering](https://opengameart.org/content/ice-breakingshattering)（IgnasD・CC0 1.0）：`ward.break`
+- [Ice spells](https://opengameart.org/content/ice-spells)（bart・CC0 1.0）：`spell.ice`
+- [Jump Landing](https://opengameart.org/content/jump-landing)（Macro・CC0 1.0）：`summon`
+- [Kenney – Casino Audio](https://kenney.nl/assets/casino-audio)（Kenney (kenney.nl)・CC0 1.0）：`card.shuffle`・`card.hover`・`card.play`・`card.play.enemy`・`card.mill`・`draft.pick`・`mulligan`
+- [Kenney – Impact Sounds](https://kenney.nl/assets/impact-sounds)（Kenney (kenney.nl)・CC0 1.0）：`card.play`・`turn.mine`・`turn.enemy`・`hit.heavy`・`hit.player`・`destroy`・`summon`・`spell.blood`・`spell.earth`・`victory`・`defeat`
+- [Kenney – RPG Audio](https://kenney.nl/assets/rpg-audio)（Kenney (kenney.nl)・CC0 1.0）：`ui.click`・`ui.cancel`・`ui.tab`・`turn.end`・`target.lock`
+- [Kenney – Sci-fi Sounds](https://kenney.nl/assets/sci-fi-sounds)（Kenney (kenney.nl)・CC0 1.0）：`card.play.enemy`・`turn.mine`・`turn.enemy`・`field`・`hit.heavy`・`spell.blood`・`buff`・`defeat`
+- [Kenney – UI Audio](https://kenney.nl/assets/ui-audio)（Kenney (kenney.nl)・CC0 1.0）：`ui.confirm`・`ui.toggle`
+- [Medieval sound effects – Weapon impacts](https://opengameart.org/content/medieval-sound-effects-weapon-impacts)（MedicineStorm（Still North Media）・CC0 1.0）：`hit.medium`・`retaliate`・`shield.block`
+- [Misc SFX Pack](https://opengameart.org/content/misc-sfx-pack)（Timopy・CC0 1.0）：`spell.dark`・`spell.holy`・`keyword.grant`
+- [Mystery Sting](https://opengameart.org/content/mystery-sting)（railkill・CC0 1.0）：`draw-game`
+- [RPG Sound Pack](https://opengameart.org/content/rpg-sound-pack)（artisticdude・CC0 1.0）：`spell.poison`・`shield.gain`・`buff`
+- [Spell sounds](https://opengameart.org/content/spell-sounds)（HaelDB・CC0 1.0（OGA-BY 3.0 との多重ライセンスから CC0 を選択））：`heal`
+- [Swishes Sound Pack](https://opengameart.org/content/swishes-sound-pack)（artisticdude・CC0 1.0）：`card.fly`・`attack.swing`
+- [UI Sound Effects (Button Clicks, User Feedback, Notifications)](https://opengameart.org/content/ui-sound-effects-button-clicks-user-feedback-notifications)（Robin Lamb・CC0 1.0）：`invite.notify`・`victory`
+
+ゲームの中では「クレジット」の画面（`#/credits`）にも素材と作者を載せています。
+
 ## 画面の記号
 
 メニュー・ボタン・帯の記号（`src/ui/icons/uiIcons.json` の約50個）も game-icons.net のアイコン（CC BY 3.0）を単色で使っています（`UiIcon`）。

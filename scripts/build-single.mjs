@@ -53,11 +53,19 @@ const iconTags = [
     .sort()
     .map((f) => jsonTag(`gi-${f.replace(/\.json$/, '')}`, join(GEN, 'shards', f))),
 ];
+// 効果音（決定事項 #127）：src/ui/sound/sfx/*.mp3 を base64 の文字のまま埋め込む（type が JS ではないので解析されない）。
+// src/ui/sound/sfxSource.single.ts が鳴らすときに1つずつ読んで戻す（ネットなしでも鳴る）
+const SFX = join(ROOT, 'src', 'ui', 'sound', 'sfx');
+const sfxTags = readdirSync(SFX)
+  .filter((f) => f.endsWith('.mp3'))
+  .sort()
+  .map((f) => `<script type="text/plain" id="sfx-${f.slice(0, -'.mp3'.length)}">${readFileSync(join(SFX, f)).toString('base64')}</script>`);
+if (sfxTags.length === 0) fail('効果音（src/ui/sound/sfx/*.mp3）が見つかりません');
 // 埋め込んだ絵のデータ（約 6MB）を読み終わるのを待たずに画面を出すため、JS は async のモジュールにして絵のデータより前に置く
-// （ふつうのモジュールは文書を全部読み終えてから動く）。絵のデータは iconSource.single.ts が DOMContentLoaded を待ってから読む
+// （ふつうのモジュールは文書を全部読み終えてから動く）。絵と音のデータは iconSource.single.ts・sfxSource.single.ts が DOMContentLoaded を待ってから読む
 const bodyEnd = html.lastIndexOf('</body>');
 if (bodyEnd < 0) fail('index.html に </body> が見つかりません');
-html = `${html.slice(0, bodyEnd)}<script type="module" async>\n${js}\n</script>\n${iconTags.join('\n')}\n${html.slice(bodyEnd)}`;
+html = `${html.slice(0, bodyEnd)}<script type="module" async>\n${js}\n</script>\n${iconTags.join('\n')}\n${sfxTags.join('\n')}\n${html.slice(bodyEnd)}`;
 
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(OUT, html);

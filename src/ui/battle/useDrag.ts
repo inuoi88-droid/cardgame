@@ -7,6 +7,7 @@
  * 指の位置は頻繁に変わるので React の state にせず、小さな購読（subscribe / getPos）で DragLayer だけを描き直す。
  */
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { quietUi } from '../sound/index.ts';
 import { gestureOf, pickSpot, planDrag, targetKey, type Box, type DragOrigin, type DragPlan, type DragSource } from './dragLogic.ts';
 
 export interface DragInfo {
@@ -91,8 +92,9 @@ export function useBattleDrag(opts: {
     cleanup.current = null;
     pending.current = null;
     if (!d || d.phase !== 'drag') return;
-    // ドラッグの直後に来るクリック（同じ要素の上で離したとき）を捨てる
+    // ドラッグの直後に来るクリック（同じ要素の上で離したとき）を捨てる（そのクリックに操作の音も付けない：決定事項 #127）
     clickBlock.current = Date.now() + CLICK_BLOCK_MS;
+    quietUi(400);
     const result = optsRef.current.onDrop(d.src, spotFromPointer ? d.hover : 'hand');
     if (result === 'ok' || optsRef.current.reduceMotion) {
       set(null);
@@ -112,6 +114,7 @@ export function useBattleDrag(opts: {
     pending.current = null;
     if (!d || d.phase !== 'drag') return;
     clickBlock.current = Date.now() + CLICK_BLOCK_MS;
+    quietUi(400);
     if (optsRef.current.reduceMotion) {
       set(null);
       return;

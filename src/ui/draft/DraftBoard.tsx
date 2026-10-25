@@ -7,7 +7,7 @@
  * - 終わったら両者のデッキを並べ、呼び出し側の操作（対戦へ・保存など）を出す
  * 何を取れるかはエンジンの draftView（takeable）だけを見る。
  */
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BALANCE, RARITY_LABEL, type battle, type CardDef, type draft } from '../../engine/index.ts';
 import { CardArtOf } from '../components/CardArt.tsx';
 import { CardDetail } from '../components/CardDetail.tsx';
@@ -17,6 +17,7 @@ import { RarityGem } from '../components/cardParts.tsx';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { useMediaQuery } from '../components/dialogUtil.ts';
 import { useHeightVar } from '../collection/sticky.ts';
+import { sfx } from '../sound/index.ts';
 import { cx } from '../util.ts';
 import { EMPTY_TRACK, deckRows, lastPickText, rarityRoom, shortReason, takenDeck, takenTotal, trackField } from './draftUi.ts';
 import './draft.css';
@@ -93,9 +94,22 @@ export function DraftBoard(props: DraftBoardProps) {
 
   const take = (cardId: string) => {
     if (!myTurn || busy) return;
+    // 効果音（決定事項 #127）：取った
+    sfx('draft.pick');
     onTake(cardId);
     setZoom(null);
   };
+
+  // 効果音：相手が取った（控えめ）・自分の分を「おまかせ」が取った。自分で取った分は take で鳴らしている
+  const seenPicks = useRef(view.picks.length);
+  useEffect(() => {
+    const before = seenPicks.current;
+    seenPicks.current = view.picks.length;
+    if (view.picks.length <= before) return;
+    const fresh = view.picks.slice(before);
+    if (fresh.some((p) => p.player === me && p.by)) sfx('draft.pick');
+    else if (fresh.some((p) => p.player !== me)) sfx('draft.pick', { gain: 0.5 });
+  }, [view.picks, me]);
 
   if (view.done) return <DraftDone {...props} onCard={(card, owner, count) => setZoom({ card, where: 'deck', owner, count })} zoom={zoom} onCloseZoom={() => setZoom(null)} />;
 

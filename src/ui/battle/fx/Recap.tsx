@@ -4,7 +4,7 @@
  * - 畳んだあとは見出しの「まとめ」（RecapButton）から開ける。ログからも開ける（RecapLogButton）
  * - 開いた一覧は1行1項目。カード名を押すと詳細。どこかを押すと閉じる
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { UiIcon } from '../../components/UiIcon.tsx';
 import { cx } from '../../util.ts';
 import { playCue } from './cues.ts';
@@ -13,9 +13,9 @@ import type { Recap } from './recap.ts';
 /** 帯を出しておく時間 */
 export const RECAP_AUTO_MS = 4500;
 
-export function RecapStrip({ recap, onOpen, onClose }: { recap: Recap; onOpen: () => void; onClose: () => void }) {
+export function RecapStrip({ recap, onOpen, onClose, onShown }: { recap: Recap; onOpen: () => void; onClose: () => void; onShown?: () => void }) {
   useEffect(() => {
-    playCue('recap', { mine: false });
+    onShown?.();
     const t = setTimeout(onClose, RECAP_AUTO_MS);
     return () => clearTimeout(t);
   }, [recap.turn, onClose]);
@@ -103,10 +103,19 @@ export function RecapLogButton({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-/** まとめの表示の状態：auto（帯）・open（一覧）・closed */
-export function useRecapState(recapTurn: number | null, ready: boolean): { mode: 'auto' | 'open' | 'closed'; open: () => void; close: () => void } {
+/**
+ * まとめの表示の状態：auto（帯）・open（一覧）・closed。shown は帯が出たときに呼ぶ合図（recap）：
+ * 帯は自分の演出の間は隠れて、終わるとまた出るので、合図（効果音）は1回のまとめにつき1回だけ（決定事項 #127）
+ */
+export function useRecapState(recapTurn: number | null, ready: boolean): { mode: 'auto' | 'open' | 'closed'; open: () => void; close: () => void; shown: () => void } {
   const [mode, setMode] = useState<'auto' | 'open' | 'closed'>('closed');
   const [shownFor, setShownFor] = useState<number | null>(null);
+  const cued = useRef<number | null>(null);
+  const shown = useCallback(() => {
+    if (cued.current === shownFor) return;
+    cued.current = shownFor;
+    playCue('recap', { mine: false });
+  }, [shownFor]);
   useEffect(() => {
     if (!ready || recapTurn === null || recapTurn === shownFor) return;
     setShownFor(recapTurn);
@@ -114,5 +123,5 @@ export function useRecapState(recapTurn: number | null, ready: boolean): { mode:
   }, [ready, recapTurn, shownFor]);
   const open = useCallback(() => setMode('open'), []);
   const close = useCallback(() => setMode('closed'), []);
-  return { mode, open, close };
+  return { mode, open, close, shown };
 }

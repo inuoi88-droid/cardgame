@@ -59,6 +59,10 @@ export type Show =
       amount?: number;
       /** 聖盾・加護が防いだ（割れる輪） */
       blocked?: boolean;
+      /** プレイヤーへのダメージをシールドが全部受け止めた（HP は減っていない。効果音の選び分け：決定事項 #127） */
+      guard?: boolean;
+      /** 得たキーワード（効果音の選び分け：決定事項 #127） */
+      keyword?: string;
     }
   | { t: 'summon'; uid: string; token?: boolean }
   | { t: 'destroy'; uid: string; power?: boolean; player?: PlayerId }
@@ -107,6 +111,12 @@ export const DURATION = {
   tint: 520,
   tick: 40,
 } as const;
+
+/** ダメージの行の「シールドがNを防いだ」で、量（amount）を全部受け止めたか */
+export function shieldTookAll(text: string, amount: number): boolean {
+  const m = /シールドが(\d+)を防いだ/.exec(text);
+  return !!m && amount > 0 && Number(m[1]) >= amount;
+}
 
 /** 「HP 940→800」「体力 20→8」から後の値を読む（HP バーの追従に使う。読めなければ undefined） */
 export function parseHpAfter(text: string): number | undefined {
@@ -424,6 +434,7 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
             arch: 'bolt',
             amount,
             ...(cause ? { gi: cause } : {}),
+            ...(shieldTookAll(e.text, amount) ? { guard: true } : {}),
           },
           DURATION.float,
           group,
@@ -469,7 +480,7 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
         const st = statusFx(ev.status);
         if (ev.keywordId) {
           const k = fxOf('keyword', ev.keywordId);
-          push(e.text, ownerOf(ev.target), { t: 'float', key, text: `+${getKeyword(ev.keywordId)?.name ?? ev.keywordId}`, tone: 'good', flash: 'status', gi: k.gi, arch: 'buff', el: 'holy' }, DURATION.float, group);
+          push(e.text, ownerOf(ev.target), { t: 'float', key, text: `+${getKeyword(ev.keywordId)?.name ?? ev.keywordId}`, tone: 'good', flash: 'status', gi: k.gi, arch: 'buff', el: 'holy', keyword: ev.keywordId }, DURATION.float, group);
         } else if (d) {
           push(e.text, ownerOf(ev.target), { t: 'float', key, text: d.text, tone: d.up ? 'good' : 'bad', flash: 'status', gi: d.up ? 'upgrade' : 'shattered-sword', arch: d.up ? 'buff' : 'debuff', el: d.up ? 'holy' : 'shadow' }, DURATION.float, group);
         } else if (st) {

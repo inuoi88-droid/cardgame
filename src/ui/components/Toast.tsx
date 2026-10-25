@@ -4,6 +4,7 @@
  * スマホでは下中央、PC では右下に積む。3秒（エラーは6秒、ボタン付きは6秒）で消える。
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { sfx } from '../sound/index.ts';
 import { cx } from '../util.ts';
 import { UiIcon } from './UiIcon.tsx';
 
@@ -52,6 +53,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const toast = useMemo<ToastFn>(() => {
     const fn = ((opts: ToastOptions) => {
       const id = `t${++seq.current}`;
+      // 効果音（決定事項 #127）：エラー・できない操作
+      if (opts.kind === 'ng') sfx('ui.error');
       const duration = opts.duration ?? (opts.kind === 'ng' ? TOAST_DURATION.ng : opts.action ? TOAST_DURATION.withAction : TOAST_DURATION.default);
       setItems((xs) => [...xs.slice(-3), { ...opts, id }]);
       timers.current.set(

@@ -27,14 +27,20 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), preloadDisplayFont()],
   base: './',
   // 1ファイル版は書体（woff2）も CSS のデータ URI に埋め込む（ネットなしで開いても見出しの明朝が出る）
+  // 効果音（src/ui/sound/sfx/*.mp3。決定事項 #127）は小さくても JS に埋め込まず、ハッシュ付きのファイルにする（オンにしてから1つずつ読む）
   build:
     mode === 'single'
       ? { rolldownOptions: { output: { codeSplitting: false } }, chunkSizeWarningLimit: 20_000, copyPublicDir: false, assetsInlineLimit: 100_000_000 }
-      : undefined,
-  // 1ファイル版はアイコンの形を fetch できない（file://）ので、HTML に埋め込んだ JSON から読む読み方に差し替える
+      : { assetsInlineLimit: (file: string) => (file.endsWith('.mp3') ? false : undefined) },
+  // 1ファイル版はアイコンの形と効果音を fetch できない（file://）ので、HTML に埋め込んだデータから読む読み方に差し替える
   resolve:
     mode === 'single'
-      ? { alias: [{ find: './iconSource.ts', replacement: fileURLToPath(new URL('./src/ui/icons/iconSource.single.ts', import.meta.url)) }] }
+      ? {
+          alias: [
+            { find: './iconSource.ts', replacement: fileURLToPath(new URL('./src/ui/icons/iconSource.single.ts', import.meta.url)) },
+            { find: './sfxSource.ts', replacement: fileURLToPath(new URL('./src/ui/sound/sfxSource.single.ts', import.meta.url)) },
+          ],
+        }
       : undefined,
   test: {
     projects: [

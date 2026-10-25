@@ -2761,6 +2761,29 @@ body:has(.savebar) .toasts {
   gap: 12px;
   margin: 4px 0 12px;
 }
+/* 効果音の素材の一覧（決定事項 #127）：PC は2列。1行は指で押せる高さ */
+.credits__sfx {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 0 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.credits__sfx li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 4px;
+  min-height: 36px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+  line-height: 1.4;
+}
+.credits__by {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
 
 /* ------------------------------------------------------------ UI キット（#/ui-kit）の記号の一覧 */
 .kit-icons {

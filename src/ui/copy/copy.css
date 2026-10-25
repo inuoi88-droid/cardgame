@@ -1,6 +1,6 @@
 /* 相手のデッキのコピー（DeckCopySheet・決定事項 #122）。色・角・影は styles.css のトークンだけ。カードの部品の規則は置かない */
 
-.dcopy-sheet.sheet__panel {
+.sheet--modal .dcopy-sheet.sheet__panel {
   width: min(600px, calc(100vw - 24px));
 }
 .dcopy {
@@ -42,6 +42,12 @@
   color: var(--ok);
 }
 
+.dcopy__groupnote {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--u-ink-2);
+}
+
 /* 選ぶ道具 */
 .dcopy__tools {
   display: flex;
@@ -50,8 +56,8 @@
   gap: 8px;
 }
 .dcopy__toolnote {
-  flex: 1 1 12em;
-  font-size: var(--fs-xs);
+  flex: 1 1 auto;
+  font-size: var(--fs-sm);
   color: var(--u-ink-2);
 }
 
@@ -284,7 +290,7 @@
   outline: 2px solid var(--u-sap);
   outline-offset: 2px;
 }
-.opp-hist__gi {
+.opp-hist__row .opp-hist__gi {
   flex: none;
   width: 28px;
   height: 28px;

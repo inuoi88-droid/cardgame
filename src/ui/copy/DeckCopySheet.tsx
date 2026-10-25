@@ -19,8 +19,8 @@ import { UiIcon } from '../components/UiIcon.tsx';
 import { navigate } from '../router.ts';
 import { useStore } from '../store.ts';
 import { cx } from '../util.ts';
-import { runCopy, type CopyKind } from './applyCopy.ts';
-import { deckCounts, ownedCardIds, selectAll, selectionTotal } from './copyLogic.ts';
+import { openCollection, runCopy, type CopyKind } from './applyCopy.ts';
+import { deckCounts, ownedCardIds, selectAll, selectionTotal, sourceGroupName } from './copyLogic.ts';
 import './copy.css';
 
 export interface DeckCopySheetProps {
@@ -71,23 +71,19 @@ export function DeckCopySheet({ title, sourceName, deck, cards, onClose }: DeckC
 
   const copy = (kind: CopyKind) => {
     const r = runCopy(kind, { sourceName, deck, cards, select });
-    const grp = r.groupName ? `（グループ「${r.groupName}」）` : '';
-    const reusedNote = r.reused > 0 ? `・${r.reused}種類はすでに持っています` : '';
+    const reusedNote = r.reused > 0 ? `（${r.reused}種類は持っています）` : '';
+    const view = { label: 'カード置き場で見る', onClick: () => openCollection(r.groupId, navigate) };
     if (r.deck) {
       const id = r.deck.id;
       toast({
-        text: `デッキ「${r.deck.name}」を作りました（カード${r.added}種類を追加${reusedNote}）`,
+        text: r.added > 0 ? `デッキを作りました（カード${r.added}種類を追加）` : 'デッキを作りました（カードはすべて持っています）',
         kind: 'ok',
         action: { label: 'デッキを開く', onClick: () => navigate(`/decks/${encodeURIComponent(id)}`) },
       });
     } else if (r.added > 0) {
-      toast({
-        text: `カード${r.added}種類をカード置き場に追加しました${grp}${reusedNote}`,
-        kind: 'ok',
-        action: { label: 'カード置き場で見る', onClick: () => navigate('/cards') },
-      });
+      toast({ text: `カード${r.added}種類を追加しました${reusedNote}`, kind: 'ok', action: view });
     } else {
-      toast({ text: '選んだカードはすべてすでに持っています', kind: 'info', action: { label: 'カード置き場で見る', onClick: () => navigate('/cards') } });
+      toast({ text: '選んだカードはすべて持っています', kind: 'info', action: view });
     }
     onClose();
   };
@@ -113,13 +109,18 @@ export function DeckCopySheet({ title, sourceName, deck, cards, onClose }: DeckC
           )}
         </div>
         {rows.length > 0 && <CostCurve deck={deck} cards={cards} compact />}
+        {rows.length > 0 && (
+          <p className="dcopy__groupnote">
+            コピーしたカードはグループ「<span className="u-name">{sourceGroupName(sourceName)}</span>」に入ります。
+          </p>
+        )}
 
         {rows.length === 0 ? (
           <p className="hint">デッキの中身が届いていません。</p>
         ) : (
           <>
             <div className="dcopy__tools">
-              <span className="dcopy__toolnote">右の枠で選ぶと一部だけコピーできます</span>
+              <span className="dcopy__toolnote">カード {rows.length}種類</span>
               <button type="button" className="btn btn--small" onClick={() => setSelect(selectAll(deck))} disabled={picked === total}>
                 全部選ぶ
               </button>
@@ -179,7 +180,7 @@ export function DeckCopySheet({ title, sourceName, deck, cards, onClose }: DeckC
           <div className="dcopy__foot">
             {picked === 0 ? (
               <>
-                <p className="dcopy__footnote">足りないカードをカード置き場に足し、デッキ「{sourceName}のデッキ（コピー）」を作ります。</p>
+                <p className="dcopy__footnote">右の枠でカードを選ぶと、一部だけコピーできます。</p>
                 <button type="button" className="btn btn--primary dcopy__main" onClick={() => copy('deck')}>
                   <UiIcon name="files" />
                   デッキごとコピー

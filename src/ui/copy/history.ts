@@ -32,6 +32,12 @@ export interface OpponentEntry {
 export const SOURCE_LABEL: Record<OpponentSource, string> = { cpu: 'CPU 戦', online: 'オンライン', draft: 'ドラフト', friend: 'フレンド' };
 export const RESULT_LABEL: Record<Exclude<OpponentResult, null>, string> = { win: '勝ち', loss: '負け', draw: '引き分け' };
 
+/** 決着の結果を、見ている人から見た勝ち・負け・引き分けにする */
+export function resultFor(result: { winner: 0 | 1 | null } | null | undefined, me: 0 | 1): OpponentResult {
+  if (!result) return null;
+  return result.winner === null ? 'draw' : result.winner === me ? 'win' : 'loss';
+}
+
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 
 /** 1件を読む（形が壊れていれば null。カードは parseCard を通すので古い倍率のカードも今の倍率になる） */
@@ -66,10 +72,14 @@ export function parseHistory(data: unknown): OpponentEntry[] {
   return out.sort((a, b) => b.at - a.at).slice(0, OPPONENTS_MAX);
 }
 
-/** 1件足す：同じ ID があれば置き換え、新しい順に並べて max 件まで。デッキに使っていないカードは落とす */
+/**
+ * 1件足す：同じ ID があれば置き換え（時刻は最初に記録したときのまま。開き直しで並びが変わらない）、
+ * 新しい順に並べて max 件まで。デッキに使っていないカードは落とす
+ */
 export function pushOpponent(list: readonly OpponentEntry[], entry: OpponentEntry, max = OPPONENTS_MAX): OpponentEntry[] {
   const used = new Set(entry.deck.entries.map((e) => e.cardId));
-  const slim: OpponentEntry = { ...entry, cards: entry.cards.filter((c) => used.has(c.id)) };
+  const prev = list.find((e) => e.id === entry.id);
+  const slim: OpponentEntry = { ...entry, at: prev ? prev.at : entry.at, cards: entry.cards.filter((c) => used.has(c.id)) };
   return [slim, ...list.filter((e) => e.id !== entry.id)].sort((a, b) => b.at - a.at).slice(0, max);
 }
 

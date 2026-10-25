@@ -11,6 +11,8 @@ export interface BattleSession {
   /** 2：インフレ倍率の導入後（決定事項 #65）。それより前の対戦の途中データは読まない */
   v: 2;
   state: battle.GameState;
+  /** 対戦ごとの ID（対戦した相手の記録を1対戦1件にする。決定事項 #122。無い古い保存データもある） */
+  gameId?: string;
   /**
    * 同じ組み合わせでもう一度遊ぶための情報。cpuLevel は CPU の強さ（無い古い保存データは「ふつう」：決定事項 #82）。
    * MTG 要素 △ バッチD：リーダー（CPU は「おまかせ」なら対戦ごとに決め直す）と対戦のルール。無い古い保存データは「なし」
@@ -85,7 +87,7 @@ export function startSession(setup: BattleSession['setup']): { ok: true; session
     ...(setup.first === 0 || setup.first === 1 ? { first: setup.first } : {}),
   });
   if (!r.ok) return r;
-  const session: BattleSession = { v: 2, state: r.state, setup };
+  const session: BattleSession = { v: 2, state: r.state, setup, gameId: `cpu-${seed.toString(36)}-${Date.now().toString(36)}` };
   saveSession(session);
   return { ok: true, session };
 }

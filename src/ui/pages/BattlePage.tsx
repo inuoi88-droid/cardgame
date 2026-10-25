@@ -10,6 +10,9 @@ import { CPU_PORTRAIT } from '../battle/portraits.ts';
 import { CPU, HUMAN, clearSession, loadSession, rematchFirst, saveSession, sessionLevel, startSession, type BattleSession } from '../battle/session.ts';
 import { navigate } from '../router.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
+import { DeckCopySheet } from '../copy/DeckCopySheet.tsx';
+import { OppDeckButton } from '../copy/OppDeckButton.tsx';
+import { recordOpponent, resultFor } from '../copy/history.ts';
 
 /** 演出を見せ終えてから CPU が次の手を打つまでの間（ミリ秒） */
 const CPU_THINK = 280;
@@ -78,6 +81,25 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
     return () => clearTimeout(t);
   }, [state, idleFor, commit, level]);
 
+  // 決着したら、相手（CPU）のデッキを「対戦した相手」に記録する（決定事項 #122。同じ対戦は1件）
+  const [oppOpen, setOppOpen] = useState(false);
+  const opponentName = `CPU（${session.setup.cpuDeckName}）`;
+  const finished = state.phase === 'ended' && state.result ? state.result : null;
+  useEffect(() => {
+    if (!finished) return;
+    recordOpponent({
+      id: session.gameId ?? `cpu-legacy-${state.turnIndex}-${state.log.length}`,
+      at: Date.now(),
+      source: session.setup.draft ? 'draft' : 'cpu',
+      opponentName,
+      deck: session.setup.cpuDeck,
+      cards: session.setup.cpuCards,
+      result: resultFor(finished, HUMAN),
+    });
+    // 決着した対戦ごとに1回
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished]);
+
   const backToSetup = () => {
     clearSession();
     setSession(null);
@@ -85,41 +107,49 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
   };
 
   return (
-    <BattleBoard
-      view={view}
-      me={HUMAN}
-      onAction={onAction}
-      error={error}
-      opponentLabel="CPU"
-      opponentPortrait={CPU_PORTRAIT[level]}
-      onReplayDone={onReplayDone}
-      menuItems={
-        <button type="button" className="btn" onClick={() => navigate('/battle')}>
-          <UiIcon name="gi:exit-door" />
-          <span className="menu-list__text">
-            中断して準備画面へ
-            <small>続きから再開できます</small>
-          </span>
-        </button>
-      }
-      resultButtons={
-        <>
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={() => {
-              // ドラフトのデッキは、前の対戦で負けた人が先攻（決定事項 #119）。ほかは今までどおりランダム
-              const r = startSession(session.setup.draft ? { ...session.setup, first: rematchFirst(state) } : session.setup);
-              if (r.ok) setSession(r.session);
-            }}
-          >
-            同じデッキでもう一度
+    <>
+      <BattleBoard
+        view={view}
+        me={HUMAN}
+        onAction={onAction}
+        error={error}
+        opponentLabel="CPU"
+        opponentPortrait={CPU_PORTRAIT[level]}
+        onReplayDone={onReplayDone}
+        menuItems={
+          <button type="button" className="btn" onClick={() => navigate('/battle')}>
+            <UiIcon name="gi:exit-door" />
+            <span className="menu-list__text">
+              中断して準備画面へ
+              <small>続きから再開できます</small>
+            </span>
           </button>
-          <button type="button" className="btn" onClick={backToSetup}>
-            対戦の準備に戻る
-          </button>
-        </>
-      }
-    />
+        }
+        resultButtons={
+          <>
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => {
+                // ドラフトのデッキは、前の対戦で負けた人が先攻（決定事項 #119）。ほかは今までどおりランダム
+                const r = startSession(session.setup.draft ? { ...session.setup, first: rematchFirst(state) } : session.setup);
+                if (r.ok) setSession(r.session);
+              }}
+            >
+              <UiIcon name="anticlockwise-rotation" />
+              同じデッキでもう一度
+            </button>
+            <OppDeckButton onClick={() => setOppOpen(true)} />
+            <button type="button" className="btn" onClick={backToSetup}>
+              対戦の準備に戻る
+            </button>
+          </>
+        }
+        endActions={<OppDeckButton onClick={() => setOppOpen(true)} />}
+      />
+      {oppOpen && (
+        <DeckCopySheet title={`${opponentName}のデッキ`} sourceName={opponentName} deck={session.setup.cpuDeck} cards={session.setup.cpuCards} onClose={() => setOppOpen(false)} />
+      )}
+    </>
   );
 }

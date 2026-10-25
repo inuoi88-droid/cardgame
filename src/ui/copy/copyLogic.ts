@@ -222,7 +222,12 @@ export function uniqueDeckName(name: string, decks: readonly Pick<Deck, 'name'>[
 /** コピーしたカードを入れるグループの名前「<相手の名前>から」（グループ名の上限に収まるように相手の名前を切る） */
 export function sourceGroupName(sourceName: string): string {
   const name = normalizeName(sourceName.replace(/\s+/gu, ' ')) || '相手';
-  return chars(name).slice(0, GROUP_NAME_MAX - 2).join('').trimEnd() + 'から';
+  return (
+    chars(name)
+      .slice(0, GROUP_NAME_MAX - 2)
+      .join('')
+      .trimEnd() + 'から'
+  );
 }
 
 /**

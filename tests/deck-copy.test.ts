@@ -1,4 +1,6 @@
 // 戦った相手のデッキのコピー（src/ui/copy/copyLogic.ts）と対戦した相手の記録（src/ui/copy/history.ts）
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BALANCE, analyzeDeck, type CardDef, type Deck } from '../src/engine/index.ts';
 import {
@@ -16,8 +18,19 @@ import {
   sourceGroupName,
   uniqueDeckName,
 } from '../src/ui/copy/copyLogic.ts';
-import { OPPONENTS_KEY, OPPONENTS_MAX, loadOpponents, parseHistory, pushOpponent, recordOpponent, type KeyValueStore, type OpponentEntry } from '../src/ui/copy/history.ts';
+import {
+  OPPONENTS_KEY,
+  OPPONENTS_MAX,
+  loadOpponents,
+  parseHistory,
+  pushOpponent,
+  recordOpponent,
+  resultFor,
+  type KeyValueStore,
+  type OpponentEntry,
+} from '../src/ui/copy/history.ts';
 import { makeGroup } from '../src/ui/collection/groups.ts';
+import { opponentDeckOf } from '../src/ui/copy/roomDeck.ts';
 import { PRESET_DECKS } from '../src/presets.ts';
 import { card } from './helpers.ts';
 
@@ -55,11 +68,7 @@ describe('importCards：カードを手元に足す形にする', () => {
     const r1 = importCards([card({ id: 'a', name: '火の玉', cost: 1 })], [inc], { sourceName: '相手', newId: ids() });
     expect(r1.cards[0]!.name).toBe(`火の玉${COPY_SUFFIX}`);
     expect(r1.renamed).toEqual([{ from: '火の玉', to: '火の玉（コピー）' }]);
-    const r2 = importCards(
-      [card({ id: 'a', name: '火の玉', cost: 1 }), card({ id: 'b', name: '火の玉（コピー）', cost: 3 })],
-      [inc],
-      { sourceName: '相手', newId: ids() },
-    );
+    const r2 = importCards([card({ id: 'a', name: '火の玉', cost: 1 }), card({ id: 'b', name: '火の玉（コピー）', cost: 3 })], [inc], { sourceName: '相手', newId: ids() });
     expect(r2.cards[0]!.name).toBe('火の玉（コピー2）');
   });
 
@@ -149,8 +158,22 @@ describe('copyDeck：デッキごと・選んだカードだけ', () => {
   });
 
   it('clampSelection・selectAll・selectionTotal・deckCounts', () => {
-    const deck: Deck = { v: 1, id: 'd', name: 'd', entries: [{ cardId: 'a', count: 2 }, { cardId: 'b', count: 1 }, { cardId: 'a', count: 1 }] };
-    expect(deckCounts(deck)).toEqual(new Map([['a', 3], ['b', 1]]));
+    const deck: Deck = {
+      v: 1,
+      id: 'd',
+      name: 'd',
+      entries: [
+        { cardId: 'a', count: 2 },
+        { cardId: 'b', count: 1 },
+        { cardId: 'a', count: 1 },
+      ],
+    };
+    expect(deckCounts(deck)).toEqual(
+      new Map([
+        ['a', 3],
+        ['b', 1],
+      ]),
+    );
     expect(selectAll(deck)).toEqual({ a: 3, b: 1 });
     expect(clampSelection(deck, { a: 5, b: -1, c: 2 })).toEqual({ a: 3 });
     expect(selectionTotal({ a: 3, b: 1 })).toBe(4);
@@ -158,7 +181,15 @@ describe('copyDeck：デッキごと・選んだカードだけ', () => {
 
   it('手元のカードを使うときも、デッキの1か所にまとめる', () => {
     const a = card({ id: 'x1', name: '盾', cost: 1 });
-    const deck: Deck = { v: 1, id: 'd', name: 'd', entries: [{ cardId: 'x1', count: 2 }, { cardId: 'x2', count: 1 }] };
+    const deck: Deck = {
+      v: 1,
+      id: 'd',
+      name: 'd',
+      entries: [
+        { cardId: 'x1', count: 2 },
+        { cardId: 'x2', count: 1 },
+      ],
+    };
     const r = copyDeck(deck, [a, { ...a, id: 'x2' }], [], { name: 'n', sourceName: 's', newId: ids() });
     expect(r.deck.entries).toEqual([{ cardId: r.cards[0]!.id, count: 3 }]);
   });
@@ -225,8 +256,11 @@ describe('対戦した相手の記録', () => {
     expect(list.at(-1)!.id).toBe('g5');
     list = pushOpponent(list, entry('g10', 5000, { result: 'loss' }));
     expect(list).toHaveLength(OPPONENTS_MAX);
-    expect(list.filter((e) => e.id === 'g10')).toHaveLength(1);
-    expect(list[0]!.result).toBe('loss');
+    const g10 = list.filter((e) => e.id === 'g10');
+    expect(g10).toHaveLength(1);
+    expect(g10[0]!.result).toBe('loss');
+    expect(g10[0]!.at).toBe(1010); // 最初に記録した時刻のまま（並びも変わらない）
+    expect(list[0]!.id).toBe('g24');
   });
 
   it('デッキに使っていないカードは残さない', () => {
@@ -242,6 +276,13 @@ describe('対戦した相手の記録', () => {
     expect(parsed[1]!.friendCode).toBe('ABCD');
     expect(parsed[0]!.result).toBeNull();
     expect(parseHistory({})).toEqual([]);
+  });
+
+  it('resultFor：見ている人から見た結果', () => {
+    expect(resultFor({ winner: 0 }, 0)).toBe('win');
+    expect(resultFor({ winner: 0 }, 1)).toBe('loss');
+    expect(resultFor({ winner: null }, 1)).toBe('draw');
+    expect(resultFor(null, 1)).toBeNull();
   });
 
   it('recordOpponent は渡した保存先に書く（容量不足なら古いものから減らす）', () => {
@@ -261,5 +302,38 @@ describe('対戦した相手の記録', () => {
     const saved = recordOpponent(entry('c', 3), store);
     expect(saved.map((e) => e.id)).toEqual(['c']);
     expect(loadOpponents(store).map((e) => e.id)).toEqual(['c']);
+  });
+});
+
+describe('オンラインの部屋から相手のデッキ（opponentDeckOf）', () => {
+  const base = { code: 'ABCD', seat: 0 as const, names: ['わたし', 'たろう'] as [string, string | null] };
+  const od = { name: 'たろう', deck: preset.deck, cards: preset.cards };
+
+  it('決着していなければ何も返さない（対戦中・ドラフト中・待機中）', () => {
+    for (const status of ['waiting', 'drafting', 'playing'] as const) expect(opponentDeckOf({ ...base, status, opponentDeck: od })).toBeNull();
+  });
+
+  it('決着したら opponentDeck を使い、名前は部屋の名前', () => {
+    const r = opponentDeckOf({ ...base, status: 'ended', opponentDeck: { ...od, name: '' } });
+    expect(r!.name).toBe('たろう');
+    expect(r!.deck).toBe(preset.deck);
+  });
+
+  it('opponentDeck の無い古いサーバーでも、ドラフトの部屋なら公開の記録から組む', () => {
+    const taken = preset.deck.entries.map((e) => ({ card: preset.cards.find((c) => c.id === e.cardId)!, count: e.count }));
+    const draft = { done: true, taken: [[], taken] } as unknown as Parameters<typeof opponentDeckOf>[0]['draft'];
+    const r = opponentDeckOf({ ...base, status: 'ended', draft });
+    expect(total(r!.deck)).toBe(BALANCE.deck.size);
+    expect(analyzeDeck(r!.deck, byId(r!.cards)).valid).toBe(true);
+    expect(opponentDeckOf({ ...base, status: 'ended' })).toBeNull();
+  });
+});
+
+describe('コピーの画面の CSS', () => {
+  it('カードの部品の規則と !important を置かない', () => {
+    const css = readFileSync(join(__dirname, '../src/ui/copy/copy.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const sels = [...css.matchAll(/([^{}]+)\{/g)].map((m) => m[1]!.trim()).filter((s) => !s.startsWith('@'));
+    expect(sels.filter((s) => /\.(tcg|hc|mt|card-row|lrow|crow)(?![\w-])|\.(tcg|hc|mt|card-row|lrow|crow)__/.test(s))).toEqual([]);
+    expect(css.includes('!important')).toBe(false);
   });
 });

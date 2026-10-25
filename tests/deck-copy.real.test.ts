@@ -24,7 +24,15 @@ describe('コピーするカードの倍率', () => {
   });
 
   it('記録を読むときもカードを今の倍率にする', () => {
-    const e = parseOpponent({ id: 'g', at: 1, source: 'online', opponentName: 'たろう', deck: { v: 1, id: 'd', name: 'd', entries: [{ cardId: 'old', count: 1 }] }, cards: [old], result: 'draw' });
+    const e = parseOpponent({
+      id: 'g',
+      at: 1,
+      source: 'online',
+      opponentName: 'たろう',
+      deck: { v: 1, id: 'd', name: 'd', entries: [{ cardId: 'old', count: 1 }] },
+      cards: [old],
+      result: 'draw',
+    });
     expect(e!.cards[0]!.stats!.attack).toBe(2 * SCALE);
   });
 });

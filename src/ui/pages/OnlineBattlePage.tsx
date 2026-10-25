@@ -20,6 +20,10 @@ import { DraftBoard, DeckPanel } from '../draft/DraftBoard.tsx';
 import { Sheet } from '../components/Sheet.tsx';
 import { CardDetail } from '../components/CardDetail.tsx';
 import type { CardDef } from '../../engine/index.ts';
+import { DeckCopySheet } from '../copy/DeckCopySheet.tsx';
+import { OppDeckButton } from '../copy/OppDeckButton.tsx';
+import { recordOpponent, resultFor } from '../copy/history.ts';
+import { opponentDeckOf } from '../copy/roomDeck.ts';
 import '../draft/draft.css';
 
 export function OnlineBattlePage() {
@@ -59,6 +63,24 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
   /** 決着した対戦の勝者（再戦が始まったときの説明に使う。undefined はまだ見ていない） */
   const lastWinner = useRef<battle.PlayerId | null | undefined>(undefined);
   if (room?.status === 'ended' && room.view?.result) lastWinner.current = room.view.result.winner;
+  // 決着したら相手のデッキを「対戦した相手」に記録する（決定事項 #122。1対戦1件）
+  const [oppOpen, setOppOpen] = useState(false);
+  const oppDeck = room ? opponentDeckOf(room) : null;
+  const recordId = room && oppDeck && room.status === 'ended' ? `online-${room.code}-${room.games ?? 1}-${oppDeck.name}` : null;
+  useEffect(() => {
+    if (!room || !oppDeck || !recordId) return;
+    recordOpponent({
+      id: recordId,
+      at: Date.now(),
+      source: room.mode === 'draft' ? 'draft' : 'online',
+      opponentName: oppDeck.name,
+      deck: oppDeck.deck,
+      cards: oppDeck.cards,
+      result: resultFor(room.view?.result, room.seat),
+    });
+    // 決着した対戦ごとに1回
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordId]);
   useEffect(() => {
     if (games <= 1 || announced.current >= games || firstOfGame === undefined || seat === undefined) return;
     announced.current = games;
@@ -147,13 +169,18 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
         resultButtons={
           <>
             {room.rematch && <RematchButton room={room} busy={r.busy} onRematch={r.rematch} />}
+            {oppDeck && <OppDeckButton onClick={() => setOppOpen(true)} />}
             <button type="button" className={cx('btn', !room.rematch && 'btn--primary')} onClick={leave}>
               ロビーに戻る
             </button>
           </>
         }
+        endActions={oppDeck ? <OppDeckButton onClick={() => setOppOpen(true)} /> : undefined}
       />
       {decksOpen && room.draft && <DraftDecksSheet room={room} onClose={() => setDecksOpen(false)} />}
+      {oppOpen && oppDeck && (
+        <DeckCopySheet title={`${oppDeck.name}のデッキ`} sourceName={oppDeck.name} deck={oppDeck.deck} cards={oppDeck.cards} onClose={() => setOppOpen(false)} />
+      )}
     </>
   );
 }

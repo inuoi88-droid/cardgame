@@ -31,9 +31,13 @@ import { BALANCE } from '../engine/balance.ts';
  * join のデッキは自分のデッキの部屋だけ要る（ドラフトの部屋では無視する）
  */
 export type OnlineRequest =
-  | { op: 'create'; name: string; deck?: Deck; cards?: CardDef[]; leader?: LeaderId; rules?: MatchRules; mode?: RoomMode }
+  /**
+   * secret（決定事項 #121。任意）：フレンド機能のプレイヤーの鍵。送ると席がそのプレイヤーに結び付き、対戦成績・「対戦中」の表示・
+   * 対戦した相手への申請に使われる。listed: true で「募集中の部屋」の一覧に出る（公開の部屋。入るのは普通の join）
+   */
+  | { op: 'create'; name: string; deck?: Deck; cards?: CardDef[]; leader?: LeaderId; rules?: MatchRules; mode?: RoomMode; secret?: string; listed?: boolean }
   /** features：この画面ができること（'draft' を送らない古い画面はドラフトの部屋に入れない。決定事項 #120） */
-  | { op: 'join'; code: string; name: string; deck?: Deck; cards?: CardDef[]; leader?: LeaderId; features?: string[] }
+  | { op: 'join'; code: string; name: string; deck?: Deck; cards?: CardDef[]; leader?: LeaderId; features?: string[]; secret?: string }
   /** 最新の状態を取る。数秒おきに送り、接続中の目印にもする */
   | { op: 'state'; code: string; token: string }
   | { op: 'action'; code: string; token: string; version: number; action: Action }
@@ -93,9 +97,17 @@ export interface RoomView {
    * 待機中・ドラフト中・対戦中は入らない（相手の山札の中身が漏れないように）。再戦が始まると消えるので、画面は決着したときに控える
    */
   opponentDeck?: { name: string; deck: Deck; cards: CardDef[] };
+  /**
+   * 相手のフレンドコード（決定事項 #121）。自分と相手の両方の席がプレイヤーに結び付いているときだけ（結果の画面の「フレンド申請」、
+   * 対戦した相手の記録に使う）。相手の内部の ID や鍵は返さない
+   */
+  opponentFriendCode?: string;
+  /** 「募集中の部屋」の一覧に出す部屋か（作成者が listed: true で作った） */
+  listed?: boolean;
 }
 
-export type ErrorReason = 'version' | 'notFound' | 'auth' | 'invalid';
+/** player：create・join の secret のプレイヤーが見つからない（端末のプレイヤー情報が無効。決定事項 #121） */
+export type ErrorReason = 'version' | 'notFound' | 'auth' | 'invalid' | 'player';
 
 export type OnlineResponse =
   | ({ ok: true; token?: string } & RoomView)
@@ -111,8 +123,8 @@ const MAX_FEATURES = 10;
 
 /** サーバーが受け取った形（デッキとカードは room.ts の checkDeck で調べる） */
 export type ParsedRequest =
-  | { op: 'create'; name: unknown; deck: unknown; cards: unknown; leader: LeaderId; rules?: MatchRules; mode: RoomMode }
-  | { op: 'join'; code: string; name: unknown; deck: unknown; cards: unknown; leader: LeaderId; features: string[] }
+  | { op: 'create'; name: unknown; deck: unknown; cards: unknown; leader: LeaderId; rules?: MatchRules; mode: RoomMode; listed: boolean; secret?: string }
+  | { op: 'join'; code: string; name: unknown; deck: unknown; cards: unknown; leader: LeaderId; features: string[]; secret?: string }
   | { op: 'state'; code: string; token: string }
   | { op: 'action'; code: string; token: string; version: number; action: Action }
   | { op: 'take'; code: string; token: string; version: number; cardId: string }
@@ -272,17 +284,21 @@ export function parseRequest(x: unknown): Parsed<ParsedRequest> {
   if (!isObj(x)) return bad('送信の形式が正しくありません');
   // MTG 要素 △ バッチD：リーダー（知らない値は none）とルール（知らない値は無し扱い）は作り直す
   const leader = toLeaderId(x.leader);
+  // フレンド機能のプレイヤーの鍵（決定事項 #121。無ければ今までどおり席は誰にも結び付かない）
+  if ((x.op === 'create' || x.op === 'join') && x.secret !== undefined && !isToken(x.secret)) return bad('プレイヤーの鍵が正しくありません');
+  const secret = typeof x.secret === 'string' ? { secret: x.secret } : {};
   if (x.op === 'create') {
+    if (x.listed !== undefined && typeof x.listed !== 'boolean') return bad('公開の指定が正しくありません');
     const rules = normalizeRules(x.rules);
     if (x.mode !== undefined && !(ROOM_MODES as readonly unknown[]).includes(x.mode)) return bad('部屋の形式が正しくありません');
     const mode: RoomMode = x.mode === 'draft' ? 'draft' : 'deck';
-    return { ok: true, value: { op: 'create', name: x.name, deck: x.deck, cards: x.cards, leader, ...(rules ? { rules } : {}), mode } };
+    return { ok: true, value: { op: 'create', name: x.name, deck: x.deck, cards: x.cards, leader, ...(rules ? { rules } : {}), mode, listed: x.listed === true, ...secret } };
   }
   const code = normalizeCode(x.code);
   if (!code) return bad('部屋コードが正しくありません');
   if (x.op === 'join') {
     const features = Array.isArray(x.features) ? x.features.filter(isId).slice(0, MAX_FEATURES) : [];
-    return { ok: true, value: { op: 'join', code, name: x.name, deck: x.deck, cards: x.cards, leader, features } };
+    return { ok: true, value: { op: 'join', code, name: x.name, deck: x.deck, cards: x.cards, leader, features, ...secret } };
   }
   if (!isToken(x.token)) return bad('合言葉が正しくありません');
   if (x.op === 'state') return { ok: true, value: { op: 'state', code, token: x.token } };

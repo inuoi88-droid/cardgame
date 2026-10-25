@@ -36,7 +36,7 @@ function setup() {
       notified.push([code, version]);
     },
   };
-  const call = async (body: unknown) => (await handleBody(typeof body === 'string' ? body : JSON.stringify(body), deps)).body;
+  const call = async (body: unknown) => (await handleBody(typeof body === 'string' ? body : JSON.stringify(body), deps)).body as OnlineResponse;
   return { store, notified, deps, call, tick: (ms: number) => (now += ms) };
 }
 

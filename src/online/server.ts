@@ -19,6 +19,7 @@ import {
   touch,
   type Result,
   type RoomRecord,
+  type SeatPlayer,
 } from './room.ts';
 
 export interface ServeDeps {
@@ -31,6 +32,8 @@ export interface ServeDeps {
   seed: number;
   /** ドラフトに使うカード（無ければ公式のカード ONLINE_DRAFT_CARDS） */
   draftPool?: readonly CardDef[];
+  /** create・join：席に結び付けるプレイヤー（secret を送ったときだけ。決定事項 #121） */
+  player?: SeatPlayer;
 }
 
 export interface ServeResult {
@@ -51,7 +54,7 @@ export function serve(req: ParsedRequest, room: RoomRecord | null, deps: ServeDe
   const none = (response: OnlineResponse): ServeResult => ({ save: null, insert: false, notify: false, response });
 
   if (req.op === 'create') {
-    const r = createRoom(req, { now, code: deps.code, tokenHash: deps.tokenHash });
+    const r = createRoom(req, { now, code: deps.code, tokenHash: deps.tokenHash, ...(deps.player ? { player: deps.player } : {}) });
     if (!r.ok) return none(r);
     return { save: r.value, insert: true, notify: false, response: { ok: true, ...roomView(r.value, 0, now) } };
   }
@@ -59,7 +62,13 @@ export function serve(req: ParsedRequest, room: RoomRecord | null, deps: ServeDe
   if (!room || isExpired(room, now)) return none(NOT_FOUND);
 
   if (req.op === 'join') {
-    const r = joinRoom(room, req, { now, tokenHash: deps.tokenHash, seed: deps.seed, pool: deps.draftPool ?? ONLINE_DRAFT_CARDS });
+    const r = joinRoom(room, req, {
+      now,
+      tokenHash: deps.tokenHash,
+      seed: deps.seed,
+      pool: deps.draftPool ?? ONLINE_DRAFT_CARDS,
+      ...(deps.player ? { player: deps.player } : {}),
+    });
     if (!r.ok) return none(r);
     return { save: r.value, insert: false, notify: true, response: { ok: true, ...roomView(r.value, 1, now) } };
   }

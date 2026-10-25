@@ -487,7 +487,7 @@ describe('受付（handleBody）', () => {
       notify: async () => {},
       draftPool: POOL,
     };
-    const call = async (body: unknown) => (await handleBody(JSON.stringify(body), deps)).body;
+    const call = async (body: unknown) => (await handleBody(JSON.stringify(body), deps)).body as OnlineResponse;
     const host = await call({ op: 'create', mode: 'draft', name: 'A' });
     if (!host.ok) throw new Error(host.error);
     const guest = await call({ op: 'join', code: host.code, name: 'B', features: ['draft'] });

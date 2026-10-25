@@ -87,6 +87,12 @@ export interface RoomView {
   rematch?: [boolean, boolean];
   /** この部屋で始めた対戦の数（1戦目から1） */
   games?: number;
+  /**
+   * 相手のデッキ（決定事項 #121：戦った相手のデッキをコピーできるように）。決着した（status が 'ended'）ときだけ入る。
+   * 自分のデッキの部屋は相手が出したデッキ、ドラフトの部屋は相手がドラフトで作ったデッキ。name はそのデッキの名前（deck.name と同じ）。
+   * 待機中・ドラフト中・対戦中は入らない（相手の山札の中身が漏れないように）。再戦が始まると消えるので、画面は決着したときに控える
+   */
+  opponentDeck?: { name: string; deck: Deck; cards: CardDef[] };
 }
 
 export type ErrorReason = 'version' | 'notFound' | 'auth' | 'invalid';

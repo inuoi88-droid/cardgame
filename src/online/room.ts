@@ -507,7 +507,14 @@ export function roomView(room: RoomRecord, seat: PlayerId, now: number): RoomVie
     ...draftPart(room, seat),
     ...(room.status === 'ended' && room.meta?.decks ? { rematch: [room.meta.rematch?.[0] ?? false, room.meta.rematch?.[1] ?? false] as [boolean, boolean] } : {}),
     ...(room.meta?.games ? { games: room.meta.games } : {}),
+    ...opponentDeckPart(room, seat),
   };
+}
+
+/** 決着したあとだけ、相手のデッキを見せる（決定事項 #121。対戦中は相手の山札の中身を隠すので出さない） */
+function opponentDeckPart(room: RoomRecord, seat: PlayerId): Pick<RoomView, 'opponentDeck'> {
+  const d = room.status === 'ended' ? room.meta?.decks?.[other(seat)] : undefined;
+  return d ? { opponentDeck: { name: d.deck.name, deck: d.deck, cards: d.cards } } : {};
 }
 
 /** ドラフトの見え方（伏せた山の中身・順番と乱数は送らない。枚数だけ） */

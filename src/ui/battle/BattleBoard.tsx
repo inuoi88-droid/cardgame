@@ -113,8 +113,13 @@ export interface BattleBoardProps {
   opponentLabel: string;
   /** 結果ダイアログに出すボタン */
   resultButtons: ReactNode;
-  /** 決着したあと、操作バーの「結果を見る」の前に置くもの（「相手のデッキ」など。決定事項 #122） */
+  /**
+   * 決着したあと、操作バーの「結果を見る」の前に置くもの（「相手のデッキ」など。決定事項 #122）。
+   * スマホではボタンの文字（.btn__label）を隠して形だけにする（決定事項 #124：結果を見る・もう一戦が画面の外に出ないように）
+   */
   endActions?: ReactNode;
+  /** 決着したあとの操作バーの主役（オンラインの「もう一戦」）。あれば「結果を見る」は金ではなくなる */
+  endPrimary?: ReactNode;
   /** マリガン・選択ダイアログの中に出す残り時間（オンライン） */
   timeLeft?: ReactNode;
   /** 新しい状態の演出を再生し終えたとき（演出がなければすぐ）。CPU 戦が次の手を打つ合図に使う */
@@ -136,7 +141,22 @@ function shortBlock(reason: string | null): string | null {
   return null;
 }
 
-export function BattleBoard({ view, me, onAction, error, busy = false, status, opponentLabel, resultButtons, endActions, timeLeft, onReplayDone, menuItems, opponentPortrait }: BattleBoardProps) {
+export function BattleBoard({
+  view,
+  me,
+  onAction,
+  error,
+  busy = false,
+  status,
+  opponentLabel,
+  resultButtons,
+  endActions,
+  endPrimary,
+  timeLeft,
+  onReplayDone,
+  menuItems,
+  opponentPortrait,
+}: BattleBoardProps) {
   const opp = battle.other(me);
   const confirm = useConfirm();
   const toast = useToast();
@@ -1627,7 +1647,7 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
           <div className={cx('battle-bar__hint', nothingLeft && !sel && 'is-ok', hintKey && 'is-key')} aria-live="polite">
             {hint}
           </div>
-          <div className="battle-bar__btns">
+          <div className={cx('battle-bar__btns', view.phase === 'ended' && 'battle-bar__btns--ended')}>
             {targetSel?.kind === 'card' && needAlly && !needEnemy && info?.allyTargets.includes(targetSel.uid) && (
               <button type="button" className="btn btn--primary" onClick={() => void tryPlay({ ...targetSel, ally: targetSel.uid })}>
                 このモンスター自身
@@ -1641,9 +1661,10 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
             {view.phase === 'ended' ? (
               <>
                 {endActions}
-                <button type="button" className="btn btn--primary" onClick={() => setResultHidden(false)}>
-                  結果を見る
+                <button type="button" className={cx('btn', !endPrimary && 'btn--primary')} onClick={() => setResultHidden(false)}>
+                  結果<span className="battle-bar__more">を見る</span>
                 </button>
+                {endPrimary}
               </>
             ) : (
               !sel && (

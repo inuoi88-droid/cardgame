@@ -21,6 +21,7 @@ import '../draft/draft.css';
 import './social.css';
 
 export function InviteFriendSheet({ friend, onClose }: { friend: FriendView; onClose: () => void }) {
+  const { snap } = useSocial();
   const choices = useDeckChoices();
   const toast = useToast();
   const [mode, setMode] = useState<RoomMode>('deck');
@@ -37,7 +38,7 @@ export function InviteFriendSheet({ friend, onClose }: { friend: FriendView; onC
     if (mode === 'deck' && selected) saveOnlineDeckKey(selected.key);
     const room = await enterRoom({
       op: 'create',
-      name: loadOnlineName(),
+      name: snap?.me.name || loadOnlineName(),
       ...(mode === 'draft' ? { mode: 'draft' as const } : { deck: selected!.deck, cards: selected!.cards }),
       listed: false,
     });
@@ -54,7 +55,7 @@ export function InviteFriendSheet({ friend, onClose }: { friend: FriendView; onC
   };
 
   return (
-    <Sheet open title={`${friend.name}さんを対戦に招待`} onClose={onClose} desktop="modal" className="join-sheet">
+    <Sheet open title={`「${friend.name}」さんを対戦に招待`} onClose={onClose} desktop="modal" className="join-sheet">
       <p className="hint">
         合言葉の部屋（「募集中の部屋」には出ない）を作って、<span className="u-name">{friend.name}</span>
         さんに招待を送ります。相手の画面に知らせが出て、1タップで入れます（{friend.presence === 'offline' ? 'いまはオフラインです。開いたときに届きます' : PRESENCE_LABEL[friend.presence]}）。
@@ -130,6 +131,7 @@ export function InviteToRoomSheet({ roomCode, onClose }: { roomCode: string; onC
 }
 
 /** 在室の印（丸い点の色と形を変える。色だけに頼らないよう、名前の下に言葉も出す） */
-export function PresenceDot({ presence }: { presence: FriendView['presence'] }) {
+/** 在室の点（unknown：サーバーにつながらず、今の様子が分からない） */
+export function PresenceDot({ presence }: { presence: FriendView['presence'] | 'unknown' }) {
   return <span className={cx('presence', `presence--${presence}`)} aria-hidden="true" />;
 }

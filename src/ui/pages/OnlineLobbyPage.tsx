@@ -19,17 +19,17 @@ import { CODE_LENGTH, NAME_MAX_LENGTH, normalizeCode } from '../../online/codes.
 import { DeckPicker } from '../battle/DeckPicker.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { pickChoice, useDeckChoices } from '../battle/deckChoices.ts';
-import { clearOnlineSession, loadOnlineName, loadOnlineSession } from '../online/client.ts';
+import { loadOnlineName, loadOnlineSession } from '../online/client.ts';
 import { navigate } from '../router.ts';
 import { OFFICIAL_SET } from '../../official/index.ts';
 import { DRAFT_FEATURE, type RoomMode } from '../../online/protocol.ts';
 import type { ListedRoomView } from '../../online/social/protocol.ts';
-import { confirmLeaveRoom, enterRoom, goToRoom, loadOnlineDeckKey, saveOnlineDeckKey } from '../social/enterRoom.ts';
+import { confirmLeaveRoom, enterRoom, goToRoom, leaveRoom, loadOnlineDeckKey, saveOnlineDeckKey } from '../social/enterRoom.ts';
 import { FriendsTab } from '../social/FriendsTab.tsx';
 import { JoinSheet } from '../social/JoinSheet.tsx';
 import { ProfileSheet } from '../social/ProfileSheet.tsx';
 import { PublicRooms } from '../social/PublicRooms.tsx';
-import { badgeCount } from '../social/socialLogic.ts';
+import { badgeCount, needsName } from '../social/socialLogic.ts';
 import { ensurePlayer, setPlayerName, useSocial } from '../social/socialStore.ts';
 import { MODE_LABEL } from '../social/useInviteAnswer.tsx';
 import '../draft/draft.css';
@@ -96,7 +96,8 @@ function BattleTab({ initialCode, meName }: { initialCode: string | null; meName
   const choices = useDeckChoices();
   const confirm = useConfirm();
   const [existing, setExisting] = useState(() => loadOnlineSession());
-  const [name, setName] = useState(() => meName || loadOnlineName());
+  // 名前が自動の「プレイヤー」のままなら空にして、最初に部屋を作る・入るときに決めてもらう（決定事項 #124）
+  const [name, setName] = useState(() => (needsName(meName) ? (needsName(loadOnlineName()) ? '' : loadOnlineName()) : meName));
   const [deckKey, setDeckKeyState] = useState(() => loadOnlineDeckKey());
   const setDeckKey = (k: string) => {
     setDeckKeyState(k);
@@ -112,8 +113,17 @@ function BattleTab({ initialCode, meName }: { initialCode: string | null; meName
   const [busyCode, setBusyCode] = useState<string | null>(null);
   // プロフィールで名前を変えたら、ここの名前もそろえる
   useEffect(() => {
-    if (meName) setName(meName);
+    if (meName && !needsName(meName)) setName(meName);
   }, [meName]);
+  /** 名前を決めていなければ、名前の欄へ案内する（一度決めれば次からは聞かない） */
+  const askName = (): boolean => {
+    if (!needsName(name)) return false;
+    setError('まず名前を決めてください（対戦相手や「募集中の部屋」、フレンドの一覧に出ます）');
+    const el = document.getElementById('online-name');
+    el?.scrollIntoView({ block: 'center' });
+    el?.focus();
+    return true;
+  };
   const [code, setCode] = useState(initialCode ?? '');
   /** 下の主ボタンが「部屋を作る」か「入る」か（コード付きのリンクで来たら入る） */
   const [mode, setMode] = useState<'create' | 'join'>(initialCode ? 'join' : 'create');
@@ -142,6 +152,7 @@ function BattleTab({ initialCode, meName }: { initialCode: string | null; meName
       setError(`部屋コードは${CODE_LENGTH}文字です`);
       return;
     }
+    if (askName()) return;
     if (!(await confirmLeaveRoom(confirm))) return;
     setBusy(true);
     setError(null);
@@ -165,6 +176,7 @@ function BattleTab({ initialCode, meName }: { initialCode: string | null; meName
   /** 募集中の部屋に入る：ドラフトの部屋はそのまま、自分のデッキの部屋はデッキを選ぶシートを挟む */
   const joinListed = async (r: ListedRoomView) => {
     if (busyCode) return;
+    if (askName()) return;
     // 参加中の部屋を抜けてよいかは、シートを開く前に確かめる（シートの上に確認を重ねない）
     if (!(await confirmLeaveRoom(confirm))) return;
     if (r.mode === 'deck') {
@@ -194,13 +206,13 @@ function BattleTab({ initialCode, meName }: { initialCode: string | null; meName
               onClick={async () => {
                 const ok = await confirm({
                   title: 'この部屋を抜けますか？',
-                  message: '対戦中なら、その対戦には戻れなくなります。',
+                  message: '相手待ちの部屋は閉じます（一覧からも消えます）。ドラフト中・対戦中なら降参（負け）になり、相手にすぐ知らせます。',
                   okLabel: '抜ける',
                   danger: true,
                 });
                 if (!ok) return;
-                clearOnlineSession();
                 setExisting(null);
+                await leaveRoom();
               }}
             >
               部屋を抜ける
@@ -222,8 +234,20 @@ function BattleTab({ initialCode, meName }: { initialCode: string | null; meName
         <h2>あなた</h2>
         <div className="lobby__you-grid">
           <label className="field">
-            <span>名前（{NAME_MAX_LENGTH}文字まで。空なら「プレイヤー」）</span>
-            <input type="text" className="u-name-input" value={name} maxLength={NAME_MAX_LENGTH} placeholder="プレイヤー" onChange={(e) => setName(e.target.value)} onBlur={syncName} />
+            <span>名前（{NAME_MAX_LENGTH}文字まで。対戦相手・フレンドに見えます）</span>
+            <input
+              id="online-name"
+              type="text"
+              className="u-name-input"
+              value={name}
+              maxLength={NAME_MAX_LENGTH}
+              placeholder="名前を入れてください"
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error && !needsName(e.target.value)) setError(null);
+              }}
+              onBlur={() => !needsName(name) && syncName()}
+            />
           </label>
           <LeaderField label="あなたのリーダー" title="あなたのリーダー" value={leader} onChange={(v) => setLeader(v === 'random' ? 'none' : v)} id="online-leader" />
         </div>
@@ -355,7 +379,7 @@ function BattleTab({ initialCode, meName }: { initialCode: string | null; meName
       </div>
       {joiningRoom && (
         <JoinSheet
-          title={`${joiningRoom.hostName || 'プレイヤー'}さんの部屋に入る`}
+          title={`「${joiningRoom.hostName || 'プレイヤー'}」さんの部屋に入る`}
           mode={joiningRoom.mode}
           info={
             <p>

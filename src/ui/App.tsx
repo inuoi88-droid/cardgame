@@ -17,6 +17,7 @@ import { CreditsPage } from './pages/CreditsPage.tsx';
 import { RulesPage } from './pages/RulesPage.tsx';
 import { UiKitPage } from './pages/UiKitPage.tsx';
 import { FriendLinkPage } from './social/FriendLinkPage.tsx';
+import { InviteBanner } from './social/InviteNotices.tsx';
 import { SocialRuntime } from './social/SocialRuntime.tsx';
 import { badgeCount } from './social/socialLogic.ts';
 import { useSocial } from './social/socialStore.ts';
@@ -35,6 +36,9 @@ const NAV: { id: Section; icon: UiIconName; label: string; path: string }[] = [
   { id: 'online', icon: 'world', label: 'オンライン', path: '/online' },
   { id: 'rules', icon: 'rule-book', label: 'ルール', path: '/rules' },
 ];
+
+/** 招待の知らせを上に出さない画面 */
+const NO_BANNER: ReadonlySet<string> = new Set(['online', 'onlineBattle', 'friendLink', 'battle', 'draft']);
 
 export function App() {
   const route = useRoute();
@@ -69,7 +73,7 @@ export function App() {
     <ToastProvider>
       <ConfirmProvider>
         <CardSymbols />
-        <SocialRuntime route={route} />
+        <SocialRuntime />
         <div className="app">
           <header className="topbar">
             <div className="topbar__title">
@@ -103,6 +107,8 @@ export function App() {
             </div>
           )}
           <main className="main">
+            {/* 届いた対戦の招待（流れの中。オンラインの画面はロビーに、対戦・ドラフトの画面は見出しの札に出す：決定事項 #124） */}
+            {!NO_BANNER.has(route.page) && <InviteBanner />}
             {route.page === 'cards' && <CardListPage />}
             {route.page === 'cardEdit' && <CardEditorPage id={route.id} />}
             {route.page === 'decks' && <DeckListPage />}

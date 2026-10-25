@@ -69,7 +69,7 @@ export function useInviteAnswer(): { accept: (inv: InviteView) => Promise<void>;
 
   const sheet = joining ? (
     <JoinSheet
-      title={`${joining.inv.from.name}さんの部屋に入る`}
+      title={`「${joining.inv.from.name}」さんの部屋に入る`}
       mode={joining.mode}
       info={
         <p>

@@ -11,7 +11,7 @@ import { ONLINE_OPP_PORTRAIT } from '../battle/portraits.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { useToast } from '../components/Toast.tsx';
-import { clearOnlineSession, loadOnlineSession, type OnlineSession } from '../online/client.ts';
+import { loadOnlineSession, type OnlineSession } from '../online/client.ts';
 import { WARN_SECONDS } from '../online/config.ts';
 import { useOnlineRoom } from '../online/useOnlineRoom.ts';
 import { navigate } from '../router.ts';
@@ -25,7 +25,9 @@ import { OppDeckButton } from '../copy/OppDeckButton.tsx';
 import { recordOpponent, resultFor } from '../copy/history.ts';
 import { opponentDeckOf } from '../copy/roomDeck.ts';
 import { FriendRequestButton } from '../social/FriendRequestButton.tsx';
+import { leaveRoom } from '../social/enterRoom.ts';
 import { InviteToRoomSheet } from '../social/InviteFriendSheet.tsx';
+import { sourceLabel } from '../social/socialLogic.ts';
 import { useSocial, useSocialBoost } from '../social/socialStore.ts';
 import '../draft/draft.css';
 import '../social/social.css';
@@ -45,8 +47,9 @@ export function OnlineBattlePage() {
   return <OnlineRoomScreen session={session} />;
 }
 
+/** 部屋を出てロビーへ（サーバーにも出ると伝える：決着後なら相手の「もう一戦」は待たなくなる。決定事項 #124） */
 const leave = () => {
-  clearOnlineSession();
+  void leaveRoom();
   navigate('/online');
 };
 
@@ -77,7 +80,7 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
       id: recordId,
       at: Date.now(),
       source: room.mode === 'draft' ? 'draft' : 'online',
-      opponentName: oppDeck.name,
+      opponentName: sourceLabel(oppDeck.name, room.opponentFriendCode),
       deck: oppDeck.deck,
       cards: oppDeck.cards,
       result: resultFor(room.view?.result, room.seat),
@@ -119,6 +122,8 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
 
   const opp = battle.other(room.seat);
   const oppName = room.names[opp] ?? '相手';
+  /** 「同じデッキでもう一戦」ができる（再戦できる部屋で、相手がまだ部屋にいる） */
+  const canRematch = !!room.rematch && !room.opponentLeft;
   // ドラフトが終わった直後（1戦目のマリガン中）：両者のデッキを見せてから対戦の画面へ
   if (room.draft?.done && sawDrafting.current && !decksSeen && (room.games ?? 1) === 1 && room.view.phase === 'mulligan') {
     return (
@@ -173,14 +178,20 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
         }
         resultButtons={
           <>
-            {room.rematch && <RematchButton room={room} busy={r.busy} onRematch={r.rematch} />}
+            {canRematch && <RematchButton room={room} busy={r.busy} onRematch={r.rematch} />}
+            {room.rematch && room.opponentLeft && (
+              <span className="rematch-note" role="status">
+                <span className="u-name">{oppName}</span>は部屋を出ました（もう一戦はできません）
+              </span>
+            )}
             {oppDeck && <OppDeckButton onClick={() => setOppOpen(true)} />}
             <FriendRequestButton roomCode={room.code} friendCode={room.opponentFriendCode} name={oppName} />
-            <button type="button" className={cx('btn', !room.rematch && 'btn--primary')} onClick={leave}>
+            <button type="button" className={cx('btn', !canRematch && 'btn--primary')} onClick={leave}>
               ロビーに戻る
             </button>
           </>
         }
+        endPrimary={canRematch ? <RematchButton room={room} busy={r.busy} onRematch={r.rematch} compact /> : undefined}
         endActions={
           oppDeck || room.opponentFriendCode ? (
             <>
@@ -192,7 +203,7 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
       />
       {decksOpen && room.draft && <DraftDecksSheet room={room} onClose={() => setDecksOpen(false)} />}
       {oppOpen && oppDeck && (
-        <DeckCopySheet title={`${oppDeck.name}のデッキ`} sourceName={oppDeck.name} deck={oppDeck.deck} cards={oppDeck.cards} onClose={() => setOppOpen(false)} />
+        <DeckCopySheet title={`「${oppDeck.name}」のデッキ`} sourceName={sourceLabel(oppDeck.name, room?.opponentFriendCode)} deck={oppDeck.deck} cards={oppDeck.cards} onClose={() => setOppOpen(false)} />
       )}
     </>
   );
@@ -262,9 +273,22 @@ function MulliganLeft({ room, serverNow }: { room: RoomView; serverNow: () => nu
   return <span className={cx(left <= WARN_SECONDS && 'text-ng')}>マリガンの残り {left}秒。</span>;
 }
 
-/** 「同じデッキでもう一戦」：押したら相手を待つ。相手が押したかも出す */
-function RematchButton({ room, busy, onRematch }: { room: RoomView; busy: boolean; onRematch: () => void }) {
+/**
+ * 「同じデッキでもう一戦」：押したら相手を待つ。相手が押したかも出す（結果ダイアログでは金のボタンのすぐ下に）。
+ * compact は決着後の操作バーの主役（短い言葉。相手が押していれば印を添える。決定事項 #124）
+ */
+function RematchButton({ room, busy, onRematch, compact = false }: { room: RoomView; busy: boolean; onRematch: () => void; compact?: boolean }) {
   const mine = room.rematch?.[room.seat] ?? false;
+  if (compact) {
+    const theirs = room.rematch?.[battle.other(room.seat)] ?? false;
+    return (
+      <button type="button" className="btn btn--primary rematch-bar" disabled={mine || busy} onClick={onRematch} aria-label={`同じデッキでもう一戦（${rematchText(room)}）`}>
+        <UiIcon name="anticlockwise-rotation" />
+        {mine ? '待っています' : 'もう一戦'}
+        {theirs && !mine && <span className="rematch-bar__dot" aria-hidden="true" />}
+      </button>
+    );
+  }
   return (
     <>
       <button type="button" className="btn btn--primary" disabled={mine || busy} onClick={onRematch}>
@@ -381,7 +405,12 @@ function WaitingRoom({ code, online, room }: { code: string; online: boolean; ro
           type="button"
           className="btn"
           onClick={async () => {
-            if (await confirm({ title: 'この部屋をやめますか？', message: '部屋コードは使えなくなります。', okLabel: 'やめる', danger: true })) leave();
+            const ok = await confirm({
+              title: 'この部屋を閉じますか？',
+              message: room.listed ? '「募集中の部屋」から消え、この部屋コードでは入れなくなります。' : 'この部屋コードでは入れなくなります。送った招待も無効になります。',
+              okLabel: '閉じる',
+            });
+            if (ok) leave();
           }}
         >
           やめる
@@ -428,7 +457,8 @@ function OnlineStatus({ room, online, serverNow }: { room: RoomView; online: boo
           時間切れ {room.timeouts[me]}/{limit}
         </span>
       )}
-      {room.status === 'ended' && room.rematch && (
+      {room.status === 'ended' && room.rematch && room.opponentLeft && <span className="online-chip">相手は部屋を出ました</span>}
+      {room.status === 'ended' && room.rematch && !room.opponentLeft && (
         <span className={cx('online-chip', room.rematch[opp] && 'online-chip--ok')} title="「同じデッキでもう一戦」">
           <UiIcon name="anticlockwise-rotation" className="online-chip__gi" />
           {room.rematch[opp] ? '相手はもう一戦を希望' : room.rematch[me] ? '相手の返事待ち' : '再戦できます'}

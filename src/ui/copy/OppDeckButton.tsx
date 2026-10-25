@@ -5,7 +5,7 @@ export function OppDeckButton({ onClick, disabled = false }: { onClick: () => vo
   return (
     <button type="button" className="btn opp-deck-btn" onClick={onClick} disabled={disabled} title="相手のデッキを見て、カードやデッキをコピーできます">
       <UiIcon name="chest" />
-      相手のデッキ
+      <span className="btn__label">相手のデッキ</span>
     </button>
   );
 }

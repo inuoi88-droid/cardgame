@@ -23,6 +23,13 @@ export interface SocialState {
   status: SocialStatus;
   /** 最後のエラーの言葉（通信できないなど） */
   error: string | null;
+  /** snap を受け取った端末の時刻（サーバーの時刻 snap.serverNow との差で、今のサーバーの時刻を見積もる） */
+  snapAt: number;
+}
+
+/** 今のサーバーの時刻の見積もり（snapshot の serverNow ＋ 受け取ってからの経過） */
+export function serverNowOf(s: Pick<SocialState, 'snap' | 'snapAt'>): number {
+  return s.snap ? s.snap.serverNow + (Date.now() - s.snapAt) : Date.now();
 }
 
 const KEY = identityKey(LOCAL_SERVER_URL);
@@ -47,7 +54,7 @@ function writeIdentity(id: PlayerIdentity | null): void {
 
 let state: SocialState = (() => {
   const identity = readIdentity();
-  return { identity, snap: null, status: identity ? 'loading' : 'none', error: null };
+  return { identity, snap: null, status: identity ? 'loading' : 'none', error: null, snapAt: 0 };
 })();
 const listeners = new Set<() => void>();
 
@@ -80,13 +87,23 @@ function absorb(res: AnyResponse): void {
       const id = state.identity;
       const identity = id && (id.name !== snap.me.name || id.inboxId !== snap.me.inboxId) ? { ...id, name: snap.me.name, inboxId: snap.me.inboxId } : id;
       if (identity !== id) writeIdentity(identity);
-      set({ snap: stripExtra(snap), identity, status: 'ready', error: null });
+      set({ snap: stripExtra(snap), snapAt: Date.now(), identity, status: 'ready', error: null });
     }
     return;
   }
   if (res.reason === 'auth') set({ status: 'auth', error: res.error });
   else if (res.reason === 'unsupported') set({ status: 'unsupported', error: res.error });
   else if (res.reason === 'network') set({ status: 'offline', error: res.error });
+}
+
+/**
+ * register・hello が形の違い（invalid）で断られた：サーバーが古く、フレンド機能の操作を知らない（「知らない操作です」）。
+ * 読み込み中のまま待たせず、未対応として扱う（決定事項 #124）
+ */
+function unsupportedIfOld(res: AnyResponse): boolean {
+  if (res.ok || res.reason !== 'invalid') return false;
+  set({ status: 'unsupported', error: 'このサーバーはまだフレンド機能に対応していません' });
+  return true;
 }
 
 /** 返事から snapshot の部分だけを取り出す（result・friend などを持ち込まない） */
@@ -104,7 +121,9 @@ export function ensurePlayer(): Promise<PlayerIdentity | null> {
     const res = await callSocial({ op: 'register', name: loadOnlineName() });
     creating = null;
     if (!res.ok) {
-      absorb(res);
+      if (!unsupportedIfOld(res)) absorb(res);
+      // 作れなかった（上限など）：読み込み中のままにしない
+      if (getSocial().status === 'loading') set({ status: 'none', error: res.error });
       return null;
     }
     const identity: PlayerIdentity = { v: 1, secret: res.secret, friendCode: res.friendCode, inboxId: res.inboxId, name: res.name };
@@ -121,12 +140,30 @@ let helloInFlight: Promise<void> | null = null;
 /** hello を送って様子を取り直す（重ねて呼んでも1本） */
 export function refreshSocial(): Promise<void> {
   const id = state.identity;
-  if (!id || state.status === 'auth') return Promise.resolve();
-  helloInFlight ??= callSocial({ op: 'hello', secret: id.secret }).then((res) => {
+  if (!id || state.status === 'auth' || state.status === 'unsupported') return Promise.resolve();
+  helloInFlight ??= (async () => {
+    let current = id.secret;
+    let res: AnyResponse = await callSocial({ op: 'hello', secret: id.secret });
+    // 鍵の作り直しの返事が届かなかった：控えておいた新しい鍵で入り直す（決定事項 #124）
+    if (!res.ok && res.reason === 'auth' && id.pending && !rotating) {
+      const retry = await callSocial({ op: 'hello', secret: id.pending });
+      if (retry.ok && state.identity?.secret === id.secret) {
+        const promoted: PlayerIdentity = { v: 1, secret: id.pending, friendCode: id.friendCode, inboxId: retry.me.inboxId, name: retry.me.name };
+        writeIdentity(promoted);
+        set({ identity: promoted });
+        res = retry;
+        current = promoted.secret;
+      }
+    } else if (res.ok && id.pending && !rotating && state.identity?.secret === id.secret) {
+      // 前の鍵がまだ使える＝作り直しは届いていなかった。控えを捨てる
+      const { pending: _drop, ...rest } = state.identity;
+      writeIdentity(rest);
+      set({ identity: rest });
+    }
     helloInFlight = null;
     // 送っている間に別のプレイヤーに替わっていれば捨てる
-    if (state.identity?.secret === id.secret) absorb(res);
-  });
+    if (state.identity?.secret === current && !unsupportedIfOld(res)) absorb(res);
+  })();
   return helloInFlight;
 }
 
@@ -159,7 +196,7 @@ export async function importSecret(input: string): Promise<{ ok: true; name: str
   const identity: PlayerIdentity = { v: 1, secret, friendCode: res.me.friendCode, inboxId: res.me.inboxId, name: res.me.name };
   writeIdentity(identity);
   saveOnlineName(res.me.name);
-  set({ identity, snap: stripExtra(res), status: 'ready', error: null });
+  set({ identity, snap: stripExtra(res), snapAt: Date.now(), status: 'ready', error: null });
   return { ok: true, name: res.me.name };
 }
 
@@ -170,13 +207,44 @@ export async function startOver(): Promise<PlayerIdentity | null> {
   return ensurePlayer();
 }
 
-/** 引き継ぎコードを作り直す（前のコードは使えなくなる） */
+let rotating = false;
+
+/** 新しい鍵（16進64文字。ブラウザの暗号学的乱数） */
+function newSecret(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * 引き継ぎコードを作り直す（前のコード・招待リンク・通知のチャンネルは使えなくなる）。
+ * 新しい鍵は先に端末に控えてから送る（返事が届かなくても、次の hello が控えた鍵で入り直す。決定事項 #124）
+ */
 export async function rotateSecret(): Promise<boolean> {
-  const res = await socialAct({ op: 'rotateSecret' });
-  if (!res.ok || !state.identity) return false;
-  const identity = { ...state.identity, secret: res.secret };
+  const id = state.identity;
+  if (!id || rotating) return false;
+  const next = newSecret();
+  const staged: PlayerIdentity = { ...id, pending: next };
+  writeIdentity(staged);
+  set({ identity: staged });
+  rotating = true;
+  const res = await callSocial({ op: 'rotateSecret', secret: id.secret, next });
+  rotating = false;
+  if (state.identity?.secret !== id.secret) return false;
+  if (!res.ok) {
+    // はっきり断られたら控えを捨てる（通信の失敗なら、届いたかもしれないので残す）
+    if (res.reason !== 'network') {
+      const { pending: _drop, ...rest } = state.identity;
+      writeIdentity(rest);
+      set({ identity: rest });
+    }
+    absorb(res);
+    return false;
+  }
+  const identity: PlayerIdentity = { v: 1, secret: next, friendCode: id.friendCode, inboxId: res.inboxId, name: id.name };
   writeIdentity(identity);
-  set({ identity });
+  set({ identity, snap: state.snap ? { ...state.snap, me: { ...state.snap.me, inboxId: res.inboxId } } : null });
+  void refreshSocial();
   return true;
 }
 

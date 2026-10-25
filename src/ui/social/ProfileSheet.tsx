@@ -58,8 +58,6 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
   const [savingName, setSavingName] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [input, setInput] = useState('');
-  const [importError, setImportError] = useState<string | null>(null);
   const link = useInviteLink();
   const code = snap?.me.friendCode ?? identity?.friendCode ?? '';
   const currentName = snap?.me.name ?? identity?.name ?? '';
@@ -73,30 +71,10 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
   const copy = async (text: string, label: string) => {
     toast((await copyText(text)) ? { text: `${label}をコピーしました`, kind: 'ok' } : { text: 'コピーできませんでした', kind: 'ng' });
   };
-  const doImport = async () => {
-    const ok = await confirm({
-      title: 'この端末のプレイヤーを替えますか？',
-      message: `いまの「${currentName || 'プレイヤー'}」は、この端末からは使えなくなります（いまの引き継ぎコードを控えていれば、あとで戻せます）。`,
-      okLabel: '引き継ぐ',
-      danger: true,
-    });
-    if (!ok) return;
-    const r = await importSecret(input);
-    if (!r.ok) {
-      setImportError(r.error);
-      return;
-    }
-    setImporting(false);
-    setInput('');
-    setImportError(null);
-    setShowSecret(false);
-    setName(r.name);
-    toast({ text: `「${r.name}」として引き継ぎました`, kind: 'ok' });
-  };
 
   return (
     <Sheet open title="あなたのプロフィール" onClose={onClose} desktop="modal" className="profile-sheet">
-      {status === 'auth' && <AuthTrouble />}
+      {status === 'auth' && <AuthTrouble onImported={(n) => setName(n)} />}
       <section className="prof__sec">
         <label className="field">
           <span>名前（{NAME_MAX_LENGTH}文字まで。フレンドと対戦相手に見えます）</span>
@@ -172,7 +150,9 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
           <div className="prof__secret">
             <p className="prof__warn" role="note">
               <UiIcon name="hazard-sign" />
-              <span>このコードを知っている人は、あなたとしてフレンドや招待を使えます。人に見せたり送ったりしないでください。</span>
+              <span>
+                このコードを知っている人は、あなたとしてフレンドや招待を使えます。自分だけが見るメモや、LINE の Keep・自分だけのトークに貼っておき、新しい端末でコピーして「別の端末から引き継ぐ」に入れます。人には送らないでください。
+              </span>
             </p>
             <code className="prof__secret-code">{formatSecret(identity.secret)}</code>
             <div className="prof__row prof__row--wrap">
@@ -207,52 +187,112 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
             表示する
           </button>
         )}
-        {importing ? (
-          <div className="prof__import">
-            <label className="field">
-              <span>前の端末で表示した引き継ぎコード（64文字）</span>
-              <textarea rows={2} value={input} spellCheck={false} autoCapitalize="off" autoComplete="off" onChange={(e) => setInput(e.target.value)} />
-            </label>
-            {importError && <p className="text-ng">{importError}</p>}
-            <div className="prof__row prof__row--wrap">
-              <button type="button" className="btn btn--small" disabled={input.trim() === ''} onClick={() => void doImport()}>
-                引き継ぐ
-              </button>
-              <button type="button" className="btn btn--small btn--ghost" onClick={() => setImporting(false)}>
-                やめる
-              </button>
-            </div>
-          </div>
+        {importing && status !== 'auth' ? (
+          <ImportForm
+            confirmName={currentName || 'プレイヤー'}
+            onDone={(n) => {
+              setImporting(false);
+              setShowSecret(false);
+              setName(n);
+            }}
+            onCancel={() => setImporting(false)}
+          />
         ) : (
-          <button type="button" className="btn btn--small btn--ghost prof__import-btn" onClick={() => setImporting(true)}>
-            別の端末から引き継ぐ
-          </button>
+          status !== 'auth' && (
+            <button type="button" className="btn btn--small btn--ghost prof__import-btn" onClick={() => setImporting(true)}>
+              別の端末から引き継ぐ
+            </button>
+          )
         )}
       </section>
     </Sheet>
   );
 }
 
-/** 端末の鍵が無効になっているとき（勝手に作り直さない） */
-export function AuthTrouble() {
+/**
+ * 引き継ぎコードを入れる欄（プロフィールと、鍵が無効になったときの知らせで共用）。
+ * confirmName があれば、いまのプレイヤーを替えてよいか確かめる（鍵が無効なときは確かめない）
+ */
+function ImportForm({ confirmName, onDone, onCancel }: { confirmName?: string; onDone?: (name: string) => void; onCancel?: () => void }) {
   const confirm = useConfirm();
   const toast = useToast();
+  const [input, setInput] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const go = async () => {
+    if (confirmName !== undefined) {
+      const ok = await confirm({
+        title: 'この端末のプレイヤーを替えますか？',
+        message: `いまの「${confirmName}」は、この端末からは使えなくなります（いまの引き継ぎコードを控えていれば、あとで戻せます）。`,
+        okLabel: '引き継ぐ',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    setBusy(true);
+    const r = await importSecret(input);
+    setBusy(false);
+    if (!r.ok) {
+      setError(r.error);
+      return;
+    }
+    setInput('');
+    setError(null);
+    toast({ text: `「${r.name}」として引き継ぎました`, kind: 'ok' });
+    onDone?.(r.name);
+  };
+  return (
+    <div className="prof__import">
+      <label className="field">
+        <span>前の端末で表示した引き継ぎコード（64文字）</span>
+        <textarea rows={2} value={input} spellCheck={false} autoCapitalize="off" autoComplete="off" onChange={(e) => setInput(e.target.value)} />
+      </label>
+      {error && <p className="text-ng">{error}</p>}
+      <div className="prof__row prof__row--wrap">
+        <button type="button" className="btn btn--small" disabled={busy || input.trim() === ''} onClick={() => void go()}>
+          引き継ぐ
+        </button>
+        {onCancel && (
+          <button type="button" className="btn btn--small btn--ghost" onClick={onCancel}>
+            やめる
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 端末の鍵が無効になっているとき（勝手に作り直さない）。引き継ぎコードをその場で入れられる */
+export function AuthTrouble({ onImported }: { onImported?: (name: string) => void } = {}) {
+  const confirm = useConfirm();
+  const toast = useToast();
+  const [importing, setImporting] = useState(false);
   return (
     <div className="notice notice--ng prof__auth" role="alert">
       <p>この端末のプレイヤー情報が使えなくなっています（引き継ぎコードが別の端末で作り直された、など）。</p>
-      <p>引き継ぎコードを持っていれば下の「別の端末から引き継ぐ」に入れてください。無ければ新しく始められます（前のフレンドは引き継げません）。</p>
-      <button
-        type="button"
-        className="btn btn--small"
-        onClick={async () => {
-          if (await confirm({ title: '新しく始めますか？', message: '新しいフレンドコードのプレイヤーを作ります。前のフレンドと成績は引き継げません。', okLabel: '新しく始める', danger: true })) {
-            const id = await startOver();
-            toast(id ? { text: '新しいプレイヤーを作りました', kind: 'ok' } : { text: '作れませんでした（通信を確かめてください）', kind: 'ng' });
-          }
-        }}
-      >
-        新しく始める
-      </button>
+      <p>引き継ぎコードを持っていれば「引き継ぎコードを入れる」から入れてください。無ければ新しく始められます（前のフレンドは引き継げません）。</p>
+      {importing ? (
+        <ImportForm onDone={onImported} onCancel={() => setImporting(false)} />
+      ) : (
+        <div className="prof__row prof__row--wrap">
+          <button type="button" className="btn btn--small" onClick={() => setImporting(true)}>
+            <UiIcon name="key" />
+            引き継ぎコードを入れる
+          </button>
+          <button
+            type="button"
+            className="btn btn--small btn--ghost"
+            onClick={async () => {
+              if (await confirm({ title: '新しく始めますか？', message: '新しいフレンドコードのプレイヤーを作ります。前のフレンドと成績は引き継げません。', okLabel: '新しく始める', danger: true })) {
+                const id = await startOver();
+                toast(id ? { text: '新しいプレイヤーを作りました', kind: 'ok' } : { text: '作れませんでした（通信を確かめてください）', kind: 'ng' });
+              }
+            }}
+          >
+            新しく始める
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -31,8 +31,10 @@ export function PublicRooms({ myRoom, onJoin, onCreate, busyCode }: { myRoom: st
     if (res.ok) {
       setList({ rooms: res.rooms, offset: res.serverNow - Date.now() });
       setError(null);
-    } else if (res.reason === 'unsupported') setUnsupported(true);
-    else setError(res.error);
+    } else if (res.reason === 'unsupported' || res.reason === 'invalid') {
+      // invalid：古いサーバーで「募集中の部屋」の操作を知らない（決定事項 #124）
+      setUnsupported(true);
+    } else setError(res.error);
   }, []);
 
   useEffect(() => {
@@ -49,7 +51,20 @@ export function PublicRooms({ myRoom, onJoin, onCreate, busyCode }: { myRoom: st
     };
   }, [load]);
 
-  if (unsupported) return null;
+  if (unsupported) {
+    return (
+      <p className="notice rooms__unsupported">
+        いまのサーバーは「募集中の部屋」にまだ対応していません。部屋を作ったら、部屋コードを相手に伝えてください。
+      </p>
+    );
+  }
+  // 同じ名前の部屋が並ぶときは、部屋コードの先頭を添えて見分ける
+  const counts = new Map<string, number>();
+  for (const r of list?.rooms ?? []) counts.set(r.hostName, (counts.get(r.hostName) ?? 0) + 1);
+  const hostLabel = (r: ListedRoomView) => {
+    const n = r.hostName || 'プレイヤー';
+    return (counts.get(r.hostName) ?? 0) > 1 ? `${n}（${r.code.slice(0, 3)}…）` : n;
+  };
   const now = Date.now() + (list?.offset ?? 0);
   return (
     <section className="panel rooms" aria-labelledby="rooms-h">
@@ -63,9 +78,18 @@ export function PublicRooms({ myRoom, onJoin, onCreate, busyCode }: { myRoom: st
           更新
         </button>
       </div>
-      {error && <p className="text-ng">{error}</p>}
+      {error && (
+        <p className="text-ng rooms__error" role="status">
+          {list ? '一覧を取り直せませんでした（下は前の一覧です）。' : ''}
+          {error}
+          <button type="button" className="btn btn--small" onClick={() => void load()} disabled={loading}>
+            <UiIcon name="clockwise-rotation" />
+            再試行
+          </button>
+        </p>
+      )}
       {list === null ? (
-        <p className="hint">読み込んでいます…</p>
+        !error && <p className="hint">読み込んでいます…</p>
       ) : list.rooms.length === 0 ? (
         <div className="rooms__empty">
           <p>いま募集中の部屋はありません。</p>
@@ -85,7 +109,7 @@ export function PublicRooms({ myRoom, onJoin, onCreate, busyCode }: { myRoom: st
                   <UiIcon name={r.mode === 'draft' ? 'card-pick' : 'chest'} />
                 </span>
                 <span className="rooms__text">
-                  <b className="u-name">{r.hostName || 'プレイヤー'}</b>
+                  <b className="u-name">{hostLabel(r)}</b>
                   <small>
                     {MODE_LABEL[r.mode]}・{rulesSummary(r.rules)}
                     {r.leader !== 'none' && `・リーダー ${LEADERS[r.leader].name}`}
@@ -95,7 +119,7 @@ export function PublicRooms({ myRoom, onJoin, onCreate, busyCode }: { myRoom: st
                 {mine ? (
                   <span className="badge">あなたの部屋</span>
                 ) : (
-                  <button type="button" className="btn btn--small btn--primary" disabled={busyCode !== null} onClick={() => onJoin(r)} aria-label={`${r.hostName || 'プレイヤー'}さんの部屋に入る`}>
+                  <button type="button" className="btn btn--small btn--primary" disabled={busyCode !== null} onClick={() => onJoin(r)} aria-label={`${hostLabel(r)}さんの部屋に入る`}>
                     {busyCode === r.code ? '入っています…' : '入る'}
                   </button>
                 )}

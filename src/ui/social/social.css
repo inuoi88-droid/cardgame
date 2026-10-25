@@ -208,15 +208,10 @@
   overflow-y: auto;
 }
 
-/* ---------------------------------------------------------------- 上に出る招待の知らせ */
+/* ---------------------------------------------------------------- 画面の見出しの上に出る招待の知らせ（流れの中。画面の中身を隠さない：決定事項 #124） */
 .invite-banner {
-  position: fixed;
-  /* 上のメニューの段の下（メニューは隠さない） */
-  top: calc(60px + env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 65;
-  width: min(480px, calc(100vw - 2 * var(--gutter)));
+  margin: 0 auto 12px;
+  width: min(560px, 100%);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 6px 10px;
@@ -233,8 +228,13 @@
 }
 @keyframes invite-in {
   from {
-    transform: translate(-50%, -16px);
+    transform: translateY(-8px);
     opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .invite-banner {
+    animation: none;
   }
 }
 .invite-banner__icon {
@@ -277,12 +277,26 @@
 }
 @media (min-width: 601px) {
   .invite-banner {
-    top: 70px;
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
   .invite-banner__btns {
     grid-column: auto;
   }
+}
+
+/* 対戦・ドラフトの画面の見出しの札「招待 N」（押すと一覧） */
+.invite-chip {
+  font: inherit;
+  cursor: pointer;
+  border-color: rgba(111, 160, 255, 0.6);
+  color: #dbe8ff;
+  background: rgba(61, 116, 214, 0.18);
+  position: relative;
+}
+.invite-chip::after {
+  content: '';
+  position: absolute;
+  inset: -12px -4px;
 }
 
 /* ---------------------------------------------------------------- プロフィール */
@@ -471,6 +485,27 @@
 .presence--offline {
   background: transparent;
   box-shadow: inset 0 0 0 2px #6b7180;
+}
+/* 様子不明（サーバーにつながらない）：灰色の点線の輪 */
+.presence--unknown {
+  background: transparent;
+  border: 2px dashed #6b7180;
+}
+/* フレンドの行を押すと詳細：右の山形の印（線で描く） */
+.friend__chev {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 0 4px 0 auto;
+  border-right: 2px solid var(--u-ink-3);
+  border-bottom: 2px solid var(--u-ink-3);
+  transform: rotate(-45deg);
+}
+.friends__prof {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 .friends__mine {
   display: grid;
@@ -705,4 +740,12 @@
   .rooms .is-loading > .gi {
     animation: none;
   }
+}
+
+/* 募集中の部屋：取り直せなかったときの再試行（決定事項 #124） */
+.rooms__error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }

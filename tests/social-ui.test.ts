@@ -6,6 +6,10 @@ import type { SocialSnapshot } from '../src/online/social/protocol.ts';
 import {
   agoText,
   badgeCount,
+  distinctNames,
+  isInAppBrowser,
+  needsName,
+  sourceLabel,
   formatFriendCode,
   formatSecret,
   friendLinkHash,
@@ -78,10 +82,16 @@ describe('招待リンク', () => {
   });
 
   it('アプリの場所（?server= も残す）にハッシュを付ける。前のハッシュは捨てる', () => {
+    // openExternalBrowser=1：LINE で開くと、LINE の中ではなくいつものブラウザで開く（決定事項 #124）
     expect(friendLinkUrl('http://localhost:5173/?server=http://localhost:8787', { friendCode: 'KU63TQPC', token: TOKEN, name: '' })).toBe(
-      `http://localhost:5173/?server=http://localhost:8787#/friend/KU63TQPC/${TOKEN}`,
+      `http://localhost:5173/?server=http://localhost:8787&openExternalBrowser=1#/friend/KU63TQPC/${TOKEN}`,
     );
-    expect(friendLinkUrl('https://x.example/#/online', { friendCode: 'KU63TQPC', token: TOKEN, name: '' })).toBe(`https://x.example/#/friend/KU63TQPC/${TOKEN}`);
+    expect(friendLinkUrl('https://x.example/#/online', { friendCode: 'KU63TQPC', token: TOKEN, name: '' })).toBe(
+      `https://x.example/?openExternalBrowser=1#/friend/KU63TQPC/${TOKEN}`,
+    );
+    expect(friendLinkUrl('https://x.example/?openExternalBrowser=1', { friendCode: 'KU63TQPC', token: TOKEN, name: '' })).toBe(
+      `https://x.example/?openExternalBrowser=1#/friend/KU63TQPC/${TOKEN}`,
+    );
   });
 
   it('形の壊れたリンクは null（小文字・ハイフン入りのコードはならす）', () => {
@@ -172,5 +182,41 @@ describe('画面の決まり', () => {
   it('socialLogic は React・DOM・localStorage を使わない（純粋）', () => {
     const src = readFileSync(join(dir, 'socialLogic.ts'), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
     expect(src).not.toMatch(/from 'react'|localStorage|document\.|window\.|Date\.now|Math\.random/);
+  });
+});
+
+describe('名前を見分ける・名前を決める・アプリの中のブラウザ（決定事項 #124）', () => {
+  it('同じ名前の人だけ、フレンドコードの先頭4文字を添える', () => {
+    const m = distinctNames([
+      { friendCode: '2NWHAAAA', name: 'プレイヤー' },
+      { friendCode: 'KU63BBBB', name: 'プレイヤー' },
+      { friendCode: 'ZZZZCCCC', name: 'アキ' },
+      { friendCode: '2NWHAAAA', name: 'プレイヤー' },
+    ]);
+    expect(m.get('2NWHAAAA')).toBe('プレイヤー（2NWH）');
+    expect(m.get('KU63BBBB')).toBe('プレイヤー（KU63）');
+    expect(m.get('ZZZZCCCC')).toBe('アキ');
+  });
+  it('自動の「プレイヤー」と空は、名前を決めていない', () => {
+    expect(needsName('')).toBe(true);
+    expect(needsName(' プレイヤー ')).toBe(true);
+    expect(needsName(null)).toBe(true);
+    expect(needsName('アキ')).toBe(false);
+  });
+  it('コピーのグループの名前：「プレイヤー」のままの人はフレンドコードで分ける', () => {
+    expect(sourceLabel('プレイヤー', 'KU63TQPC')).toBe('プレイヤー（KU63）');
+    expect(sourceLabel('アキ', 'KU63TQPC')).toBe('アキ');
+    expect(sourceLabel('プレイヤー', undefined)).toBe('プレイヤー');
+  });
+  it('LINE・Facebook・Instagram の中のブラウザを見分ける', () => {
+    expect(isInAppBrowser('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari Line/13.1.0')).toBe(true);
+    expect(isInAppBrowser('Mozilla/5.0 (iPhone) [FBAN/FBIOS;FBAV/400.0]')).toBe(true);
+    expect(isInAppBrowser('Mozilla/5.0 (iPhone) Instagram 300.0')).toBe(true);
+    expect(isInAppBrowser('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1')).toBe(false);
+  });
+  it('作り直し中の鍵（pending）も読む。形が違えば捨てる', () => {
+    const base = { v: 1, secret: SECRET, friendCode: 'AAAABBBB', inboxId: 'i', name: 'アキ' };
+    expect(parseIdentity({ ...base, pending: 'cd'.repeat(32) })?.pending).toBe('cd'.repeat(32));
+    expect(parseIdentity({ ...base, pending: 'nope' })).toEqual(base);
   });
 });

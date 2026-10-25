@@ -61,7 +61,7 @@ export function OpponentHistory() {
           })}
         </ul>
       )}
-      {open && <DeckCopySheet title={`${open.opponentName}のデッキ`} sourceName={open.opponentName} deck={open.deck} cards={open.cards} onClose={() => setOpen(null)} />}
+      {open && <DeckCopySheet title={`「${open.opponentName}」のデッキ`} sourceName={open.opponentName} deck={open.deck} cards={open.cards} onClose={() => setOpen(null)} />}
     </section>
   );
 }

@@ -2244,6 +2244,13 @@ input[type='checkbox'].u-toggle:checked::before {
 body:has(.savebar) .toasts {
   bottom: calc(84px + env(safe-area-inset-bottom));
 }
+/* スマホでダイアログ・シートが開いているときは上に出す（下の主ボタンを隠さない。決定事項 #124） */
+@media (max-width: 600px) {
+  body:has(.modal, .sheet) .toasts {
+    top: calc(var(--sp-3) + env(safe-area-inset-top));
+    bottom: auto;
+  }
+}
 /* トースト：鉄の小さな板、左の印は丸い宝石（情報＝サファイア・成功＝エメラルド・失敗＝深紅） */
 .toast {
   display: flex;

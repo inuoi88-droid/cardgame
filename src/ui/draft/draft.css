@@ -652,9 +652,23 @@
   color: #b9f5da;
   background: var(--ok-bg);
 }
+/* 決着後の操作バーの「もう一戦」（相手が押していれば右上に緑の点。決定事項 #124） */
+.rematch-bar {
+  position: relative;
+}
+.rematch-bar__dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 2px #0b0d18;
+}
 .rematch-note {
+  /* 金の「もう一戦」のすぐ下（ほかのボタンより先）に出す：相手が押しているかが見えないと気づかない（決定事項 #124） */
   flex-basis: 100%;
-  order: 1;
   font-size: var(--fs-sm);
   color: var(--u-ink-2);
   text-align: center;

@@ -12,6 +12,7 @@ import { navigate } from '../router.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { DeckCopySheet } from '../copy/DeckCopySheet.tsx';
 import { OppDeckButton } from '../copy/OppDeckButton.tsx';
+import { InviteChip } from '../social/InviteNotices.tsx';
 import { recordOpponent, resultFor } from '../copy/history.ts';
 
 /** 演出を見せ終えてから CPU が次の手を打つまでの間（ミリ秒） */
@@ -100,6 +101,12 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finished]);
 
+  /** 同じデッキでもう一度（ドラフトのデッキは、前の対戦で負けた人が先攻：決定事項 #119。ほかは今までどおりランダム） */
+  const again = () => {
+    const r = startSession(session.setup.draft ? { ...session.setup, first: rematchFirst(state) } : session.setup);
+    if (r.ok) setSession(r.session);
+  };
+
   const backToSetup = () => {
     clearSession();
     setSession(null);
@@ -125,17 +132,10 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
             </span>
           </button>
         }
+        status={<InviteChip />}
         resultButtons={
           <>
-            <button
-              type="button"
-              className="btn btn--primary"
-              onClick={() => {
-                // ドラフトのデッキは、前の対戦で負けた人が先攻（決定事項 #119）。ほかは今までどおりランダム
-                const r = startSession(session.setup.draft ? { ...session.setup, first: rematchFirst(state) } : session.setup);
-                if (r.ok) setSession(r.session);
-              }}
-            >
+            <button type="button" className="btn btn--primary" onClick={again}>
               <UiIcon name="anticlockwise-rotation" />
               同じデッキでもう一度
             </button>
@@ -146,9 +146,15 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
           </>
         }
         endActions={<OppDeckButton onClick={() => setOppOpen(true)} />}
+        endPrimary={
+          <button type="button" className="btn btn--primary" onClick={again} aria-label="同じデッキでもう一度">
+            <UiIcon name="anticlockwise-rotation" />
+            もう一度
+          </button>
+        }
       />
       {oppOpen && (
-        <DeckCopySheet title={`${opponentName}のデッキ`} sourceName={opponentName} deck={session.setup.cpuDeck} cards={session.setup.cpuCards} onClose={() => setOppOpen(false)} />
+        <DeckCopySheet title={`「${opponentName}」のデッキ`} sourceName={opponentName} deck={session.setup.cpuDeck} cards={session.setup.cpuCards} onClose={() => setOppOpen(false)} />
       )}
     </>
   );

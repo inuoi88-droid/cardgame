@@ -18,7 +18,7 @@ export function FriendRequestButton({ roomCode, friendCode, name }: { roomCode: 
     return (
       <button type="button" className="btn" disabled>
         <UiIcon name="shaking-hands" />
-        申請しました
+        <span className="btn__label">申請しました</span>
       </button>
     );
   }
@@ -37,7 +37,7 @@ export function FriendRequestButton({ roomCode, friendCode, name }: { roomCode: 
   return (
     <button type="button" className="btn" disabled={busy} onClick={() => void go()} title="この対戦相手とフレンドになると、対戦に招待しあったり成績を見たりできます">
       <UiIcon name="shaking-hands" />
-      {state === 'incoming' ? '申請を承認' : 'フレンド申請'}
+      <span className="btn__label">{state === 'incoming' ? '申請を承認' : 'フレンド申請'}</span>
     </button>
   );
 }

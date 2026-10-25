@@ -5,6 +5,7 @@
  * - 表示の言葉（在室・成績・経過時間・待ち時間）と、申請できる相手の選び方
  */
 import type { CardDef, Deck } from '../../engine/index.ts';
+import { DEFAULT_NAME } from '../../online/codes.ts';
 import type { FriendView, Presence, SocialSnapshot } from '../../online/social/protocol.ts';
 
 /** 端末に保存するプレイヤー情報（secret は引き継ぎコードそのもの） */
@@ -14,6 +15,10 @@ export interface PlayerIdentity {
   friendCode: string;
   inboxId: string;
   name: string;
+  /**
+   * 作り直し中の新しい鍵（決定事項 #124）。送る前に控え、返事が届かずに前の鍵が断られたら、これで入り直す
+   */
+  pending?: string;
 }
 
 const BASE_KEY = 'cardgame.v1.player';
@@ -29,7 +34,42 @@ export function parseIdentity(x: unknown): PlayerIdentity | null {
   if (!isObj(x) || x.v !== 1) return null;
   const secret = normalizeSecret(x.secret);
   if (!secret || typeof x.friendCode !== 'string' || typeof x.inboxId !== 'string') return null;
-  return { v: 1, secret, friendCode: x.friendCode, inboxId: x.inboxId, name: typeof x.name === 'string' ? x.name : '' };
+  const pending = normalizeSecret(x.pending);
+  return { v: 1, secret, friendCode: x.friendCode, inboxId: x.inboxId, name: typeof x.name === 'string' ? x.name : '', ...(pending ? { pending } : {}) };
+}
+
+/** 名前をまだ決めていない（空か、自動の「プレイヤー」のまま）。最初に一度だけ名前を聞く */
+export function needsName(name: string | null | undefined): boolean {
+  const s = (name ?? '').trim();
+  return s === '' || s === DEFAULT_NAME;
+}
+
+/**
+ * 同じ名前の人が並ぶときに見分ける表示名（決定事項 #124）：名前が重なる人だけ、フレンドコードの先頭4文字を添える（例「プレイヤー（2NWH）」）。
+ * 戻り値はフレンドコード → 表示名
+ */
+export function distinctNames(people: readonly { friendCode: string; name: string }[]): Map<string, string> {
+  const count = new Map<string, number>();
+  const seen = new Set<string>();
+  for (const p of people) {
+    if (seen.has(p.friendCode)) continue;
+    seen.add(p.friendCode);
+    count.set(p.name, (count.get(p.name) ?? 0) + 1);
+  }
+  return new Map(people.map((p) => [p.friendCode, (count.get(p.name) ?? 0) > 1 ? `${p.name}（${p.friendCode.slice(0, 4)}）` : p.name]));
+}
+
+/**
+ * コピーしたカードのグループ「<名前>から」に使う名前（決定事項 #124）。自動の「プレイヤー」のままの人は、フレンドコードの先頭4文字を添えて
+ * 別の人のカードが1つのグループに混ざらないようにする
+ */
+export function sourceLabel(name: string, friendCode?: string | null): string {
+  return friendCode && needsName(name) ? `${(name || DEFAULT_NAME).trim()}（${friendCode.slice(0, 4)}）` : name;
+}
+
+/** アプリの中のブラウザ（LINE・Facebook・Instagram）か。そこで開くと端末の保存場所が別になり、別のプレイヤーになってしまう */
+export function isInAppBrowser(userAgent: string): boolean {
+  return /\bLine\/|FBAN|FBAV|Instagram/i.test(userAgent);
 }
 
 /** 引き継ぎコード（16進64文字）を入力からならす（空白・改行・ハイフンを除き小文字に）。形が違えば null */
@@ -54,7 +94,7 @@ export function formatFriendCode(code: string): string {
 export interface FriendLink {
   friendCode: string;
   token: string;
-  /** リンクに添えた名前（表示用。本当の名前はフレンドになったときの返事で分かる） */
+  /** リンクに添えた名前（だれでも書き換えられるので、読み込み中の仮の表示だけ。本当の名前は linkInfo で確かめる：決定事項 #124） */
   name: string;
 }
 
@@ -64,9 +104,14 @@ export function friendLinkHash(link: FriendLink): string {
   return `#/friend/${link.friendCode}/${link.token}${name ? `/${encodeURIComponent(name)}` : ''}`;
 }
 
-/** 招待リンクの URL。base はアプリの場所（https://…/ や http://localhost:5173/?server=…） */
+/**
+ * 招待リンクの URL。base はアプリの場所（https://…/ や http://localhost:5173/?server=…）。
+ * openExternalBrowser=1 を付ける（LINE で開くと、LINE の中のブラウザではなくいつものブラウザで開く。決定事項 #124）
+ */
 export function friendLinkUrl(base: string, link: FriendLink): string {
-  return `${base.replace(/#.*$/, '')}${friendLinkHash(link)}`;
+  const page = base.replace(/#.*$/, '');
+  const withFlag = /[?&]openExternalBrowser=1(?:&|$)/.test(page) ? page : `${page}${page.includes('?') ? '&' : '?'}openExternalBrowser=1`;
+  return `${withFlag}${friendLinkHash(link)}`;
 }
 
 /** ルートの部品（friend の後ろ）から招待リンクを読む。形が違えば null */

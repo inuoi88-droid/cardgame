@@ -6,6 +6,7 @@
  * ドラフトの判断はエンジン（engine/draft）。乱数のシードだけ UI が Math.random で決める（エンジンの外）。
  * 途中のドラフトは localStorage（cardgame.v1.cpuDraft）に置き、開き直したら続きから（読めなければ最初から）。
  */
+import { InviteChip } from '../social/InviteNotices.tsx';
 import { useEffect, useMemo, useState } from 'react';
 import { ai, BALANCE, draft, uniqueName, type CardDef } from '../../engine/index.ts';
 import { PRESET_DECKS } from '../../presets.ts';
@@ -286,6 +287,7 @@ function FieldDraft({ saved, onChange, onQuit, onAgain }: { saved: SavedDraft; o
         names={['あなた', 'CPU']}
         oppGi={CPU_PORTRAIT[level]}
         thinking={turn === CPU}
+        status={<InviteChip />}
         onTake={take}
         onAuto={(on) => onChange({ ...saved, auto: on })}
         doneNote={

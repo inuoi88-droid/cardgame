@@ -1311,6 +1311,28 @@ body:has(.battle) .toast__action {
     padding-right: 10px;
   }
 }
+/* 決着後の操作バー（決定事項 #124）：スマホは「相手のデッキ」「フレンド申請」を形だけ（名前は読み上げに残す）・「結果を見る」は「結果」にし、
+   主役（結果を見る／もう一戦）がいつも画面の中に収まるようにする */
+.battle-bar__btns--ended {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+@media (max-width: 919px) {
+  .battle-bar__btns--ended .btn__label,
+  .battle-bar__btns--ended .battle-bar__more {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .battle-bar__btns--ended .btn:has(> .btn__label) {
+    min-width: 44px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
 
 /* ------------------------------------------------------------ 演出 */
 .fx-floats {
@@ -2280,6 +2302,40 @@ button.lt-card:focus-visible {
 }
 .result__buttons {
   justify-content: center;
+}
+/* 低い画面（375×560 など）：紋を隠し、数を詰め、ボタンを2列に（主ボタンと再戦の様子は横いっぱい。決定事項 #124） */
+@media (max-height: 640px) {
+  .result {
+    padding: 0 0 6px;
+  }
+  .result__crest {
+    display: none;
+  }
+  .result__title {
+    font-size: 24px;
+  }
+  .result__why {
+    margin-bottom: 6px;
+  }
+  .result__stats {
+    gap: 4px;
+  }
+  .result__stats > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 8px;
+  }
+  .result__buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .result__buttons > .btn--primary,
+  .result__buttons > .rematch-note {
+    grid-column: 1 / -1;
+  }
 }
 
 /* ------------------------------------------------------------ 対戦の準備（UI2：フォームの羅列をやめ、デッキ箱のタイル・メダル・下に固定した金の「対戦開始」） */

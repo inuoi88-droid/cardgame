@@ -160,6 +160,10 @@ export const actions = {
     const at = Math.max(0, Math.min(rest.length, index));
     setState({ cards: state.cards, decks: [...rest.slice(0, at), deck, ...rest.slice(at)] });
   },
+  /** 相手のデッキのコピー（決定事項 #122）：カード・（あれば）デッキ・グループをまとめて1回で書く */
+  applyCopy(cards: readonly CardDef[], deck: Deck | null, groups: CardGroup[]) {
+    setState({ cards: [...state.cards, ...cards], ...(deck ? { decks: [...state.decks, deck] } : {}), groups });
+  },
   /** 取り込み・サンプルの追加。groups を省くとグループはそのまま */
   replaceAll(cards: CardDef[], decks: Deck[], groups?: CardGroup[]) {
     setState(groups ? { cards, decks, groups } : { cards, decks });

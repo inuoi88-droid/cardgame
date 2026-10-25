@@ -203,13 +203,14 @@ describe('ドラフトで取る', () => {
 });
 
 describe('ドラフトから対戦・再戦まで', () => {
-  it('30回取ると、そのデッキで対戦が始まる（後から取り始めた人が先攻・リーダーとルールもそのまま）', () => {
+  it('30回取ると、そのデッキで対戦が始まる（先攻・後攻はランダム・リーダーとルールもそのまま）', () => {
     const { s } = drafting({ leader: 'knight', rules: { field: 'none', dayNight: true } }, { leader: 'scholar' });
-    const first = s.room!.meta!.draft!.first;
     const v = finishDraft(s);
     expect(v.status).toBe('playing');
     expect(v.view!.phase).toBe('mulligan');
-    expect(v.view!.first).toBe(battle.other(first));
+    // 先攻は取った順と関係なく、対戦のシード（リクエストの乱数）で決まる（決定事項 #125）
+    expect([0, 1]).toContain(v.view!.first);
+    expect(v.view!.first).toBe(s.room!.state!.first);
     expect(v.deadline).toBe(s.now + MULLIGAN_MS);
     expect(v.draft!.done).toBe(true);
     expect(v.draft!.turn).toBeNull();

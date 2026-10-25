@@ -17,7 +17,6 @@ import { viewFor } from '../engine/battle/view.ts';
 import {
   applyTake,
   autoPick,
-  battleFirstAfterDraft,
   compactDraft,
   createDraft,
   draftDecks,
@@ -319,7 +318,7 @@ function setupOf(room: RoomRecord, decks: [RoomDeck, RoomDeck], p: PlayerId): Pl
 
 /**
  * ドラフトを進めた部屋（版は1つ上げる）：手番の人が「おまかせ」なら代わりに取り、終わったら対戦を始める
- * （後から取り始めた人が先攻）。終わっていなければピックの締め切りを置き直す。
+ * （先攻・後攻はランダム＝対戦のシードで決まる。決定事項 #125）。終わっていなければピックの締め切りを置き直す。
  * seed はこのリクエストの暗号学的な乱数（http.ts）：おまかせで取る前に山を混ぜ直し、対戦のシードにも使う
  * （ドラフトの乱数から対戦のシードを作ると、山から当てた乱数で相手の手札まで読めてしまう。決定事項 #120）。
  * prevPicks は操作の前の取得の数（取られて場が変わったら pickVersion を置き直す）
@@ -346,7 +345,7 @@ function progressDraft(room: RoomRecord, now: number, seed: number, prevPicks: n
     return { ...next, status: 'drafting', version, deadline };
   }
   const decks = draftDecks(draft);
-  const started = startGame({ ...next, meta: { ...next.meta!, draft: compactDraft(draft) } }, decks, seed, battleFirstAfterDraft(draft), now);
+  const started = startGame({ ...next, meta: { ...next.meta!, draft: compactDraft(draft) } }, decks, seed, undefined, now);
   // ドラフトのカードはどれもデッキのルールを守るので、ここで失敗するのはエンジンの不具合
   if (!started.ok) throw new Error(`draft game failed: ${started.error}`);
   return { ...started.value, version };

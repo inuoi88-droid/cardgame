@@ -334,7 +334,7 @@ function BattleTab({ initialCode, meName }: { initialCode: string | null; meName
             <li>
               1回取ると同じカードが{BALANCE.draft.copies}枚デッキに入ります。{BALANCE.draft.takes}回ずつ取ると、どちらも{BALANCE.deck.size}枚のデッキが完成します（レア・エピックはデッキの上限まで）。
             </li>
-            <li>できたデッキでそのまま対戦。先攻は後から取り始めた人です。終わったら「同じデッキでもう一戦」もできます。</li>
+            <li>できたデッキでそのまま対戦。先攻・後攻はランダムです。終わったら「同じデッキでもう一戦」もできます。</li>
           </ol>
           <p className="hint">
             1回の制限時間は{BALANCE.online.draftPickSeconds}秒（時間切れは「おまかせ」で代わりに取り、負けにはなりません）。
@@ -354,7 +354,7 @@ function BattleTab({ initialCode, meName }: { initialCode: string | null; meName
       {busy && <div className="notice">サーバーとやりとりしています…</div>}
       {error && <div className="notice notice--ng">{error}</div>}
       <p className="hint">
-        先攻・後攻はランダム（ドラフトの部屋は後から取り始めた人が先攻）。1ターンの制限時間は{BALANCE.online.turnSeconds}秒で、{BALANCE.online.timeoutLoseCount}
+        先攻・後攻はランダム（ドラフトの部屋も同じ）。1ターンの制限時間は{BALANCE.online.turnSeconds}秒で、{BALANCE.online.timeoutLoseCount}
         回続けて時間切れになると負けです。同じブラウザで開き直せば、対戦の続きに戻れます。
       </p>
       <div className="savebar lobby-bar">

@@ -70,13 +70,12 @@ describe('ドラフトの始まり', () => {
     for (const [id, n] of byCount) expect(n, id).toBe(D.pileCopies[s.cards[id]!.rarity]);
   });
 
-  it('先手はシードで決まり、指定もできる。対戦の先攻は後から取り始めた人', () => {
+  it('先手はシードで決まり、指定もできる', () => {
     const firsts = new Set([1, 2, 3, 4, 5, 6, 7, 8].map((seed) => mustCreate({ seed, pool: PRESET_CARDS }).first));
     expect(firsts).toEqual(new Set([0, 1]));
     const s = mustCreate({ seed: 1, pool: PRESET_CARDS, first: 1 });
     expect(s.first).toBe(1);
     expect(draft.draftTurn(s)).toBe(1);
-    expect(draft.battleFirstAfterDraft(s)).toBe(0);
   });
 
   it('山が足りなければ始められない', () => {
@@ -119,16 +118,15 @@ describe('交互に取る', () => {
       const taken = new Map<string, number>();
       for (const x of s.picks) taken.set(x.cardId, (taken.get(x.cardId) ?? 0) + 1);
       for (const [id, n] of taken) expect(n, id).toBeLessThanOrEqual(D.pileCopies[s.cards[id]!.rarity]);
-      // ドラフトのデッキでそのまま対戦を始められる（後から取り始めた人が先攻）
+      // ドラフトのデッキでそのまま対戦を始められる（先攻・後攻はランダム：決定事項 #125）
       const g = battle.createGame({
         seed,
         players: [
           { name: 'A', ...decks[0] },
           { name: 'B', ...decks[1] },
         ],
-        first: draft.battleFirstAfterDraft(s),
       });
-      expect(g.ok && g.state.first).toBe(battle.other(s.first));
+      expect(g.ok).toBe(true);
     });
   }
 

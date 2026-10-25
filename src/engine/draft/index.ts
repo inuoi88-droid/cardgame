@@ -15,7 +15,6 @@ export {
   draftDecks,
   compactDraft,
   draftView,
-  battleFirstAfterDraft,
   type CreateDraftInput,
   type TakeResult,
 } from './field.ts';

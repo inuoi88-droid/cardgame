@@ -1,7 +1,7 @@
 /**
  * CPU 戦のドラフト（#/battle/draft。決定事項 #119）。
  * 既定は公式カード「黎明の大陸」で、オンラインと同じ「場から交互に取る」形式（表向きの場6枚から CPU と交互に1枚ずつ取り、取るたびに山から補充。
- * 1回で2枚入り、15回ずつで30枚）。できたデッキで、そのまま CPU と戦う（後から取り始めた人が先攻）。
+ * 1回で2枚入り、15回ずつで30枚）。できたデッキで、そのまま CPU と戦う（先攻・後攻はランダム。決定事項 #125）。
  * 選べるもの：カードの山（公式／あなたのカード＋プリセット）・形式（交互に取る／3枚から1枚（ひとりで）＝今までの形式）・CPU の強さ。
  * ドラフトの判断はエンジン（engine/draft）。乱数のシードだけ UI が Math.random で決める（エンジンの外）。
  * 途中のドラフトは localStorage（cardgame.v1.cpuDraft）に置き、開き直したら続きから（読めなければ最初から）。
@@ -145,7 +145,7 @@ export function DraftPage() {
       <section className="panel dsetup">
         <p>
           {format === 'field'
-            ? `表向きの場にいつも${D.field}枚。CPU と交互に1枚ずつ取り、取るたびに伏せた山から1枚補充されます。1回で${D.copies}枚ずつデッキに入り、${D.takes}回ずつで${D.takes * D.copies}枚のデッキが完成。そのデッキで CPU と戦います（後から取り始めた人が先攻）。`
+            ? `表向きの場にいつも${D.field}枚。CPU と交互に1枚ずつ取り、取るたびに伏せた山から1枚補充されます。1回で${D.copies}枚ずつデッキに入り、${D.takes}回ずつで${D.takes * D.copies}枚のデッキが完成。そのデッキで CPU と戦います（先攻・後攻はランダム）。`
             : `カードの山から${D.offer}枚ずつ見せられ、1枚を選ぶのを${D.rounds}回くり返します（1回で${D.copies}枚ずつ入る）。できた${D.rounds * D.copies}枚のデッキで、同じ山からドラフトした CPU と戦います。`}
         </p>
         <div>
@@ -255,7 +255,6 @@ function FieldDraft({ saved, onChange, onQuit, onAgain }: { saved: SavedDraft; o
       cpuDeckName: 'ドラフト',
       cpuLevel: level,
       draft: true,
-      first: draft.battleFirstAfterDraft(state),
     });
     if (!r.ok) {
       toast({ text: r.error, kind: 'ng' });
@@ -269,7 +268,6 @@ function FieldDraft({ saved, onChange, onQuit, onAgain }: { saved: SavedDraft; o
     saveDraftDeck(draft.draftCounts(state, ME), decks[ME].cards, toast);
   };
 
-  const first = draft.battleFirstAfterDraft(state);
   return (
     <>
       <div className="page-head">
@@ -292,7 +290,7 @@ function FieldDraft({ saved, onChange, onQuit, onAgain }: { saved: SavedDraft; o
         onAuto={(on) => onChange({ ...saved, auto: on })}
         doneNote={
           <>
-            対戦では{first === ME ? 'あなた' : 'CPU'}が先攻です（後から取り始めた人が先攻）。CPU の強さ {ai.CPU_LEVEL_LABEL[level]}。
+            対戦の先攻・後攻はランダムで決まります。CPU の強さ {ai.CPU_LEVEL_LABEL[level]}。
           </>
         }
         doneActions={

@@ -26,7 +26,7 @@ describe('ドラフト（実際の倍率）', () => {
       }
       const decks = draft.draftDecks(s);
       for (const d of decks) expect(analyzeDeck(d.deck, new Map(d.cards.map((c) => [c.id, c]))).violations).toEqual([]);
-      const r = battle.createGame({ seed, first: draft.battleFirstAfterDraft(s), players: [{ name: 'A', ...decks[0] }, { name: 'B', ...decks[1] }] });
+      const r = battle.createGame({ seed, players: [{ name: 'A', ...decks[0] }, { name: 'B', ...decks[1] }] });
       if (!r.ok) throw new Error(r.error);
       let g = r.state;
       for (let k = 0; k < 4000 && g.phase !== 'ended'; k++) {

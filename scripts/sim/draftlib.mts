@@ -1,7 +1,7 @@
 /**
  * ドラフト戦のシミュレーションの中身（draft.mts と draft-worker.mts が使う）。
  * 1つのジョブ＝公式カードで「場から交互に取る」ドラフトを1回（エンジンの createDraft・applyTake）して、
- * できた2つのデッキで対戦する（1戦目は後から取り始めた人が先攻＝battleFirstAfterDraft、2戦目以降は「同じデッキでもう一戦」の
+ * できた2つのデッキで対戦する（1戦目の先攻はランダム（決定事項 #125。シードから決める）、2戦目以降は「同じデッキでもう一戦」の
  * ルール＝前の負けが先攻、引き分けなら前に後攻だった人）。
  */
 import { analyzeDeck, draft, type battle, type CardDef } from '../../src/engine/index.ts';
@@ -177,7 +177,8 @@ export function runDraftJob(job: DraftJob): DraftOutcome {
     return a.valid;
   }) as [boolean, boolean];
   const games: GameResult[] = [];
-  let first = draft.battleFirstAfterDraft(s);
+  // 1戦目の先攻はランダム（決定事項 #125）。シミュレーションではシードから決める
+  let first = ((job.seed >>> 4) & 1) as PlayerId;
   const specs = [specOf('A', decks[0]), specOf('B', decks[1])] as const;
   if (job.mode === 'swap') {
     for (const f of [first, s.first]) games.push(playGame(specs[0], specs[1], (job.seed * 101 + 1) >>> 0, { first: f, level: job.level }));

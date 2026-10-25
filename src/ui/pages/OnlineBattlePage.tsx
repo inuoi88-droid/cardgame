@@ -140,7 +140,7 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
           doneNote={
             <>
               対戦が始まっています。先攻は{room.view.first === room.seat ? 'あなた' : <span className="u-name">{oppName}</span>}
-              （後から取り始めた人）。<MulliganLeft room={room} serverNow={r.serverNow} />
+              （ランダム）。<MulliganLeft room={room} serverNow={r.serverNow} />
             </>
           }
           doneActions={

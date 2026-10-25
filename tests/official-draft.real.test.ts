@@ -57,9 +57,8 @@ describe('公式カードのドラフト（実際の倍率）', () => {
         expect(a.total).toBe(BALANCE.deck.size);
         expect(d.cards.every((c) => c.rarity !== 'legend')).toBe(true);
       }
-      const r = battle.createGame({ seed, first: draft.battleFirstAfterDraft(s), players: [{ name: 'A', ...decks[0] }, { name: 'B', ...decks[1] }] });
+      const r = battle.createGame({ seed, players: [{ name: 'A', ...decks[0] }, { name: 'B', ...decks[1] }] });
       if (!r.ok) throw new Error(r.error);
-      expect(r.state.first).toBe(battle.other(s.first));
       const g = playToEnd(r.state, seed % 2 ? 'normal' : 'easy');
       expect(g.phase).toBe('ended');
       expect(g.result).toBeTruthy();

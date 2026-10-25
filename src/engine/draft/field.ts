@@ -207,8 +207,3 @@ export function draftView(s: DraftState, seat: PlayerId): DraftView {
     done,
   };
 }
-
-/** ドラフトのあとの対戦で先攻になる人（後から取り始めた人。決定事項 #115） */
-export function battleFirstAfterDraft(s: DraftState): PlayerId {
-  return other(s.first);
-}

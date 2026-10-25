@@ -1,11 +1,11 @@
-// Edge Function「cardgame」：オンライン対戦とフレンド機能の受付（Deno）。
+// Edge Function「cardgame」：オンライン対戦とフレンド機能とプレイヤーからの報告（決定事項 #129）の受付（Deno）。
 // 処理の中身は engine.js（src/online と src/engine をまとめたもの。npm run build:server で作る）にあり、
 // ここでは本物の DB（cardgame スキーマへの直接接続。SQL は sqlStore.ts）・時刻・暗号学的乱数・Realtime の通知をつなぐだけ。
 // 本人確認は独自のトークン（部屋）とプレイヤーの鍵（フレンド機能。決定事項 #121）で行うため、Supabase の JWT 検証は使わない（verify_jwt = false）。
 // デプロイするファイル：index.ts・sqlStore.ts・engine.js の3つ。
 import postgres from 'npm:postgres@3.4.5';
 import { handleBody } from './engine.js';
-import { makeRoomStore, makeSocialStore } from './sqlStore.ts';
+import { makeFeedbackStore, makeRoomStore, makeSocialStore } from './sqlStore.ts';
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 4, idle_timeout: 20 });
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -64,10 +64,12 @@ async function clientKey(req: Request): Promise<string | undefined> {
 
 const store = makeRoomStore(sql);
 const social = makeSocialStore(sql);
+const feedback = makeFeedbackStore(sql);
 
 const deps = {
   store,
   social,
+  feedback,
   now: () => Date.now(),
   randomInt,
   newToken: () => hex(crypto.getRandomValues(new Uint8Array(32))),

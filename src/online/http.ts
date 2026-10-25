@@ -4,6 +4,9 @@
  */
 import type { CardDef } from '../engine/types.ts';
 import { generateCode } from './codes.ts';
+import { handleFeedback } from './feedback/handlers.ts';
+import { isFeedbackOp, parseFeedbackRequest, type FeedbackResponse } from './feedback/protocol.ts';
+import type { FeedbackStore } from './feedback/types.ts';
 import { MAX_BODY_CHARS, parseRequest, type OnlineResponse } from './protocol.ts';
 import { ROOM_TTL_MS, type RoomRecord, type SeatPlayer } from './room.ts';
 import { serve, type ServeResult } from './server.ts';
@@ -43,6 +46,8 @@ export interface HttpDeps {
   social?: SocialStore;
   /** 自分あての通知（Realtime の cardgame:inbox:<inboxId>、event 'social'、payload { kind }）。無ければ知らせない */
   notifyInbox?(inboxId: string, event: InboxEvent): Promise<void>;
+  /** プレイヤーからの報告の保存場所（決定事項 #129）。無ければ報告の操作は unsupported */
+  feedback?: FeedbackStore;
 }
 
 /** 1回の送信ごとの情報（決定事項 #124） */
@@ -53,7 +58,7 @@ export interface RequestContext {
 
 export interface HttpResult {
   status: number;
-  body: OnlineResponse | SocialResponse;
+  body: OnlineResponse | SocialResponse | FeedbackResponse;
 }
 
 const CODE_TRIES = 5;
@@ -68,6 +73,7 @@ export async function handleBody(text: string, deps: HttpDeps, ctx: RequestConte
     return { status: 400, body: { ok: false, error: '送信の形式が正しくありません', reason: 'invalid' } };
   }
   if (typeof raw === 'object' && raw !== null && isSocialOp((raw as { op?: unknown }).op)) return socialBody(raw, deps, ctx);
+  if (typeof raw === 'object' && raw !== null && isFeedbackOp((raw as { op?: unknown }).op)) return feedbackBody(raw, deps, ctx);
   const parsed = parseRequest(raw);
   if (!parsed.ok) return { status: 400, body: { ok: false, error: parsed.error, reason: 'invalid' } };
   const req = parsed.value;
@@ -148,6 +154,25 @@ async function afterRoom(match: MatchRecord | null, presence: PresenceUpdate[], 
     if (presence.length > 0) await deps.social.updatePresence(presence);
   } catch (e) {
     deps.log?.(`social after room failed: ${String(e)}`);
+  }
+}
+
+/** プレイヤーからの報告（決定事項 #129） */
+async function feedbackBody(raw: unknown, deps: HttpDeps, ctx: RequestContext): Promise<HttpResult> {
+  const parsed = parseFeedbackRequest(raw);
+  if (!parsed.ok) return { status: 400, body: { ok: false, error: parsed.error, reason: 'invalid' } };
+  if (!deps.feedback) return { status: 200, body: { ok: false, error: 'このサーバーは報告の受け付けに対応していません', reason: 'unsupported' } };
+  try {
+    const body = await handleFeedback(parsed.value, {
+      store: deps.feedback,
+      now: deps.now(),
+      hash: deps.hash,
+      ...(ctx.clientKey ? { clientKey: ctx.clientKey } : {}),
+    });
+    return { status: 200, body };
+  } catch (e) {
+    deps.log?.(`error: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
+    return { status: 500, body: { ok: false, error: 'サーバーでエラーが起きました。少し待ってからもう一度お試しください' } };
   }
 }
 

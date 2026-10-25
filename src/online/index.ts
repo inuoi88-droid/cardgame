@@ -32,3 +32,8 @@ export type {
 } from './social/protocol.ts';
 export type { InboxEvent } from './social/handlers.ts';
 export * from './social/types.ts';
+// プレイヤーからの報告（決定事項 #129）
+export { MemoryFeedbackStore } from './feedback/memoryStore.ts';
+export { FEEDBACK_OPS, cleanBody, isFeedbackOp, parseFeedbackRequest } from './feedback/protocol.ts';
+export type { FeedbackErrorReason, FeedbackOp, FeedbackRequest, FeedbackResponse } from './feedback/protocol.ts';
+export * from './feedback/types.ts';

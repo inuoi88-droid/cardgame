@@ -12,19 +12,21 @@
  *
  * フレンド機能（決定事項 #121。docs/ONLINE_SOCIAL.md）も同じメモリの保存場所で動く（プレイヤー・フレンド・招待・公開デッキ・成績）。
  * 自分あての通知（cardgame:inbox:<inboxId>）は届かないので、画面は hello を定期的に送って気づく。通知の代わりに端末に1行出す。
- * GET / で部屋とプレイヤーの一覧（鍵は出さない）。
+ * GET / で部屋とプレイヤーと報告の一覧（鍵は出さない）。
  * プレイヤーを作る回数の上限は、全体の上限だけを見る（送り元の鍵 clientKey は渡さない。同じ PC の複数のブラウザで試せるように。決定事項 #124）。
  */
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { createServer } from 'node:http';
-import { handleBody, MAX_BODY_CHARS, MemoryStore, type HttpDeps } from '../src/online/index.ts';
+import { handleBody, MAX_BODY_CHARS, MemoryFeedbackStore, MemoryStore, type HttpDeps } from '../src/online/index.ts';
 
 const PORT = Number(process.env.PORT ?? 8787);
 
 const store = new MemoryStore();
+const feedback = new MemoryFeedbackStore();
 const deps: HttpDeps = {
   store,
   social: store,
+  feedback,
   now: () => Date.now(),
   randomInt: (n) => randomInt(n),
   newToken: () => randomBytes(32).toString('hex'),
@@ -54,7 +56,8 @@ createServer((req, res) => {
       (r) => `${r.code} ${r.status} v${r.version} ${r.meta?.mode ?? 'deck'}${r.meta?.listed ? ' 公開' : ''} ${r.seats.map((s) => s.name + (s.friendCode ? `(${s.friendCode})` : '')).join(' / ')}`,
     );
     const players = [...store.players.values()].map((p) => `${p.friendCode} ${p.name}`);
-    const text = `cardgame dev server\n[部屋]\n${rooms.join('\n')}\n[プレイヤー]\n${players.join('\n')}\n[フレンド] ${store.friendshipList.length} 組・申請 ${store.requestList.length} 件・成績 ${store.matches.size} 戦\n`;
+    const reports = feedback.list.map((f) => `#${f.id} ${f.kind}/${f.topic} ${f.source} ${f.status} カード${f.cards.length} ${f.body.slice(0, 40).replace(/\n/g, ' ')}`);
+    const text = `cardgame dev server\n[部屋]\n${rooms.join('\n')}\n[プレイヤー]\n${players.join('\n')}\n[フレンド] ${store.friendshipList.length} 組・申請 ${store.requestList.length} 件・成績 ${store.matches.size} 戦\n[報告]\n${reports.join('\n')}\n`;
     res.writeHead(200, { ...CORS, 'Content-Type': 'text/plain; charset=utf-8' }).end(text);
     return;
   }

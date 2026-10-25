@@ -164,6 +164,7 @@ function OnlineRoomScreen({ session }: { session: OnlineSession }) {
         busy={r.busy}
         opponentLabel={oppName}
         opponentPortrait={ONLINE_OPP_PORTRAIT}
+        feedbackExtra={{ mode: 'online', roomMode: room.mode ?? 'deck', game: room.games ?? 1, rules: room.rules ?? null }}
         status={<OnlineStatus room={room} online={r.online} serverNow={r.serverNow} />}
         menuItems={
           room.draft?.done ? (

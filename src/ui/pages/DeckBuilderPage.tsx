@@ -37,6 +37,7 @@ import { shareDeckNow, unshareDeckNow } from '../social/sharing.ts';
 import { sharedDeckIds } from '../social/socialLogic.ts';
 import { useSocial } from '../social/socialStore.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
+import { FeedbackButton, FeedbackSheet } from '../feedback/FeedbackSheet.tsx';
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const emptyDeck = (id: string): Deck => ({ v: 1, id, name: '', entries: [] });
@@ -79,6 +80,7 @@ function Builder({ saved }: { saved: Deck | null }) {
     return d && !sameJson(d, saved) ? d : null;
   });
   const [deck, setDeck] = useState<Deck>(() => restored ?? saved ?? emptyDeck(uuid()));
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const isShared = sharedDeckIds(useSocial().snap).has(deck.id);
   /** 保存したときにフレンドに公開するか（公開中なら最初から入っている） */
   const [shareChoice, setShareChoice] = useState<boolean | null>(null);
@@ -205,7 +207,21 @@ function Builder({ saved }: { saved: Deck | null }) {
     <>
       <div className="page-head">
         <h1>{saved ? 'デッキを編集' : '新しいデッキ'}</h1>
+        {/* 報告・要望（決定事項 #129）：選べるカードはデッキのカード、添えるのはデッキの中身 */}
+        <FeedbackButton className="btn--small btn--ghost" onClick={() => setFeedbackOpen(true)} />
       </div>
+      {feedbackOpen && (
+        <FeedbackSheet
+          source="deck"
+          onClose={() => setFeedbackOpen(false)}
+          cards={deck.entries.flatMap((e) => cards.filter((c) => c.id === e.cardId))}
+          context={() => ({
+            v: 1,
+            deck: { name: deck.name, cards: deck.entries.map((e) => ({ id: e.cardId, name: cards.find((c) => c.id === e.cardId)?.name ?? '?', count: e.count })) },
+          })}
+          contextLabel="このデッキの中身（カードと枚数）を添える"
+        />
+      )}
       {draftNotice && (
         <div className="notice">
           保存していない編集内容（下書き）を復元しました。

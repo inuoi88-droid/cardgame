@@ -1,7 +1,24 @@
 import { defineConfig } from 'vitest/config';
 import type { HtmlTagDescriptor, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+
+/**
+ * 画面の版の印（報告に添える。決定事項 #129）：Vercel ではビルドしたコミット、手元では git の今のコミット（取れなければ dev）。
+ * 1ファイル版はコミットの前に作るので、1つ前のコミットになることがある（後ろに -single を付けて見分ける）
+ */
+function buildStamp(mode: string): string {
+  let sha = process.env.VERCEL_GIT_COMMIT_SHA ?? '';
+  if (!sha) {
+    try {
+      sha = execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    } catch {
+      sha = 'dev';
+    }
+  }
+  return `${sha.slice(0, 12)}${mode === 'single' ? '-single' : ''}`;
+}
 
 // 見出し用の明朝（src/ui/theme/fonts/ui-mincho.woff2。決定事項 #111）を先に読み始める <link rel="preload">。
 // ファイル名にハッシュが付くので、ビルドの結果から探して index.html に足す（1ファイル版は CSS に埋め込むので何もしない）
@@ -25,6 +42,7 @@ function preloadDisplayFont(): Plugin {
 // （決定事項 #105・#106。ふつうのビルドでは形は public/icons から1つずつ fetch する）
 export default defineConfig(({ mode }) => ({
   plugins: [react(), preloadDisplayFont()],
+  define: { __APP_BUILD__: JSON.stringify(buildStamp(mode)) },
   base: './',
   // 1ファイル版は書体（woff2）も CSS のデータ URI に埋め込む（ネットなしで開いても見出しの明朝が出る）
   // 効果音（src/ui/sound/sfx/*.mp3。決定事項 #127）は小さくても JS に埋め込まず、ハッシュ付きのファイルにする（オンにしてから1つずつ読む）

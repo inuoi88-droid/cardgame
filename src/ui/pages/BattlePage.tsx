@@ -122,6 +122,15 @@ function CpuBattle({ session, setSession }: { session: BattleSession; setSession
         error={error}
         opponentLabel="CPU"
         opponentPortrait={CPU_PORTRAIT[level]}
+        feedbackExtra={{
+          mode: 'cpu',
+          cpuLevel: level,
+          myDeckName: session.setup.myDeckName,
+          cpuDeckName: session.setup.cpuDeckName,
+          draft: !!session.setup.draft,
+          rules: session.setup.rules ?? null,
+          leaders: { me: session.setup.myLeader ?? null, cpu: session.setup.cpuLeader ?? null },
+        }}
         onReplayDone={onReplayDone}
         menuItems={
           <button type="button" className="btn" onClick={() => navigate('/battle')}>

@@ -1,6 +1,7 @@
 // Edge Function「cardgame」の保存場所：cardgame スキーマの表への SQL（postgres.js）。
-// 部屋（RoomStore。rooms）とフレンド機能（SocialStore。players・friendships・friend_requests・invites・matches・shared_decks。決定事項 #121）。
-// 約束（メソッドの意味）は src/online/http.ts の RoomStore と src/online/social/types.ts の SocialStore。
+// 部屋（RoomStore。rooms）とフレンド機能（SocialStore。players・friendships・friend_requests・invites・matches・shared_decks。決定事項 #121）と
+// プレイヤーからの報告（FeedbackStore。feedback。決定事項 #129）。
+// 約束（メソッドの意味）は src/online/http.ts の RoomStore と src/online/social/types.ts の SocialStore と src/online/feedback/types.ts の FeedbackStore。
 // 同じ約束のメモリ版は src/online/social/memoryStore.ts（手元のサーバーとテスト）。
 // このファイルは Deno 専用の API を使わない（Node でも手元の Postgres に当てて試せる：docs/ONLINE_SOCIAL.md）。
 // 時刻は DB では timestamptz、受け渡しはエポックミリ秒。
@@ -404,6 +405,62 @@ export function makeSocialStore(sql: Sql) {
       if (codes.length === 0) return [];
       const rows = await q(`select ${SUMMARY_COLS} from cardgame.rooms where code = any($1::text[])`, [[...codes]]);
       return rows.map(fromSummary);
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// プレイヤーからの報告（決定事項 #129）
+// ---------------------------------------------------------------------------
+
+interface FeedbackRecord {
+  reporter: string;
+  client: string | null;
+  kind: string;
+  topic: string;
+  source: string;
+  body: string;
+  cards: unknown[];
+  context: Json;
+  app: Json;
+  createdAt: number;
+}
+
+const EXCERPT = 60;
+
+export function makeFeedbackStore(sql: Sql) {
+  return {
+    async insertFeedback(r: FeedbackRecord): Promise<number> {
+      const rows = await sql`
+        insert into cardgame.feedback (reporter, client, kind, topic, source, body, cards, context, app, created_at, updated_at)
+        values (${r.reporter}, ${r.client}, ${r.kind}, ${r.topic}, ${r.source}, ${r.body}, ${sql.json(r.cards)}, ${json(sql, r.context)}, ${sql.json(r.app ?? {})}, ${time(r.createdAt)}, ${time(r.createdAt)})
+        returning id`;
+      return Number(rows[0].id);
+    },
+    async countFeedback(by: { reporter?: string; client?: string }, since: number): Promise<number> {
+      const rows = await sql`
+        select count(*)::int as n from cardgame.feedback
+        where created_at >= ${new Date(since)}
+          and (${by.reporter ?? null}::text is null or reporter = ${by.reporter ?? null})
+          and (${by.client ?? null}::text is null or client = ${by.client ?? null})`;
+      return Number(rows[0]?.n ?? 0);
+    },
+    async feedbackByReporter(reporter: string, limit: number) {
+      const rows = await sql`
+        select id, kind, topic, left(body, ${EXCERPT}) as excerpt, status, note,
+               (extract(epoch from created_at) * 1000)::float8 as created_ms, (extract(epoch from updated_at) * 1000)::float8 as updated_ms
+        from cardgame.feedback where reporter = ${reporter} order by created_at desc, id desc limit ${limit}`;
+      // deno-lint-ignore no-explicit-any
+      return rows.map((r: any) => ({
+        id: Number(r.id),
+        kind: r.kind,
+        topic: r.topic,
+        excerpt: r.excerpt,
+        status: r.status,
+        note: r.note,
+        createdAt: Number(r.created_ms),
+        updatedAt: Number(r.updated_ms),
+      }));
     },
   };
 }

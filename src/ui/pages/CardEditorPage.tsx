@@ -60,6 +60,7 @@ import { navigate, setNavigationGuard } from '../router.ts';
 import { NEW_DRAFT, actions, cardDrafts, useStore } from '../store.ts';
 import { cx, uuid, stepOf } from '../util.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
+import { FeedbackButton, FeedbackSheet } from '../feedback/FeedbackSheet.tsx';
 import { EffectIcon } from '../editor/EffectIcon.tsx';
 
 /** カードの絵の選択パネル（検索の辞書・分類を含むので、開くときに読む。決定事項 #105） */
@@ -118,6 +119,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
     return d && !sameCard(d, saved) ? d : null;
   });
   const [card, setCard] = useState<CardDef>(() => restored ?? saved ?? newCard(uuid()));
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [effectKeys, setEffectKeys] = useState<string[]>(() => keysFor(card.effects.length));
   const [drawbackKeys, setDrawbackKeys] = useState<string[]>(() => keysFor(card.drawbacks.length));
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -448,7 +450,19 @@ function Editor({ saved }: { saved: CardDef | null }) {
             テンプレートから作る
           </button>
         )}
+        {/* 報告・要望（決定事項 #129）：作っているカード（ポイントの付き方が強すぎ・弱すぎなど）を最初から選んでおく */}
+        <FeedbackButton className="btn--small btn--ghost" onClick={() => setFeedbackOpen(true)} />
       </div>
+      {feedbackOpen && (
+        <FeedbackSheet
+          source="editor"
+          onClose={() => setFeedbackOpen(false)}
+          cards={[card]}
+          preselect={[card.id]}
+          context={() => ({ v: 1, editor: { cardId: card.id, saved: !!saved } })}
+          contextLabel="作っているカードの情報を添える"
+        />
+      )}
       {draftNotice && (
         <div className="notice">
           保存していない編集内容（下書き）を復元しました。

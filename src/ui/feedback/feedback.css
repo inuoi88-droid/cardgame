@@ -1,0 +1,218 @@
+/* 報告・要望のシート（決定事項 #129）。色・角・影は styles.css の :root のトークンだけ。金は使わない（主ボタンだけ） */
+.fb__tabs {
+  margin-bottom: var(--sp-3);
+}
+.fb__form {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+/* 種類：3つの鉄の板。選ぶとサファイアの縁 */
+.fb__kinds {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+.fb__kind {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 4px;
+  min-height: var(--tap);
+  padding: 10px 6px;
+  font: inherit;
+  color: var(--muted);
+  text-align: center;
+  cursor: pointer;
+  background: linear-gradient(180deg, var(--u-plate-1), var(--u-plate-0));
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+}
+.fb__kind .gi {
+  font-size: 1.5em;
+}
+.fb__kind-name {
+  color: var(--text);
+  font-weight: 700;
+}
+.fb__kind-hint {
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+.fb__kind.is-active {
+  border-color: var(--u-rim-sapphire);
+  box-shadow:
+    0 0 0 1px var(--u-rim-sapphire),
+    var(--shadow-1);
+  color: var(--text);
+}
+@media (max-width: 480px) {
+  .fb__kind-hint {
+    display: none;
+  }
+}
+
+.fb__topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* カードを選ぶ：井戸の中の一覧（高さは画面の半分まで） */
+.fb__cards {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.fb__cards legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  width: 100%;
+  padding: 0;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.fb__count {
+  font-weight: 400;
+  font-size: var(--fs-xs);
+}
+.fb__filter {
+  width: 100%;
+}
+.fb__card-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: min(40vh, 320px);
+  overflow-y: auto;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, var(--u-well-0), var(--u-well-1));
+  border: 1px solid var(--line);
+}
+.fb__card {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+.fb__card.is-picked {
+  background: var(--accent-bg);
+}
+.fb__card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fb__card-meta {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.fb__none {
+  padding: 10px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+.fb__body {
+  margin-bottom: 0;
+}
+.fb__body textarea {
+  width: 100%;
+  min-height: 7.5em;
+}
+.fb__note {
+  margin: 0;
+  font-size: var(--fs-xs);
+}
+.fb__actions {
+  align-items: center;
+}
+.fb__need {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+/* 送った報告 */
+.fb__empty {
+  padding: var(--sp-4) 0;
+  text-align: center;
+}
+.fb__mine {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-2);
+}
+.fb__report {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, var(--u-plate-1), var(--u-plate-0));
+  border: 1px solid var(--line);
+}
+.fb__report-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.fb__report-id {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+.fb__report-kind {
+  font-weight: 700;
+  margin-right: auto;
+}
+.fb__status {
+  padding: 1px 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+}
+.fb__status--checking,
+.fb__status--accepted {
+  color: var(--info);
+  border-color: var(--info);
+}
+.fb__status--fixed {
+  color: var(--ok);
+  border-color: var(--ok);
+  background: var(--ok-bg);
+}
+.fb__status--rejected,
+.fb__status--duplicate {
+  color: var(--muted);
+}
+.fb__excerpt,
+.fb__reply {
+  margin: 0;
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+.fb__reply {
+  color: var(--text);
+  padding-left: 10px;
+  border-left: 2px solid var(--u-rim-sapphire);
+}
+.fb__date {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}

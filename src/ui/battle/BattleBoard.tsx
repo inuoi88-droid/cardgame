@@ -24,6 +24,8 @@ import { UiIcon } from '../components/UiIcon.tsx';
 import { sfx } from '../sound/index.ts';
 import { SoundSettings } from '../sound/SoundSettings.tsx';
 import { useBgmScene } from '../sound/bgmScene.ts';
+import { FeedbackButton, FeedbackSheet } from '../feedback/FeedbackSheet.tsx';
+import { matchCards, matchContext } from '../feedback/feedbackLogic.ts';
 import './battle.css';
 import { CardDetailBody, CardDetailSheet, NoiseDetailBody } from './CardDetail.tsx';
 import {
@@ -137,6 +139,8 @@ export interface BattleBoardProps {
   menuItems?: ReactNode;
   /** 相手の肖像（PC の銘板。game-icons の名前。CPU は強さで形が変わる：BattlePage。UI2） */
   opponentPortrait?: string;
+  /** 報告・要望（決定事項 #129）に添える、画面からの補足（CPU の強さ・デッキ名、部屋の形式など） */
+  feedbackExtra?: Record<string, unknown>;
 }
 
 /** 攻撃できない理由を、タイルに出す短い言葉にする */
@@ -165,6 +169,7 @@ export function BattleBoard({
   onReplayDone,
   menuItems,
   opponentPortrait,
+  feedbackExtra,
 }: BattleBoardProps) {
   const opp = battle.other(me);
   const confirm = useConfirm();
@@ -200,6 +205,8 @@ export function BattleBoard({
   const [zoom, setZoom] = useState<CardDef | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // 報告・要望のシート（決定事項 #129）：結果の画面からは 'result'、対戦の途中にメニューからは 'battle'
+  const [feedbackFrom, setFeedbackFrom] = useState<'result' | 'battle' | null>(null);
   // スマホの帯から開く：プレイヤーの詳細・自分のパワーの一覧
   const [playerOpen, setPlayerOpen] = useState<battle.PlayerId | null>(null);
   const [powersOpen, setPowersOpen] = useState(false);
@@ -1777,9 +1784,19 @@ export function BattleBoard({
       {ended && resultReady && !resultHidden && (
         <ResultDialog view={view} me={me} onHide={() => setResultHidden(true)}>
           {resultButtons}
+          <FeedbackButton onClick={() => setFeedbackFrom('result')} />
         </ResultDialog>
       )}
       {renderDetail()}
+      {feedbackFrom && (
+        <FeedbackSheet
+          source={feedbackFrom}
+          onClose={() => setFeedbackFrom(null)}
+          cards={matchCards(view)}
+          context={() => ({ v: 1, match: matchContext(view, me, feedbackExtra) })}
+          contextLabel="この対戦の記録（ログとこの対戦のカード）を添える"
+        />
+      )}
       {pile && pile.player === me && pile.kind === 'discard' ? (
         // 自分の捨て札（MTG 要素 ○ バッチC1）：捨て札から使えるカードは光り、盤面へドラッグして使う（押すと詳細と「捨て札から使う」）
         <Sheet open title={`あなたの捨て札（${mine.discard.length}枚）`} onClose={() => setPile(null)} desktop="modal">
@@ -1993,6 +2010,21 @@ export function BattleBoard({
             ルールを見る
           </button>
           {menuItems}
+          {/* 報告・要望（決定事項 #129）：対戦の途中ならバグ、決着後なら結果の画面と同じ */}
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setMenuOpen(false);
+              setFeedbackFrom(view.phase === 'ended' ? 'result' : 'battle');
+            }}
+          >
+            <UiIcon name="scroll-quill" />
+            <span className="menu-list__text">
+              報告・要望を送る
+              <small>バグ・バランス（強すぎ・OTK など）・ご要望</small>
+            </span>
+          </button>
           {/* 演出（決定事項 #126）：標準／控えめ。端末の「動きを減らす」なら控えめに固定 */}
           <div className="fx-setting" role="group" aria-label="演出">
             <span>

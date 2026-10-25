@@ -7,6 +7,11 @@
 - 頻度：1日1回（日本時間の早朝）
 - 結果の知らせ：スマホへの通知（このセッションの最後のまとめがそのまま届く）
 
+定期タスクの設定：名前「カードゲームの報告の確認」（`trig_013oSNpAqrNSfZ6EmFz4pycr`）、毎日 4:47（日本時間）、毎回新しいセッション、
+終わったらスマホに通知。**報告を DB から読み、Edge Function を作り直すには、定期タスクに Supabase のコネクタが付いている必要がある**
+（セッションから作った定期タスクにはコネクタを付けられないので、オーナーが claude.ai の定期タスク（ルーティン）の画面で付ける）。
+付いていない回は、セッションが「Supabase のツールが使えない」とまとめに書いて止まる。
+
 報告の受付は `src/online/feedback/`（op `feedback`・`feedbackStatus`）、画面は `src/ui/feedback/`、保存は Supabase の
 `cardgame.feedback`（`supabase/migrations/20261026000000_cardgame_feedback.sql`）。
 

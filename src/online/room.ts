@@ -55,6 +55,27 @@ export interface Seat {
   timeouts: number;
   /** リーダー（MTG 要素 △ バッチD。無い古い部屋は none） */
   leader?: LeaderId;
+  /** この席のプレイヤー（フレンド機能。決定事項 #121。create・join で secret を送ったときだけ）。ID は相手に返さない */
+  playerId?: string;
+  /** そのプレイヤーのフレンドコード（相手にはお互いが結び付いているときだけ返す） */
+  friendCode?: string;
+}
+
+/** 席に結び付けるプレイヤー（http.ts が secret から引いて渡す） */
+export interface SeatPlayer {
+  id: string;
+  friendCode: string;
+}
+
+function seatFor(name: string, tokenHash: string, now: number, leader: LeaderId, player: SeatPlayer | undefined): Seat {
+  return {
+    name,
+    tokenHash,
+    lastSeen: now,
+    timeouts: 0,
+    ...(leader !== 'none' ? { leader } : {}),
+    ...(player ? { playerId: player.id, friendCode: player.friendCode } : {}),
+  };
 }
 
 export interface RoomRecord {
@@ -103,6 +124,8 @@ export interface RoomMeta {
    * （相手の「おまかせ」の切り替えなど、場の変わらない操作で版が上がっても取れるように。決定事項 #120）
    */
   pickVersion?: number;
+  /** 「募集中の部屋」の一覧に出す（決定事項 #121。DB では生成列 rooms.listed で引く。対戦が始まると意味がなくなる） */
+  listed?: boolean;
 }
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string; reason?: ErrorReason };
@@ -143,9 +166,14 @@ export function roomMode(room: RoomRecord): RoomMode {
   return room.meta?.mode === 'draft' ? 'draft' : 'deck';
 }
 
-export function createRoom(input: PlayerInput & { rules?: unknown; mode?: unknown }, ctx: { now: number; code: string; tokenHash: string }): Result<RoomRecord> {
+export function createRoom(
+  input: PlayerInput & { rules?: unknown; mode?: unknown; listed?: boolean },
+  ctx: { now: number; code: string; tokenHash: string; player?: SeatPlayer },
+): Result<RoomRecord> {
   const rules = normalizeRules(input.rules);
   const leader = toLeaderId(input.leader);
+  const seat = seatFor(normalizeName(input.name), ctx.tokenHash, ctx.now, leader, ctx.player);
+  const listed = input.listed === true ? { listed: true } : {};
   if (input.mode === 'draft') {
     // ドラフトの部屋：デッキは要らない（入室したら場から交互に取る）
     return {
@@ -155,11 +183,11 @@ export function createRoom(input: PlayerInput & { rules?: unknown; mode?: unknow
         status: 'waiting',
         version: 1,
         state: null,
-        seats: [{ name: normalizeName(input.name), tokenHash: ctx.tokenHash, lastSeen: ctx.now, timeouts: 0, ...(leader !== 'none' ? { leader } : {}) }],
+        seats: [seat],
         hostDeck: null,
         deadline: null,
         updatedAt: ctx.now,
-        meta: { mode: 'draft', ...(rules ? { rules } : {}) },
+        meta: { mode: 'draft', ...(rules ? { rules } : {}), ...listed },
       },
     };
   }
@@ -172,10 +200,11 @@ export function createRoom(input: PlayerInput & { rules?: unknown; mode?: unknow
       status: 'waiting',
       version: 1,
       state: null,
-      seats: [{ name: normalizeName(input.name), tokenHash: ctx.tokenHash, lastSeen: ctx.now, timeouts: 0, ...(leader !== 'none' ? { leader } : {}) }],
+      seats: [seat],
       hostDeck: { ...checked.value, ...(rules ? { rules } : {}) },
       deadline: null,
       updatedAt: ctx.now,
+      ...(input.listed === true ? { meta: { mode: 'deck', listed: true } } : {}),
     },
   };
 }
@@ -187,14 +216,16 @@ export function createRoom(input: PlayerInput & { rules?: unknown; mode?: unknow
 export function joinRoom(
   room: RoomRecord,
   input: PlayerInput,
-  ctx: { now: number; tokenHash: string; seed: number; pool?: readonly CardDef[] },
+  ctx: { now: number; tokenHash: string; seed: number; pool?: readonly CardDef[]; player?: SeatPlayer },
 ): Result<RoomRecord> {
   if (room.status !== 'waiting' || room.seats.length !== 1) return fail('この部屋はもう対戦が始まっています', 'invalid');
   const host = room.seats[0]!;
+  // 同じプレイヤー（同じ端末の別のタブなど）どうしでは対戦しない（成績が自分対自分になる）
+  if (ctx.player && host.playerId === ctx.player.id) return fail('自分が作った部屋には入れません', 'invalid');
   let name = normalizeName(input.name);
   if (name === host.name) name = `${[...name].slice(0, NAME_MAX_LENGTH - 3).join('')}（2）`;
   const leader = toLeaderId(input.leader);
-  const guest: Seat = { name, tokenHash: ctx.tokenHash, lastSeen: ctx.now, timeouts: 0, ...(leader !== 'none' ? { leader } : {}) };
+  const guest = seatFor(name, ctx.tokenHash, ctx.now, leader, ctx.player);
 
   if (roomMode(room) === 'draft') {
     // 古い画面（ドラフトを知らない）で入ると、取る画面が出ないまま時間切れが続くので断る
@@ -490,6 +521,7 @@ function draftTimeout(room: RoomRecord, now: number, seed: number): RoomRecord {
 /** 1人のプレイヤーに返す部屋の様子（相手の非公開情報は隠す） */
 export function roomView(room: RoomRecord, seat: PlayerId, now: number): RoomView {
   const opp = room.seats[other(seat)];
+  const me = room.seats[seat];
   return {
     code: room.code,
     seat,
@@ -507,7 +539,16 @@ export function roomView(room: RoomRecord, seat: PlayerId, now: number): RoomVie
     ...draftPart(room, seat),
     ...(room.status === 'ended' && room.meta?.decks ? { rematch: [room.meta.rematch?.[0] ?? false, room.meta.rematch?.[1] ?? false] as [boolean, boolean] } : {}),
     ...(room.meta?.games ? { games: room.meta.games } : {}),
+    ...opponentDeckPart(room, seat),
+    ...(me?.playerId && opp?.friendCode ? { opponentFriendCode: opp.friendCode } : {}),
+    ...(room.meta?.listed ? { listed: true } : {}),
   };
+}
+
+/** 決着したあとだけ、相手のデッキを見せる（決定事項 #121。対戦中は相手の山札の中身を隠すので出さない） */
+function opponentDeckPart(room: RoomRecord, seat: PlayerId): Pick<RoomView, 'opponentDeck'> {
+  const d = room.status === 'ended' ? room.meta?.decks?.[other(seat)] : undefined;
+  return d ? { opponentDeck: { name: d.deck.name, deck: d.deck, cards: d.cards } } : {};
 }
 
 /** ドラフトの見え方（伏せた山の中身・順番と乱数は送らない。枚数だけ） */

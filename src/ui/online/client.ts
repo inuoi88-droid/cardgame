@@ -1,6 +1,8 @@
 /** Edge Function の呼び出し、Realtime の購読、部屋の合言葉の保存（再接続用） */
 import { RealtimeClient, type RealtimeChannel } from '@supabase/realtime-js';
 import type { OnlineRequest, OnlineResponse } from '../../online/protocol.ts';
+import type { InboxEvent } from '../../online/social/handlers.ts';
+import type { SocialError, SocialOk, SocialRequest } from '../../online/social/protocol.ts';
 import { FUNCTION_URL, LOCAL_SERVER_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './config.ts';
 
 /** 通信そのものの失敗（サーバーの返事がない）も含めた結果 */
@@ -21,7 +23,32 @@ export async function callServer(req: OnlineRequest): Promise<ClientResponse> {
   }
 }
 
+/**
+ * フレンド機能・公開の部屋の送信（決定事項 #121。docs/ONLINE_SOCIAL.md）。返事の型は op から決まる
+ * （例 callSocial({ op: 'hello', secret }) → SocialOk<'hello'>）
+ */
+export async function callSocial<R extends SocialRequest>(req: R): Promise<SocialOk<R['op']> | SocialError | { ok: false; error: string; reason: 'network' }> {
+  return (await callServer(req as unknown as OnlineRequest)) as unknown as SocialOk<R['op']> | SocialError | { ok: false; error: string; reason: 'network' };
+}
+
 let realtime: RealtimeClient | null = null;
+
+/** 本人あての知らせ（cardgame:inbox:<inboxId> の social { kind }）を購読する。受け取ったら hello で取り直す。戻り値で購読をやめる */
+export function subscribeInbox(inboxId: string, onEvent: (kind: InboxEvent) => void): () => void {
+  if (LOCAL_SERVER_URL) return () => {};
+  realtime ??= new RealtimeClient(`${SUPABASE_URL}/realtime/v1`, { params: { apikey: SUPABASE_PUBLISHABLE_KEY } });
+  let channel: RealtimeChannel | null = realtime.channel(`cardgame:inbox:${inboxId}`, { config: { broadcast: { self: false }, private: false } });
+  channel
+    .on('broadcast', { event: 'social' }, (msg) => {
+      const kind = (msg.payload as { kind?: unknown } | undefined)?.kind;
+      if (typeof kind === 'string') onEvent(kind as InboxEvent);
+    })
+    .subscribe();
+  return () => {
+    if (channel && realtime) void realtime.removeChannel(channel);
+    channel = null;
+  };
+}
 
 /** 部屋の「版が上がった」通知を購読する。戻り値で購読をやめる */
 export function subscribeRoom(code: string, onUpdate: (version: number) => void): () => void {

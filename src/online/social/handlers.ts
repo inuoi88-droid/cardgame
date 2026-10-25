@@ -1,7 +1,8 @@
 /**
- * フレンド機能・公開の部屋の操作（決定事項 #121）。保存場所・時刻・乱数・ハッシュ・通知は外から渡す（engine と同じく純粋：DOM・Date・Math.random を使わない）。
+ * フレンド機能・公開の部屋の操作（決定事項 #121）。保存場所・時刻・乱数・ハッシュ・通知は外から渡す（engine と同じく純粋。時刻・乱数・ブラウザの機能に直接は触れない）。
  * 返事に他人の内部 ID・鍵・inboxId・招待リンクの鍵は入れない（他人を指すのはフレンドコードと名前だけ）
  */
+import { normalizeRules } from '../../engine/fields.ts';
 import { checkDeck } from '../room.ts';
 import {
   generateFriendCode,
@@ -58,11 +59,10 @@ export interface SocialDeps {
 const REGISTER_TRIES = 5;
 
 class SocialFail extends Error {
-  constructor(
-    message: string,
-    readonly reason: SocialErrorReason,
-  ) {
+  readonly reason: SocialErrorReason;
+  constructor(message: string, reason: SocialErrorReason) {
     super(message);
+    this.reason = reason;
   }
 }
 
@@ -421,7 +421,7 @@ async function snapshot(me: PlayerRecord, deps: SocialDeps): Promise<SocialSnaps
     .flatMap((i) => {
       const from = who(i.from);
       const room = rooms.find((r) => r.code === i.roomCode)!;
-      const rules = room.rules ?? room.meta?.rules;
+      const rules = normalizeRules(room.rules ?? room.meta?.rules);
       return from ? [{ id: i.id, from, roomCode: i.roomCode, mode: i.mode, ...(rules ? { rules } : {}), at: i.createdAt, expiresAt: i.expiresAt }] : [];
     });
   const sentViews: SentInviteView[] = invites.sent

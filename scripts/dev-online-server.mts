@@ -9,40 +9,30 @@
  *
  * Realtime の通知は無いので、ブラウザは数秒おきの取得（POLL_MS）で最新になる。
  * 同じブラウザの2つのタブは参加中の部屋の記録（localStorage）を共有するので、別のブラウザかプライベートのウィンドウを使う。
+ *
+ * フレンド機能（決定事項 #121。docs/ONLINE_SOCIAL.md）も同じメモリの保存場所で動く（プレイヤー・フレンド・招待・公開デッキ・成績）。
+ * 自分あての通知（cardgame:inbox:<inboxId>）は届かないので、画面は hello を定期的に送って気づく。通知の代わりに端末に1行出す。
+ * GET / で部屋とプレイヤーの一覧（鍵は出さない）。
  */
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { createServer } from 'node:http';
-import { handleBody, MAX_BODY_CHARS, type HttpDeps, type RoomRecord, type RoomStore } from '../src/online/index.ts';
+import { handleBody, MAX_BODY_CHARS, MemoryStore, type HttpDeps } from '../src/online/index.ts';
 
 const PORT = Number(process.env.PORT ?? 8787);
-
-class MemoryStore implements RoomStore {
-  rooms = new Map<string, RoomRecord>();
-  async insert(room: RoomRecord) {
-    if (this.rooms.has(room.code)) return false;
-    this.rooms.set(room.code, structuredClone(room));
-    return true;
-  }
-  // 1つのプロセスの中で await をはさまずに読み書きするので、ほかの送信と混ざらない
-  async update<T>(code: string, fn: (room: RoomRecord | null) => { save: RoomRecord | null; value: T }) {
-    const current = this.rooms.get(code);
-    const r = fn(current ? structuredClone(current) : null);
-    if (r.save) this.rooms.set(code, structuredClone(r.save));
-    return r.value;
-  }
-  async removeOlderThan(time: number) {
-    for (const [code, room] of this.rooms) if (room.updatedAt < time) this.rooms.delete(code);
-  }
-}
 
 const store = new MemoryStore();
 const deps: HttpDeps = {
   store,
+  social: store,
   now: () => Date.now(),
   randomInt: (n) => randomInt(n),
   newToken: () => randomBytes(32).toString('hex'),
   hash: async (t) => createHash('sha256').update(t).digest('hex'),
   notify: async () => {},
+  notifyInbox: async (inboxId, kind) => {
+    const p = [...store.players.values()].find((x) => x.inboxId === inboxId);
+    console.log(`${new Date().toISOString()} inbox → ${p?.name ?? '?'}（${p?.friendCode ?? '?'}）: ${kind}`);
+  },
   log: (m) => console.error(m),
 };
 
@@ -59,8 +49,12 @@ createServer((req, res) => {
     return;
   }
   if (req.method === 'GET') {
-    const rooms = [...store.rooms.values()].map((r) => `${r.code} ${r.status} v${r.version} ${r.meta?.mode ?? 'deck'} ${r.seats.map((s) => s.name).join(' / ')}`);
-    res.writeHead(200, { ...CORS, 'Content-Type': 'text/plain; charset=utf-8' }).end(`cardgame dev server\n${rooms.join('\n')}\n`);
+    const rooms = [...store.rooms.values()].map(
+      (r) => `${r.code} ${r.status} v${r.version} ${r.meta?.mode ?? 'deck'}${r.meta?.listed ? ' 公開' : ''} ${r.seats.map((s) => s.name + (s.friendCode ? `(${s.friendCode})` : '')).join(' / ')}`,
+    );
+    const players = [...store.players.values()].map((p) => `${p.friendCode} ${p.name}`);
+    const text = `cardgame dev server\n[部屋]\n${rooms.join('\n')}\n[プレイヤー]\n${players.join('\n')}\n[フレンド] ${store.friendshipList.length} 組・申請 ${store.requestList.length} 件・成績 ${store.matches.size} 戦\n`;
+    res.writeHead(200, { ...CORS, 'Content-Type': 'text/plain; charset=utf-8' }).end(text);
     return;
   }
   if (req.method !== 'POST') {
@@ -82,7 +76,11 @@ createServer((req, res) => {
           return '?';
         }
       })();
-      if (op !== 'state') console.log(`${new Date().toISOString()} ${op} → ${status}${out.ok ? ` ${out.code} ${out.status} v${out.version}` : ` ${out.error}`}`);
+      // 状態の取得・生存の合図・一覧は多いので出さない
+      if (op !== 'state' && op !== 'hello' && op !== 'list') {
+        const detail = !out.ok ? ` ${out.error}` : 'code' in out && 'version' in out ? ` ${out.code} ${out.status} v${out.version}` : '';
+        console.log(`${new Date().toISOString()} ${op} → ${status}${detail}`);
+      }
       res.writeHead(status, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' }).end(JSON.stringify(out));
     });
   });

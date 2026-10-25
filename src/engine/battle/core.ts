@@ -167,6 +167,43 @@ export function log(
   g.log.push(entry);
 }
 
+/**
+ * 演出の出来事を、at 以降に増えた最初のログの行に付ける（決定事項 #126）。行は増やさない（ログの長さ＝CPU のシードを変えない）。
+ * もう出来事のある行（ダメージなど）には、ID（drawbackId・keywordId）だけを「何のせいか」として足す
+ */
+export function tagLog(g: GameState, at: number, ev: LogEvent): void {
+  const e = g.log[at];
+  if (!e) return;
+  if (!e.ev) {
+    e.ev = ev;
+    return;
+  }
+  if (ev.drawbackId !== undefined && e.ev.drawbackId === undefined) e.ev.drawbackId = ev.drawbackId;
+  if (ev.keywordId !== undefined && e.ev.keywordId === undefined) e.ev.keywordId = ev.keywordId;
+}
+
+/**
+ * 効果・デメリットの出どころ（演出用。決定事項 #126）。公開の情報だけ：場のモンスターは source と uid、パワーは uid、
+ * 手札・山札にあるカード（引いたときの効果など）は持ち主だけ（uid・cardId を付けない）
+ */
+export function sourceFields(g: GameState, src: SourceRef): Pick<LogEvent, 'player' | 'source' | 'uid' | 'cardId'> {
+  const player = src.controller;
+  switch (src.kind) {
+    case 'monster':
+      // 場を離れたモンスター（破壊されたときの効果など）は uid だけ（消える途中のタイルを指す）
+      return findMonster(g, src.uid) ? { player, source: { kind: 'monster', uid: src.uid }, uid: src.uid, cardId: src.cardId } : { player, uid: src.uid, cardId: src.cardId };
+    case 'power':
+      return { player, uid: src.uid, cardId: src.cardId };
+    case 'card': {
+      const ps = g.players[src.controller];
+      const hidden = ps.hand.some((c) => c.uid === src.uid) || ps.deck.some((c) => c.uid === src.uid);
+      return hidden || !src.cardId ? { player } : { player, cardId: src.cardId };
+    }
+    default:
+      return { player };
+  }
+}
+
 /** カード1回の使用の記録（なければ作る） */
 export function playRecord(g: GameState, key: string): PlayRecord {
   return (g.protect[key] ??= { poison: 0, burn: 0 });

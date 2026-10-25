@@ -141,7 +141,7 @@ function afterDrawn(g: GameState, p: PlayerId, drawn: CardInst[], depth: number)
       if (!hook) continue;
       if (isEnded(g)) return;
       const src: SourceRef = { kind: 'card', uid: card.uid, cardId: card.cardId, name: def!.name, controller: p };
-      log(g, depth, `${ps.name}が引いたカードのデメリット：${getDrawback(d.id)!.name}`, 'effect');
+      log(g, depth, `${ps.name}が引いたカードのデメリット：${getDrawback(d.id)!.name}`, 'effect', undefined, { kind: 'drawback', drawbackId: d.id, player: p });
       hook(makeRuntime(g, src, [], { depth: depth + 1, attackCard: false }), d);
     }
   }
@@ -153,7 +153,8 @@ function afterDrawn(g: GameState, p: PlayerId, drawn: CardInst[], depth: number)
       if (!def || card.cardId === NOISE_CARD_ID) continue;
       if (!def.effects.some((e) => e.timing === 'drawn') && !def.drawbacks.some((d) => d.timing === 'drawn')) continue;
       const src: SourceRef = { kind: 'card', uid: card.uid, cardId: card.cardId, name: def.name, controller: p };
-      log(g, depth, `${ps.name}は「${def.name}」を引いた（引いたときの効果）`, 'effect', undefined, { kind: 'status', player: p, cardId: card.cardId, uid: card.uid, status: 'drawn' });
+      // 名前は公開（効果が出る）。手札の uid は付けない（山札の並びで振った uid から正体の見当がつくため：統合 #101・#126）
+      log(g, depth, `${ps.name}は「${def.name}」を引いた（引いたときの効果）`, 'effect', undefined, { kind: 'status', player: p, cardId: card.cardId, status: 'drawn' });
       enqueueCardTiming(g, src, def, 'drawn', {}, depth + 1, {});
     }
   }
@@ -333,7 +334,7 @@ export function addNoise(g: GameState, p: PlayerId, count: number, depth: number
     const card: CardInst = { uid: newUid(g, 'n'), cardId: NOISE_CARD_ID, owner: p };
     ps.deck.splice(randInt(g, ps.deck.length + 1), 0, card);
   }
-  log(g, depth, `${ps.name}の山札にノイズを${count}枚混ぜた`);
+  log(g, depth, `${ps.name}の山札にノイズを${count}枚混ぜた`, 'effect', undefined, { kind: 'zone', player: p, status: 'noise', amount: count });
 }
 
 /** 手札をランダムに捨てる。手札がなければ、代わりに次のターンに引く枚数が1枚減る（決定事項 #70 R7） */
@@ -349,7 +350,7 @@ export function discardRandom(g: GameState, p: PlayerId, count: number, depth: n
     }
     ps.hand.splice(ps.hand.indexOf(card), 1);
     discardCard(g, card);
-    log(g, depth, `${ps.name}は手札の「${cardName(g, card.cardId)}」を捨てた`);
+    log(g, depth, `${ps.name}は手札の「${cardName(g, card.cardId)}」を捨てた`, 'effect', undefined, { kind: 'discard', player: p, amount: 1, cardId: card.cardId });
     afterDiscarded(g, p, card, depth);
   }
 }
@@ -402,12 +403,12 @@ export function bounce(g: GameState, uid: string, depth: number): void {
   // 捨て札から使ったフラッシュバック・再活のモンスター（MTG 要素 ○ バッチC1）は、手札ではなく除外へ
   if (m.card.exileOnLeave) {
     g.players[m.card.owner].exile.push(m.card);
-    log(g, depth, `${label}は場を離れて除外された（捨て札から使ったため）`);
+    log(g, depth, `${label}は場を離れて除外された（捨て札から使ったため）`, 'effect', undefined, { kind: 'zone', player: m.controller, status: 'exile', uid: m.uid, cardId: m.card.cardId });
     onLeaveBoard(g, m, depth + 1, false);
     return;
   }
   g.players[m.card.owner].hand.push(m.card);
-  log(g, depth, `${label}を持ち主（${g.players[m.card.owner].name}）の手札に戻した`);
+  log(g, depth, `${label}を持ち主（${g.players[m.card.owner].name}）の手札に戻した`, 'effect', undefined, { kind: 'zone', player: m.controller, status: 'bounce', uid: m.uid, cardId: m.card.cardId });
   onLeaveBoard(g, m, depth + 1, false);
 }
 
@@ -445,7 +446,7 @@ export function steal(g: GameState, uid: string, to: PlayerId, depth: number): v
   moveMonster(g, m, to);
   m.enteredTurn = g.turnIndex;
   m.attacksUsed = 0;
-  log(g, depth, `${label}を奪って${g.players[to].name}の場に移した（次の自分のターンから攻撃できる）`);
+  log(g, depth, `${label}を奪って${g.players[to].name}の場に移した（次の自分のターンから攻撃できる）`, 'effect', undefined, { kind: 'zone', player: to, status: 'steal', uid: m.uid });
 }
 
 /** 借用（MTG 要素 ○ バッチB）：turns ターンの間、自分の場に移す。すぐ攻撃できる。奪った側のターン終了時に数え、0 で戻す */
@@ -464,7 +465,7 @@ export function borrow(g: GameState, uid: string, to: PlayerId, turns: number, d
   m.attacksUsed = 0;
   m.counters.borrowLeft = turns;
   m.counters.borrowFrom = from;
-  log(g, depth, `${label}を${turns}ターンの間借りて${g.players[to].name}の場に移した（すぐ攻撃できる）`);
+  log(g, depth, `${label}を${turns}ターンの間借りて${g.players[to].name}の場に移した（すぐ攻撃できる）`, 'effect', undefined, { kind: 'zone', player: to, status: 'steal', uid: m.uid });
 }
 
 /** 借用の期限が来たモンスターを、借りた元のプレイヤーの場へ戻す（召喚酔いなし。受けたダメージ・強化はそのまま） */
@@ -476,7 +477,7 @@ export function returnBorrowed(g: GameState, m: Monster, depth: number): void {
   delete m.finality;
   m.enteredTurn = g.turnIndex;
   m.attacksUsed = 0;
-  log(g, depth, `${label}は借用の期限で${g.players[from].name}の場に戻った`);
+  log(g, depth, `${label}は借用の期限で${g.players[from].name}の場に戻った`, 'effect', undefined, { kind: 'zone', player: from, status: 'steal', uid: m.uid });
 }
 
 export function takeFromDeck(g: GameState, p: PlayerId, cardUid: string, depth: number): void {
@@ -486,7 +487,7 @@ export function takeFromDeck(g: GameState, p: PlayerId, cardUid: string, depth: 
   const [card] = ps.deck.splice(i, 1);
   ps.hand.push(card!);
   shuffle(g, ps.deck);
-  log(g, depth, `${ps.name}は山札からカードを1枚手札に加え、山札をシャッフルした`);
+  log(g, depth, `${ps.name}は山札からカードを1枚手札に加え、山札をシャッフルした`, 'effect', undefined, { kind: 'draw', player: p, amount: 1, status: 'search' });
   log(g, depth, `手札に加えたカード：${cardName(g, card!.cardId)}`, 'info', p);
 }
 
@@ -496,7 +497,7 @@ export function takeFromDiscard(g: GameState, p: PlayerId, cardUid: string, dept
   if (i < 0) return;
   const [card] = ps.discard.splice(i, 1);
   ps.hand.push(card!);
-  log(g, depth, `${ps.name}は捨て札から「${cardName(g, card!.cardId)}」を手札に加えた`);
+  log(g, depth, `${ps.name}は捨て札から「${cardName(g, card!.cardId)}」を手札に加えた`, 'effect', undefined, { kind: 'zone', player: p, status: 'toHand', amount: 1, cardId: card!.cardId });
 }
 
 export function copyFromHand(g: GameState, p: PlayerId, cardUid: string, keep: boolean, depth: number): void {
@@ -506,7 +507,7 @@ export function copyFromHand(g: GameState, p: PlayerId, cardUid: string, keep: b
   // 永久強化（MTG 要素 △ バッチA）はコピーにも写す
   const copy: CardInst = { uid: newUid(g, 'c'), cardId: original.cardId, owner: p, copy: keep ? 'keep' : 'temp', ...(original.perm ? { perm: { ...original.perm } } : {}) };
   ps.hand.push(copy);
-  log(g, depth, `${ps.name}は手札のカード1枚のコピーを手札に加えた（${keep ? 'この試合のデッキに残る' : '使うかターン終了で除外'}）`);
+  log(g, depth, `${ps.name}は手札のカード1枚のコピーを手札に加えた（${keep ? 'この試合のデッキに残る' : '使うかターン終了で除外'}）`, 'effect', undefined, { kind: 'zone', player: p, status: 'toHand', amount: 1 });
   log(g, depth, `コピーしたカード：${cardName(g, original.cardId)}`, 'info', p);
 }
 
@@ -555,7 +556,7 @@ export function dispel(g: GameState, p: PlayerId, key: string, depth: number): v
     return;
   }
   if (key === 'strength') {
-    log(g, depth, `${ps.name}の筋力${ps.status.strength}をすべて消した`);
+    log(g, depth, `${ps.name}の筋力${ps.status.strength}をすべて消した`, 'effect', undefined, { kind: 'status', target: { kind: 'player', player: p }, status: 'dispel' });
     ps.status.strength = 0;
     return;
   }
@@ -572,7 +573,7 @@ export function dispel(g: GameState, p: PlayerId, key: string, depth: number): v
   // 効果がすべて消えたパワーは消える（特殊勝利のパワーは効果が無くても残る：MTG 要素 △ バッチC）
   ps.powers = ps.powers.filter((pw) => pw.effects.some((x) => !x.removed) || pw.drawbacks.length > 0 || altWinGoalOf(g.cards[pw.cardId]) !== undefined);
   const name = getEffect(id ?? '')?.name ?? id;
-  log(g, depth, `${ps.name}の持続効果「${name}」を${count}つ消した`);
+  log(g, depth, `${ps.name}の持続効果「${name}」を${count}つ消した`, 'effect', undefined, { kind: 'status', target: { kind: 'player', player: p }, status: 'dispel', amount: count });
 }
 
 // ---------------------------------------------------------------- MTG 要素バッチ2
@@ -672,7 +673,11 @@ export function amass(g: GameState, p: PlayerId, n: number, depth: number): Mons
   army.attack += n;
   army.maxHp += n;
   army.hp += n;
-  log(g, depth, `動員${n}：${monsterLabel(g, army)}の攻撃力 ${before.attack}→${army.attack}、体力 ${before.hp}→${army.hp}`);
+  log(g, depth, `動員${n}：${monsterLabel(g, army)}の攻撃力 ${before.attack}→${army.attack}、体力 ${before.hp}→${army.hp}`, 'effect', undefined, {
+    kind: 'stat',
+    target: { kind: 'monster', uid: army.uid },
+    delta: { attack: army.attack - before.attack, hp: army.hp - before.hp },
+  });
   return army;
 }
 
@@ -684,7 +689,12 @@ export function deckToDiscard(g: GameState, p: PlayerId, uids: string[], why: st
   if (moved.length === 0) return;
   ps.deck = ps.deck.filter((c) => !set.has(c.uid));
   for (const c of moved) discardCard(g, c);
-  log(g, depth, `${ps.name}の山札から${moved.length}枚を捨て札に置いた（${why}）：${moved.map((c) => cardName(g, c.cardId)).join('、')}`);
+  log(g, depth, `${ps.name}の山札から${moved.length}枚を捨て札に置いた（${why}）：${moved.map((c) => cardName(g, c.cardId)).join('、')}`, 'effect', undefined, {
+    kind: 'zone',
+    player: p,
+    status: 'mill',
+    amount: moved.length,
+  });
 }
 
 /** 山札の uids を、元の並びのまま山札の下へ（続唱でめくったカード。text を渡すとそのログ） */
@@ -720,7 +730,7 @@ export function seekFromDeck(g: GameState, p: PlayerId, uid: string, depth: numb
   if (i < 0) return;
   const [card] = ps.deck.splice(i, 1);
   ps.hand.push(card!);
-  log(g, depth, `${ps.name}は山札からカードを1枚手札に加えた`);
+  log(g, depth, `${ps.name}は山札からカードを1枚手札に加えた`, 'effect', undefined, { kind: 'draw', player: p, amount: 1, status: 'seek' });
   log(g, depth, `手札に加えたカード：${cardName(g, card!.cardId)}`, 'info', p);
 }
 
@@ -735,7 +745,7 @@ export function exileCard(g: GameState, p: PlayerId, cardUid: string, depth: num
     if (i < 0) continue;
     const [card] = zone.splice(i, 1);
     if (!card!.token) ps.exile.push(card!);
-    log(g, depth, `${ps.name}は${label}の「${cardName(g, card!.cardId)}」を除外した`);
+    log(g, depth, `${ps.name}は${label}の「${cardName(g, card!.cardId)}」を除外した`, 'effect', undefined, { kind: 'zone', player: p, status: 'exile', amount: 1, cardId: card!.cardId });
     return;
   }
 }
@@ -752,7 +762,12 @@ export function scryMove(g: GameState, p: PlayerId, uids: string[], toDiscard: b
   ps.deck = ps.deck.filter((c) => !set.has(c.uid));
   if (toDiscard) {
     for (const c of moved) discardCard(g, c);
-    log(g, depth, `${ps.name}は山札の上から${moved.length}枚を捨て札に置いた：${moved.map((c) => cardName(g, c.cardId)).join('、')}`);
+    log(g, depth, `${ps.name}は山札の上から${moved.length}枚を捨て札に置いた：${moved.map((c) => cardName(g, c.cardId)).join('、')}`, 'effect', undefined, {
+      kind: 'zone',
+      player: p,
+      status: 'mill',
+      amount: moved.length,
+    });
   } else {
     ps.deck.push(...moved);
     log(g, depth, `${ps.name}は山札の上から${moved.length}枚を山札の下に置いた`);

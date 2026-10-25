@@ -103,7 +103,13 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   if (helper) {
     enlistBonus = effectiveAttack(g, helper);
     helper.attacksUsed = Math.max(helper.attacksUsed, attacksPerTurn(g, helper));
-    log(g, depth, `後援：${monsterLabel(g, helper)}が休み、攻撃力+${enlistBonus}`, 'info', undefined, { kind: 'status', target: { kind: 'monster', uid: helper.uid }, status: 'enlist', amount: enlistBonus });
+    log(g, depth, `後援：${monsterLabel(g, helper)}が休み、攻撃力+${enlistBonus}`, 'info', undefined, {
+      kind: 'status',
+      target: { kind: 'monster', uid: helper.uid },
+      status: 'enlist',
+      keywordId: 'enlist',
+      amount: enlistBonus,
+    });
   }
   m.attacksUsed += 1;
   // 腐乱などが見る「攻撃したターン」
@@ -155,7 +161,13 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   if (defender && r.destroyed && r.overflow > 0 && findMonster(g, m.uid) && keywordFlags(g, m).trample) {
     // 霧（MTG 要素 △ バッチD）は貫通の余りにも効く
     const over = defender.controller === enemy ? fogDamage(g, r.overflow) : r.overflow;
-    log(g, depth + 1, `貫通：余った${over}ダメージが${g.players[defender.controller].name}に通る${over < r.overflow ? '（霧で減った）' : ''}`);
+    log(g, depth + 1, `貫通：余った${over}ダメージが${g.players[defender.controller].name}に通る${over < r.overflow ? '（霧で減った）' : ''}`, 'effect', undefined, {
+      kind: 'keyword',
+      keywordId: 'trample',
+      player: m.controller,
+      source: attackerRef,
+      target: playerRef(defender.controller),
+    });
     const t = dealDamage(g, playerRef(defender.controller), over, { kind: 'trample', source: attackerRef, depth: depth + 2 });
     if (defender.controller === enemy && t.hpLost > 0) hitEnemy = true;
     if (t.hpLost > 0) crownByAttack(g, m.controller, defender.controller, depth + 2);
@@ -165,11 +177,11 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   // 反撃：守備側が倒れていても、封印・凍結・隠密でも返す。守備側の「攻撃するたび」は発動しない。
   // 先制攻撃のモンスターが相手を倒したときは反撃を受けない
   if (retaliation && defender && flags.noRetaliation) {
-    log(g, depth + 1, `威圧：${retaliation.label}の反撃を受けない`);
+    log(g, depth + 1, `威圧：${retaliation.label}の反撃を受けない`, 'effect', undefined, { kind: 'keyword', keywordId: 'menace', player: m.controller, target: attackerRef });
   } else if (retaliation && defender && m.suspected) {
     log(g, depth + 1, `容疑：${retaliation.label}の反撃を受けない`);
   } else if (retaliation && defender && firstStrike && r.destroyed) {
-    log(g, depth + 1, `先制攻撃：${retaliation.label}の反撃を受けない`);
+    log(g, depth + 1, `先制攻撃：${retaliation.label}の反撃を受けない`, 'effect', undefined, { kind: 'keyword', keywordId: 'firstStrike', player: m.controller, target: attackerRef });
   } else if (retaliation && defender) {
     dealDamage(g, attackerRef, retaliation.amount, {
       kind: 'retaliate',
@@ -204,7 +216,12 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
       ...(m.card.perm ? { perm: { ...m.card.perm } } : {}),
     };
     g.players[m.controller].hand.push(copy);
-    log(g, depth + 1, `分身：「${cardName(g, m.card.cardId)}」のコピー（分身なし）を${g.players[m.controller].name}の手札に加えた`);
+    log(g, depth + 1, `分身：「${cardName(g, m.card.cardId)}」のコピー（分身なし）を${g.players[m.controller].name}の手札に加えた`, 'effect', undefined, {
+      kind: 'keyword',
+      keywordId: 'doubleTeam',
+      player: m.controller,
+      target: attackerRef,
+    });
   }
   // 相手のモンスターが攻撃するたび（MTG 要素 △ バッチA）：攻撃された側（攻撃したモンスターの持ち主でない側）のパワー → モンスター
   if (defendingPlayer !== undefined && defendingPlayer !== m.controller) enqueueEnemyAttacked(g, defendingPlayer, m.uid, depth + 1);

@@ -25,7 +25,7 @@ import {
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
 import { chargePowers } from './powers.ts';
 import { drawCards, unmask } from './zones.ts';
-import type { DamageKind, GameState, Monster, PlayerId, StatusKey, TargetRef } from './types.ts';
+import type { DamageKind, GameState, LogEvent, Monster, PlayerId, StatusKey, TargetRef } from './types.ts';
 
 export type { DamageKind } from './types.ts';
 
@@ -213,7 +213,7 @@ const isCombat = (opts: DamageOpts) => opts.kind === 'attack' || opts.kind === '
 function lifelink(g: GameState, src: CombatSource | null, hpLost: number, depth: number): void {
   if (!src?.lifelink || hpLost <= 0 || isEnded(g)) return;
   log(g, depth, `絆魂：${g.players[src.controller].name}が与えたダメージ${hpLost}ぶん回復`);
-  heal(g, { kind: 'player', player: src.controller }, hpLost, depth);
+  heal(g, { kind: 'player', player: src.controller }, hpLost, depth, { keywordId: 'lifelink' });
 }
 
 export function dealDamage(g: GameState, target: TargetRef, base: number, opts: DamageOpts): DamageResult {
@@ -342,7 +342,9 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
       kind: 'status',
       target,
       status: 'divineShield',
+      keywordId: 'divineShield',
       amount: 0,
+      ...(opts.source ? { source: opts.source } : {}),
     });
     return none;
   }
@@ -359,7 +361,7 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
   } else if (before - amount <= 0 && keywordFlags(g, m).undying && !m.undyingUsed) {
     m.undyingUsed = true;
     m.hp = Math.min(before, BALANCE.battle.undyingHp);
-    log(g, opts.depth, `${prefix}${label}に${kindLabel}${amount}ダメージ${detail}：不屈で体力${m.hp}で踏みとどまった`, 'damage', undefined, ev(amount));
+    log(g, opts.depth, `${prefix}${label}に${kindLabel}${amount}ダメージ${detail}：不屈で体力${m.hp}で踏みとどまった`, 'damage', undefined, { ...ev(amount), keywordId: 'undying' });
     result = { hpLost: before - m.hp, overflow: 0, destroyed: false };
   } else if (before - amount <= 0) {
     m.hp = 0;
@@ -384,7 +386,7 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
   }
   // 接死：攻撃・反撃・格闘で体力を減らしたら、生き残っても破壊する（不屈は効かない。貫通の余りはプレイヤーなので関係ない）
   if (!result.destroyed && combatSrc?.deathtouch && opts.kind !== 'trample' && amount > 0 && findMonster(g, m.uid)) {
-    log(g, opts.depth + 1, `接死：${label}は破壊される`);
+    log(g, opts.depth + 1, `接死：${label}は破壊される`, 'effect', undefined, { kind: 'keyword', keywordId: 'deathtouch', target, ...(opts.source ? { source: opts.source } : {}) });
     destroyMonster(g, m, opts.depth + 1);
     result = { ...result, destroyed: !findMonster(g, m.uid) };
     damagedTrigger = false;
@@ -475,7 +477,8 @@ export function destroyMonster(g: GameState, m: Monster, depth: number, force = 
   enqueueMonsters(g, m.controller, 'allyDestroyed', depth + 1);
 }
 
-export function heal(g: GameState, target: TargetRef, amount: number, depth: number): number {
+/** extra は演出の出来事に足すもの（絆魂の keywordId、再生の status など。決定事項 #126） */
+export function heal(g: GameState, target: TargetRef, amount: number, depth: number, extra?: Partial<LogEvent>): number {
   if (isEnded(g) || !targetExists(g, target) || amount <= 0) return 0;
   const status = statusOf(g, target)!;
   let n = amount;
@@ -488,7 +491,7 @@ export function heal(g: GameState, target: TargetRef, amount: number, depth: num
     const ps = g.players[target.player];
     const before = ps.hp;
     ps.hp = Math.min(ps.maxHp, ps.hp + n);
-    log(g, depth, `${ps.name}のHPが${n}回復${note}：HP ${before}→${ps.hp}`, 'effect', undefined, { kind: 'heal', target, amount: ps.hp - before });
+    log(g, depth, `${ps.name}のHPが${n}回復${note}：HP ${before}→${ps.hp}`, 'effect', undefined, { ...extra, kind: 'heal', target, amount: ps.hp - before });
     // このターンの記録：手番のプレイヤーが回復した（条件「このターン自分が回復した」。MTG 要素 ○ バッチA）
     if (ps.hp > before && g.phase === 'main' && target.player === g.active) ps.turn.healed = true;
     return ps.hp - before;
@@ -496,7 +499,7 @@ export function heal(g: GameState, target: TargetRef, amount: number, depth: num
   const m = findMonster(g, target.uid)!;
   const before = m.hp;
   m.hp = Math.min(m.maxHp, m.hp + n);
-  log(g, depth, `${monsterLabel(g, m)}の体力が${n}回復${note}：体力 ${before}→${m.hp}`, 'effect', undefined, { kind: 'heal', target, amount: m.hp - before });
+  log(g, depth, `${monsterLabel(g, m)}の体力が${n}回復${note}：体力 ${before}→${m.hp}`, 'effect', undefined, { ...extra, kind: 'heal', target, amount: m.hp - before });
   return m.hp - before;
 }
 
@@ -595,5 +598,5 @@ export function cleanse(g: GameState, p: PlayerId, protect: { poison: number; bu
     log(g, depth, `${g.players[p].name}の封殺が解けた`);
   }
   const kept = s.poison + s.burn > 0 ? '（このカードのデメリットで付いた分は残る）' : '';
-  log(g, depth, `${g.players[p].name}の状態異常をすべて解除した${kept}`);
+  log(g, depth, `${g.players[p].name}の状態異常をすべて解除した${kept}`, 'effect', undefined, { kind: 'status', target: { kind: 'player', player: p }, status: 'cleanse' });
 }

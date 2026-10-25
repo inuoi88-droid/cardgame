@@ -542,7 +542,15 @@ export interface LogEvent {
     | 'altWin'
     // MTG 要素 △ バッチD：フィールドが変わった（status はフィールドの ID。無くなったら 'none'）・昼と夜が変わった（status は day / night）
     | 'field'
-    | 'dayNight';
+    | 'dayNight'
+    // 演出（決定事項 #126）：効果の解決の始まり（effectId・source/uid・targets・amount）、デメリットが働いた（drawbackId）、
+    // キーワードが働いた（keywordId。target はそのモンスター）、攻撃力・体力・守備力・キーワード・封印などの変化（target・delta・keywordId・status）、
+    // カードの移動（status は ZoneMove。player・amount・uid）
+    | 'effect'
+    | 'drawback'
+    | 'keyword'
+    | 'stat'
+    | 'zone';
   player?: PlayerId;
   target?: TargetRef;
   source?: TargetRef;
@@ -559,7 +567,35 @@ export interface LogEvent {
   extra?: boolean;
   /** play のとき、選んだモード（MTG 要素 ○ バッチC2。0 は双呪） */
   mode?: number;
+  // ---- 演出（決定事項 #126）。どれも公開情報だけ（相手の手札・山札のカード、裏向きの正体、サーチしたカードは入れない）
+  /** effect：解決する効果の ID（defs/effects） */
+  effectId?: string;
+  /** drawback：働いたデメリットの ID（defs/drawbacks）。ほかの出来事にも「デメリットのせい」として付くことがある */
+  drawbackId?: string;
+  /** keyword：働いたキーワードの ID（defs/keywords）。stat では与えたキーワード */
+  keywordId?: string;
+  /** play：使い方の元になったカードの能力の ID（フラッシュバック・試作・キッカーなど。defs/abilities） */
+  abilityId?: string;
+  /** effect：解決した時点の対象（場のモンスターとプレイヤーだけ）。選択待ちで止まったときは無い */
+  targets?: TargetRef[];
+  /** stat：攻撃力・体力・守備力の変化（量） */
+  delta?: { attack?: number; hp?: number; defense?: number };
 }
+
+/** カードの移動の種類（LogEvent の kind 'zone' の status） */
+export type ZoneMove =
+  /** 山札の上から捨て札へ（切削・占術・放射能） */
+  | 'mill'
+  /** 場のモンスターを手札に戻す（バウンス・一撃離脱） */
+  | 'bounce'
+  /** 手札に加えた（サーチ・回収・コピー。公開のカードだけ cardId） */
+  | 'toHand'
+  /** 除外した（捨て札・手札から） */
+  | 'exile'
+  /** 山札にノイズを混ぜた */
+  | 'noise'
+  /** モンスターが相手の場へ移った（奪う・借用・借用の終わり） */
+  | 'steal';
 
 export interface LogEntry {
   turn: number;

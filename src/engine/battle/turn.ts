@@ -1,7 +1,7 @@
 /** ターンの開始と終了（処理順は決定事項 #28） */
 import { BALANCE } from '../balance.ts';
 import { getDrawback, getKeyword } from '../registry.ts';
-import { cardName, checkGameEnd, endGame, enqueue, log, monsterDormant, monsterLabel, other, playerRef, sourceOfMonster, isEnded, turnLimits } from './core.ts';
+import { cardName, checkGameEnd, endGame, enqueue, log, monsterDormant, monsterLabel, other, playerRef, sourceFields, sourceOfMonster, isEnded, tagLog, turnLimits } from './core.ts';
 import { autoAttackTarget, attacksPerTurn, cannotAttack, exerted, performAttack } from './combat.ts';
 import { dealDamage, destroyMonster, heal } from './damage.ts';
 import { lifespanOf } from './play.ts';
@@ -91,14 +91,14 @@ export function startTurn(g: GameState, p: PlayerId, extra = false): void {
 
   // 再生。その後、半分（切り捨て）になる
   if (ps.status.regen > 0) {
-    heal(g, playerRef(p), ps.status.regen, 1);
+    heal(g, playerRef(p), ps.status.regen, 1, { status: 'regen' });
     ps.status.regen = decay(ps.status.regen, B.regenKeepRate);
   }
   // フィールド「聖域」（MTG 要素 △ バッチD）
   const hooks = ruleHooks(g, p);
   if (hooks.startHeal > 0 && ps.hp < ps.maxHp) {
     log(g, 1, `${FIELDS.sanctuary.icon}聖域：${ps.name}のHPが回復する`, 'info');
-    heal(g, playerRef(p), hooks.startHeal, 1);
+    heal(g, playerRef(p), hooks.startHeal, 1, { status: 'sanctuary' });
   }
 
   // 維持費・裏切りの経過（封印されても働く）、自己修復
@@ -106,10 +106,20 @@ export function startTurn(g: GameState, p: PlayerId, extra = false): void {
     const def = g.cards[m.card.cardId];
     if (!def) continue;
     const rt = makeRuntime(g, sourceOfMonster(g, m), [], { depth: 1, attackCard: false });
-    for (const d of def.drawbacks) getDrawback(d.id)?.battle.onBoardTurnStart?.(rt, d, m);
+    const src = sourceFields(g, sourceOfMonster(g, m));
+    // 演出（決定事項 #126）：働いたデメリット・キーワードを、その行に付ける（行は増やさない）
+    for (const d of def.drawbacks) {
+      const at = g.log.length;
+      getDrawback(d.id)?.battle.onBoardTurnStart?.(rt, d, m);
+      tagLog(g, at, { kind: 'drawback', drawbackId: d.id, ...src });
+    }
     if (checkGameEnd(g)) return;
     if (!m.sealed) {
-      for (const k of def.keywords) getKeyword(k.id)?.battle.onTurnStart?.(rt, k, m);
+      for (const k of def.keywords) {
+        const at = g.log.length;
+        getKeyword(k.id)?.battle.onTurnStart?.(rt, k, m);
+        tagLog(g, at, { kind: 'keyword', keywordId: k.id, player: p, target: { kind: 'monster', uid: m.uid } });
+      }
     }
   }
   // パワーのデメリット（累加維持費。MTG 要素 △ バッチA）
@@ -117,7 +127,11 @@ export function startTurn(g: GameState, p: PlayerId, extra = false): void {
     const def = g.cards[pw.cardId];
     if (!def) continue;
     const rt = makeRuntime(g, powerSource(pw, p), [], { depth: 1, attackCard: false });
-    for (const d of def.drawbacks) getDrawback(d.id)?.battle.onPowerTurnStart?.(rt, d, pw);
+    for (const d of def.drawbacks) {
+      const at = g.log.length;
+      getDrawback(d.id)?.battle.onPowerTurnStart?.(rt, d, pw);
+      tagLog(g, at, { kind: 'drawback', drawbackId: d.id, player: p, uid: pw.uid, cardId: pw.cardId });
+    }
     if (checkGameEnd(g)) return;
   }
 
@@ -325,16 +339,19 @@ function boardTurnEnd(g: GameState, p: PlayerId): void {
     const def = g.cards[m.card.cardId];
     if (!def) continue;
     const rt = makeRuntime(g, sourceOfMonster(g, m), [], { depth: 1, attackCard: false });
+    const src = sourceFields(g, sourceOfMonster(g, m));
     for (const d of def.drawbacks) {
       if (!ps.board.includes(m)) break;
+      const at = g.log.length;
       getDrawback(d.id)?.battle.onBoardTurnEnd?.(rt, d, m);
+      tagLog(g, at, { kind: 'drawback', drawbackId: d.id, ...src });
     }
     if (!ps.board.includes(m)) continue;
     const life = lifespanOf(def);
     if (life === undefined) continue;
     m.counters.life = (m.counters.life ?? life) - 1;
     if (m.counters.life <= 0) {
-      log(g, 1, `${monsterLabel(g, m)}の寿命が尽きた`);
+      log(g, 1, `${monsterLabel(g, m)}の寿命が尽きた`, 'effect', undefined, { kind: 'drawback', drawbackId: 'lifespan', ...sourceFields(g, sourceOfMonster(g, m)) });
       // 寿命は不壊でも止まらない（MTG 要素 △ バッチA）
       destroyMonster(g, m, 2, true);
     } else {

@@ -790,6 +790,7 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
           ? '双呪ですべてのモードで'
           : `モード${modeName(opts.mode)}で`;
   const energyNote = `（コスト${cost}${notes ? `：${notes}` : ''}、エナジー ${before}→${ps.energy}）`;
+  const kickerId = opts.kick === true && kickerCost(def) > 0 ? def.abilities?.find((a) => getAbility(a.id)?.battle.kickerCost !== undefined)?.id : undefined;
   if (opts.alt === 'faceDown') {
     // 裏向き（変装。MTG 要素 △ バッチC）：相手にはカードの名前を見せない
     // 実コストの内訳（変装で±N）は本当の印刷コストを明かすので書かない。uid も本当のカードのものなので付けない（統合 #101）
@@ -803,6 +804,8 @@ export function playCard(g: GameState, p: PlayerId, cardUid: string, chosen: Cho
       uid: card.uid,
       ...(fromDiscard ? { from: 'discard' as const } : fromWaiting ? { from: 'waiting' as const } : {}),
       ...(opts.mode !== undefined ? { mode: opts.mode } : {}),
+      // 演出（決定事項 #126）：使い方の元になった能力（捨て札から・別の出し方・キッカー）
+      ...(fd ? { abilityId: fd.a.id } : alt ? { abilityId: alt.a.id } : kickerId ? { abilityId: kickerId } : {}),
     });
   }
   if (fd) payFromDiscard(g, p, card, fd, opts);

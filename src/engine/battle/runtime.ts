@@ -185,7 +185,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       if (o.drain && r.hpLost > 0) {
         const n = Math.floor(r.hpLost * BALANCE.battle.drainRate);
         log(g, depth + 1, `吸収：与えたダメージ${r.hpLost}の半分を回復`);
-        heal(g, playerRef(me), n, depth + 1);
+        heal(g, playerRef(me), n, depth + 1, { status: 'drain' });
       }
     },
     selfDamage(amount) {
@@ -202,7 +202,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       if (!m) return;
       m.sealed = true;
       m.stealth = false;
-      log(g, depth, `${monsterLabel(g, m)}を封印した（効果とキーワードを失う）`);
+      log(g, depth, `${monsterLabel(g, m)}を封印した（効果とキーワードを失う）`, 'effect', undefined, { kind: 'stat', target, status: 'seal' });
     },
     gainShield(p, amount) {
       g.players[p].shield += amount;
@@ -220,10 +220,11 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       const gain = Math.max(0, Math.min(amount, B.maxEnergyGainPerTurn - limits.energyGained));
       limits.energyGained += gain;
       ps.energy += gain;
+      const ev = { kind: 'energy' as const, player: p, status: 'gain', amount: gain };
       if (gain < amount) {
-        log(g, depth, `${ps.name}はエナジーを${gain}得た（1ターン+${B.maxEnergyGainPerTurn}まで。エナジー${ps.energy}）`);
+        log(g, depth, `${ps.name}はエナジーを${gain}得た（1ターン+${B.maxEnergyGainPerTurn}まで。エナジー${ps.energy}）`, 'effect', undefined, ev);
       } else {
-        log(g, depth, `${ps.name}はエナジーを${gain}得た（エナジー${ps.energy}）`);
+        log(g, depth, `${ps.name}はエナジーを${gain}得た（エナジー${ps.energy}）`, 'effect', undefined, ev);
       }
     },
     addNextTurn(p, delta) {
@@ -250,18 +251,18 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
         energy ? `エナジー${energy > 0 ? '+' : '−'}${Math.abs(energy)}` : '',
       ].filter(Boolean);
       const note = capped ? `（妨害は1ターンにエナジー−${B.maxEnergyJamPerTurn}・引く枚数−${B.maxDrawJamPerTurn}まで）` : '';
-      if (parts.length > 0) log(g, depth, `${ps.name}の次のターン：${parts.join('、')}${note}`);
+      if (parts.length > 0) log(g, depth, `${ps.name}の次のターン：${parts.join('、')}${note}`, 'effect', undefined, { kind: 'status', target: playerRef(p), status: draw + energy < 0 ? 'jam' : 'nextTurn', amount: draw + energy });
       else if (capped) log(g, depth, `${ps.name}はこれ以上妨害されない${note}`);
     },
     addDiscount(p, amount) {
       const ps = g.players[p];
       ps.discount += amount;
-      log(g, depth, `${ps.name}が次に使うカードのコスト−${ps.discount}`);
+      log(g, depth, `${ps.name}が次に使うカードのコスト−${ps.discount}`, 'effect', undefined, { kind: 'status', target: playerRef(p), status: 'discount', amount });
     },
     addRetain(p, amount) {
       const ps = g.players[p];
       ps.turn.retain += amount;
-      log(g, depth, `${ps.name}はこのターンの終了時に手札を${ps.turn.retain}枚残せる`);
+      log(g, depth, `${ps.name}はこのターンの終了時に手札を${ps.turn.retain}枚残せる`, 'effect', undefined, { kind: 'status', target: playerRef(p), status: 'retain', amount });
     },
     draw(p, count) {
       drawCards(g, p, count, depth);
@@ -288,14 +289,14 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       if (!m) return;
       const before = m.attack;
       m.attack = Math.max(0, m.attack + delta);
-      log(g, depth, `${monsterLabel(g, m)}の攻撃力 ${before}→${m.attack}`);
+      log(g, depth, `${monsterLabel(g, m)}の攻撃力 ${before}→${m.attack}`, 'effect', undefined, { kind: 'stat', target, delta: { attack: m.attack - before } });
     },
     changeDefense(target, delta) {
       const m = monsterOf(target);
       if (!m) return;
       const before = m.defense;
       m.defense = Math.min(BALANCE.stats.defenseMax, Math.max(0, m.defense + delta));
-      log(g, depth, `${monsterLabel(g, m)}の守備力 ${before}→${m.defense}`);
+      log(g, depth, `${monsterLabel(g, m)}の守備力 ${before}→${m.defense}`, 'effect', undefined, { kind: 'stat', target, delta: { defense: m.defense - before } });
     },
     destroy(target, force) {
       const m = monsterOf(target);
@@ -338,7 +339,11 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       m.attack = Math.max(0, m.attack + dAttack);
       m.maxHp += dHp;
       m.hp = Math.min(m.maxHp, m.hp + dHp);
-      log(g, depth, `${monsterLabel(g, m)}：攻撃力 ${before.attack}→${m.attack}、体力 ${before.hp}→${Math.max(0, m.hp)}（最大${before.maxHp}→${Math.max(0, m.maxHp)}）`);
+      log(g, depth, `${monsterLabel(g, m)}：攻撃力 ${before.attack}→${m.attack}、体力 ${before.hp}→${Math.max(0, m.hp)}（最大${before.maxHp}→${Math.max(0, m.maxHp)}）`, 'effect', undefined, {
+        kind: 'stat',
+        target,
+        delta: { attack: m.attack - before.attack, hp: Math.max(0, m.hp) - before.hp },
+      });
       // 体力が0以下になったら破壊（ダメージではないので守備力・聖盾・不屈は効かない）
       if (m.hp <= 0) {
         m.hp = 0;
@@ -351,7 +356,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       if (!m) return;
       const before = effectiveAttack(g, m);
       m.tempAttack = (m.tempAttack ?? 0) + amount;
-      log(g, depth, `${monsterLabel(g, m)}の攻撃力がこのターンだけ ${before}→${effectiveAttack(g, m)}`);
+      log(g, depth, `${monsterLabel(g, m)}の攻撃力がこのターンだけ ${before}→${effectiveAttack(g, m)}`, 'effect', undefined, { kind: 'stat', target, status: 'temp', delta: { attack: effectiveAttack(g, m) - before } });
     },
     grantKeyword(target, keywordId) {
       const m = monsterOf(target);
@@ -361,7 +366,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       // 不屈・聖盾は与え直すと使えるようになる
       if (kd.battle.undying) m.undyingUsed = false;
       if (kd.battle.divineShield) m.shieldUsed = false;
-      log(g, depth, `${monsterLabel(g, m)}に「${kd.name}」を与えた${m.sealed ? '（封印中は働かない）' : ''}`);
+      log(g, depth, `${monsterLabel(g, m)}に「${kd.name}」を与えた${m.sealed ? '（封印中は働かない）' : ''}`, 'effect', undefined, { kind: 'stat', target, keywordId });
     },
     ready(target) {
       const m = monsterOf(target);
@@ -372,7 +377,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       }
       m.counters.readyTurn = g.turnIndex;
       m.attacksUsed = 0;
-      log(g, depth, `${monsterLabel(g, m)}はもう一度攻撃できるようになった`);
+      log(g, depth, `${monsterLabel(g, m)}はもう一度攻撃できるようになった`, 'effect', undefined, { kind: 'stat', target, status: 'ready' });
     },
     fight(allyRef, enemyRef) {
       const a = monsterOf(allyRef);
@@ -383,7 +388,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       const toAlly = effectiveAttack(g, e) + combatBonus(g, e);
       const aInfo = { weak: a.status.weak > 0, src: combatSourceOf(g, a), label: monsterLabel(g, a) };
       const eInfo = { weak: e.status.weak > 0, src: combatSourceOf(g, e), label: monsterLabel(g, e) };
-      log(g, depth, `格闘：${aInfo.label}（${toEnemy}）と${eInfo.label}（${toAlly}）が戦う`);
+      log(g, depth, `格闘：${aInfo.label}（${toEnemy}）と${eInfo.label}（${toAlly}）が戦う`, 'effect', undefined, { kind: 'attack', source: allyRef, target: enemyRef, status: 'fight' });
       if (toEnemy > 0) {
         dealDamage(g, enemyRef, toEnemy, { kind: 'hit', source: allyRef, sourceWeak: aInfo.weak, combat: true, combatSource: aInfo.src, depth: depth + 1 });
       }
@@ -444,7 +449,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
         return false;
       }
       m.attacksUsed = max;
-      log(g, depth, `${monsterLabel(g, m)}はこのターン攻撃できなくなった（動力化）`);
+      log(g, depth, `${monsterLabel(g, m)}はこのターン攻撃できなくなった（動力化）`, 'effect', undefined, { kind: 'stat', target, status: 'exhaust' });
       return true;
     },
     infight(p) {
@@ -468,7 +473,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       });
       for (const x of plan) {
         if (x.amount <= 0 || !targetExists(g, x.target)) continue;
-        log(g, depth, `同士討ち：${x.label}`);
+        log(g, depth, `同士討ち：${x.label}`, 'effect', undefined, { kind: 'attack', source: x.source, target: x.target, status: 'infight' });
         dealDamage(g, x.target, x.amount, { kind: 'hit', source: x.source, sourceWeak: x.weak, combat: true, combatSource: x.combatSource, depth: depth + 1 });
       }
     },
@@ -533,14 +538,14 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
         return false;
       }
       ps.energyBonus = now + 1;
-      log(g, depth, `${ps.name}は以後ずっと、ターン開始時のエナジー+${ps.energyBonus}`, 'effect', undefined, { kind: 'energy', player: p, amount: ps.energy });
+      log(g, depth, `${ps.name}は以後ずっと、ターン開始時のエナジー+${ps.energyBonus}`, 'effect', undefined, { kind: 'energy', player: p, amount: ps.energy, status: 'ramp' });
       return true;
     },
     conjure(p, def, count) {
       g.cards[def.id] ??= def;
       const ps = g.players[p];
       for (let i = 0; i < count; i++) ps.hand.push({ uid: newUid(g, 'cj'), cardId: def.id, owner: p, copy: 'temp' });
-      log(g, depth, `${ps.name}は手札に「${def.name}」（コスト${def.cost}・使い切り）を${count}枚加えた`);
+      log(g, depth, `${ps.name}は手札に「${def.name}」（コスト${def.cost}・使い切り）を${count}枚加えた`, 'effect', undefined, { kind: 'zone', player: p, status: 'toHand', amount: count });
     },
     // ---- MTG 要素 ○ バッチC2
     startEngine(p) {
@@ -605,7 +610,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       if (!m || ids.length === 0) return;
       m.tempGranted = [...new Set([...(m.tempGranted ?? []), ...ids])];
       const names = ids.map((id) => getKeyword(id)?.name ?? id).join('・');
-      log(g, depth, `${monsterLabel(g, m)}はこのターンだけ「${names}」を得た${m.sealed ? '（封印中は働かない）' : ''}`);
+      log(g, depth, `${monsterLabel(g, m)}はこのターンだけ「${names}」を得た${m.sealed ? '（封印中は働かない）' : ''}`, 'effect', undefined, { kind: 'stat', target, status: 'temp', keywordId: ids[0] });
     },
     perpetual(p, uid, n) {
       const ps = g.players[p];
@@ -615,7 +620,11 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       const now = card.perm ?? { attack: 0, hp: 0 };
       const next = { attack: Math.min(cap, now.attack + n), hp: Math.min(cap, now.hp + n) };
       card.perm = next;
-      log(g, depth, `${ps.name}は手札のモンスターカード1枚を永久強化した（攻撃力+${next.attack}・体力+${next.hp}${next.attack < now.attack + n ? `、1枚につき+${cap}まで` : ''}）`);
+      log(g, depth, `${ps.name}は手札のモンスターカード1枚を永久強化した（攻撃力+${next.attack}・体力+${next.hp}${next.attack < now.attack + n ? `、1枚につき+${cap}まで` : ''}）`, 'effect', undefined, {
+        kind: 'stat',
+        player: p,
+        status: 'perpetual',
+      });
       log(g, depth, `永久強化したカード：${cardName(g, card.cardId)}`, 'info', p);
     },
     deckToBottomQuiet(p, uids) {

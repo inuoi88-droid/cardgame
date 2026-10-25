@@ -7,7 +7,7 @@ import { describeDrawback, describeEffect, modeTexts } from '../text.ts';
 import type { EffectInstance } from '../types.ts';
 import { checkCondition } from './conditions.ts';
 import { destroyMonster, keywordFlags } from './damage.ts';
-import { cardName, checkGameEnd, enqueue, findMonster, log, monsterLabel, newUid, other, playRecord } from './core.ts';
+import { cardName, checkGameEnd, enqueue, findMonster, log, monsterLabel, newUid, other, playRecord, sourceFields } from './core.ts';
 import { executeFreePlay, finishCard } from './play.ts';
 import { makeRuntime, resolveTargets, tribeAllies } from './runtime.ts';
 import { endSaga, executePowerGone } from './powers.ts';
@@ -16,7 +16,7 @@ import { retainOptions, runAutoAttacks, turnEndEffects, turnEndFinish } from './
 import { bounce, createTokens, discardCard, discardChosen } from './zones.ts';
 import { classifyCard } from '../classify.ts';
 import { CONDITIONS, MODE_TIMINGS, REPEAT_CAPPED_TIMINGS } from '../options.ts';
-import { NOISE_CARD_ID, type DelayedEffect, type GameState, type SourceRef, type Step } from './types.ts';
+import { NOISE_CARD_ID, type DelayedEffect, type GameState, type LogEvent, type SourceRef, type Step } from './types.ts';
 
 /** 1回の行動で処理する上限（効果の無限ループを防ぐ） */
 const MAX_STEPS = 5000;
@@ -162,7 +162,7 @@ function grownStep(step: Extract<Step, { t: 'effect' }>, def: EffectDef): Extrac
 function executeReturnToHand(g: GameState, step: Extract<Step, { t: 'returnToHand' }>): void {
   const m = findMonster(g, step.uid);
   if (!m || m.card.token || !keywordFlags(g, m).returnAfterAttack) return;
-  log(g, step.depth, `一撃離脱：${monsterLabel(g, m)}は攻撃を終えて手札に戻る`);
+  log(g, step.depth, `一撃離脱：${monsterLabel(g, m)}は攻撃を終えて手札に戻る`, 'effect', undefined, { kind: 'keyword', keywordId: 'hitAndRun', player: m.controller, target: { kind: 'monster', uid: m.uid } });
   bounce(g, m.uid, step.depth + 1);
 }
 
@@ -176,9 +176,12 @@ function executeEffect(g: GameState, original: Extract<Step, { t: 'effect' }>): 
   }
   const step = grownStep(original, def);
   const me = step.src.controller;
+  /** 演出の出来事（決定事項 #126）：効果の見出しの行に付け、対象が決まったら targets を足す。選択で止まって再開したときは無い */
+  let head: LogEvent | undefined;
   if (!step.picks) {
     if (sourceGone(g, step)) return;
-    log(g, step.depth, `${step.src.name}：${describeEffect(step.effect, g.cards[step.src.cardId])}`, 'effect');
+    head = { kind: 'effect', effectId: def.id, ...sourceFields(g, step.src) };
+    log(g, step.depth, `${step.src.name}：${describeEffect(step.effect, g.cards[step.src.cardId])}`, 'effect', undefined, head);
     const opts = { roll: { depth: step.depth + 1 }, src: step.src, ...(step.protectKey ? { protectKey: step.protectKey } : {}) };
     // 切除（MTG 要素 △ バッチB）：このカードの使用時・召喚時・捨て札から使ったときの効果は、条件を無視する
     const cleaved = step.effect.condition !== null && step.protectKey !== undefined && g.protect[step.protectKey]?.cleaved === true && MODE_TIMINGS.includes(step.timing);
@@ -215,6 +218,10 @@ function executeEffect(g: GameState, original: Extract<Step, { t: 'effect' }>): 
     log(g, step.depth + 1, '対象がいないため何も起きない');
     return;
   }
+  if (head) {
+    head.targets = targets.map((t) => ({ ...t }));
+    if (effect.value !== undefined) head.amount = effect.value;
+  }
   let picks = step.picks;
   if (!picks && def.battle.choose) {
     const spec = def.battle.choose(rt, effect);
@@ -239,7 +246,9 @@ function executeEffect(g: GameState, original: Extract<Step, { t: 'effect' }>): 
     if (effect.target === 'bothPlayers' && g.phase !== 'ended') {
       const swapped: SourceRef = { ...step.src, controller: other(me) };
       log(g, step.depth + 1, `${g.players[other(me)].name}にも同じ効果`);
-      const rt2 = makeRuntime(g, swapped, resolveTargets(g, swapped, effect, step.timing, def.targetRule, {}), { depth: step.depth + 1, attackCard: false });
+      const targets2 = resolveTargets(g, swapped, effect, step.timing, def.targetRule, {});
+      if (head) head.targets = [...(head.targets ?? []), ...targets2.map((t) => ({ ...t }))];
+      const rt2 = makeRuntime(g, swapped, targets2, { depth: step.depth + 1, attackCard: false });
       def.battle.resolve(rt2, effect, undefined);
     }
     // 奮励（MTG 要素 △ バッチB）：「選んだ1体（相手）」の効果を、ランダムな別の相手モンスターにも（重複なし。いなければ減る）
@@ -249,7 +258,7 @@ function executeEffect(g: GameState, original: Extract<Step, { t: 'effect' }>): 
       const pool = g.players[other(me)].board.filter((m) => m.uid !== chosenUid);
       for (let i = 0; i < strive && pool.length > 0 && (g.phase as string) !== 'ended'; i++) {
         const [m] = pool.splice(randInt(g, pool.length), 1);
-        log(g, step.depth + 1, `奮励：${monsterLabel(g, m!)}にも同じ効果`);
+        log(g, step.depth + 1, `奮励：${monsterLabel(g, m!)}にも同じ効果`, 'effect', undefined, { kind: 'effect', effectId: def.id, ...sourceFields(g, step.src), targets: [{ kind: 'monster', uid: m!.uid }] });
         const rt2 = makeRuntime(g, step.src, [{ kind: 'monster', uid: m!.uid }], { depth: step.depth + 1, attackCard: false, ...(step.protectKey ? { protectKey: step.protectKey } : {}) });
         def.battle.resolve(rt2, effect, picks);
       }
@@ -426,7 +435,7 @@ function executeDrawback(g: GameState, step: Extract<Step, { t: 'drawback' }>): 
   const me = step.src.controller;
   const s = g.players[me].status;
   const before = { poison: s.poison, burn: s.burn };
-  if (!step.picks) log(g, step.depth, `${step.src.name}のデメリット：${describeDrawback(step.drawback)}`, 'effect');
+  if (!step.picks) log(g, step.depth, `${step.src.name}のデメリット：${describeDrawback(step.drawback)}`, 'effect', undefined, { kind: 'drawback', drawbackId: step.drawback.id, ...sourceFields(g, step.src) });
   const rt = makeRuntime(g, step.src, [], { depth: step.depth + 1, attackCard: false });
   // 選択が要るデメリット（生け贄）
   let picks = step.picks;

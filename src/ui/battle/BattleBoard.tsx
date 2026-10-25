@@ -113,6 +113,8 @@ export interface BattleBoardProps {
   opponentLabel: string;
   /** 結果ダイアログに出すボタン */
   resultButtons: ReactNode;
+  /** 決着したあと、操作バーの「結果を見る」の前に置くもの（「相手のデッキ」など。決定事項 #122） */
+  endActions?: ReactNode;
   /** マリガン・選択ダイアログの中に出す残り時間（オンライン） */
   timeLeft?: ReactNode;
   /** 新しい状態の演出を再生し終えたとき（演出がなければすぐ）。CPU 戦が次の手を打つ合図に使う */
@@ -134,7 +136,7 @@ function shortBlock(reason: string | null): string | null {
   return null;
 }
 
-export function BattleBoard({ view, me, onAction, error, busy = false, status, opponentLabel, resultButtons, timeLeft, onReplayDone, menuItems, opponentPortrait }: BattleBoardProps) {
+export function BattleBoard({ view, me, onAction, error, busy = false, status, opponentLabel, resultButtons, endActions, timeLeft, onReplayDone, menuItems, opponentPortrait }: BattleBoardProps) {
   const opp = battle.other(me);
   const confirm = useConfirm();
   const toast = useToast();
@@ -1637,9 +1639,12 @@ export function BattleBoard({ view, me, onAction, error, busy = false, status, o
               </button>
             )}
             {view.phase === 'ended' ? (
-              <button type="button" className="btn btn--primary" onClick={() => setResultHidden(false)}>
-                結果を見る
-              </button>
+              <>
+                {endActions}
+                <button type="button" className="btn btn--primary" onClick={() => setResultHidden(false)}>
+                  結果を見る
+                </button>
+              </>
             ) : (
               !sel && (
                 <button type="button" className={cx('btn btn--primary btn--end battle-bar__end', nothingLeft && 'is-pulse')} disabled={!myTurn} onClick={() => void endTurn()}>

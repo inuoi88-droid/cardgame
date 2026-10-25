@@ -1,0 +1,330 @@
+/* 相手のデッキのコピー（DeckCopySheet・決定事項 #122）。色・角・影は styles.css のトークンだけ。カードの部品の規則は置かない */
+
+.sheet--modal .dcopy-sheet.sheet__panel {
+  width: min(600px, calc(100vw - 24px));
+}
+.dcopy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 上の要約 */
+.dcopy__sum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  font-size: var(--fs-sm);
+  color: var(--u-ink-2);
+}
+.dcopy__count {
+  font-variant-numeric: tabular-nums;
+}
+.dcopy__count b {
+  color: var(--u-ink);
+  font-size: var(--fs-lg);
+}
+.dcopy__rar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.dcopy__rar .rgem {
+  width: 12px;
+  height: 12px;
+}
+.dcopy__ownedsum {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ok);
+}
+
+.dcopy__groupnote {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--u-ink-2);
+}
+
+/* 選ぶ道具 */
+.dcopy__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.dcopy__toolnote {
+  flex: 1 1 auto;
+  font-size: var(--fs-sm);
+  color: var(--u-ink-2);
+}
+
+/* 一覧 */
+.dcopy__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.dcopy__row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  border-radius: var(--radius-sm);
+}
+.dcopy__card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 3px 10px 3px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, #262b40, #191d2e) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  box-shadow: var(--u-lift-1);
+  font: inherit;
+  color: var(--u-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.dcopy__row.is-sel .dcopy__card {
+  background:
+    linear-gradient(180deg, #24345e, #18223f) padding-box,
+    var(--u-rim-sapphire) border-box;
+}
+.dcopy__card:hover {
+  filter: brightness(1.1);
+}
+.dcopy__card:focus-visible,
+.dcopy__pick:focus-visible,
+.dcopy__sb:focus-visible {
+  outline: 2px solid var(--u-sap);
+  outline-offset: 2px;
+}
+.dcopy__cost {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 26px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: var(--u-sap-fill);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.dcopy__name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.dcopy__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--u-font-name);
+  font-size: var(--fs-sm);
+}
+.dcopy__owned {
+  font-size: var(--fs-xs);
+  color: var(--ok);
+}
+.dcopy__card .rgem {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+.dcopy__n {
+  flex: none;
+  min-width: 2.2em;
+  text-align: right;
+  color: var(--u-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 選ぶ四角（チェックボックスと同じ井戸。入るとサファイア） */
+.dcopy__pick {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.dcopy__box {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(180deg, var(--u-well-0), #12162a);
+  border: 1px solid #5a6275;
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+.dcopy__pick[aria-checked='true'] .dcopy__box {
+  border-color: var(--u-sap-hi);
+  background:
+    var(--u-check) center / 18px no-repeat,
+    linear-gradient(180deg, #4f86ff, #1d3f9a);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* 枚数の −／＋ */
+.dcopy__step {
+  flex: none;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, var(--u-well-0), var(--u-well-1)) padding-box,
+    var(--u-rim-sapphire) border-box;
+  border: 1px solid transparent;
+}
+.dcopy__sb {
+  width: 40px;
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--u-ink);
+  font: inherit;
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  cursor: pointer;
+}
+.dcopy__sb:disabled {
+  color: var(--u-ink-3);
+  cursor: not-allowed;
+}
+.dcopy__sn {
+  min-width: 1.6em;
+  text-align: center;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 下に固定した操作 */
+.dcopy__foot {
+  position: sticky;
+  bottom: -16px;
+  margin: 4px -16px -16px;
+  padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  background: linear-gradient(180deg, #1a1f32, #12162a);
+  border-top: 1px solid var(--line-strong);
+  box-shadow: 0 -8px 16px rgba(0, 0, 0, 0.45);
+}
+.dcopy__footnote {
+  flex: 1 1 14em;
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--u-ink-2);
+}
+.dcopy__btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 719px) {
+  .dcopy__main,
+  .dcopy__btns,
+  .dcopy__btns .btn {
+    flex: 1 1 100%;
+  }
+}
+
+/* 対戦の結果・操作バーの「相手のデッキ」と、デッキ一覧の「対戦した相手のデッキ」 */
+.opp-hist {
+  margin-top: var(--sp-5);
+}
+.opp-hist__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.opp-hist__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+}
+.opp-hist__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 6px 12px 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, #262b40, #191d2e) padding-box,
+    var(--u-rim-iron-soft) border-box;
+  box-shadow: var(--u-lift-1);
+  font: inherit;
+  color: var(--u-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.opp-hist__row:hover {
+  filter: brightness(1.1);
+}
+.opp-hist__row:focus-visible {
+  outline: 2px solid var(--u-sap);
+  outline-offset: 2px;
+}
+.opp-hist__row .opp-hist__gi {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  color: var(--u-ink-2);
+}
+.opp-hist__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.opp-hist__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--u-font-name);
+  font-size: var(--fs-md);
+}
+.opp-hist__meta {
+  font-size: var(--fs-xs);
+  color: var(--u-ink-2);
+}
+.opp-hist__res {
+  flex: none;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.opp-hist__res--win {
+  color: var(--ok);
+}
+.opp-hist__res--loss {
+  color: #ff8f9c;
+}
+.opp-hist__res--draw {
+  color: var(--u-ink-2);
+}

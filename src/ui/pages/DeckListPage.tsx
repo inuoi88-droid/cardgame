@@ -14,6 +14,7 @@ import { UiIcon } from '../components/UiIcon.tsx';
 import { navigate } from '../router.ts';
 import { actions, getState, useStore } from '../store.ts';
 import { todayStamp, uuid } from '../util.ts';
+import { OpponentHistory } from '../copy/OpponentHistory.tsx';
 
 export function DeckListPage() {
   const { cards, decks } = useStore();
@@ -95,6 +96,8 @@ export function DeckListPage() {
           ))}
         </ul>
       )}
+
+      <OpponentHistory />
 
       {importing && <ImportDialog onClose={() => setImporting(false)} />}
       {exporting && (

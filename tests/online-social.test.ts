@@ -3,11 +3,12 @@ import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { BALANCE, battle, type CardDef } from '../src/engine/index.ts';
 import { PRESET_DECKS } from '../src/presets.ts';
-import { CODE_ALPHABET } from '../src/online/codes.ts';
+import { CODE_ALPHABET, normalizeName } from '../src/online/codes.ts';
 import { parseRequest, type OnlineResponse, type RoomView } from '../src/online/protocol.ts';
 import type { RoomRecord } from '../src/online/room.ts';
 import { serve, type ServeDeps } from '../src/online/server.ts';
 import {
+  DECLINE_MEMORY_MS,
   FRIEND_CODE_LENGTH,
   INVITE_KEEP_MS,
   INVITE_TTL_MS,
@@ -18,6 +19,11 @@ import {
   MAX_SHARED_DECKS,
   MemoryStore,
   PRESENCE_STEP_MS,
+  REGISTER_PER_CLIENT_HOUR,
+  REGISTER_PER_HOUR,
+  REQUESTS_PER_DAY,
+  SHARED_DECK_MAX_CHARS,
+  STALE_PLAYER_MS,
   handleBody,
   normalizeFriendCode,
   type HttpDeps,
@@ -155,8 +161,9 @@ function world(opts: { social?: boolean } = {}) {
   };
   /** 返事はすべて控える（他人の秘密が入っていないかを最後にまとめて調べる） */
   const seen: { to: string | null; body: Body }[] = [];
+  const ctx: { clientKey?: string } = {};
   const raw = async (body: unknown, to: string | null = null) => {
-    const r = await handleBody(JSON.stringify(body), deps);
+    const r = await handleBody(JSON.stringify(body), deps, ctx);
     seen.push({ to, body: r.body });
     return r;
   };
@@ -176,7 +183,7 @@ function world(opts: { social?: boolean } = {}) {
       s,
     };
   }
-  return { store, deps, inbox, seen, raw, call, tick, at, player };
+  return { store, deps, inbox, seen, raw, call, tick, at, player, ctx };
 }
 
 type Who = Awaited<ReturnType<ReturnType<typeof world>['player']>>;
@@ -349,8 +356,13 @@ describe('フレンド申請（コード・部屋の相手）', () => {
     for (let i = 0; i < MAX_PENDING_REQUESTS; i++) await w.store.addRequest({ from: a.id, to: `y${i}`, at: T0 });
     expect(await a.s('friendRequest', { friendCode: b.friendCode })).toMatchObject({ ok: false, reason: 'limit' });
     w.store.requestList = [];
-    for (let i = 0; i < MAX_PENDING_REQUESTS; i++) await w.store.addRequest({ from: `z${i}`, to: b.id, at: T0 });
-    expect(await a.s('friendRequest', { friendCode: b.friendCode })).toMatchObject({ ok: false, reason: 'limit', error: '相手が受け取った申請がいっぱいです' });
+    for (let i = 0; i < MAX_PENDING_REQUESTS; i++) await w.store.addRequest({ from: `z${i}`, to: b.id, at: T0 + i });
+    // 相手の受け取った申請がいっぱいでも断らず、いちばん古いものと入れ替える（決定事項 #124）
+    expect(sok(await a.s('friendRequest', { friendCode: b.friendCode }), 'friendRequest').result).toBe('requested');
+    const incoming = (await w.store.requests(b.id)).incoming;
+    expect(incoming).toHaveLength(MAX_PENDING_REQUESTS);
+    expect(incoming.some((r) => r.from === 'z0')).toBe(false);
+    expect(incoming.some((r) => r.from === a.id)).toBe(true);
   });
 });
 
@@ -722,6 +734,7 @@ describe('他人の秘密を返さない', () => {
     const w = world();
     const [a, b, c] = [await w.player('A'), await w.player('B'), await w.player('C')];
     await befriend(a, b);
+    sok(await c.s('linkInfo', { friendCode: a.friendCode, token: a.linkToken }), 'linkInfo');
     sok(await c.s('friendByLink', { friendCode: a.friendCode, token: a.linkToken }), 'friendByLink');
     sok(await b.s('friendRequest', { friendCode: c.friendCode }), 'friendRequest');
     sok(await a.s('shareDeck', { deck: POISON.deck, cards: POISON.cards }), 'shareDeck');
@@ -751,5 +764,242 @@ describe('他人の秘密を返さない', () => {
       }
       for (const h of roomTokens) expect(json).not.toContain(h);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// レビューの指摘の直し（決定事項 #124）：共用の DB を埋められない・いたずらの申請・招待の延長・鍵の作り直し・リンクの名前・部屋を出る
+// ---------------------------------------------------------------------------
+
+describe('共用の DB を埋められないように', () => {
+  it(`プレイヤーを作れるのは、同じ送り元から1時間に${REGISTER_PER_CLIENT_HOUR}人・全体で${REGISTER_PER_HOUR}人まで`, async () => {
+    const w = world();
+    w.ctx.clientKey = 'k'.repeat(32);
+    for (let i = 0; i < REGISTER_PER_CLIENT_HOUR; i++) sok(await w.call({ op: 'register', name: `P${i}` }), 'register');
+    expect(await w.call({ op: 'register', name: 'X' })).toMatchObject({ ok: false, reason: 'limit' });
+    // 別の送り元は作れる。1時間たてば同じ送り元も作れる
+    w.ctx.clientKey = 'j'.repeat(32);
+    sok(await w.call({ op: 'register', name: 'Y' }), 'register');
+    w.tick(60 * 60 * 1000 + 1);
+    w.ctx.clientKey = 'k'.repeat(32);
+    sok(await w.call({ op: 'register', name: 'Z' }), 'register');
+    // 全体の上限（送り元が分からなくても効く）
+    delete w.ctx.clientKey;
+    for (let i = 0; i < REGISTER_PER_HOUR - 1; i++) sok(await w.call({ op: 'register', name: `Q${i}` }), 'register');
+    expect(await w.call({ op: 'register', name: 'over' })).toMatchObject({ ok: false, reason: 'limit' });
+  });
+
+  it('フレンドのいない、長く来ていないプレイヤーは、次に誰かが作られるときに消える（フレンドのいる人は残る）', async () => {
+    const w = world();
+    const [a, b, c] = [await w.player('A'), await w.player('B'), await w.player('C')];
+    await befriend(a, b);
+    sok(await c.s('shareDeck', { deck: POISON.deck, cards: POISON.cards }), 'shareDeck');
+    sok(await c.s('friendRequest', { friendCode: a.friendCode }), 'friendRequest');
+    w.tick(STALE_PLAYER_MS + 1);
+    await w.player('D');
+    expect(w.store.players.has(c.id)).toBe(false);
+    expect([...w.store.decks.values()].some((d) => d.ownerId === c.id)).toBe(false);
+    expect(w.store.requestList.some((r) => r.from === c.id)).toBe(false);
+    expect(w.store.players.has(a.id) && w.store.players.has(b.id)).toBe(true);
+    expect(await w.call({ op: 'hello', secret: c.secret })).toMatchObject({ ok: false, reason: 'auth' });
+  });
+
+  it('デッキ名は見えない文字を消して40文字に、長すぎる ID は断る（部屋・公開デッキ・相手のデッキで同じ）', async () => {
+    const w = world();
+    const a = await w.player('A');
+    const long = { ...POISON.deck, name: `‮あ​${'い'.repeat(100_000)}` };
+    const shared = sok(await a.s('shareDeck', { deck: long, cards: POISON.cards }), 'shareDeck');
+    expect(shared.sharedDecks[0]!.name).toBe(`あ${'い'.repeat(39)}`);
+    expect([...w.store.decks.values()][0]!.deck.name).toBe(`あ${'い'.repeat(39)}`);
+    const room = rok(await w.call({ op: 'create', name: 'A', deck: long, cards: POISON.cards }));
+    expect(w.store.rooms.get(room.code)!.hostDeck!.deck.name).toHaveLength(40);
+    const badCard = { ...POISON.cards[0]!, id: 'c'.repeat(101) };
+    const deck = { ...POISON.deck, id: 'x', entries: [{ cardId: badCard.id, count: 1 }, ...POISON.deck.entries.slice(1)] };
+    expect(await a.s('shareDeck', { deck, cards: [badCard, ...POISON.cards] })).toMatchObject({ ok: false, reason: 'invalid' });
+  });
+
+  it(`公開デッキは1つ${SHARED_DECK_MAX_CHARS}文字まで・1人の合計にも上限`, async () => {
+    const w = world();
+    const a = await w.player('A');
+    // 説明を長くしても1枚80文字で切られるので、カードの ID を長くして大きくする（1つの ID は100文字まで）
+    const big = (tag: string, pad: number) => {
+      const map = new Map(POISON.cards.map((c) => [c.id, `${tag}${c.id}`.padEnd(pad, '_')]));
+      return {
+        deck: { ...POISON.deck, id: tag, entries: POISON.deck.entries.map((e) => ({ ...e, cardId: map.get(e.cardId)! })) },
+        cards: POISON.cards.map((c) => ({ ...c, id: map.get(c.id)!, description: 'あ'.repeat(80) })),
+      };
+    };
+    const one = big('d1', 100);
+    const size = JSON.stringify(one).length;
+    expect(size).toBeLessThan(SHARED_DECK_MAX_CHARS);
+    // 上限を下げて確かめるかわりに、合計の上限に届くまで入れる
+    let n = 0;
+    for (; n < 30; n++) {
+      const r = await a.s('shareDeck', big(`d${n}`, 100));
+      if (!r.ok) {
+        expect(r).toMatchObject({ reason: 'limit' });
+        break;
+      }
+    }
+    expect(n).toBeGreaterThan(0);
+    const total = [...w.store.decks.values()].reduce((t, d) => t + d.size, 0);
+    expect(total).toBeLessThanOrEqual(200_000);
+  });
+});
+
+describe('いたずらの申請', () => {
+  it('断った人からの申請は1週間、黙って受け流す（知らせも出さない）。そのあとはまた届く', async () => {
+    const w = world();
+    const [a, b] = [await w.player('A'), await w.player('B')];
+    sok(await a.s('friendRequest', { friendCode: b.friendCode }), 'friendRequest');
+    sok(await b.s('friendRespond', { friendCode: a.friendCode, accept: false }), 'friendRespond');
+    const before = w.inbox.length;
+    expect(sok(await a.s('friendRequest', { friendCode: b.friendCode }), 'friendRequest').result).toBe('requested');
+    expect(w.inbox.length).toBe(before);
+    expect((await b.hello()).incoming).toEqual([]);
+    // 断った側からの申請は届く（すぐフレンドにはならない。相手が受ける）
+    expect(sok(await b.s('friendRequest', { friendCode: a.friendCode }), 'friendRequest').result).toBe('requested');
+    sok(await b.s('friendRemove', { friendCode: a.friendCode }), 'friendRemove');
+    w.tick(DECLINE_MEMORY_MS + 1);
+    sok(await a.s('friendRequest', { friendCode: b.friendCode }), 'friendRequest');
+    expect((await b.hello()).incoming.map((r) => r.friendCode)).toEqual([a.friendCode]);
+  });
+
+  it(`1人が1日に送れる申請は${REQUESTS_PER_DAY}件まで`, async () => {
+    const w = world();
+    const a = await w.player('A');
+    const others = [];
+    for (let i = 0; i <= REQUESTS_PER_DAY; i++) others.push(await w.player(`P${i}`));
+    for (let i = 0; i < REQUESTS_PER_DAY; i++) sok(await a.s('friendRequest', { friendCode: others[i]!.friendCode }), 'friendRequest');
+    expect(await a.s('friendRequest', { friendCode: others[REQUESTS_PER_DAY]!.friendCode })).toMatchObject({ ok: false, reason: 'limit' });
+    w.tick(24 * 60 * 60 * 1000 + 1);
+    sok(await a.s('friendRequest', { friendCode: others[REQUESTS_PER_DAY]!.friendCode }), 'friendRequest');
+  });
+});
+
+describe('招待の延長・鍵の作り直し・招待リンクの名前', () => {
+  it('同じ人を同じ部屋にもう一度招待すると、そこから10分延びる（両方の一覧に残る）。知らせ直すのは30秒に1回', async () => {
+    const w = world();
+    const [a, b] = [await w.player('A'), await w.player('B')];
+    await befriend(a, b);
+    const room = rok(await w.call({ op: 'create', mode: 'draft', name: 'A', secret: a.secret }));
+    sok(await a.s('invite', { friendCode: b.friendCode, roomCode: room.code }), 'invite');
+    const sent = w.inbox.filter(([, e]) => e === 'invite').length;
+    w.tick(10_000);
+    sok(await a.s('invite', { friendCode: b.friendCode, roomCode: room.code }), 'invite');
+    expect(w.inbox.filter(([, e]) => e === 'invite').length).toBe(sent);
+    w.tick(9 * 60_000);
+    rok(await w.call({ op: 'state', code: room.code, token: room.token }));
+    sok(await a.s('invite', { friendCode: b.friendCode, roomCode: room.code }), 'invite');
+    expect(w.inbox.filter(([, e]) => e === 'invite').length).toBe(sent + 1);
+    w.tick(90_000);
+    rok(await w.call({ op: 'state', code: room.code, token: room.token }));
+    expect((await b.hello()).invites).toHaveLength(1);
+    expect((await a.hello()).sentInvites.map((i) => i.status)).toEqual(['pending']);
+  });
+
+  it('鍵を作り直すと、招待リンクの鍵と通知のチャンネルも変わる。画面が作った次の鍵（next）も使える', async () => {
+    const w = world();
+    const [a, b] = [await w.player('A'), await w.player('B')];
+    const r = sok(await a.s('rotateSecret'), 'rotateSecret');
+    expect(r.inboxId).not.toBe(a.inboxId);
+    const after = (await w.store.playerByFriendCode(a.friendCode))!;
+    expect(after.linkToken).not.toBe(a.linkToken);
+    expect(after.inboxId).toBe(r.inboxId);
+    expect(await b.s('friendByLink', { friendCode: a.friendCode, token: a.linkToken })).toMatchObject({ ok: false, reason: 'notFound' });
+    const next = 'c'.repeat(64);
+    const r2 = sok(await w.call({ op: 'rotateSecret', secret: r.secret, next }), 'rotateSecret');
+    expect(r2.secret).toBe(next);
+    expect(sok(await w.call({ op: 'hello', secret: next }), 'hello').me.friendCode).toBe(a.friendCode);
+    expect(await w.call({ op: 'hello', secret: r.secret })).toMatchObject({ ok: false, reason: 'auth' });
+    // 同じ鍵・ほかの人の鍵にはできない・形の違う鍵は 400
+    expect(await w.call({ op: 'rotateSecret', secret: next, next })).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(await w.call({ op: 'rotateSecret', secret: next, next: b.secret })).toMatchObject({ ok: false, reason: 'invalid' });
+    expect((await w.raw({ op: 'rotateSecret', secret: next, next: 'xyz' })).status).toBe(400);
+  });
+
+  it('linkInfo：リンクの鍵が合うときだけ、持ち主の本当の名前を返す', async () => {
+    const w = world();
+    const [a, b] = [await w.player('本物'), await w.player('B')];
+    expect(sok(await b.s('linkInfo', { friendCode: a.friendCode, token: a.linkToken }), 'linkInfo')).toMatchObject({
+      friend: { friendCode: a.friendCode, name: '本物' },
+      self: false,
+      already: false,
+    });
+    expect(await b.s('linkInfo', { friendCode: a.friendCode, token: 'f'.repeat(32) })).toMatchObject({ ok: false, reason: 'notFound' });
+    expect(sok(await a.s('linkInfo', { friendCode: a.friendCode, token: a.linkToken }), 'linkInfo').self).toBe(true);
+    sok(await b.s('friendByLink', { friendCode: a.friendCode, token: a.linkToken }), 'friendByLink');
+    expect(sok(await b.s('linkInfo', { friendCode: a.friendCode, token: a.linkToken }), 'linkInfo').already).toBe(true);
+  });
+
+  it('名前の見えない文字（向きを変える記号・ゼロ幅・制御文字）は消す', async () => {
+    expect(normalizeName('‮evil​\u0007name')).toBe('evilname');
+    expect(normalizeName('​⁦')).toBe('プレイヤー');
+    expect(normalizeName('  あ\tい  ')).toBe('あ い');
+    const w = world();
+    const a = await w.player('‮abc');
+    expect((await a.hello()).me.name).toBe('abc');
+    const pub = rok(await w.call({ op: 'create', mode: 'draft', name: '‮room⁩', listed: true }));
+    expect(sok(await w.call({ op: 'list' }), 'list').rooms.find((r) => r.code === pub.code)!.hostName).toBe('room');
+  });
+});
+
+describe('部屋を出る（close）', () => {
+  it('相手待ちの公開の部屋を閉じると、一覧から消え、入れず、招待も無効になる', async () => {
+    const w = world();
+    const [a, b] = [await w.player('A'), await w.player('B')];
+    await befriend(a, b);
+    const room = rok(await w.call({ op: 'create', name: 'A', deck: POISON.deck, cards: POISON.cards, secret: a.secret, listed: true }));
+    sok(await a.s('invite', { friendCode: b.friendCode, roomCode: room.code }), 'invite');
+    expect(sok(await w.call({ op: 'list' }), 'list').rooms).toHaveLength(1);
+    const closed = rok(await w.call({ op: 'close', code: room.code, token: room.token }));
+    expect(closed.closed).toBe(true);
+    expect(sok(await w.call({ op: 'list' }), 'list').rooms).toEqual([]);
+    expect(await w.call({ op: 'join', code: room.code, name: 'B', deck: BEASTS.deck, cards: BEASTS.cards })).toMatchObject({ ok: false, reason: 'notFound' });
+    expect((await b.hello()).invites).toEqual([]);
+    expect((await a.hello()).sentInvites[0]!.status).toBe('expired');
+    // 何度送ってもよい
+    rok(await w.call({ op: 'close', code: room.code, token: room.token }));
+  });
+
+  it('対戦中に出ると降参になり、相手にはすぐ結果と「相手が部屋を出た」が見える。決着後に出ると再戦できない', async () => {
+    const w = world();
+    const [a, b] = [await w.player('A'), await w.player('B')];
+    const g = await startDeckGame(w, a, b);
+    const left = rok(await w.call({ op: 'close', code: g.code, token: g.tokens[0] }));
+    expect(left.status).toBe('ended');
+    const other = rok(await w.call({ op: 'state', code: g.code, token: g.tokens[1] }));
+    expect(other.status).toBe('ended');
+    expect(other.view!.result!.winner).toBe(1);
+    expect(other.opponentLeft).toBe(true);
+    expect(await w.call({ op: 'rematch', code: g.code, token: g.tokens[1] })).toMatchObject({ ok: false });
+    // 成績にも残る
+    expect(w.store.matches.size).toBe(1);
+
+    const g2 = await startDeckGame(w, a, b);
+    await concede(w, g2.code, g2.tokens[1], 1);
+    rok(await w.call({ op: 'rematch', code: g2.code, token: g2.tokens[0] }));
+    rok(await w.call({ op: 'close', code: g2.code, token: g2.tokens[1] }));
+    const host = rok(await w.call({ op: 'state', code: g2.code, token: g2.tokens[0] }));
+    expect(host.opponentLeft).toBe(true);
+    expect(host.status).toBe('ended');
+  });
+
+  it('ドラフト中に出ると、おまかせで最後まで取り、対戦の初めに降参する', () => {
+    const { s } = draftRoom();
+    const r = ok(s.send({ op: 'close', code: 'ABC234', token: HOST }, HOST));
+    expect(s.room!.meta!.auto![0]).toBe(true);
+    expect(r.status).toBe('drafting');
+    // 残りを相手が取りきると対戦が始まり、出た人はすぐ降参
+    let v = s.state(1);
+    for (let i = 0; i < 2 * D.takes && v.status === 'drafting'; i++) {
+      const t = v.draft!.takeable.find((x) => x.ok);
+      if (t) ok(s.send({ op: 'take', code: 'ABC234', token: GUEST, version: v.version, cardId: t.cardId }, GUEST));
+      v = s.state(1);
+    }
+    expect(v.status).toBe('ended');
+    expect(v.view!.result!.winner).toBe(1);
+    expect(v.opponentLeft).toBe(true);
+    expect(v.opponentDeck).toBeDefined();
   });
 });

@@ -23,8 +23,11 @@ import {
 } from './protocol.ts';
 import { isListable, listedRoomView } from './rooms.ts';
 import {
+  DECLINE_MEMORY_MS,
+  EVENT_KEEP_MS,
   INVITE_KEEP_MS,
   INVITE_TTL_MS,
+  LINK_INFO_PER_HOUR,
   LISTED_FRESH_MS,
   MAX_FRIENDS,
   MAX_LISTED_ROOMS,
@@ -32,7 +35,15 @@ import {
   MAX_PENDING_REQUESTS,
   MAX_SHARED_DECKS,
   ONLINE_WITHIN_MS,
+  RATE_WINDOW,
+  REGISTER_PER_CLIENT_HOUR,
+  REGISTER_PER_HOUR,
+  REINVITE_NOTIFY_MS,
+  REQUESTS_PER_DAY,
+  SHARED_DECK_MAX_CHARS,
   SHARED_DECK_NAME_MAX,
+  SHARED_TOTAL_MAX_CHARS,
+  STALE_PLAYER_MS,
   type InviteRecord,
   type PlayerRecord,
   type RoomSummary,
@@ -51,6 +62,11 @@ export interface SocialDeps {
   /** 新しい乱数の鍵（16進64文字） */
   newToken(): string;
   hash(token: string): Promise<string>;
+  /**
+   * 送り元を表す鍵（Edge Function は x-forwarded-for の IP のハッシュ。無ければ全体の上限だけを見る）。
+   * register の回数の上限に使う（決定事項 #124）
+   */
+  clientKey?: string;
   /** cardgame:inbox:<inboxId> に知らせる（無ければ知らせない。失敗しても操作は成り立つ） */
   notifyInbox?(inboxId: string, event: InboxEvent): Promise<void>;
   log?(message: string): void;
@@ -101,9 +117,14 @@ async function dispatch(req: ParsedSocial, deps: SocialDeps): Promise<SocialResp
       return reply('hello', await snapshot({ ...me, ...patch }, deps));
     }
     case 'rotateSecret': {
-      const secret = deps.newToken();
-      await store.updatePlayer(me.id, { secretHash: await deps.hash(secret) });
-      return reply('rotateSecret', { secret });
+      // 漏れた引き継ぎコードを持つ人を締め出す：鍵と一緒に、招待リンクの鍵と通知のチャンネルも作り直す（決定事項 #124）。
+      // next は画面が先に作って端末に控えた新しい鍵（返事が届かなくても、画面は控えた鍵で入り直せる）
+      const secret = req.next ?? deps.newToken();
+      const patch = { secretHash: await deps.hash(secret), linkToken: hex32(deps), inboxId: hex32(deps) };
+      if (patch.secretHash === me.secretHash) fail('今と同じ鍵です', 'invalid');
+      if (await store.playerBySecretHash(patch.secretHash)) fail('その鍵は使えません', 'invalid');
+      await store.updatePlayer(me.id, patch);
+      return reply('rotateSecret', { secret, inboxId: patch.inboxId });
     }
     case 'friendRequest': {
       const target = await byCode(req.friendCode, deps);
@@ -126,6 +147,8 @@ async function dispatch(req: ParsedSocial, deps: SocialDeps): Promise<SocialResp
         await notify(target, 'friendAdded', deps);
       } else if (has) {
         await store.removeRequest(target.id, me.id);
+        // 断ったことを覚えておく（しばらくは同じ人からの申請を黙って受け流す。知らせも出さない）
+        await store.addEvent('declined', declineKey(target.id, me.id), now);
       }
       return reply('friendRespond', await snapshot(me, deps));
     }
@@ -141,6 +164,15 @@ async function dispatch(req: ParsedSocial, deps: SocialDeps): Promise<SocialResp
         await store.updatePlayer(me.id, { linkToken: token });
       }
       return reply('inviteLink', { friendCode: me.friendCode, token });
+    }
+    case 'linkInfo': {
+      // 招待リンクの持ち主の本当の名前（リンクの URL に書かれた名前は誰でも書き換えられるので、確かめる画面はこれを出す）
+      if ((await store.countEvents('linkInfo', me.id, now - RATE_WINDOW.hour)) >= LINK_INFO_PER_HOUR) fail('少し時間をおいてからお試しください', 'limit');
+      await store.addEvent('linkInfo', me.id, now);
+      const owner = await store.playerByFriendCode(req.friendCode);
+      if (!owner || owner.linkToken !== req.token) fail('招待リンクが見つかりません（作り直されたか、写し間違いかもしれません）', 'notFound');
+      const o = owner!;
+      return reply('linkInfo', { friend: { friendCode: o.friendCode, name: o.name }, self: o.id === me.id, already: o.id !== me.id && (await areFriends(me.id, o.id, deps)) });
     }
     case 'friendByLink': {
       const owner = await store.playerByFriendCode(req.friendCode);
@@ -163,10 +195,13 @@ async function dispatch(req: ParsedSocial, deps: SocialDeps): Promise<SocialResp
       const { sent } = await store.invites(me.id, now - INVITE_TTL_MS);
       const same = sent.find((i) => i.to === target.id && i.roomCode === room!.code && i.status === 'pending' && now < i.expiresAt);
       let id: string;
+      let renotify = true;
       if (same) {
-        // 同じ部屋に同じ相手をもう一度：期限を延ばして知らせ直す（2つ作らない）
+        // 同じ部屋に同じ相手をもう一度：期限を延ばして知らせ直す（2つ作らない）。一覧は作った時刻で選ぶので、作った時刻も今にする。
+        // 知らせ直すのは REINVITE_NOTIFY_MS に1回まで（相手のバナーを連打で出し続けないように）
         id = same.id;
-        await store.updateInvite(id, { expiresAt: now + INVITE_TTL_MS });
+        renotify = now - same.createdAt >= REINVITE_NOTIFY_MS;
+        await store.updateInvite(id, { expiresAt: now + INVITE_TTL_MS, createdAt: now });
       } else {
         const rooms = await store.roomSummaries(unique(sent.map((i) => i.roomCode)));
         const live = sent.filter((i) => inviteLive(i, rooms, now)).length;
@@ -184,7 +219,7 @@ async function dispatch(req: ParsedSocial, deps: SocialDeps): Promise<SocialResp
         };
         await store.insertInvite(inv);
       }
-      await notify(target, 'invite', deps);
+      if (renotify) await notify(target, 'invite', deps);
       return reply('invite', { ...(await snapshot(me, deps)), inviteId: id });
     }
     case 'inviteRespond': {
@@ -211,10 +246,14 @@ async function dispatch(req: ParsedSocial, deps: SocialDeps): Promise<SocialResp
       const checked = checkDeck(req.deck, req.cards);
       if (!checked.ok) return fail(checked.error, 'invalid');
       const { deck, cards } = checked.value;
-      if (deck.id.length > 100) fail('デッキの ID が長すぎます', 'invalid');
+      // 大きさの上限（ログインが無いので、共用の DB を公開デッキで埋められないように。決定事項 #124）
+      const size = JSON.stringify({ deck, cards }).length;
+      if (size > SHARED_DECK_MAX_CHARS) fail('デッキのデータが大きすぎて公開できません', 'limit');
       const mine = await store.sharedDeckSummaries([me.id]);
-      if (!mine.some((d) => d.deckId === deck.id) && mine.length >= MAX_SHARED_DECKS) fail(`公開できるデッキは${MAX_SHARED_DECKS}個までです`, 'limit');
-      const name = [...deck.name.trim()].slice(0, SHARED_DECK_NAME_MAX).join('') || 'デッキ';
+      const others = mine.filter((d) => d.deckId !== deck.id);
+      if (others.length >= MAX_SHARED_DECKS) fail(`公開できるデッキは${MAX_SHARED_DECKS}個までです`, 'limit');
+      if (others.reduce((n, d) => n + d.size, 0) + size > SHARED_TOTAL_MAX_CHARS) fail('公開しているデッキが多すぎます。使わないデッキの公開をやめてください', 'limit');
+      const name = [...deck.name].slice(0, SHARED_DECK_NAME_MAX).join('') || 'デッキ';
       await store.putSharedDeck({
         ownerId: me.id,
         deckId: deck.id,
@@ -222,6 +261,7 @@ async function dispatch(req: ParsedSocial, deps: SocialDeps): Promise<SocialResp
         count: deck.entries.reduce((n, e) => n + e.count, 0),
         deck,
         cards,
+        size,
         updatedAt: now,
       });
       return reply('shareDeck', await snapshot(me, deps));
@@ -241,6 +281,17 @@ async function dispatch(req: ParsedSocial, deps: SocialDeps): Promise<SocialResp
 }
 
 async function register(name: string, deps: SocialDeps): Promise<SocialResponse> {
+  const { store, now } = deps;
+  // 回数の上限（ログインが無いので、誰でも何人でも作れると共用の DB を埋められる。決定事項 #124）
+  const since = now - RATE_WINDOW.hour;
+  if ((await store.countEvents('register', '*', since)) >= REGISTER_PER_HOUR) fail('いまは新しいプレイヤーを作れません。しばらくしてからお試しください', 'limit');
+  if (deps.clientKey && (await store.countEvents('register', deps.clientKey, since)) >= REGISTER_PER_CLIENT_HOUR) {
+    fail('この回線から作れるプレイヤーの数を超えました。しばらくしてからお試しください', 'limit');
+  }
+  // ついでに古いものを片付ける（フレンドのいない、長く来ていないプレイヤーと、古い回数の記録）
+  await cleanUp(deps);
+  await store.addEvent('register', '*', now);
+  if (deps.clientKey) await store.addEvent('register', deps.clientKey, now);
   for (let i = 0; i < REGISTER_TRIES; i++) {
     const secret = deps.newToken();
     const p: PlayerRecord = {
@@ -260,6 +311,18 @@ async function register(name: string, deps: SocialDeps): Promise<SocialResponse>
   }
   return { ok: false, error: 'プレイヤーを作れませんでした。もう一度お試しください', reason: 'invalid' };
 }
+
+async function cleanUp(deps: SocialDeps): Promise<void> {
+  try {
+    await deps.store.removeEventsOlderThan(deps.now - EVENT_KEEP_MS);
+    const n = await deps.store.removeStalePlayers(deps.now - STALE_PLAYER_MS);
+    if (n > 0) deps.log?.(`removed ${n} stale players`);
+  } catch (e) {
+    deps.log?.(`clean up failed: ${String(e)}`);
+  }
+}
+
+const declineKey = (from: string, to: string) => `${from}>${to}`;
 
 /** 鍵からプレイヤーを引く（部屋の create・join の secret にも使う） */
 export async function authenticate(secret: string, deps: Pick<SocialDeps, 'store' | 'hash'>): Promise<PlayerRecord> {
@@ -306,10 +369,18 @@ async function requestTo(me: PlayerRecord, target: PlayerRecord, deps: SocialDep
   if (mine.outgoing.some((r) => r.to === target.id)) return 'requested';
   if (friends.length >= MAX_FRIENDS) fail(`フレンドは${MAX_FRIENDS}人までです`, 'limit');
   if (mine.outgoing.length >= MAX_PENDING_REQUESTS) fail(`答えを待っている申請が多すぎます（${MAX_PENDING_REQUESTS}件まで）`, 'limit');
-  const theirs = await store.requests(target.id);
-  if (theirs.incoming.length >= MAX_PENDING_REQUESTS) fail('相手が受け取った申請がいっぱいです', 'limit');
+  // 断られたばかりの相手には、申請したことにして何もしない（同じ人から何度も知らせが来ないように。決定事項 #124）
+  if ((await store.countEvents('declined', declineKey(me.id, target.id), deps.now - DECLINE_MEMORY_MS)) > 0) return 'requested';
+  if ((await store.countEvents('request', me.id, deps.now - RATE_WINDOW.day)) >= REQUESTS_PER_DAY) fail(`フレンド申請は1日${REQUESTS_PER_DAY}件までです`, 'limit');
   if ((await store.friendships(target.id)).length >= MAX_FRIENDS) fail('相手のフレンドが上限に達しています', 'limit');
+  // 相手の受け取った申請がいっぱいなら、いちばん古いものを消して入れる（いたずらの申請で本当の申請が届かなくならないように）
+  const theirs = await store.requests(target.id);
+  const overflow = theirs.incoming.length - MAX_PENDING_REQUESTS + 1;
+  if (overflow > 0) {
+    for (const r of [...theirs.incoming].sort((a, b) => a.at - b.at).slice(0, overflow)) await store.removeRequest(r.from, r.to);
+  }
   await store.addRequest({ from: me.id, to: target.id, at: deps.now });
+  await store.addEvent('request', me.id, deps.now);
   await notify(target, 'friendRequest', deps);
   return 'requested';
 }
@@ -342,7 +413,7 @@ function modeOf(r: RoomSummary) {
 }
 
 function hostWaiting(r: RoomSummary, playerId: string): boolean {
-  return r.status === 'waiting' && r.seats.length === 1 && r.seats[0]?.playerId === playerId;
+  return r.status === 'waiting' && !r.meta?.closed && r.seats.length === 1 && r.seats[0]?.playerId === playerId;
 }
 
 /** 招待がまだ使えるか（答えていない・期限内・送った人の部屋がまだ相手待ち） */

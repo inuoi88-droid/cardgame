@@ -53,15 +53,15 @@ export function summaryOf(room: RoomRecord): RoomSummary {
     code: room.code,
     status: room.status,
     seats: room.seats,
-    meta: m ? { mode: m.mode, ...(m.rules ? { rules: m.rules } : {}), ...(m.listed ? { listed: true } : {}) } : null,
+    meta: m ? { mode: m.mode, ...(m.rules ? { rules: m.rules } : {}), ...(m.listed ? { listed: true } : {}), ...(m.closed ? { closed: true } : {}) } : null,
     rules: room.hostDeck?.rules ?? null,
     updatedAt: room.updatedAt,
   };
 }
 
-/** 一覧に出せる公開の部屋か（待機中・1人・公開・作成者が minSeen 以降に通信） */
+/** 一覧に出せる公開の部屋か（待機中・閉じていない・1人・公開・作成者が minSeen 以降に通信） */
 export function isListable(r: RoomSummary, minSeen: number): boolean {
-  return r.status === 'waiting' && r.seats.length === 1 && r.meta?.listed === true && (r.seats[0]?.lastSeen ?? 0) >= minSeen;
+  return r.status === 'waiting' && !r.meta?.closed && r.seats.length === 1 && r.meta?.listed === true && (r.seats[0]?.lastSeen ?? 0) >= minSeen;
 }
 
 export function listedRoomView(r: RoomSummary): ListedRoomView {

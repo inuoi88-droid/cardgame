@@ -24,14 +24,40 @@ export const INVITE_KEEP_MS = 24 * 60 * 60 * 1000;
 export const ONLINE_WITHIN_MS = 60_000;
 /** 部屋の送信で「見かけた」を記録する間隔（毎回 DB に書かないように。状態が変わったときは間隔によらず書く） */
 export const PRESENCE_STEP_MS = 20_000;
-/** 公開の部屋の一覧：作成者がこの時間内に通信している部屋だけ */
-export const LISTED_FRESH_MS = 30_000;
+/** 公開の部屋の一覧：作成者がこの時間内に通信している部屋だけ（部屋の画面は4秒おきに取りに来る。閉じ忘れの部屋がすぐ消えるように短め） */
+export const LISTED_FRESH_MS = 15_000;
 /** 公開の部屋の一覧の件数の上限 */
 export const MAX_LISTED_ROOMS = 30;
 /** フレンドコードの長さ（部屋コードと同じ紛らわしくない文字） */
 export const FRIEND_CODE_LENGTH = 8;
 /** 公開デッキの名前の長さの上限（一覧に出す名前） */
 export const SHARED_DECK_NAME_MAX = 40;
+/** 公開デッキ1つの大きさの上限（JSON の文字数。プリセットは3〜5千字、30種類の重いカードでも3万字ほど） */
+export const SHARED_DECK_MAX_CHARS = 40_000;
+/** 1人が公開しているデッキの大きさの合計の上限（共用の DB を埋められないように） */
+export const SHARED_TOTAL_MAX_CHARS = 200_000;
+
+/** プレイヤーを作れる数：同じ送り元（IP のハッシュ）から1時間に／全体で1時間に（ログインが無いので、DB を埋められないように） */
+export const REGISTER_PER_CLIENT_HOUR = 10;
+export const REGISTER_PER_HOUR = 120;
+/** 1人が1日に送れるフレンド申請の数 */
+export const REQUESTS_PER_DAY = 20;
+/** 断られた申請を覚えておく時間（その間は同じ人からの申請を黙って受け流す） */
+export const DECLINE_MEMORY_MS = 7 * 24 * 60 * 60 * 1000;
+/** 招待リンクの持ち主を確かめる（linkInfo）回数の上限（1人1時間に） */
+export const LINK_INFO_PER_HOUR = 60;
+/** 同じ人を同じ部屋にもう一度招待したとき、知らせ直す間隔 */
+export const REINVITE_NOTIFY_MS = 30_000;
+/** フレンドが1人もいないまま、これより長く来ていないプレイヤーは消す（公開デッキ・成績もいっしょに消える） */
+export const STALE_PLAYER_MS = 90 * 24 * 60 * 60 * 1000;
+/** 回数の記録（rate_events）を残す時間 */
+export const EVENT_KEEP_MS = DECLINE_MEMORY_MS;
+
+const HOUR_MS = 60 * 60 * 1000;
+export const RATE_WINDOW = { hour: HOUR_MS, day: 24 * HOUR_MS } as const;
+
+/** 回数の記録の種類（rate_events.kind） */
+export type RateKind = 'register' | 'request' | 'declined' | 'linkInfo';
 
 /** サーバーに保存するプレイヤー */
 export interface PlayerRecord {
@@ -104,10 +130,14 @@ export interface SharedDeckRecord {
   count: number;
   deck: Deck;
   cards: CardDef[];
+  /** JSON の文字数（{deck, cards}。1人の合計の上限に使う） */
+  size: number;
   updatedAt: number;
 }
 
 export type SharedDeckSummaryRecord = Omit<SharedDeckRecord, 'deck' | 'cards'>;
+
+export type PlayerPatch = Partial<Pick<PlayerRecord, 'name' | 'secretHash' | 'linkToken' | 'inboxId' | 'lastSeen'>>;
 
 /** 1人のプレイヤーから見た、ある相手との成績 */
 export interface RecordCount {
@@ -125,7 +155,7 @@ export interface RoomSummary {
   code: string;
   status: RoomStatus;
   seats: Seat[];
-  meta: Pick<RoomMeta, 'mode' | 'rules' | 'listed'> | null;
+  meta: Pick<RoomMeta, 'mode' | 'rules' | 'listed' | 'closed'> | null;
   rules?: MatchRules | null;
   updatedAt: number;
 }
@@ -147,8 +177,12 @@ export interface SocialStore {
   playerBySecretHash(secretHash: string): Promise<PlayerRecord | null>;
   playerByFriendCode(friendCode: string): Promise<PlayerRecord | null>;
   playersByIds(ids: readonly string[]): Promise<PlayerRecord[]>;
-  /** 名前・鍵のハッシュ・リンクの鍵・最後の通信を変える */
-  updatePlayer(id: string, patch: Partial<Pick<PlayerRecord, 'name' | 'secretHash' | 'linkToken' | 'lastSeen'>>): Promise<void>;
+  /** 名前・鍵のハッシュ・リンクの鍵・通知のチャンネル・最後の通信を変える */
+  updatePlayer(id: string, patch: PlayerPatch): Promise<void>;
+  /**
+   * 古いプレイヤーを消す：最後の通信が before より前で、フレンドが1人もいない人（申請・招待・成績・公開デッキも消える）。消した数を返す
+   */
+  removeStalePlayers(before: number): Promise<number>;
   /** 部屋の送信の「見かけた」をまとめて書く（seen は今より新しいときだけ進める） */
   updatePresence(updates: readonly PresenceUpdate[]): Promise<void>;
 
@@ -171,6 +205,11 @@ export interface SocialStore {
   /** その人が送った・受け取った招待のうち、since 以降に作られたもの */
   invites(id: string, since: number): Promise<{ received: InviteRecord[]; sent: InviteRecord[] }>;
   removeInvitesOlderThan(time: number): Promise<void>;
+
+  /** 回数の記録（レート制限・断った申請）。kind と key が同じで、at が since 以降の数 */
+  countEvents(kind: RateKind, key: string, since: number): Promise<number>;
+  addEvent(kind: RateKind, key: string, at: number): Promise<void>;
+  removeEventsOlderThan(time: number): Promise<void>;
 
   /** 決着の記録を入れる（同じ id はもうあれば何もしない） */
   insertMatch(m: MatchRecord): Promise<void>;

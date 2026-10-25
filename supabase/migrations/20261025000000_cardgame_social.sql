@@ -18,6 +18,7 @@ create table cardgame.players (
   room_status text,
   room_seen   timestamptz
 );
+create index players_last_seen_idx on cardgame.players (last_seen);  -- 古いプレイヤーの片付け（決定事項 #124）
 
 -- フレンド（2人の ID を a < b の順で1行）
 create table cardgame.friendships (
@@ -39,7 +40,7 @@ create table cardgame.friend_requests (
 );
 create index friend_requests_to_idx on cardgame.friend_requests (to_id);
 
--- 対戦への招待（期限は10分。部屋が相手待ちでなくなったら、その前でも無効。1日より古いものは消す）
+-- 対戦への招待（期限は10分。同じ人を同じ部屋にもう一度招待すると作った時刻から延びる。部屋が相手待ちでなくなったら、その前でも無効。1日より古いものは消す）
 create table cardgame.invites (
   id         text primary key,                  -- 16進32文字
   from_id    text not null references cardgame.players (id) on delete cascade,
@@ -76,9 +77,20 @@ create table cardgame.shared_decks (
   card_count integer not null,
   deck       jsonb not null,                    -- 検証済みのデッキ
   cards      jsonb not null,                    -- デッキで使うカードの定義
+  size       integer not null default 0,        -- {deck, cards} の JSON の文字数（1つ4万字・1人20万字まで。決定事項 #124）
   updated_at timestamptz not null,
   primary key (owner_id, deck_id)
 );
+
+-- 回数の記録（決定事項 #124）：プレイヤーを作った回数（key は送り元の IP のハッシュと全体の '*'）・フレンド申請の回数・
+-- 断った申請（key は '<申請した人>><断った人>'）・招待リンクの確認。1週間で消す（プレイヤーを作るときに片付ける）
+create table cardgame.rate_events (
+  kind text not null check (kind in ('register', 'request', 'declined', 'linkInfo')),
+  key  text not null,
+  at   timestamptz not null
+);
+create index rate_events_key_idx on cardgame.rate_events (kind, key, at);
+create index rate_events_at_idx on cardgame.rate_events (at);
 
 -- 公開の部屋（「募集中の部屋」）：meta の listed から作る生成列と、相手待ちの公開の部屋だけの部分インデックス
 alter table cardgame.rooms
@@ -91,6 +103,7 @@ alter table cardgame.friend_requests enable row level security;
 alter table cardgame.invites enable row level security;
 alter table cardgame.matches enable row level security;
 alter table cardgame.shared_decks enable row level security;
+alter table cardgame.rate_events enable row level security;
 
 revoke all on schema cardgame from public, anon, authenticated;
 revoke all on all tables in schema cardgame from public, anon, authenticated;

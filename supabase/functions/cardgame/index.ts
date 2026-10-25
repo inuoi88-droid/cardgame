@@ -51,6 +51,17 @@ async function broadcast(topic: string, event: string, payload: Record<string, u
   if (!res.ok) throw new Error(`broadcast ${res.status}: ${await res.text()}`);
 }
 
+/**
+ * 送り元を表す鍵（決定事項 #124。プレイヤーを作る回数の上限に使う）。x-forwarded-for の最初の IP の SHA-256 の先頭32文字。
+ * 生の IP は渡さず、DB の回数の記録（cardgame.rate_events）にもハッシュだけが1週間残る
+ */
+async function clientKey(req: Request): Promise<string | undefined> {
+  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0]?.trim() || req.headers.get('x-real-ip')?.trim() || '';
+  if (!ip) return undefined;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`cardgame-client:${ip}`));
+  return hex(new Uint8Array(digest)).slice(0, 32);
+}
+
 const store = makeRoomStore(sql);
 const social = makeSocialStore(sql);
 
@@ -76,6 +87,6 @@ Deno.serve(async (req: Request) => {
       headers: { ...CORS, 'Content-Type': 'application/json' },
     });
   }
-  const { status, body } = await handleBody(await req.text(), deps);
+  const { status, body } = await handleBody(await req.text(), deps, { clientKey: await clientKey(req) });
   return new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' } });
 });

@@ -16,7 +16,7 @@ import { makeRoomStore, makeSocialStore } from '../supabase/functions/cardgame/s
 const url = process.env.PGURL;
 if (!url) throw new Error('PGURL を指定してください（手元の Postgres。Supabase には当てない）');
 const sql = postgres(url, { prepare: false, max: 4, onnotice: () => {} });
-await sql.unsafe(`truncate cardgame.rooms, cardgame.players, cardgame.friendships, cardgame.friend_requests, cardgame.invites, cardgame.matches, cardgame.shared_decks cascade`);
+await sql.unsafe(`truncate cardgame.rooms, cardgame.players, cardgame.friendships, cardgame.friend_requests, cardgame.invites, cardgame.matches, cardgame.shared_decks, cardgame.rate_events cascade`);
 const [POISON, BEASTS] = PRESET_DECKS;
 const POOL = PRESET_DECKS.flatMap((p) => p.cards);
 
@@ -54,19 +54,33 @@ async function scenario(env) {
   await call({ op: 'friendRespond', secret: b.secret, friendCode: a.friendCode, accept: true });
   await call({ op: 'friendRequest', secret: c.secret, friendCode: a.friendCode });
   await call({ op: 'friendRespond', secret: a.secret, friendCode: c.friendCode, accept: false });
+  // 断られたばかりの申請は黙って受け流す（決定事項 #124）
+  await call({ op: 'friendRequest', secret: c.secret, friendCode: a.friendCode });
+  await call({ op: 'hello', secret: a.secret });
   const link = await call({ op: 'inviteLink', secret: c.secret, rotate: true });
+  await call({ op: 'linkInfo', secret: a.secret, friendCode: link.friendCode, token: link.token });
   await call({ op: 'friendByLink', secret: a.secret, friendCode: link.friendCode, token: link.token });
+  await call({ op: 'linkInfo', secret: a.secret, friendCode: link.friendCode, token: link.token });
   await call({ op: 'shareDeck', secret: a.secret, deck: POISON.deck, cards: POISON.cards });
   await call({ op: 'shareDeck', secret: a.secret, deck: { ...BEASTS.deck, id: 'x2' }, cards: BEASTS.cards });
   await call({ op: 'shareDeck', secret: a.secret, deck: { ...POISON.deck, name: '改' }, cards: POISON.cards });
   await call({ op: 'friendDecks', secret: b.secret, friendCode: a.friendCode });
   await call({ op: 'friendDecks', secret: b.secret, friendCode: a.friendCode, deckId: 'x2' });
   await call({ op: 'unshareDeck', secret: a.secret, deckId: 'x2' });
+  await call({ op: 'shareDeck', secret: a.secret, deck: { ...POISON.deck, id: 'big', name: 'x'.repeat(500) }, cards: POISON.cards.map((c, i) => ({ ...c, description: 'あ'.repeat(80 + i) })) });
+  // 相手待ちのまま閉じた公開の部屋は一覧から消え、入れない
+  const gone = await call({ op: 'create', name: 'A', deck: POISON.deck, cards: POISON.cards, secret: a.secret, listed: true });
+  await call({ op: 'close', code: gone.code, token: gone.token });
+  await call({ op: 'join', code: gone.code, name: 'B', deck: BEASTS.deck, cards: BEASTS.cards });
   const pub = await call({ op: 'create', name: 'A', deck: POISON.deck, cards: POISON.cards, secret: a.secret, listed: true, rules: { field: 'none', dayNight: true }, leader: 'knight' });
   const dr = await call({ op: 'create', mode: 'draft', name: 'D', listed: true });
   await call({ op: 'list' });
   const inv = await call({ op: 'invite', secret: a.secret, friendCode: b.friendCode, roomCode: pub.code });
+  env.tick(9 * 60_000);
+  await call({ op: 'state', code: pub.code, token: pub.token });
   await call({ op: 'invite', secret: a.secret, friendCode: b.friendCode, roomCode: pub.code });
+  env.tick(90_000);
+  await call({ op: 'state', code: pub.code, token: pub.token });
   await call({ op: 'hello', secret: b.secret });
   await call({ op: 'inviteRespond', secret: b.secret, inviteId: inv.inviteId, accept: true });
   const j = await call({ op: 'join', code: pub.code, name: 'B', deck: BEASTS.deck, cards: BEASTS.cards, secret: b.secret });
@@ -90,6 +104,9 @@ async function scenario(env) {
   const rot = await call({ op: 'rotateSecret', secret: c.secret });
   await call({ op: 'hello', secret: c.secret });
   await call({ op: 'hello', secret: rot.secret });
+  const next = 'ab'.repeat(32);
+  await call({ op: 'rotateSecret', secret: rot.secret, next });
+  await call({ op: 'hello', secret: next });
   await call({ op: 'state', code: dr.code, token: dr.token });
   return { out, inbox: env.inbox };
 }
@@ -106,5 +123,5 @@ for (let i = 0; i < m.out.length; i++) {
   if (x !== y) { diffs++; console.log('DIFF at', i, '\nmem:', x.slice(0, 600), '\nsql:', y.slice(0, 600)); }
 }
 console.log('responses', m.out.length, 'diffs', diffs, 'inbox same', JSON.stringify(m.inbox) === JSON.stringify(s.inbox));
-console.log('断られた返事（作り直す前の鍵の hello の1件だけのはず）:', m.out.filter((r) => !r.ok).map((r) => r.error));
+console.log('断られた返事（閉じた部屋への join・作り直す前の鍵の hello の2件のはず）:', m.out.filter((r) => !r.ok).map((r) => r.error));
 await sql.end();

@@ -10,6 +10,7 @@ import {
   createRoom,
   handleAction,
   handleAuto,
+  handleClose,
   handleRematch,
   handleTake,
   isExpired,
@@ -86,6 +87,7 @@ export function serve(req: ParsedRequest, room: RoomRecord | null, deps: ServeDe
   if (req.op === 'take') r = handleTake(current, seat, req.version, req.cardId, now, deps.seed);
   else if (req.op === 'auto') r = handleAuto(current, seat, req.on, now, deps.seed);
   else if (req.op === 'rematch') r = handleRematch(current, seat, now, deps.seed);
+  else if (req.op === 'close') r = handleClose(current, seat, now, deps.seed);
   else r = handleAction(current, seat, req.version, req.action, now);
   if (!r.ok) return { save: current, insert: false, notify: changed, response: r };
   return { save: r.value, insert: false, notify: r.value.version !== room.version, response: { ok: true, ...roomView(r.value, seat, now) } };

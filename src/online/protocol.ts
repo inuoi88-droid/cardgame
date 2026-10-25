@@ -46,7 +46,12 @@ export type OnlineRequest =
   /** ドラフトの「おまかせ」を入れる・切る */
   | { op: 'auto'; code: string; token: string; on: boolean }
   /** 対戦が終わったあと「同じデッキでもう一戦」（両者が押したら始まる） */
-  | { op: 'rematch'; code: string; token: string };
+  | { op: 'rematch'; code: string; token: string }
+  /**
+   * 部屋を出る（決定事項 #124）。相手待ちの部屋は閉じる（一覧から消え、入れず、招待も無効）、ドラフト中はおまかせで進めて対戦の初めに降参、
+   * 対戦中は降参、決着後は再戦できなくなる
+   */
+  | { op: 'close'; code: string; token: string };
 
 /** waiting：相手待ち／drafting：ドラフト中（ドラフトの部屋）／playing：対戦中／ended：決着（再戦で playing に戻れる） */
 export type RoomStatus = 'waiting' | 'drafting' | 'playing' | 'ended';
@@ -104,6 +109,10 @@ export interface RoomView {
   opponentFriendCode?: string;
   /** 「募集中の部屋」の一覧に出す部屋か（作成者が listed: true で作った） */
   listed?: boolean;
+  /** 作成者が相手待ちのまま閉じた部屋（close。決定事項 #124） */
+  closed?: boolean;
+  /** 相手が部屋を出た（close。再戦はできない） */
+  opponentLeft?: boolean;
 }
 
 /** player：create・join の secret のプレイヤーが見つからない（端末のプレイヤー情報が無効。決定事項 #121） */
@@ -129,7 +138,8 @@ export type ParsedRequest =
   | { op: 'action'; code: string; token: string; version: number; action: Action }
   | { op: 'take'; code: string; token: string; version: number; cardId: string }
   | { op: 'auto'; code: string; token: string; on: boolean }
-  | { op: 'rematch'; code: string; token: string };
+  | { op: 'rematch'; code: string; token: string }
+  | { op: 'close'; code: string; token: string };
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -318,5 +328,6 @@ export function parseRequest(x: unknown): Parsed<ParsedRequest> {
     return { ok: true, value: { op: 'auto', code, token: x.token, on: x.on } };
   }
   if (x.op === 'rematch') return { ok: true, value: { op: 'rematch', code, token: x.token } };
+  if (x.op === 'close') return { ok: true, value: { op: 'close', code, token: x.token } };
   return bad('知らない操作です');
 }

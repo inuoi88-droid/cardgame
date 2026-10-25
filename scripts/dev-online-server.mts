@@ -13,6 +13,7 @@
  * フレンド機能（決定事項 #121。docs/ONLINE_SOCIAL.md）も同じメモリの保存場所で動く（プレイヤー・フレンド・招待・公開デッキ・成績）。
  * 自分あての通知（cardgame:inbox:<inboxId>）は届かないので、画面は hello を定期的に送って気づく。通知の代わりに端末に1行出す。
  * GET / で部屋とプレイヤーの一覧（鍵は出さない）。
+ * プレイヤーを作る回数の上限は、全体の上限だけを見る（送り元の鍵 clientKey は渡さない。同じ PC の複数のブラウザで試せるように。決定事項 #124）。
  */
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { createServer } from 'node:http';

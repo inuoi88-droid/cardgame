@@ -45,6 +45,12 @@ export interface HttpDeps {
   notifyInbox?(inboxId: string, event: InboxEvent): Promise<void>;
 }
 
+/** 1回の送信ごとの情報（決定事項 #124） */
+export interface RequestContext {
+  /** 送り元を表す鍵（Edge Function は x-forwarded-for の IP のハッシュ。生の IP は渡さない）。register の回数の上限に使う */
+  clientKey?: string;
+}
+
 export interface HttpResult {
   status: number;
   body: OnlineResponse | SocialResponse;
@@ -53,7 +59,7 @@ export interface HttpResult {
 const CODE_TRIES = 5;
 const SEED_RANGE = 0x7fffffff;
 
-export async function handleBody(text: string, deps: HttpDeps): Promise<HttpResult> {
+export async function handleBody(text: string, deps: HttpDeps, ctx: RequestContext = {}): Promise<HttpResult> {
   if (text.length > MAX_BODY_CHARS) return { status: 413, body: { ok: false, error: '送るデータが大きすぎます', reason: 'invalid' } };
   let raw: unknown;
   try {
@@ -61,7 +67,7 @@ export async function handleBody(text: string, deps: HttpDeps): Promise<HttpResu
   } catch {
     return { status: 400, body: { ok: false, error: '送信の形式が正しくありません', reason: 'invalid' } };
   }
-  if (typeof raw === 'object' && raw !== null && isSocialOp((raw as { op?: unknown }).op)) return socialBody(raw, deps);
+  if (typeof raw === 'object' && raw !== null && isSocialOp((raw as { op?: unknown }).op)) return socialBody(raw, deps, ctx);
   const parsed = parseRequest(raw);
   if (!parsed.ok) return { status: 400, body: { ok: false, error: parsed.error, reason: 'invalid' } };
   const req = parsed.value;
@@ -145,7 +151,7 @@ async function afterRoom(match: MatchRecord | null, presence: PresenceUpdate[], 
   }
 }
 
-async function socialBody(raw: unknown, deps: HttpDeps): Promise<HttpResult> {
+async function socialBody(raw: unknown, deps: HttpDeps, ctx: RequestContext): Promise<HttpResult> {
   const parsed = parseSocialRequest(raw);
   if (!parsed.ok) return { status: 400, body: { ok: false, error: parsed.error, reason: 'invalid' } };
   if (!deps.social) return { status: 200, body: { ok: false, error: 'このサーバーはフレンド機能に対応していません', reason: 'unsupported' } };
@@ -156,6 +162,7 @@ async function socialBody(raw: unknown, deps: HttpDeps): Promise<HttpResult> {
       randomInt: deps.randomInt,
       newToken: deps.newToken,
       hash: deps.hash,
+      ...(ctx.clientKey ? { clientKey: ctx.clientKey } : {}),
       ...(deps.notifyInbox ? { notifyInbox: deps.notifyInbox } : {}),
       ...(deps.log ? { log: deps.log } : {}),
     });

@@ -15,8 +15,11 @@ export type SocialRequest =
   | { op: 'register'; name?: string }
   /** 生存の合図と、自分のまわりの様子の取得（20〜30秒おき・画面を開いたとき・通知が来たとき）。name を送れば名前を変える */
   | { op: 'hello'; secret: string; name?: string }
-  /** 秘密の鍵を作り直す（引き継ぎコードが漏れたとき。前の鍵は使えなくなる） */
-  | { op: 'rotateSecret'; secret: string }
+  /**
+   * 秘密の鍵を作り直す（引き継ぎコードが漏れたとき。前の鍵は使えなくなる）。招待リンクの鍵と通知のチャンネル（inboxId）も作り直す。
+   * next（任意。16進64文字）は画面が作って先に端末に控えた新しい鍵（返事が届かなくても控えた鍵で入り直せる。無ければサーバーが作る）
+   */
+  | { op: 'rotateSecret'; secret: string; next?: string }
   /** 公開の部屋の一覧（「募集中の部屋」。鍵は要らない） */
   | { op: 'list' }
   /** フレンドコードで申請する（相手からの申請が届いていれば、すぐフレンドになる） */
@@ -29,6 +32,8 @@ export type SocialRequest =
   | { op: 'friendRemove'; secret: string; friendCode: string }
   /** 招待リンクの鍵（rotate: true で作り直し、前のリンクを無効にする） */
   | { op: 'inviteLink'; secret: string; rotate?: boolean }
+  /** 招待リンクの持ち主（確かめる画面に出す本当の名前。URL の名前は誰でも書き換えられる）。token が合うときだけ返す */
+  | { op: 'linkInfo'; secret: string; friendCode: string; token: string }
   /** 招待リンクを開いて確かめたら、すぐフレンドになる（リンクの持ち主は共有した時点で同意している） */
   | { op: 'friendByLink'; secret: string; friendCode: string; token: string }
   /** フレンドを自分の部屋（席0・相手待ち）に招待する */
@@ -53,6 +58,7 @@ export const SOCIAL_OPS: readonly SocialOp[] = [
   'friendRespond',
   'friendRemove',
   'inviteLink',
+  'linkInfo',
   'friendByLink',
   'invite',
   'inviteRespond',
@@ -166,13 +172,15 @@ export type RequestResult = 'requested' | 'friends' | 'already';
 export interface SocialReplies {
   register: { secret: string; friendCode: string; inboxId: string; name: string };
   hello: SocialSnapshot;
-  rotateSecret: { secret: string };
+  rotateSecret: { secret: string; inboxId: string };
   list: { rooms: ListedRoomView[]; serverNow: number };
   friendRequest: SocialSnapshot & { result: RequestResult };
   friendRequestRoom: SocialSnapshot & { result: RequestResult };
   friendRespond: SocialSnapshot;
   friendRemove: SocialSnapshot;
   inviteLink: { friendCode: string; token: string };
+  /** self：自分のリンク／already：もうフレンド */
+  linkInfo: { friend: { friendCode: string; name: string }; self: boolean; already: boolean };
   friendByLink: SocialSnapshot & { friend: { friendCode: string; name: string } };
   invite: SocialSnapshot & { inviteId: string };
   inviteRespond: SocialSnapshot & { room?: { code: string; mode: RoomMode } };
@@ -195,13 +203,14 @@ export type SocialResponse = { [K in SocialOp]: SocialOk<K> }[SocialOp] | Social
 export type ParsedSocial =
   | { op: 'register'; name: string }
   | { op: 'hello'; secret: string; name?: string }
-  | { op: 'rotateSecret'; secret: string }
+  | { op: 'rotateSecret'; secret: string; next?: string }
   | { op: 'list' }
   | { op: 'friendRequest'; secret: string; friendCode: string }
   | { op: 'friendRequestRoom'; secret: string; code: string }
   | { op: 'friendRespond'; secret: string; friendCode: string; accept: boolean }
   | { op: 'friendRemove'; secret: string; friendCode: string }
   | { op: 'inviteLink'; secret: string; rotate: boolean }
+  | { op: 'linkInfo'; secret: string; friendCode: string; token: string }
   | { op: 'friendByLink'; secret: string; friendCode: string; token: string }
   | { op: 'invite'; secret: string; friendCode: string; roomCode: string }
   | { op: 'inviteRespond'; secret: string; inviteId: string; accept: boolean }
@@ -243,7 +252,8 @@ export function parseSocialRequest(x: unknown): Parsed<ParsedSocial> {
       if (x.name !== undefined && typeof x.name !== 'string') return bad('名前が正しくありません');
       return { ok: true, value: { op: 'hello', secret, ...(typeof x.name === 'string' ? { name: normalizeName(x.name) } : {}) } };
     case 'rotateSecret':
-      return { ok: true, value: { op: 'rotateSecret', secret } };
+      if (x.next !== undefined && !isSecret(x.next)) return bad('新しい鍵が正しくありません');
+      return { ok: true, value: { op: 'rotateSecret', secret, ...(isSecret(x.next) ? { next: x.next } : {}) } };
     case 'friendRequest':
     case 'friendRemove': {
       const fc = friendCode();
@@ -264,11 +274,12 @@ export function parseSocialRequest(x: unknown): Parsed<ParsedSocial> {
     case 'inviteLink':
       if (x.rotate !== undefined && typeof x.rotate !== 'boolean') return bad('作り直しの指定が正しくありません');
       return { ok: true, value: { op: 'inviteLink', secret, rotate: x.rotate === true } };
+    case 'linkInfo':
     case 'friendByLink': {
       const fc = friendCode();
       if (!fc) return bad('フレンドコードが正しくありません');
       if (!isHex32(x.token)) return bad('招待リンクが正しくありません');
-      return { ok: true, value: { op: 'friendByLink', secret, friendCode: fc, token: x.token } };
+      return { ok: true, value: { op: x.op, secret, friendCode: fc, token: x.token } };
     }
     case 'invite': {
       const fc = friendCode();

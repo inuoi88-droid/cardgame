@@ -11,8 +11,10 @@ import type {
   FriendshipRecord,
   InviteRecord,
   MatchRecord,
+  PlayerPatch,
   PlayerRecord,
   PresenceUpdate,
+  RateKind,
   RecordCount,
   RoomSummary,
   SharedDeckRecord,
@@ -30,6 +32,7 @@ export class MemoryStore implements RoomStore, SocialStore {
   inviteMap = new Map<string, InviteRecord>();
   matches = new Map<string, MatchRecord>();
   decks = new Map<string, SharedDeckRecord>();
+  events: { kind: RateKind; key: string; at: number }[] = [];
 
   // ---- 部屋 ----
   async insert(room: RoomRecord) {
@@ -66,9 +69,21 @@ export class MemoryStore implements RoomStore, SocialStore {
   async playersByIds(ids: readonly string[]) {
     return ids.flatMap((id) => (this.players.has(id) ? [clone(this.players.get(id)!)] : []));
   }
-  async updatePlayer(id: string, patch: Partial<Pick<PlayerRecord, 'name' | 'secretHash' | 'linkToken' | 'lastSeen'>>) {
+  async updatePlayer(id: string, patch: PlayerPatch) {
     const p = this.players.get(id);
     if (p) this.players.set(id, { ...p, ...patch });
+  }
+  async removeStalePlayers(before: number) {
+    const gone = new Set(
+      [...this.players.values()].filter((p) => p.lastSeen < before && !this.friendshipList.some((f) => f.a === p.id || f.b === p.id)).map((p) => p.id),
+    );
+    if (gone.size === 0) return 0;
+    for (const id of gone) this.players.delete(id);
+    this.requestList = this.requestList.filter((r) => !gone.has(r.from) && !gone.has(r.to));
+    for (const [id, i] of this.inviteMap) if (gone.has(i.from) || gone.has(i.to)) this.inviteMap.delete(id);
+    for (const [id, m] of this.matches) if (gone.has(m.players[0]) || gone.has(m.players[1])) this.matches.delete(id);
+    for (const [k, d] of this.decks) if (gone.has(d.ownerId)) this.decks.delete(k);
+    return gone.size;
   }
   async updatePresence(updates: readonly PresenceUpdate[]) {
     for (const u of updates) {
@@ -127,6 +142,17 @@ export class MemoryStore implements RoomStore, SocialStore {
     for (const [id, i] of this.inviteMap) if (i.createdAt < time) this.inviteMap.delete(id);
   }
 
+  // ---- 回数の記録 ----
+  async countEvents(kind: RateKind, key: string, since: number) {
+    return this.events.filter((e) => e.kind === kind && e.key === key && e.at >= since).length;
+  }
+  async addEvent(kind: RateKind, key: string, at: number) {
+    this.events.push({ kind, key, at });
+  }
+  async removeEventsOlderThan(time: number) {
+    this.events = this.events.filter((e) => e.at >= time);
+  }
+
   // ---- 成績 ----
   async insertMatch(m: MatchRecord) {
     if (!this.matches.has(m.id)) this.matches.set(m.id, clone(m));
@@ -157,7 +183,7 @@ export class MemoryStore implements RoomStore, SocialStore {
   async sharedDeckSummaries(ownerIds: readonly string[]): Promise<SharedDeckSummaryRecord[]> {
     return [...this.decks.values()]
       .filter((d) => ownerIds.includes(d.ownerId))
-      .map(({ ownerId, deckId, name, count, updatedAt }) => ({ ownerId, deckId, name, count, updatedAt }));
+      .map(({ ownerId, deckId, name, count, size, updatedAt }) => ({ ownerId, deckId, name, count, size, updatedAt }));
   }
   async sharedDecks(ownerId: string, deckId?: string) {
     return clone([...this.decks.values()].filter((d) => d.ownerId === ownerId && (deckId === undefined || d.deckId === deckId)));
@@ -166,7 +192,7 @@ export class MemoryStore implements RoomStore, SocialStore {
   // ---- 部屋の要約 ----
   async listedRooms(minSeen: number, limit: number): Promise<RoomSummary[]> {
     return [...this.rooms.values()]
-      .filter((r) => r.status === 'waiting' && r.meta?.listed === true && (r.seats[0]?.lastSeen ?? 0) >= minSeen)
+      .filter((r) => r.status === 'waiting' && r.meta?.listed === true && !r.meta.closed && (r.seats[0]?.lastSeen ?? 0) >= minSeen)
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, limit)
       .map((r) => clone(summaryOf(r)));

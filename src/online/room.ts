@@ -27,7 +27,7 @@ import {
   stirDraft,
 } from '../engine/draft/field.ts';
 import type { DraftPick, DraftState } from '../engine/draft/types.ts';
-import { NAME_MAX_LENGTH, normalizeName } from './codes.ts';
+import { NAME_MAX_LENGTH, cleanText, normalizeName } from './codes.ts';
 import { DRAFT_FEATURE, type ErrorReason, type RoomMode, type RoomStatus, type RoomView } from './protocol.ts';
 
 const O = BALANCE.online;
@@ -39,6 +39,10 @@ export const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
 /** 送られてくるカード・デッキの大きさの上限（いたずら対策） */
 export const MAX_CARDS = 60;
 export const MAX_ENTRIES = 60;
+/** デッキ・カードの ID の長さの上限 */
+export const MAX_ID_CHARS = 100;
+/** デッキ名の長さの上限（長ければ切り詰める。決定事項 #124） */
+export const DECK_NAME_MAX = 40;
 /** 時間切れのときに自動で進める手数の上限（無限に続かないように） */
 const AUTO_STEP_LIMIT = 50;
 /** 伏せた山を混ぜ直す乱数を、対戦のシードと別の値にするための定数 */
@@ -126,6 +130,10 @@ export interface RoomMeta {
   pickVersion?: number;
   /** 「募集中の部屋」の一覧に出す（決定事項 #121。DB では生成列 rooms.listed で引く。対戦が始まると意味がなくなる） */
   listed?: boolean;
+  /** 作成者が相手待ちのまま閉じた（決定事項 #124。入れない・一覧に出ない・招待も無効） */
+  closed?: boolean;
+  /** 部屋を出た席（close。ドラフト中ならおまかせで進めて対戦の初めに降参、対戦中なら降参、決着後なら再戦できない） */
+  left?: [boolean, boolean];
 }
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string; reason?: ErrorReason };
@@ -137,19 +145,24 @@ export function checkDeck(rawDeck: unknown, rawCards: unknown): Result<{ deck: D
   const d = parseDeck(rawDeck);
   if (!d.ok) return fail(`デッキの形式が正しくありません：${d.error}`, 'invalid');
   if (d.value.entries.length > MAX_ENTRIES) return fail('デッキのカードの種類が多すぎます', 'invalid');
+  // ID とデッキ名の長さ（相手の画面・相手の端末・公開デッキの DB に入るので。名前は見えない文字を消して切り詰める）
+  if (d.value.id.length > MAX_ID_CHARS || d.value.entries.some((e) => e.cardId.length > MAX_ID_CHARS)) return fail('デッキの ID が長すぎます', 'invalid');
+  const deckName = cleanText(d.value.name, DECK_NAME_MAX);
   if (!Array.isArray(rawCards) || rawCards.length > MAX_CARDS) return fail('カードのデータが正しくありません', 'invalid');
   const cards: CardDef[] = [];
   for (const raw of rawCards) {
     const c = parseCard(raw);
     if (!c.ok) return fail(`カードの形式が正しくありません：${c.error}`, 'invalid');
+    if (c.value.id.length > MAX_ID_CHARS) return fail('カードの ID が長すぎます', 'invalid');
     cards.push(c.value);
   }
   const byId = new Map(cards.map((c) => [c.id, c]));
-  const a = analyzeDeck(d.value, byId);
+  const deck: Deck = { ...d.value, name: deckName };
+  const a = analyzeDeck(deck, byId);
   if (!a.valid) return fail(`デッキがルール違反です：${a.violations[0]?.message ?? ''}`, 'invalid');
   // デッキで使うカードだけを残す
-  const used = new Set(d.value.entries.map((e) => e.cardId));
-  return { ok: true, value: { deck: d.value, cards: [...byId.values()].filter((c) => used.has(c.id)) } };
+  const used = new Set(deck.entries.map((e) => e.cardId));
+  return { ok: true, value: { deck, cards: [...byId.values()].filter((c) => used.has(c.id)) } };
 }
 
 export interface PlayerInput {
@@ -218,6 +231,7 @@ export function joinRoom(
   input: PlayerInput,
   ctx: { now: number; tokenHash: string; seed: number; pool?: readonly CardDef[]; player?: SeatPlayer },
 ): Result<RoomRecord> {
+  if (room.meta?.closed) return fail('この部屋は閉じられました', 'notFound');
   if (room.status !== 'waiting' || room.seats.length !== 1) return fail('この部屋はもう対戦が始まっています', 'invalid');
   const host = room.seats[0]!;
   // 同じプレイヤー（同じ端末の別のタブなど）どうしでは対戦しない（成績が自分対自分になる）
@@ -275,15 +289,23 @@ function startGame(room: RoomRecord, decks: [RoomDeck, RoomDeck], seed: number, 
   delete meta.auto;
   delete meta.pickVersion;
   if (rules) meta.rules = rules;
+  // ドラフトの途中で部屋を出た人は、対戦の初めに降参する（決定事項 #124）
+  let state = created.state;
+  for (const p of [0, 1] as const) {
+    if (!room.meta?.left?.[p] || state.phase === 'ended') continue;
+    const r = applyAction(state, { type: 'concede', player: p });
+    if (r.ok) state = r.state;
+  }
+  const ended = state.phase === 'ended';
   return {
     ok: true,
     value: {
       ...room,
-      status: 'playing',
-      state: created.state,
+      status: ended ? 'ended' : 'playing',
+      state,
       seats: room.seats.map((s) => ({ ...s, timeouts: 0 })),
       hostDeck: null,
-      deadline: now + O.mulliganSeconds * 1000,
+      deadline: ended ? null : now + O.mulliganSeconds * 1000,
       updatedAt: now,
       meta,
     },
@@ -378,6 +400,7 @@ export function handleRematch(room: RoomRecord, seat: PlayerId, now: number, see
   if (room.status !== 'ended' || !room.state) return fail('対戦が終わっていません', 'invalid');
   const decks = room.meta?.decks;
   if (!decks) return fail('この部屋では再戦できません', 'invalid');
+  if (room.meta?.left?.[0] || room.meta?.left?.[1]) return fail('相手は部屋を出ました', 'invalid');
   const rematch = withSeat(room.meta?.rematch, seat, true);
   if (room.meta?.rematch?.[seat]) return { ok: true, value: room };
   if (!rematch[0] || !rematch[1]) {
@@ -388,6 +411,31 @@ export function handleRematch(room: RoomRecord, seat: PlayerId, now: number, see
   const started = startGame(room, decks, seed, first, now);
   if (!started.ok) return started;
   return { ok: true, value: { ...started.value, version: room.version + 1 } };
+}
+
+/**
+ * 部屋を出る（決定事項 #124。「やめる」「部屋を抜ける」「移る」）。相手待ちなら部屋を閉じ（入れない・一覧から消える・招待も無効）、
+ * ドラフト中ならおまかせで最後まで取って対戦の初めに降参、対戦中なら降参、決着後なら再戦できなくする。もう出ていれば何もしない
+ */
+export function handleClose(room: RoomRecord, seat: PlayerId, now: number, seed: number): Result<RoomRecord> {
+  if (room.meta?.left?.[seat] || room.meta?.closed) return { ok: true, value: room };
+  const meta: RoomMeta = { ...(room.meta ?? { mode: roomMode(room) }), left: withSeat(room.meta?.left, seat, true) };
+  const bump = (r: RoomRecord): RoomRecord => ({ ...r, version: room.version + 1, updatedAt: now });
+  if (room.status === 'waiting') {
+    if (seat !== 0) return { ok: true, value: room };
+    const closed: RoomMeta = { ...meta, closed: true };
+    delete closed.listed;
+    return { ok: true, value: bump({ ...room, hostDeck: null, meta: closed }) };
+  }
+  if (room.status === 'drafting' && room.meta?.draft) {
+    return { ok: true, value: progressDraft({ ...room, meta: { ...meta, auto: withSeat(room.meta.auto, seat, true) } }, now, seed, room.meta.draft.picks.length) };
+  }
+  if (room.status === 'playing' && room.state) {
+    const r = applyAction(room.state, { type: 'concede', player: seat });
+    if (!r.ok) return fail(r.error, 'invalid');
+    return { ok: true, value: advance({ ...room, meta }, room.seats, r.state, now, false) };
+  }
+  return { ok: true, value: bump({ ...room, meta: { ...meta, rematch: withSeat(room.meta?.rematch, seat, false) } }) };
 }
 
 function withSeat(flags: readonly [boolean, boolean] | undefined, seat: PlayerId, on: boolean): [boolean, boolean] {
@@ -542,6 +590,8 @@ export function roomView(room: RoomRecord, seat: PlayerId, now: number): RoomVie
     ...opponentDeckPart(room, seat),
     ...(me?.playerId && opp?.friendCode ? { opponentFriendCode: opp.friendCode } : {}),
     ...(room.meta?.listed ? { listed: true } : {}),
+    ...(room.meta?.closed ? { closed: true } : {}),
+    ...(room.meta?.left?.[other(seat)] ? { opponentLeft: true } : {}),
   };
 }
 

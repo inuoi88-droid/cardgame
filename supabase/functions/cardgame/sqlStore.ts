@@ -137,6 +137,7 @@ interface SharedDeckRecord {
   count: number;
   deck: Json;
   cards: Json[];
+  size: number;
   updatedAt: number;
 }
 interface PresenceUpdate {
@@ -180,7 +181,7 @@ const fromInvite = (r: any): InviteRecord => ({
 /** 部屋の要約：ドラフトの山・両者のデッキ・対戦の状態は読まない（meta は mode・rules・listed だけ） */
 const SUMMARY_COLS = `code, status, seats,
   case when meta is null then null
-       else jsonb_strip_nulls(jsonb_build_object('mode', meta -> 'mode', 'rules', meta -> 'rules', 'listed', meta -> 'listed')) end as meta,
+       else jsonb_strip_nulls(jsonb_build_object('mode', meta -> 'mode', 'rules', meta -> 'rules', 'listed', meta -> 'listed', 'closed', meta -> 'closed')) end as meta,
   host_deck -> 'rules' as rules, ${ms('updated_at')} as updated_ms`;
 
 // deno-lint-ignore no-explicit-any
@@ -217,14 +218,24 @@ export function makeSocialStore(sql: Sql) {
       const rows = await q(`select ${PLAYER_COLS} from cardgame.players where id = any($1::text[])`, [[...ids]]);
       return rows.map(fromPlayer);
     },
-    async updatePlayer(id: string, patch: Partial<Pick<PlayerRecord, 'name' | 'secretHash' | 'linkToken' | 'lastSeen'>>): Promise<void> {
+    async updatePlayer(id: string, patch: Partial<Pick<PlayerRecord, 'name' | 'secretHash' | 'linkToken' | 'inboxId' | 'lastSeen'>>): Promise<void> {
       const set: Record<string, unknown> = {};
       if (patch.name !== undefined) set.name = patch.name;
       if (patch.secretHash !== undefined) set.secret_hash = patch.secretHash;
       if (patch.linkToken !== undefined) set.link_token = patch.linkToken;
+      if (patch.inboxId !== undefined) set.inbox_id = patch.inboxId;
       if (patch.lastSeen !== undefined) set.last_seen = time(patch.lastSeen);
       if (Object.keys(set).length === 0) return;
       await sql`update cardgame.players set ${sql(set)} where id = ${id}`;
+    },
+    async removeStalePlayers(before: number): Promise<number> {
+      // フレンドのいない、長く来ていないプレイヤー（申請・招待・成績・公開デッキは on delete cascade で消える）
+      const rows = await sql`
+        delete from cardgame.players p
+        where p.last_seen < ${new Date(before)}
+          and not exists (select 1 from cardgame.friendships f where f.a = p.id or f.b = p.id)
+        returning p.id`;
+      return rows.length;
     },
     async updatePresence(updates: readonly PresenceUpdate[]): Promise<void> {
       for (const u of updates) {
@@ -303,6 +314,17 @@ export function makeSocialStore(sql: Sql) {
       await sql`delete from cardgame.invites where created_at < ${new Date(t)}`;
     },
 
+    async countEvents(kind: string, key: string, since: number): Promise<number> {
+      const rows = await sql`select count(*)::int as n from cardgame.rate_events where kind = ${kind} and key = ${key} and at >= ${new Date(since)}`;
+      return Number(rows[0]?.n ?? 0);
+    },
+    async addEvent(kind: string, key: string, at: number): Promise<void> {
+      await sql`insert into cardgame.rate_events (kind, key, at) values (${kind}, ${key}, ${time(at)})`;
+    },
+    async removeEventsOlderThan(t: number): Promise<void> {
+      await sql`delete from cardgame.rate_events where at < ${new Date(t)}`;
+    },
+
     async insertMatch(m: MatchRecord): Promise<void> {
       await sql`
         insert into cardgame.matches (id, room_code, game, p0, p1, winner, mode, ended_at)
@@ -327,10 +349,11 @@ export function makeSocialStore(sql: Sql) {
 
     async putSharedDeck(d: SharedDeckRecord): Promise<void> {
       await sql`
-        insert into cardgame.shared_decks (owner_id, deck_id, name, card_count, deck, cards, updated_at)
-        values (${d.ownerId}, ${d.deckId}, ${d.name}, ${d.count}, ${sql.json(d.deck)}, ${sql.json(d.cards)}, ${time(d.updatedAt)})
+        insert into cardgame.shared_decks (owner_id, deck_id, name, card_count, deck, cards, size, updated_at)
+        values (${d.ownerId}, ${d.deckId}, ${d.name}, ${d.count}, ${sql.json(d.deck)}, ${sql.json(d.cards)}, ${d.size}, ${time(d.updatedAt)})
         on conflict (owner_id, deck_id) do update set
-          name = excluded.name, card_count = excluded.card_count, deck = excluded.deck, cards = excluded.cards, updated_at = excluded.updated_at`;
+          name = excluded.name, card_count = excluded.card_count, deck = excluded.deck, cards = excluded.cards, size = excluded.size,
+          updated_at = excluded.updated_at`;
     },
     async removeSharedDeck(ownerId: string, deckId: string): Promise<void> {
       await sql`delete from cardgame.shared_decks where owner_id = ${ownerId} and deck_id = ${deckId}`;
@@ -338,18 +361,20 @@ export function makeSocialStore(sql: Sql) {
     async sharedDeckSummaries(ownerIds: readonly string[]) {
       if (ownerIds.length === 0) return [];
       const rows = await q(
-        `select owner_id, deck_id, name, card_count, ${ms('updated_at')} as updated_ms from cardgame.shared_decks where owner_id = any($1::text[])`,
+        `select owner_id, deck_id, name, card_count, size, ${ms('updated_at')} as updated_ms from cardgame.shared_decks where owner_id = any($1::text[])`,
         [[...ownerIds]],
       );
-      // deno-lint-ignore no-explicit-any
-      return rows.map((r: any) => ({ ownerId: r.owner_id, deckId: r.deck_id, name: r.name, count: Number(r.card_count), updatedAt: Number(r.updated_ms) }));
+      return rows.map(
+        // deno-lint-ignore no-explicit-any
+        (r: any) => ({ ownerId: r.owner_id, deckId: r.deck_id, name: r.name, count: Number(r.card_count), size: Number(r.size), updatedAt: Number(r.updated_ms) }),
+      );
     },
     async sharedDecks(ownerId: string, deckId?: string) {
       const rows =
         deckId === undefined
-          ? await q(`select owner_id, deck_id, name, card_count, deck, cards, ${ms('updated_at')} as updated_ms from cardgame.shared_decks where owner_id = $1`, [ownerId])
+          ? await q(`select owner_id, deck_id, name, card_count, size, deck, cards, ${ms('updated_at')} as updated_ms from cardgame.shared_decks where owner_id = $1`, [ownerId])
           : await q(
-              `select owner_id, deck_id, name, card_count, deck, cards, ${ms('updated_at')} as updated_ms from cardgame.shared_decks where owner_id = $1 and deck_id = $2`,
+              `select owner_id, deck_id, name, card_count, size, deck, cards, ${ms('updated_at')} as updated_ms from cardgame.shared_decks where owner_id = $1 and deck_id = $2`,
               [ownerId, deckId],
             );
       // deno-lint-ignore no-explicit-any
@@ -358,6 +383,7 @@ export function makeSocialStore(sql: Sql) {
         deckId: r.deck_id,
         name: r.name,
         count: Number(r.card_count),
+        size: Number(r.size),
         deck: r.deck,
         cards: r.cards,
         updatedAt: Number(r.updated_ms),
@@ -368,7 +394,7 @@ export function makeSocialStore(sql: Sql) {
       // rooms.listed は meta の listed から作る生成列（部分インデックス rooms_listed_idx）
       const rows = await q(
         `select ${SUMMARY_COLS} from cardgame.rooms
-         where listed and status = 'waiting' and (seats -> 0 ->> 'lastSeen')::float8 >= $1
+         where listed and status = 'waiting' and (seats -> 0 ->> 'lastSeen')::float8 >= $1 and coalesce((meta ->> 'closed')::boolean, false) = false
          order by updated_at desc limit $2`,
         [minSeen, limit],
       );

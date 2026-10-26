@@ -37,21 +37,32 @@
 
 ## 1. 準備
 
+**最初に必ず push の権限を付ける。** 定期タスクのセッションには、読むだけの clone が最初から置かれていることがある（そのままでは
+`git push` が 403「not in this session's authorized repository set」になる）。clone が手元にあっても、まず `add_repo`
+（owner `inuoi88-droid`・repo `cardgame`・access `push`）を呼び、push できることを確かめてから報告を読む。
+
 ```
 git fetch origin claude/card-game-battle-system-tfb8gr
 git checkout -B claude/feedback-$(date -u +%Y%m%d) origin/claude/card-game-battle-system-tfb8gr
+git push --dry-run origin HEAD:refs/heads/claude/feedback-$(date -u +%Y%m%d)   # 403 なら止める（下）
 npm ci            # node_modules が無いとき
 npm test          # ベースが緑であること（赤なら「8. まとめ」で知らせて止める）
 ```
+
+push の確認が 403 のまま（`add_repo` が断られた・権限が付かない）なら、**報告を `checking` にする前に止める**
+（コードも DB も変えない）。まとめに「push の権限が無いので止めた。定期タスクにリポジトリ inuoi88-droid/cardgame を push の権限で
+加えてほしい」と書く。
 
 ## 2. 新しい報告を読む
 
 Supabase の SQL（`cardgame` スキーマだけ）で読む。まず一覧、必要な報告だけ中身を読む。
 
 ```sql
--- 一覧（新しい報告）
-select id, created_at, kind, topic, source, left(body, 200) as body, jsonb_array_length(cards) as cards, app
-from cardgame.feedback where status = 'new' order by id limit 50;
+-- 一覧（新しい報告と、前の回が途中で止まって 6 時間たった checking）
+select id, created_at, status, kind, topic, source, left(body, 200) as body, jsonb_array_length(cards) as cards, app
+from cardgame.feedback
+where status = 'new' or (status = 'checking' and updated_at < now() - interval '6 hours')
+order by id limit 50;
 
 -- 1件の中身（カードの定義・対戦の記録）
 select body, cards, context from cardgame.feedback where id = <id>;
@@ -104,9 +115,12 @@ update cardgame.feedback set status = 'checking', handled_by = '<session url>', 
 ```
 npm run typecheck
 npm test                         # 倍率1（tests/*.test.ts）と実際の倍率（tests/*.real.test.ts）
-npm run sim:presets              # プリセットの勝率が前と大きく変わらない（1組み合わせ 200 試合）
+node scripts/sim/presets.mts 60  # プリセットの勝率が前と大きく変わらない（直す前と後で。1回 5 分ほど）
 node scripts/sim/official.mts common 60   # 公式カード（src/official）がおかしくならない
 ```
+
+シミュレーションは長いので、Bash の `run_in_background` と長い `timeout`（30 分まで）で回し、`npm test` と同じコマンドの中で
+続けて回さない（前の回は `npm test`＋`sim:presets` 2回を1つにまとめて時間切れになった）。直す前の数字は `git stash` で取る。
 
 - 値段を上げると、**プレイヤーのブラウザに保存された自作カードが予算オーバーで使えなくなる**ことがある。上げ幅は最小にし、
   決定事項ログにその影響を書く。公式カード（`src/official`）とプリセットがルール違反になったら、それも直す（`tests/official*.test.ts`）。
@@ -144,9 +158,16 @@ npm run build:server      # src/online かエンジンを変えたとき（supab
 
 ## 6. プルリクエストとマージ
 
+0. push の直前に `git fetch origin claude/card-game-battle-system-tfb8gr` で本番のブランチが進んでいないか見る。進んでいたら
+   作業ブランチに merge し（rebase しない）、決定事項・更新情報の番号が重なっていないか直してから、5 のチェックをやり直す。
 1. 作業ブランチを push し、`claude/card-game-battle-system-tfb8gr` へのプルリクエストを作る（本文：直した報告の番号と中身の要約・
-   確かめたこと（テスト・シミュレーションの数字）・プレイヤーへの影響）。
-2. 5 のチェックがすべて緑なら、そのプルリクエストをマージする（GitHub のツールで）。マージすると Vercel が本番を作り直す。
+   確かめたこと（テスト・シミュレーションの数字）・プレイヤーへの影響）。GitHub のツール（`mcp__github__create_pull_request`）が
+   あればそれで、無ければ REST の `gh api`（**`gh pr create` は GraphQL なので使えない**）：
+   `gh api repos/inuoi88-droid/cardgame/pulls -f title='…' -f head=claude/feedback-<日付> -f base=claude/card-game-battle-system-tfb8gr -F body=@pr.md`
+2. 5 のチェックがすべて緑なら、そのプルリクエストをマージする（`mcp__github__merge_pull_request`、無ければ
+   `gh api -X PUT repos/inuoi88-droid/cardgame/pulls/<番号>/merge -f merge_method=merge`）。どちらも断られたときだけ、手元で
+   `git checkout claude/card-game-battle-system-tfb8gr && git merge --no-ff claude/feedback-<日付>` して本番のブランチに push する
+   （プルリクエストは GitHub が自動で「マージ済み」にする）。マージすると Vercel が本番を作り直す。
 3. **src/online かエンジンを変えたとき**は、Edge Function「cardgame」をデプロイし直す（CLAUDE.md の手順。`verify_jwt` なし）：
    - `index.ts`・`sqlStore.ts` はリポジトリのとおり
    - `engine.js` は1行：`export * from 'https://raw.githubusercontent.com/inuoi88-droid/cardgame/<マージ後のコミット>/supabase/functions/cardgame/engine.js';`

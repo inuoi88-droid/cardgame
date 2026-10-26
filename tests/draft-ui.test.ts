@@ -53,10 +53,14 @@ describe('取れない理由・レアリティの残り', () => {
     expect(shortReason({ cardId: 'r1', ok: false, reason: 'deckRule' }, rare)).toBe('取れません');
   });
 
-  it('レア・エピックをあと何回取れるか（デッキの上限から）', () => {
+  it('レア・エピックをあと何回取れるか（デッキの上限から）。レジェンドは1人 legendTakes 回まで（#134）', () => {
     const c = BALANCE.draft.copies;
+    expect(rarityRoom([], false).map((r) => r.rarity)).toEqual(['rare', 'epic']);
     const room0 = rarityRoom([]);
-    expect(room0.map((r) => r.rarity)).toEqual(['rare', 'epic']);
+    expect(room0.map((r) => r.rarity)).toEqual(['rare', 'epic', 'legend']);
+    expect(room0[2]).toMatchObject({ copies: 0, limit: BALANCE.draft.legendTakes, takesLeft: BALANCE.draft.legendTakes });
+    const legend = card({ id: 'lg', name: '伝説', rarity: 'legend', cost: 1 });
+    expect(rarityRoom([{ card: legend, count: 1 }])[2]).toMatchObject({ copies: 1, takesLeft: BALANCE.draft.legendTakes - 1 });
     expect(room0[0]!.takesLeft).toBe(Math.floor(BALANCE.rarity.rare.deckLimit! / c));
     expect(room0[1]!.takesLeft).toBe(Math.floor(BALANCE.rarity.epic.deckLimit! / c));
     const room = rarityRoom([
@@ -97,8 +101,11 @@ describe('ドラフトの見え方と一言', () => {
     if (!t.ok) throw new Error(t.error);
     s = t.state;
     const name = s.cards[id]!.name;
-    expect(lastPickText(draft.draftView(s, 0), 0, ['あなた', 'CPU'])).toBe(`あなたが「${name}」を取りました`);
-    expect(lastPickText(draft.draftView(s, 1), 1, ['アリス', 'ボブ'])).toBe(`アリスが「${name}」を取りました`);
+    // 場に長く残っていた2枚の入れ替えも書く（#134）
+    const swapped = s.picks[0]!.swapped!.map((x) => `「${s.cards[x]!.name}」`).join('');
+    const tail = `。場に長く残っていた${swapped}は山に戻り、入れ替わりました`;
+    expect(lastPickText(draft.draftView(s, 0), 0, ['あなた', 'CPU'])).toBe(`あなたが「${name}」を取りました${tail}`);
+    expect(lastPickText(draft.draftView(s, 1), 1, ['アリス', 'ボブ'])).toBe(`アリスが「${name}」を取りました${tail}`);
   });
 
   it('おまかせ・時間切れで取ったものはそう書く（決定事項 #120）', () => {

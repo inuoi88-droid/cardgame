@@ -35,6 +35,8 @@ const PRE_COST_TIEBREAK = 0.02;
 const DENIAL: Record<CpuLevel, number> = { easy: 0, normal: 0.08, hard: 0.18 };
 /** 点のばらつき（±この割合） */
 const NOISE: Record<CpuLevel, number> = { easy: 0.7, normal: 0.15, hard: 0 };
+/** レジェンドの点に掛ける割合（1枚しか入らない。足りない1枚は終わったときにコモンで埋まるので半分よりは高く：決定事項 #134） */
+const LEGEND_RATE = 0.75;
 
 /**
  * カードの強さの目安：コストを差し引いた後のポイント（＝予算のうち使った分。レアリティの上限が高いほど大きい）。
@@ -85,7 +87,8 @@ export function cpuPickScore(def: CardDef, counts: DraftCounts, byId: ReadonlyMa
   let shared = 0;
   for (const c of mine) for (const f of features(c)) if (own.has(f)) shared++;
   synergy += Math.min(FEATURE_MAX, FEATURE_STEP * shared);
-  return Math.max(0, cardPower(def)) * typeRate * curveRate * (1 + synergy);
+  const copyRate = def.rarity === 'legend' ? LEGEND_RATE : 1;
+  return Math.max(0, cardPower(def)) * typeRate * curveRate * (1 + synergy) * copyRate;
 }
 
 /** 決まった乱数（mulberry32）。state を持たない呼び出し用 */

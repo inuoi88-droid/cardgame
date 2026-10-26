@@ -8,7 +8,7 @@
  * 何を取れるかはエンジンの draftView（takeable）だけを見る。
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BALANCE, RARITY_LABEL, type battle, type CardDef, type draft } from '../../engine/index.ts';
+import { BALANCE, RARITY_LABEL, draft, type battle, type CardDef } from '../../engine/index.ts';
 import { CardArtOf } from '../components/CardArt.tsx';
 import { CardDetail } from '../components/CardDetail.tsx';
 import { CardView } from '../components/CardView.tsx';
@@ -188,7 +188,7 @@ export function DraftBoard(props: DraftBoardProps) {
             残<b>{view.takesLeft[me]}</b>回
           </span>
           <span className="dstat dstat--rar">
-            {rarityRoom(view.taken[me]).map((r) => (
+            {rarityRoom(view.taken[me], view.legends).map((r) => (
               <span key={r.rarity} className={cx('dstat__rar', r.takesLeft === 0 && 'is-out')} title={`${RARITY_LABEL[r.rarity]}はあと${r.takesLeft}回取れます（デッキに${r.limit}枚まで）`}>
                 <RarityGem rarity={r.rarity} />
                 <span className="dstat__rarname">{RARITY_LABEL[r.rarity]}</span>残<b>{r.takesLeft}</b>
@@ -220,7 +220,7 @@ export function DraftBoard(props: DraftBoardProps) {
                       {reason}
                     </span>
                   ) : myTurn ? (
-                    <button type="button" className="btn btn--primary btn--small dcard__take" disabled={busy} onClick={() => take(def.id)} aria-label={`「${def.name}」を取る（${D.copies}枚入る）`}>
+                    <button type="button" className="btn btn--primary btn--small dcard__take" disabled={busy} onClick={() => take(def.id)} aria-label={`「${def.name}」を取る（${draft.copiesOf(def)}枚入る）`}>
                       取る
                     </button>
                   ) : (
@@ -235,8 +235,8 @@ export function DraftBoard(props: DraftBoardProps) {
         <div className="dboard__side">
           {wide ? (
             <>
-              <DeckPanel title="あなたのデッキ" label="あなたのデッキ" owner={me} taken={view.taken[me]} gi="visored-helm" onCard={(card, count) => setZoom({ card, where: 'deck', owner: me, count })} />
-              <DeckPanel title={<OppTitle name={nameOf(opp)} />} label={`${nameOf(opp)}のデッキ`} owner={opp} taken={view.taken[opp]} gi={oppGi} onCard={(card, count) => setZoom({ card, where: 'deck', owner: opp, count })} small />
+              <DeckPanel title="あなたのデッキ" label="あなたのデッキ" owner={me} taken={view.taken[me]} gi="visored-helm" onCard={(card, count) => setZoom({ card, where: 'deck', owner: me, count })} legends={view.legends} />
+              <DeckPanel title={<OppTitle name={nameOf(opp)} />} label={`${nameOf(opp)}のデッキ`} owner={opp} taken={view.taken[opp]} gi={oppGi} onCard={(card, count) => setZoom({ card, where: 'deck', owner: opp, count })} legends={view.legends} small />
             </>
           ) : (
             <>
@@ -249,9 +249,9 @@ export function DraftBoard(props: DraftBoardProps) {
                 </button>
               </div>
               {tab === 'me' ? (
-                <DeckPanel title="あなたのデッキ" label="あなたのデッキ" owner={me} taken={view.taken[me]} gi="visored-helm" onCard={(card, count) => setZoom({ card, where: 'deck', owner: me, count })} bare />
+                <DeckPanel title="あなたのデッキ" label="あなたのデッキ" owner={me} taken={view.taken[me]} gi="visored-helm" onCard={(card, count) => setZoom({ card, where: 'deck', owner: me, count })} legends={view.legends} bare />
               ) : (
-                <DeckPanel title={<OppTitle name={nameOf(opp)} />} label={`${nameOf(opp)}のデッキ`} owner={opp} taken={view.taken[opp]} gi={oppGi} onCard={(card, count) => setZoom({ card, where: 'deck', owner: opp, count })} bare />
+                <DeckPanel title={<OppTitle name={nameOf(opp)} />} label={`${nameOf(opp)}のデッキ`} owner={opp} taken={view.taken[opp]} gi={oppGi} onCard={(card, count) => setZoom({ card, where: 'deck', owner: opp, count })} legends={view.legends} bare />
               )}
             </>
           )}
@@ -271,7 +271,9 @@ export function DraftBoard(props: DraftBoardProps) {
               // 取れない理由は下の操作の欄（スマホでは画面の下に固定）に出す
               undefined
             ) : myTurn ? (
-              `取ると${D.copies}枚デッキに入ります`
+              zoom.card.rarity === 'legend'
+                ? `取ると1枚デッキに入ります（レジェンドは1人${D.legendTakes}枚まで。足りない1枚は最後に取ったコモンがもう1枚入ります）`
+                : `取ると${draft.copiesOf(zoom.card)}枚デッキに入ります`
             ) : (
               `${nameOf(opp)}の番です（あなたの番になると取れます）`
             )
@@ -284,7 +286,7 @@ export function DraftBoard(props: DraftBoardProps) {
               </p>
             ) : myTurn ? (
               <button type="button" className="btn btn--primary" disabled={busy} onClick={() => take(zoom.card.id)}>
-                これを取る（{D.copies}枚入る）
+                これを取る（{draft.copiesOf(zoom.card)}枚入る）
               </button>
             ) : undefined
           }
@@ -304,6 +306,7 @@ export function DeckPanel({
   onCard,
   small = false,
   bare = false,
+  legends = false,
 }: {
   title: ReactNode;
   /** 読み上げの名前 */
@@ -316,6 +319,8 @@ export function DeckPanel({
   small?: boolean;
   /** 枠なし（タブの中） */
   bare?: boolean;
+  /** 山にレジェンドがあればレジェンドの残りも出す */
+  legends?: boolean;
 }) {
   const total = takenTotal(taken);
   const rows = useMemo(() => deckRows(taken), [taken]);
@@ -330,7 +335,7 @@ export function DeckPanel({
         <span className="dpanel__count">
           <b>{total}</b>/{BALANCE.deck.size}枚
         </span>
-        {rarityRoom(taken).map((r) => (
+        {rarityRoom(taken, legends).map((r) => (
           <span key={r.rarity} className={cx('dpanel__rar', r.takesLeft === 0 && 'is-out')}>
             <RarityGem rarity={r.rarity} />
             {total >= BALANCE.deck.size ? `${RARITY_LABEL[r.rarity]} ${r.copies}/${r.limit}枚` : `${RARITY_LABEL[r.rarity]}残${r.takesLeft}回（${r.copies}/${r.limit}枚）`}

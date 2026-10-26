@@ -13,6 +13,8 @@ export interface DraftPick {
   extra?: number;
   /** 本人ではなく「おまかせ」が取った（timeout：時間切れ・auto：おまかせにしていた。オンラインのサーバーが付ける） */
   by?: 'timeout' | 'auto';
+  /** この取得のあと、場に長く残っていたので山に戻して入れ替えたカード（表向きだったので公開情報。決定事項 #134） */
+  swapped?: string[];
 }
 
 /**
@@ -29,6 +31,11 @@ export interface DraftState {
   pile: string[];
   /** 表向きの場（左から並べた順） */
   field: string[];
+  /**
+   * 場のそれぞれのカードが置かれたときの取得の数（picks.length。field と同じ並び）。小さいほど長く残っている。
+   * 入れ替える古いカードを選ぶのに使う（決定事項 #134。無い古い状態は全部0とみなす）
+   */
+  since?: number[];
   /** 取った順の記録 */
   picks: DraftPick[];
   /** 最初に取る人 */
@@ -61,13 +68,15 @@ export interface DraftView {
   takeable: TakeInfo[];
   /** 両者が取ったカード（取った順に種類を並べる） */
   taken: [DraftTaken[], DraftTaken[]];
-  /** 取った順の記録（両者が見られる公開情報） */
-  picks: DraftPick[];
+  /** 取った順の記録（両者が見られる公開情報）。swappedNames は入れ替えたカードの名前 */
+  picks: (DraftPick & { swappedNames?: string[] })[];
   /** 次に取る人（終わったら null） */
   turn: PlayerId | null;
   first: PlayerId;
   /** 山の残りの枚数 */
   pileSize: number;
+  /** この山にレジェンドがあるか（レアリティの残りの表示に使う。決定事項 #134） */
+  legends: boolean;
   /** それぞれの残りの取得回数 */
   takesLeft: [number, number];
   done: boolean;

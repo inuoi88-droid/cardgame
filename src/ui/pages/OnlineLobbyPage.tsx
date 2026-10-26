@@ -329,10 +329,10 @@ function BattleTab({ initialCode, meName }: { initialCode: string | null; meName
           <h2>ドラフト戦の流れ</h2>
           <ol className="lobby__steps">
             <li>
-              公式カード「{OFFICIAL_SET.name}」の表向きの場（いつも{BALANCE.draft.field}枚）から、2人で交互に1枚ずつ取ります。取るたびに伏せた山から1枚補充されます。
+              公式カード「{OFFICIAL_SET.name}」の表向きの場（いつも{BALANCE.draft.field}枚）から、2人で交互に1枚ずつ取ります。取るたびに伏せた山から1枚補充され、場に長く残っている{BALANCE.draft.refresh}枚も入れ替わります。
             </li>
             <li>
-              1回取ると同じカードが{BALANCE.draft.copies}枚デッキに入ります。{BALANCE.draft.takes}回ずつ取ると、どちらも{BALANCE.deck.size}枚のデッキが完成します（レア・エピックはデッキの上限まで）。
+              1回取ると同じカードが{BALANCE.draft.copies}枚デッキに入ります。{BALANCE.draft.takes}回ずつ取ると、どちらも{BALANCE.deck.size}枚のデッキが完成します（レア・エピックはデッキの上限まで。レジェンドは1枚だけ入り、1人{BALANCE.draft.legendTakes}枚まで）。
             </li>
             <li>できたデッキでそのまま対戦。先攻・後攻はランダムです。終わったら「同じデッキでもう一戦」もできます。</li>
           </ol>

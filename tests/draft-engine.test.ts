@@ -55,16 +55,18 @@ describe('ドラフトの始まり', () => {
     expect(c.pile.join()).not.toBe(a.pile.join());
   });
 
-  it(`場は${D.field}枚、レジェンドとルール違反は山に入らない`, () => {
+  it(`場は${D.field}枚、レジェンドは山に1枚ずつ（#134）、ルール違反は山に入らない`, () => {
     const legend = card({ id: 'zz-legend', name: '伝説', rarity: 'legend', cost: 1, stats: { attack: 1, hp: 1, defense: 0 } });
     const broken = card({ id: 'zz-bad', name: '壊れ', cost: 0, effects: [{ id: 'damage', value: 99, timing: 'play', target: 'chosen', condition: null }] });
     const s = mustCreate({ seed: 1, pool: [...PRESET_CARDS, legend, broken] });
     expect(s.field).toHaveLength(D.field);
+    expect(s.since).toEqual(s.field.map(() => 0));
     const all = [...s.field, ...s.pile];
-    expect(all).not.toContain('zz-legend');
+    expect(all.filter((id) => id === 'zz-legend')).toHaveLength(D.pileCopies.legend);
     expect(all).not.toContain('zz-bad');
-    expect(Object.values(s.cards).some((c) => c.rarity === 'legend')).toBe(false);
-    // 1種類が山に入る枚数はレアリティで決まる（コモン2枚・レアとエピック1枚。#117）
+    // ひとりで選ぶ形式の山にはレジェンドを入れない（1回で2枚入るので）
+    expect(draft.draftPool([...PRESET_CARDS, legend]).some((c) => c.rarity === 'legend')).toBe(false);
+    // 1種類が山に入る枚数はレアリティで決まる（コモン2枚・レアとエピックとレジェンド1枚。#117・#134）
     const byCount = new Map<string, number>();
     for (const id of all) byCount.set(id, (byCount.get(id) ?? 0) + 1);
     for (const [id, n] of byCount) expect(n, id).toBe(D.pileCopies[s.cards[id]!.rarity]);
@@ -110,7 +112,9 @@ describe('交互に取る', () => {
         const a = analyzeDeck(d.deck, new Map(d.cards.map((c) => [c.id, c])));
         expect(a.violations).toEqual([]);
         expect(a.total).toBe(BALANCE.deck.size);
-        expect(d.cards.some((c) => c.rarity === 'legend')).toBe(false);
+        // レジェンドは1人 legendTakes 枚まで・1枚ずつ（#134）
+        expect(d.cards.filter((c) => c.rarity === 'legend').length).toBeLessThanOrEqual(D.legendTakes);
+        for (const e of d.deck.entries) if (s.cards[e.cardId]!.rarity === 'legend') expect(e.count).toBe(1);
         expect(rarityCount(s, p, 'rare')).toBeLessThanOrEqual(BALANCE.rarity.rare.deckLimit! / D.copies);
         expect(rarityCount(s, p, 'epic')).toBeLessThanOrEqual(BALANCE.rarity.epic.deckLimit! / D.copies);
       }
@@ -139,10 +143,13 @@ describe('交互に取る', () => {
     const t = take(s, 0, s.field[2]!);
     expect(JSON.stringify(s)).toBe(before);
     expect(t.field).toHaveLength(D.field);
+    // 取った枠の補充で1枚減り、入れ替えた2枚は山に戻る（#134）
     expect(t.pile).toHaveLength(s.pile.length - 1);
-    // 取った場所にそのまま補充し、ほかのカードは動かさない（スマホの2列で並びが跳ねないように）
+    // 取った場所にそのまま補充し、ほかのカードは並びを変えない（スマホの2列で並びが跳ねないように）
     expect(t.field[2]).toBe(s.pile[0]);
-    expect(t.field.filter((_, i) => i !== 2)).toEqual(s.field.filter((_, i) => i !== 2));
+    const changed = t.field.map((id, i) => (id !== s.field[i] ? i : -1)).filter((i) => i >= 0 && i !== 2);
+    expect(changed).toHaveLength(D.refresh);
+    expect(t.picks[0]!.swapped).toEqual(changed.map((i) => s.field[i]));
     const done = runAuto(t);
     expect(draft.applyTake(done, draft.draftTurn(done) ?? 0, done.field[0]!)).toMatchObject({ ok: false, reason: 'done' });
   });
@@ -187,7 +194,76 @@ describe('交互に取る', () => {
     expect(draft.applyTake(s, 0, 'tw-b')).toMatchObject({ ok: false, reason: 'untakeable' });
   });
 
-  it('手番の人が場のどれも取れなければ、取れるカードが出るまで山から追加で出す（6枚を超えている間は補充しない）', () => {
+  it('手番の人が場のどれも取れなければ、取れるカードが出るまで山から追加で出す（6枚を超えている間は補充しない。入れ替えなしで確かめる）', () => {
+    const refresh = D.refresh;
+    (BALANCE.draft as { refresh: number }).refresh = 0;
+    try {
+      extraCase();
+    } finally {
+      (BALANCE.draft as { refresh: number }).refresh = refresh;
+    }
+  });
+
+  it('入れ替えるのは取った枠以外でいちばん長く残っている2枚。入れ替えたカードは山に戻り、記録に残る（#134）', () => {
+    const p = pool(30, 0, 0);
+    const c = (i: number) => `common-${String(i).padStart(2, '0')}`;
+    const s: draft.DraftState = {
+      v: 1,
+      rng: 7,
+      cards: Object.fromEntries(p.map((x) => [x.id, x])),
+      field: [c(0), c(1), c(2), c(3), c(4), c(5)],
+      since: [5, 1, 3, 0, 4, 2],
+      pile: Array.from({ length: 20 }, (_, i) => c(10 + i)),
+      picks: [0, 1, 0, 1, 0, 1].map((player, i) => ({ player: player as 0 | 1, cardId: c(24 + i) })),
+      first: 0,
+    };
+    // 取るのは since が 3 の枠（2）。残りで古いのは since 0 の枠3と since 1 の枠1
+    const t = take(s, 0, c(2));
+    expect(t.field[2]).toBe(c(10));
+    expect(t.field[3]).toBe(c(11));
+    expect(t.field[1]).toBe(c(12));
+    expect([t.field[0], t.field[4], t.field[5]]).toEqual([c(0), c(4), c(5)]);
+    expect(t.since).toEqual([5, 7, 7, 7, 4, 2]);
+    expect(t.picks[t.picks.length - 1]!.swapped).toEqual([c(3), c(1)]);
+    expect(t.pile).toContain(c(3));
+    expect(t.pile).toContain(c(1));
+    expect(t.pile).toHaveLength(s.pile.length - 1);
+    // 見え方には入れ替えたカードの名前が出る（表向きだったので公開情報）
+    expect(draft.draftView(t, 1).picks.at(-1)!.swappedNames).toEqual(['common3', 'common1']);
+    // since の無い古い状態でも動く（全部同じ古さとみなし、乱数で2枚）
+    const old = { ...s, since: undefined };
+    const u = take(old, 0, c(2));
+    expect(u.picks.at(-1)!.swapped).toHaveLength(D.refresh);
+    expect(u.since).toHaveLength(D.field);
+  });
+
+  it('レジェンドは1回で1枚・1人1回まで。足りない1枚は終わったときに最後に取ったコモンで埋まる（#134）', () => {
+    const legends = [0, 1].map((i) => card({ id: `legend-${i}`, name: `伝説${i}`, rarity: 'legend', cost: 1, stats: { attack: 1, hp: 1, defense: 0 } }));
+    let s = mustCreate({ seed: 3, pool: [...pool(30, 4, 2), ...legends], first: 0 });
+    // 席0の最初の番に場へレジェンドを2枚出して、1枚取る
+    s.field[0] = 'legend-0';
+    s.field[1] = 'legend-1';
+    s.pile = s.pile.filter((id) => !id.startsWith('legend-'));
+    s = take(s, 0, 'legend-0');
+    expect(draft.draftCounts(s, 0)).toEqual({ 'legend-0': 1 });
+    // 席0はもうレジェンドを取れない（席1は取れる）
+    if (s.field.includes('legend-1')) {
+      expect(draft.takeInfos(s, 0).find((t) => t.cardId === 'legend-1')).toMatchObject({ ok: false, reason: 'rarityLimit' });
+      expect(draft.takeInfos(s, 1).find((t) => t.cardId === 'legend-1')).toMatchObject({ ok: true });
+    }
+    s = runAuto(s);
+    const counts = draft.draftCounts(s, 0);
+    expect(Object.values(counts).reduce((a, b) => a + b, 0)).toBe(BALANCE.deck.size);
+    const lastCommon = [...s.picks].reverse().find((x) => x.player === 0 && s.cards[x.cardId]!.rarity === 'common')!.cardId;
+    const plainCount = s.picks.filter((x) => x.player === 0 && x.cardId === lastCommon).length * D.copies;
+    expect(counts[lastCommon]).toBe(plainCount + 1);
+    const [d0] = draft.draftDecks(s);
+    const a = analyzeDeck(d0.deck, new Map(d0.cards.map((c) => [c.id, c])));
+    expect(a.violations).toEqual([]);
+    expect(draft.draftView(s, 0).taken[0].reduce((n, t) => n + t.count, 0)).toBe(BALANCE.deck.size);
+  });
+
+  function extraCase(): void {
     const p = pool(30, 12, 0);
     const rare = (i: number) => `rare-${String(i).padStart(2, '0')}`;
     const common = (i: number) => `common-${String(i).padStart(2, '0')}`;
@@ -227,7 +303,7 @@ describe('交互に取る', () => {
     // 6枚に戻ったら、また取るたびに補充する
     s = take(s, 1, rare(2));
     expect(s.field).toHaveLength(6);
-  });
+  }
 
   it('どの強さのおまかせも、取れるカードだけを選ぶ', () => {
     for (const level of ['easy', 'normal', 'hard'] as const) {
@@ -280,15 +356,16 @@ describe('見え方と保存', () => {
       const json = JSON.stringify(v);
       expect(json).not.toContain('"pile"');
       expect(json).not.toContain('"rng"');
-      // 山にしか無いカード（場・取ったカードと重ならないもの）は見え方に出ない
-      const shown = new Set([...s.field, ...s.picks.map((x) => x.cardId)]);
+      // 山にしか無いカード（場・取ったカード・場から入れ替えたカードと重ならないもの）は見え方に出ない
+      const shown = new Set([...s.field, ...s.picks.flatMap((x) => [x.cardId, ...(x.swapped ?? [])])]);
       for (const id of s.pile) if (!shown.has(id)) expect(json).not.toContain(`"${id}"`);
       expect(v.pileSize).toBe(s.pile.length);
       expect(v.field.map((c) => c.id)).toEqual(s.field);
       expect(v.takeable.map((t) => t.cardId)).toEqual(s.field);
       expect(v.takesLeft).toEqual([D.takes - s.picks.filter((x) => x.player === 0).length, D.takes - s.picks.filter((x) => x.player === 1).length]);
       expect(v.turn).toBe(draft.draftTurn(s));
-      expect(v.taken[0].reduce((a, t) => a + t.count, 0) + v.taken[1].reduce((a, t) => a + t.count, 0)).toBe(7 * D.copies);
+      const copies = s.picks.reduce((n, x) => n + (s.cards[x.cardId]!.rarity === 'legend' ? 1 : D.copies), 0);
+      expect(v.taken[0].reduce((a, t) => a + t.count, 0) + v.taken[1].reduce((a, t) => a + t.count, 0)).toBe(copies);
     }
   });
 

@@ -670,7 +670,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     name: 'ドラフト戦',
     icon: '🎴',
     tone: 'info',
-    short: `表向きの場（${BALANCE.draft.field}枚）から2人で交互に1枚ずつ取り（取るたびに山から補充）、1回で${BALANCE.draft.copies}枚ずつ・${BALANCE.draft.takes}回ずつで${BALANCE.draft.takes * BALANCE.draft.copies}枚のデッキを作って、そのまま戦う。オンラインは公式カードだけ、CPU 戦は「${BALANCE.draft.offer}枚から1枚（ひとりで）」も選べる`,
+    short: `表向きの場（${BALANCE.draft.field}枚）から2人で交互に1枚ずつ取り（取るたびに山から補充し、長く残っている${BALANCE.draft.refresh}枚も入れ替わる）、1回で${BALANCE.draft.copies}枚ずつ・${BALANCE.draft.takes}回ずつで${BALANCE.draft.takes * BALANCE.draft.copies}枚のデッキを作って、そのまま戦う。オンラインは公式カードだけ、CPU 戦は「${BALANCE.draft.offer}枚から1枚（ひとりで）」も選べる`,
   },
   manaCurve: { name: 'コスト分布', icon: '📊', tone: 'info', short: 'デッキのコストごとの枚数（モンスター／それ以外）と平均コスト。軽いカードが少ないと序盤に動けないターンが出やすい' },
 };

@@ -25,14 +25,22 @@ export interface RarityRoom {
   takesLeft: number;
 }
 
-/** 上限のあるレアリティ（レジェンドはドラフトに出ないので除く）の、使った枚数とあと取れる回数 */
-export function rarityRoom(taken: readonly draft.DraftTaken[]): RarityRoom[] {
+/**
+ * 上限のあるレアリティの、使った枚数とあと取れる回数。レジェンドは1回で1枚・1人 legendTakes 回まで（決定事項 #134）。
+ * withLegend が false（レジェンドの無い山）ならレジェンドの行は出さない
+ */
+export function rarityRoom(taken: readonly draft.DraftTaken[], withLegend = true): RarityRoom[] {
   const out: RarityRoom[] = [];
   for (const rarity of ['rare', 'epic'] as const) {
     const limit = BALANCE.rarity[rarity].deckLimit;
     if (limit === null) continue;
     const copies = taken.filter((t) => t.card.rarity === rarity).reduce((n, t) => n + t.count, 0);
     out.push({ rarity, copies, limit, takesLeft: Math.max(0, Math.floor((limit - copies) / BALANCE.draft.copies)) });
+  }
+  if (withLegend) {
+    const copies = taken.filter((t) => t.card.rarity === 'legend').length;
+    const limit = BALANCE.draft.legendTakes;
+    out.push({ rarity: 'legend', copies, limit, takesLeft: Math.max(0, limit - copies) });
   }
   return out;
 }
@@ -100,7 +108,8 @@ export function lastPickText(view: Pick<draft.DraftView, 'picks' | 'taken'>, me:
   const mine = last.player === me;
   const who = mine ? 'あなた' : names[last.player];
   const name = `「${def?.name ?? '？'}」`;
-  const extra = last.extra ? `（取れるカードが無かったので、山から${last.extra}枚を追加で出しました）` : '';
+  const swapped = last.swappedNames?.length ? `。場に長く残っていた${last.swappedNames.map((n) => `「${n}」`).join('')}は山に戻り、入れ替わりました` : '';
+  const extra = (last.extra ? `（取れるカードが無かったので、山から${last.extra}枚を追加で出しました）` : '') + swapped;
   // 本人ではなくサーバーのおまかせが取ったときは、そうとわかるように書く（決定事項 #120）
   if (last.by === 'timeout') return `${mine ? '' : `${who}は`}時間切れのため、おまかせで${name}を取りました${extra}`;
   if (last.by === 'auto') return `${who}（おまかせ）が${name}を取りました${extra}`;

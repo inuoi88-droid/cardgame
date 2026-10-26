@@ -8,14 +8,17 @@ import type { DraftBlockReason, DraftCounts } from './types.ts';
 
 const D = BALANCE.draft;
 
-/** 候補の山：ID の重なりを除き、ルール違反とレジェンドを外す（レジェンドはドラフトに出さない） */
-export function draftPool(cards: readonly CardDef[]): CardDef[] {
+/**
+ * 候補の山：ID の重なりを除き、ルール違反を外す。レジェンドは場から交互に取る形式（legends: true）だけに出す
+ * （1回で copies 枚入るひとりで選ぶ形式には、同名1枚のレジェンドは入れられない：決定事項 #134）
+ */
+export function draftPool(cards: readonly CardDef[], opts: { legends?: boolean } = {}): CardDef[] {
   const seen = new Set<string>();
   const out: CardDef[] = [];
   for (const c of cards) {
     if (seen.has(c.id)) continue;
     seen.add(c.id);
-    if (c.rarity === 'legend') continue;
+    if (c.rarity === 'legend' && !opts.legends) continue;
     if (!analyzeCard(c).valid) continue;
     out.push(c);
   }
@@ -30,8 +33,18 @@ export function deckFromCounts(counts: DraftCounts, id: string, name: string): D
   return { v: 1, id, name, entries: Object.entries(counts).map(([cardId, count]) => ({ cardId, count })) };
 }
 
+/** 1回取るとデッキに入る枚数（レジェンドは同名1枚の決まりがあるので1枚：決定事項 #134） */
+export function copiesOf(def: Pick<CardDef, 'rarity'>): number {
+  return def.rarity === 'legend' ? 1 : D.copies;
+}
+
 export function addPick(counts: DraftCounts, def: CardDef): Record<string, number> {
-  return { ...counts, [def.id]: (counts[def.id] ?? 0) + D.copies };
+  return { ...counts, [def.id]: (counts[def.id] ?? 0) + copiesOf(def) };
+}
+
+/** 取ったレジェンドの種類の数 */
+function legendsIn(counts: DraftCounts, byId: ReadonlyMap<string, CardDef>): number {
+  return Object.entries(counts).filter(([id, n]) => n > 0 && byId.get(id)?.rarity === 'legend').length;
 }
 
 /** デッキで使うカードの定義 */
@@ -46,8 +59,12 @@ export type AddCheck = { ok: true } | { ok: false; reason: DraftBlockReason | 'f
  * byId には counts のカードの定義が入っていること
  */
 export function checkAdd(counts: DraftCounts, def: CardDef, byId: ReadonlyMap<string, CardDef>): AddCheck {
-  if (countTotal(counts) + D.copies > BALANCE.deck.size) return { ok: false, reason: 'full', message: `デッキはもう${BALANCE.deck.size}枚です` };
-  const next = { ...counts, [def.id]: (counts[def.id] ?? 0) + D.copies };
+  const copies = copiesOf(def);
+  if (countTotal(counts) + copies > BALANCE.deck.size) return { ok: false, reason: 'full', message: `デッキはもう${BALANCE.deck.size}枚です` };
+  if (def.rarity === 'legend' && legendsIn(counts, byId) >= D.legendTakes) {
+    return { ok: false, reason: 'rarityLimit', message: `レジェンドはもう取れません（ドラフトでは1人${D.legendTakes}枚まで）` };
+  }
+  const next = { ...counts, [def.id]: (counts[def.id] ?? 0) + copies };
   const map = byId.get(def.id) === def ? byId : new Map([...byId, [def.id, def]]);
   const a = analyzeDeck(deckFromCounts(next, 'draft', 'ドラフト'), map);
   const bad = a.violations.filter((v) => v.code !== 'DECK_SIZE');
@@ -71,8 +88,10 @@ export function canAdd(counts: DraftCounts, def: CardDef, byId: ReadonlyMap<stri
 /** レアリティ1つで1人が取れる回数の上限（デッキの上限と同名の上限から。制限なしは null） */
 function maxTakesOf(rarity: CardDef['rarity']): number | null {
   const r = BALANCE.rarity[rarity];
-  if (r.perNameLimit !== null && r.perNameLimit < D.copies) return 0;
-  return r.deckLimit === null ? null : Math.floor(r.deckLimit / D.copies);
+  const copies = copiesOf({ rarity });
+  if (r.perNameLimit !== null && r.perNameLimit < copies) return 0;
+  const byDeck = r.deckLimit === null ? null : Math.floor(r.deckLimit / copies);
+  return rarity === 'legend' ? Math.min(byDeck ?? D.legendTakes, D.legendTakes) : byDeck;
 }
 
 /**
@@ -85,7 +104,7 @@ export function poolProblem(pool: readonly CardDef[]): string | null {
   if (T * D.copies !== BALANCE.deck.size) return `ドラフトの設定が合いません（${T}回×${D.copies}枚がデッキの枚数と違う）`;
   let free = 0;
   let limited = 0;
-  for (const rarity of ['common', 'rare', 'epic'] as const) {
+  for (const rarity of ['common', 'rare', 'epic', 'legend'] as const) {
     const copies: number = D.pileCopies[rarity];
     if (copies === 0) continue;
     const cards = pool.filter((c) => c.rarity === rarity);

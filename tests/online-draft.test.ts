@@ -94,8 +94,8 @@ function expectPileHidden(s: FakeServer, v: RoomView) {
   const d = s.room!.meta!.draft!;
   expect(json).not.toContain('"pile"');
   expect(json).not.toContain('"rng"');
-  // 山にしか無いカード（場・取ったカードと重ならないもの。コモンは山に2枚ずつ入る：#117）は見え方に出ない
-  const shown = new Set([...d.field, ...d.picks.map((x) => x.cardId)]);
+  // 山にしか無いカード（場・取ったカード・場から入れ替えたカードと重ならないもの。コモンは山に2枚ずつ入る：#117・#134）は見え方に出ない
+  const shown = new Set([...d.field, ...d.picks.flatMap((x) => [x.cardId, ...(x.swapped ?? [])])]);
   for (const id of d.pile) if (!shown.has(id)) expect(json).not.toContain(`"${id}"`);
   expect(v.draft!.pileSize).toBe(d.pile.length);
 }
@@ -130,7 +130,8 @@ describe('ドラフトの部屋を作る・入る', () => {
     expect(d.auto).toEqual([false, false]);
     const pileTotal = Object.values(s.room!.meta!.draft!.cards).reduce((n, c) => n + D.pileCopies[c.rarity], 0);
     expect(d.pileSize).toBe(pileTotal - D.field);
-    expect(d.field.some((c) => c.rarity === 'legend')).toBe(false);
+    // レジェンドも山に1枚ずつ入る（#134）
+    expect(Object.values(s.room!.meta!.draft!.cards).some((c) => c.rarity === 'legend')).toBe(true);
     expectPileHidden(s, joined);
     expectPileHidden(s, s.state(0));
   });
@@ -186,7 +187,9 @@ describe('ドラフトで取る', () => {
     expect(v.draft!.field).toHaveLength(D.field);
     expect(v.draft!.pileSize).toBe(before.pile.length - 1);
     expect(v.draft!.taken[first]).toHaveLength(1);
-    expect(v.draft!.taken[first][0]!.count).toBe(D.copies);
+    expect(v.draft!.taken[first][0]!.count).toBe(v.draft!.taken[first][0]!.card.rarity === 'legend' ? 1 : D.copies);
+    // 取った枠の補充とは別に、場の古い2枚が入れ替わる（#134）
+    expect(v.draft!.picks.at(-1)!.swappedNames).toHaveLength(D.refresh);
     expect(v.deadline).toBe(s.now + PICK_MS);
     expectPileHidden(s, v);
     expectPileHidden(s, s.state(battle.other(first)));

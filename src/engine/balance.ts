@@ -913,9 +913,13 @@ export const BALANCE = {
    * 場から交互に取る形式（オンラインと CPU 戦の既定）：表向きの場にいつも field 枚、1人 takes 回ずつ取り、取ったら山から1枚補充。
    * ひとりで選ぶ形式（CPU 戦の旧形式）：offer 枚から1枚を選ぶのを rounds 回。
    * pileCopies：場から交互に取る形式の伏せた山に、1種類を何枚ずつ入れるか（レアリティごと。決定事項 #117：
-   * コモンを2枚にしてレア・エピックを珍しくする。公式120種類なら 72×2＋32＋16＝192枚）
+   * コモンを2枚にしてレア・エピックを珍しくする）。
+   * refresh：1枚取るたびに、取った枠の補充とは別に、場にいちばん長く残っている refresh 枚を山のカードに入れ替える（入れ替えたカードは山に混ぜ戻す。
+   * 補充された1枚を取り合うだけの運にならないよう、場を毎回3枚新しくする：決定事項 #134）。
+   * レジェンド（#134）：山に pileCopies.legend 枚ずつ。同名1枚の決まりがあるので取ると1枚だけ入り、1人 legendTakes 回まで。
+   * 足りない1枚は、終わったときにその人が最後に取ったコモンがもう1枚入る
    */
-  draft: { rounds: 15, offer: 3, copies: 2, field: 6, takes: 15, pileCopies: { common: 2, rare: 1, epic: 1, legend: 0 } },
+  draft: { rounds: 15, offer: 3, copies: 2, field: 6, takes: 15, refresh: 2, legendTakes: 1, pileCopies: { common: 2, rare: 1, epic: 1, legend: 1 } },
 } as const;
 
 export type Balance = typeof BALANCE;

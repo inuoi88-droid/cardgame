@@ -96,14 +96,16 @@ export function DraftPage() {
   const [poolKind, setPoolKind] = useState<PoolKind>('official');
   const [format, setFormat] = useState<Format>('field');
   const [level, setLevel] = useState<ai.CpuLevel>('normal');
-  const pool = useMemo(() => draftPool(poolKind === 'official' ? OFFICIAL_CARDS : [...cards, ...PRESET_DECKS.flatMap((p) => p.cards)]), [cards, poolKind]);
+  // 場から交互に取る形式は createDraft がレジェンドも入れて山を作る（決定事項 #134）。ひとりで選ぶ形式はレジェンドを外した山
+  const source = useMemo(() => (poolKind === 'official' ? [...OFFICIAL_CARDS] : [...cards, ...PRESET_DECKS.flatMap((p) => p.cards)]), [cards, poolKind]);
+  const pool = useMemo(() => draftPool(source), [source]);
   const [field, setField] = useState<SavedDraft | null>(() => loadSaved());
   const [solo, setSolo] = useState<{ pool: CardDef[]; level: ai.CpuLevel } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const startField = () => {
     const seed = Math.floor(Math.random() * 2 ** 31);
-    const r = draft.createDraft({ seed, pool });
+    const r = draft.createDraft({ seed, pool: source });
     if (!r.ok) {
       setError(`${r.error}。「${FORMAT_CHOICES[1]!.label}」か公式カードで遊んでください。`);
       return;
@@ -145,7 +147,7 @@ export function DraftPage() {
       <section className="panel dsetup">
         <p>
           {format === 'field'
-            ? `表向きの場にいつも${D.field}枚。CPU と交互に1枚ずつ取り、取るたびに伏せた山から1枚補充されます。1回で${D.copies}枚ずつデッキに入り、${D.takes}回ずつで${D.takes * D.copies}枚のデッキが完成。そのデッキで CPU と戦います（先攻・後攻はランダム）。`
+            ? `表向きの場にいつも${D.field}枚。CPU と交互に1枚ずつ取り、取るたびに伏せた山から1枚補充され、場に長く残っている${D.refresh}枚も入れ替わります。1回で${D.copies}枚ずつ（レジェンドは1枚・1人${D.legendTakes}枚まで）デッキに入り、${D.takes}回ずつで${D.takes * D.copies}枚のデッキが完成。そのデッキで CPU と戦います（先攻・後攻はランダム）。`
             : `カードの山から${D.offer}枚ずつ見せられ、1枚を選ぶのを${D.rounds}回くり返します（1回で${D.copies}枚ずつ入る）。できた${D.rounds * D.copies}枚のデッキで、同じ山からドラフトした CPU と戦います。`}
         </p>
         <div>

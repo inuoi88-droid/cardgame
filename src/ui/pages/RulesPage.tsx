@@ -121,7 +121,7 @@ export function RulesPage() {
       </section>
       <p className="hint rules__intro">
         自作のカードでデッキを組み、1対1で戦うカードゲームです。数字はすべて今のバランス設定から表示しています。節をタップすると開きます。
-        カードの絵は game-icons.net のアイコン（CC BY 3.0）です。作者とライセンスは<a href="#/credits">クレジット</a>へ。
+        カードの絵は game-icons.net のアイコン（CC BY 3.0）です。作者とライセンスは<a href="#/credits">クレジット</a>へ。ゲームの変更は<a href="#/news">更新情報</a>でお知らせしています。
       </p>
       <nav className="rules__toc" aria-label="目次">
         {SECTIONS.map((s) => (

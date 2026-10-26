@@ -16,6 +16,8 @@ export type Route =
   | { page: 'onlineBattle' }
   | { page: 'rules'; section: string | null }
   | { page: 'credits' }
+  /** 更新情報（パッチノート。決定事項 #131） */
+  | { page: 'news' }
   | { page: 'uiKit' };
 
 export function parseRoute(hash: string): Route {
@@ -35,6 +37,7 @@ export function parseRoute(hash: string): Route {
   if (section === 'rules') return { page: 'rules', section: id ?? null };
   if (section === 'ui-kit') return { page: 'uiKit' };
   if (section === 'credits') return { page: 'credits' };
+  if (section === 'news') return { page: 'news' };
   if (section === 'official') return { page: 'official' };
   if (section === 'cards' && id !== undefined) return { page: 'cardEdit', id: id === 'new' ? null : id };
   return { page: 'cards' };

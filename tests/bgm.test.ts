@@ -114,6 +114,7 @@ describe('場面と曲', () => {
       friendLink: 'lobby',
       rules: 'lobby',
       credits: 'lobby',
+      news: 'lobby',
       uiKit: 'lobby',
     };
     for (const [page, scene] of Object.entries(expected)) expect(sceneForPage(page), page).toBe(scene);

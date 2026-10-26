@@ -212,6 +212,10 @@
   padding-left: 10px;
   border-left: 2px solid var(--u-rim-sapphire);
 }
+.fb__news {
+  justify-self: start;
+  font-size: var(--fs-sm);
+}
 .fb__date {
   color: var(--muted);
   font-size: var(--fs-xs);

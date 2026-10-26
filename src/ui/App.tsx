@@ -14,6 +14,8 @@ import { OfficialCardsPage } from './pages/OfficialCardsPage.tsx';
 import { OnlineBattlePage } from './pages/OnlineBattlePage.tsx';
 import { OnlineLobbyPage } from './pages/OnlineLobbyPage.tsx';
 import { CreditsPage } from './pages/CreditsPage.tsx';
+import { NewsBanner } from './news/NewsBanner.tsx';
+import { PatchNotesPage } from './news/PatchNotesPage.tsx';
 import { RulesPage } from './pages/RulesPage.tsx';
 import { UiKitPage } from './pages/UiKitPage.tsx';
 import { FriendLinkPage } from './social/FriendLinkPage.tsx';
@@ -56,7 +58,7 @@ export function App() {
         ? 'battle'
         : route.page === 'online' || route.page === 'onlineBattle' || route.page === 'friendLink'
           ? 'online'
-          : route.page === 'rules' || route.page === 'credits'
+          : route.page === 'rules' || route.page === 'credits' || route.page === 'news'
             ? 'rules'
             : 'cards';
 
@@ -113,6 +115,8 @@ export function App() {
           <main className="main">
             {/* 届いた対戦の招待（流れの中。オンラインの画面はロビーに、対戦・ドラフトの画面は見出しの札に出す：決定事項 #124） */}
             {!NO_BANNER.has(route.page) && <InviteBanner />}
+            {/* 新しい更新のお知らせ（決定事項 #131）：対戦・ドラフトの途中と更新情報の画面には出さない */}
+            {!NO_BANNER.has(route.page) && route.page !== 'news' && <NewsBanner />}
             {route.page === 'cards' && <CardListPage />}
             {route.page === 'cardEdit' && <CardEditorPage id={route.id} />}
             {route.page === 'decks' && <DeckListPage />}
@@ -127,6 +131,7 @@ export function App() {
             {route.page === 'rules' && <RulesPage />}
             {route.page === 'uiKit' && <UiKitPage />}
             {route.page === 'credits' && <CreditsPage />}
+            {route.page === 'news' && <PatchNotesPage />}
           </main>
           {/* カードの絵（game-icons.net、CC BY 3.0）の表示。対戦画面では出さない（決定事項 #105） */}
           {route.page !== 'battle' && route.page !== 'onlineBattle' && (
@@ -135,7 +140,7 @@ export function App() {
               <a href="https://game-icons.net" target="_blank" rel="noreferrer">
                 game-icons.net
               </a>
-              （Lorc・Delapouite ほか・CC BY 3.0）・<a href="#/credits">クレジット</a>
+              （Lorc・Delapouite ほか・CC BY 3.0）・<a href="#/credits">クレジット</a>・<a href="#/news">更新情報</a>
             </footer>
           )}
         </div>

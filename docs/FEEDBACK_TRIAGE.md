@@ -119,6 +119,18 @@ node scripts/sim/official.mts common 60   # 公式カード（src/official）が
 - 大きい機能・ルールを変える要望は直さない。`accepted`、note「検討します」。まとめ（8）に提案として書く。
 - 具体的な直しどころが無い不満は `rejected`（note で受け止めたことを伝える）。
 
+## 4-4. 更新情報（パッチノート）を書く
+
+直したもの（バグ・バランス・要望のどれも）は、**同じプルリクエストの中で** `src/ui/news/notes.ts` の先頭に1件足す
+（書き方はそのファイルの先頭の説明と tests/news.test.ts）。プレイヤーは画面の上の帯と「更新情報」のページ（#/news）で読む。
+
+- `no` は今の最大＋1、`date` はマージする日（日本時間）、`title` はその日の変更をひとことで
+- `items` の `kind`：new（新機能）・balance（バランス調整）・fix（不具合の修正）・change（変更）。文はプレイヤーに向けた短く平易な日本語
+  （ファイル名・内部の言葉・決定事項の番号は書かない。報告の本文をそのまま貼らない）
+- 報告から直したものは `reports` に受付番号（cardgame.feedback の id）を入れる（送った人の「送った報告」から更新情報へ飛べる）
+- バランス調整は `before`・`after` に前と後の数字（例「2 ポイント」→「3 ポイント」）を入れ、文に「作ったカードのポイントが変わる・
+  予算を超えるカードが出るか」を書く（予算を超えたカードは、エディターで直すまでデッキに入れられない）
+
 ## 5. 仕上げ
 
 ```
@@ -146,7 +158,7 @@ npm run build:server      # src/online かエンジンを変えたとき（supab
 本人に見える `note` は、短く（120 字まで）丁寧な日本語。内部の事情・ファイル名・ほかの人の報告の中身は書かない。
 
 ```sql
-update cardgame.feedback set status = 'fixed', note = '直しました（10/27 の更新）。ありがとうございました', pr_url = '<PR の URL>', updated_at = now() where id = any(array[<ids>]);
+update cardgame.feedback set status = 'fixed', note = '直しました（10/27 の更新。くわしくは更新情報へ）。ありがとうございました', pr_url = '<PR の URL>', updated_at = now() where id = any(array[<ids>]);
 update cardgame.feedback set status = 'rejected', note = '<理由>', updated_at = now() where id = <id>;
 update cardgame.feedback set status = 'duplicate', note = '#<主の番号> にまとめました', updated_at = now() where id = <id>;
 update cardgame.feedback set status = 'accepted', note = '検討します', updated_at = now() where id = <id>;
@@ -161,7 +173,7 @@ delete from cardgame.feedback where status in ('fixed', 'rejected', 'duplicate')
 日本語で短く：
 
 - 新しい報告の数（バランス・バグ・その他）
-- 直してマージしたもの（報告の番号・一言・プルリクエストの URL）
+- 直してマージしたもの（報告の番号・一言・プルリクエストの URL）と、足した更新情報の題
 - 提案として残したもの（大きい要望など）
 - 見送り・まとめた数
 - オーナーに見てほしいこと（ベースのテストが赤・判断がつかないバランス・デプロイの失敗など）

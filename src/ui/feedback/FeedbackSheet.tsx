@@ -272,6 +272,11 @@ function MyReports() {
           </div>
           {r.excerpt && <p className="fb__excerpt">{r.excerpt}</p>}
           {r.note && <p className="fb__reply">運営より：{r.note}</p>}
+          {r.status === 'fixed' && (
+            <a className="fb__news" href="#/news">
+              更新情報で変更を見る
+            </a>
+          )}
           <span className="fb__date">
             {shortDate(r.createdAt)}
             {r.updatedAt > r.createdAt + 60_000 ? `（更新 ${shortDate(r.updatedAt)}）` : ''}

@@ -67,7 +67,7 @@ export function OfficialCardsPage() {
   const fcount = filterCount(filters);
   const detail = detailId ? entries.find((e) => e.card.id === detailId) : undefined;
   const counts = useMemo(() => {
-    const c = { common: 0, rare: 0, epic: 0 };
+    const c = { common: 0, rare: 0, epic: 0, legend: 0 };
     for (const card of OFFICIAL_CARDS) if (card.rarity in c) c[card.rarity as keyof typeof c]++;
     return c;
   }, []);
@@ -94,9 +94,9 @@ export function OfficialCardsPage() {
         </div>
       </div>
       <p className="hint official__lead">
-        「{OFFICIAL_SET.name}」（版{OFFICIAL_SET.version}）：{OFFICIAL_CARDS.length}種類（コモン{counts.common}・レア{counts.rare}・エピック{counts.epic}。レジェンドなし）。
+        「{OFFICIAL_SET.name}」（版{OFFICIAL_SET.version}）：{OFFICIAL_CARDS.length}種類（コモン{counts.common}・レア{counts.rare}・エピック{counts.epic}・レジェンド{counts.legend}）。
         オンラインのドラフト戦はこのカードだけを使います。伏せた山にはコモンが{BALANCE.draft.pileCopies.common}枚ずつ、レアとエピックが
-        {BALANCE.draft.pileCopies.rare}枚ずつ入ります。カードを押すと全文と役割が見られます。
+        {BALANCE.draft.pileCopies.rare}枚ずつ、レジェンドが{BALANCE.draft.pileCopies.legend}枚ずつ入ります（レジェンドは1人{BALANCE.draft.legendTakes}枚まで）。カードを押すと全文と役割が見られます。
       </p>
       <div className="collection__main">
         <div className={cx('ctools ctools--sticky', !wide && 'ctools--narrow')}>

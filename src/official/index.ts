@@ -19,13 +19,13 @@ export {
 export const OFFICIAL_SET = {
   id: 'dawn',
   name: '黎明の大陸',
-  version: 2,
+  version: 3,
 } as const;
 
 /** 公式カードの ID の前置き */
 export const OFFICIAL_ID_PREFIX = 'official-';
 
-/** すべての公式カード（約120種類。レジェンドなし） */
+/** すべての公式カード（126種類。レジェンドは各色と汎用に1枚） */
 export const OFFICIAL_CARDS: readonly CardDef[] = OFFICIAL_ENTRIES.map((e) => e.card);
 
 const ENTRY_BY_ID: ReadonlyMap<string, OfficialEntry> = new Map(OFFICIAL_ENTRIES.map((e) => [e.card.id, e]));

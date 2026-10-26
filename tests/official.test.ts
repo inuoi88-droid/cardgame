@@ -29,6 +29,8 @@ const COPIES = BALANCE.draft.copies;
 const COLORS = OFFICIAL_ARCHETYPE_IDS.filter((a) => a !== 'neutral');
 
 const count = (cards: readonly CardDef[], rarity: string) => cards.filter((c) => c.rarity === rarity).length;
+/** コモンに付けてよい能力（読みやすいもの：決定事項 #136） */
+const SIMPLE_COMMON_ABILITIES = ['kicker', 'cycling', 'activate', 'affinity'];
 
 /** 相手のモンスターを倒せる効果（除去・干渉）を持つか */
 function isRemoval(c: CardDef): boolean {
@@ -45,12 +47,12 @@ describe('公式カードのセット', () => {
     expect(OFFICIAL_SET.version).toBeGreaterThanOrEqual(1);
   });
 
-  it('約120種類：コモン72・レア32・エピック16、レジェンドなし', () => {
-    expect(OFFICIAL_CARDS).toHaveLength(120);
+  it('126種類：コモン72・レア32・エピック16・レジェンド6', () => {
+    expect(OFFICIAL_CARDS).toHaveLength(126);
     expect(count(OFFICIAL_CARDS, 'common')).toBe(72);
     expect(count(OFFICIAL_CARDS, 'rare')).toBe(32);
     expect(count(OFFICIAL_CARDS, 'epic')).toBe(16);
-    expect(count(OFFICIAL_CARDS, 'legend')).toBe(0);
+    expect(count(OFFICIAL_CARDS, 'legend')).toBe(6);
   });
 
   it('ID は official-<slug> で重ならない。名前も重ならず、プリセット・サンプル・テンプレートの名前とも違う', () => {
@@ -114,9 +116,10 @@ describe('公式カードのセット', () => {
     }
   });
 
-  it('コモンは読みやすい（能力・モードなし、効果は3つまで、条件は1つまで）', () => {
+  it('コモンは読みやすい（能力は簡単なものを1つまで・モードなし、効果は3つまで、条件は1つまで）', () => {
     for (const c of OFFICIAL_CARDS.filter((x) => x.rarity === 'common')) {
-      expect(c.abilities ?? [], c.name).toEqual([]);
+      expect((c.abilities ?? []).length, c.name).toBeLessThanOrEqual(1);
+      for (const a of c.abilities ?? []) expect(SIMPLE_COMMON_ABILITIES, c.name).toContain(a.id);
       expect(
         c.effects.filter((e) => e.mode !== undefined),
         c.name,
@@ -144,14 +147,19 @@ describe('公式カードのセット', () => {
 });
 
 describe('アーキタイプ', () => {
-  it('5つの色と汎用。どの色にもコモン12・レア5・エピック3、汎用はコモン12・レア7・エピック1', () => {
+  it('5つの色と汎用。どの色にもコモン12・レア5・エピック3・レジェンド1、汎用はコモン12・レア7・エピック1・レジェンド1', () => {
+    const shape = (a: OfficialArchetype) => (['common', 'rare', 'epic', 'legend'] as const).map((r) => officialCardsOf(a, r).length);
     expect(COLORS).toHaveLength(5);
-    for (const a of COLORS) {
-      expect([officialCardsOf(a, 'common').length, officialCardsOf(a, 'rare').length, officialCardsOf(a, 'epic').length], a).toEqual([12, 5, 3]);
+    for (const a of COLORS) expect(shape(a), a).toEqual([12, 5, 3, 1]);
+    expect(shape('neutral')).toEqual([12, 7, 1, 1]);
+  });
+
+  it('コストの山：どの色もコモンの半分以上がコスト2以下、コスト5は無い（重いカードが多いという声：決定事項 #136）', () => {
+    for (const a of OFFICIAL_ARCHETYPE_IDS) {
+      const commons = officialCardsOf(a, 'common');
+      expect(commons.filter((c) => c.cost <= 2).length * 2, a).toBeGreaterThanOrEqual(commons.length);
+      expect(commons.filter((c) => c.cost >= 5), a).toEqual([]);
     }
-    expect([officialCardsOf('neutral', 'common').length, officialCardsOf('neutral', 'rare').length, officialCardsOf('neutral', 'epic').length]).toEqual([
-      12, 7, 1,
-    ]);
   });
 
   for (const a of COLORS) {

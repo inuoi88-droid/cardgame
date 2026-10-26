@@ -23,7 +23,7 @@ describe('公式カードのドラフト（実際の倍率）', () => {
     expect(draft.poolProblem(draft.draftPool(OFFICIAL_CARDS))).toBeNull();
   });
 
-  it('山はコモン2枚・レアとエピック1枚ずつ（レジェンドなし）', () => {
+  it('山はコモン2枚・レアとエピックとレジェンド1枚ずつ', () => {
     const created = draft.createDraft({ seed: 1, pool: OFFICIAL_CARDS });
     if (!created.ok) throw new Error(created.error);
     const s = created.value;
@@ -55,7 +55,8 @@ describe('公式カードのドラフト（実際の倍率）', () => {
         const a = analyzeDeck(d.deck, new Map(d.cards.map((c) => [c.id, c])));
         expect(a.violations).toEqual([]);
         expect(a.total).toBe(BALANCE.deck.size);
-        expect(d.cards.every((c) => c.rarity !== 'legend')).toBe(true);
+        // レジェンドは1人 legendTakes 枚まで（同名1枚。決定事項 #134）
+        expect(d.deck.entries.filter((e) => d.cards.find((c) => c.id === e.cardId)?.rarity === 'legend').reduce((n, e) => n + e.count, 0)).toBeLessThanOrEqual(D.legendTakes);
       }
       const r = battle.createGame({ seed, players: [{ name: 'A', ...decks[0] }, { name: 'B', ...decks[1] }] });
       if (!r.ok) throw new Error(r.error);

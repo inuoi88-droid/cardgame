@@ -23,7 +23,7 @@ for (const a of OFFICIAL_ARCHETYPES) {
     .sort((x, y) => ORDER[x.e.card.rarity] - ORDER[y.e.card.rarity] || x.e.card.cost - y.e.card.cost || x.i - y.i)
     .map((x) => x.e);
   const n = (r: string) => list.filter((e) => e.card.rarity === r).length;
-  out.push(`### ${a.name}（${a.id}）`, '', `${a.description}。コモン${n('common')}・レア${n('rare')}・エピック${n('epic')}。`, '');
+  out.push(`### ${a.name}（${a.id}）`, '', `${a.description}。コモン${n('common')}・レア${n('rare')}・エピック${n('epic')}・レジェンド${n('legend')}。`, '');
   out.push('| レア | コスト | 名前 | 種類 | ステータス | 効果（ゲーム内の数字） | 役割 |', '|---|---|---|---|---|---|---|');
   for (const { card: c, role } of list) {
     const t = describeCard(c);

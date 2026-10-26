@@ -85,13 +85,13 @@ describe('カードの能力（○ バッチC1）：ポイントとテキスト'
       '魂力（エナジー1）',
       '手札からエナジー1を払ってこのカードを捨て、「魂力」の効果を使う',
     ],
-    ['affinity', SPELL([DMG5], { cost: 4, abilities: [AB('affinity', undefined, { option: 'monsters' })] }), 12, '親和', '自分の場のモンスター1体につきコスト−1（最大−3、コストは1まで）'],
+    ['affinity', SPELL([DMG5], { cost: 4, abilities: [AB('affinity', undefined, { option: 'monsters' })] }), 8, '親和', '自分の場のモンスター1体につきコスト−1（最大−3、コストは2まで）'],
     [
       'affinity（使ったカード）',
       SPELL([DMG5], { cost: 3, abilities: [AB('affinity', undefined, { option: 'cardsPlayed' })] }),
-      8,
+      4,
       '親和',
-      'このターン使ったカード1枚につきコスト−1（最大−3、コストは1まで）',
+      'このターン使ったカード1枚につきコスト−1（最大−3、コストは2まで）',
     ],
     ['costCut（怒濤）', SPELL([DMG5], { abilities: [AB('costCut', 1, { condition: 'notFirstCard' })] }), 8, '条件付き軽減1', 'このターン2枚目以降なら、コスト−1'],
     [
@@ -165,8 +165,8 @@ describe('価格の確かめ（仕様の例・倍率1）', () => {
     expect(analyzeCard(c).cardType).toBe('power');
     expect(analyzeCard(c).violations).toEqual([]);
   });
-  it('親和（場のモンスター）コスト4＝12、怒濤 K1＝8、キッカー1 の「払っていれば5ダメージ」＝9', () => {
-    expect(abilityPts(SPELL([DMG5], { cost: 4, abilities: [AB('affinity')] }))).toBe(12);
+  it('親和（場のモンスター）コスト4＝8（下限2：決定事項 #133）、怒濤 K1＝8、キッカー1 の「払っていれば5ダメージ」＝9', () => {
+    expect(abilityPts(SPELL([DMG5], { cost: 4, abilities: [AB('affinity')] }))).toBe(8);
     expect(abilityPts(SPELL([DMG5], { abilities: [AB('costCut', 1, { condition: 'notFirstCard' })] }))).toBe(8);
     expect(effectPts(SPELL([fx({ id: 'damage', value: 5, condition: 'kicked' })], { abilities: [AB('kicker', 1)] }))).toBe(9);
   });
@@ -476,7 +476,7 @@ describe('サイクリング・魂力', () => {
 
 // ---------------------------------------------------------------- 動的コスト
 describe('動的コスト（親和・条件付き軽減・キッカー）', () => {
-  it('親和：場のモンスター1体につき−1、最大−3、最低1。内訳つき', () => {
+  it('親和：場のモンスター1体につき−1、最大−3、最低2（決定事項 #133）。内訳つき', () => {
     const g = rich(startGame(), 0, 10);
     const uid = giveCard(g, 0, SPELL([DMG5], { cost: 5, abilities: [AB('affinity')] }));
     const c = g.players[0].hand.find((x) => x.uid === uid)!;
@@ -488,7 +488,7 @@ describe('動的コスト（親和・条件付き軽減・キッカー）', () =
     putMonster(g, 0, MON(1, 1));
     expect(battle.effectiveCost(g, 0, c)).toBe(2); // 最大−3
     const cheap = giveCard(g, 0, SPELL([DMG5], { cost: 2, abilities: [AB('affinity')] }));
-    expect(battle.effectiveCost(g, 0, g.players[0].hand.find((x) => x.uid === cheap)!)).toBe(1); // 最低1
+    expect(battle.effectiveCost(g, 0, g.players[0].hand.find((x) => x.uid === cheap)!)).toBe(2); // 最低2（コスト2は軽くならない）
   });
 
   it('親和（使ったカード）：これから使う1枚は数えない', () => {
@@ -509,12 +509,12 @@ describe('動的コスト（親和・条件付き軽減・キッカー）', () =
     expect(battle.costBreakdown(g, 0, c())).toEqual({ printed: 1, steps: [{ label: '条件付き軽減', delta: -1 }], total: 0 });
   });
 
-  it('条件付き軽減と親和を両方持てば、大きい方の下限（1）で止まる。凍結・軽減効果と組み合わさる', () => {
+  it('条件付き軽減と親和を両方持てば、大きい方の下限（2）で止まる。凍結・軽減効果と組み合わさる', () => {
     const g = rich(startGame(), 0, 10);
-    const uid = giveCard(g, 0, SPELL([DMG5], { cost: 4, abilities: [AB('affinity'), AB('costCut', 2, { condition: 'hasMonster' })] }));
+    const uid = giveCard(g, 0, SPELL([DMG5], { cost: 5, abilities: [AB('affinity'), AB('costCut', 2, { condition: 'hasMonster' })] }));
     const c = () => g.players[0].hand.find((x) => x.uid === uid)!;
     putMonster(g, 0, MON(1, 1));
-    expect(battle.effectiveCost(g, 0, c())).toBe(1); // 4−1−2
+    expect(battle.effectiveCost(g, 0, c())).toBe(2); // 5−1−2
     putMonster(g, 0, MON(1, 1));
     expect(battle.costBreakdown(g, 0, c()).steps).toEqual([
       { label: '親和', delta: -2 },
@@ -522,9 +522,9 @@ describe('動的コスト（親和・条件付き軽減・キッカー）', () =
     ]);
     g.players[0].turn.freezeTax = true;
     expect(battle.costBreakdown(g, 0, c()).steps.map((s) => s.label)).toEqual(['親和', '条件付き軽減', '凍結']);
-    expect(battle.effectiveCost(g, 0, c())).toBe(2);
+    expect(battle.effectiveCost(g, 0, c())).toBe(3);
     g.players[0].discount = 1;
-    expect(battle.effectiveCost(g, 0, c())).toBe(1);
+    expect(battle.effectiveCost(g, 0, c())).toBe(2);
   });
 
   it('キッカー：払えば追加エナジーと「払っていれば」の効果。払わなければ出ない。legal は両方を返す', () => {

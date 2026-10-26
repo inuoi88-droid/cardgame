@@ -411,7 +411,7 @@ export function actionKey(g: GameState, a: Action): string {
     const extra = `${a.from ?? ''}:${a.kick ? 'k' : ''}:${a.discardUid ?? ''}:${(a.exileUids ?? []).join('+')}:${a.mode ?? ''}:${(a.modes ?? []).join('+')}:${a.extra ?? ''}:${a.alt ?? ''}:${a.sacrificeUid ?? ''}:${(a.tapUids ?? []).join('+')}:${a.pitchUid ?? ''}:${a.lifePay ?? ''}`;
     // 永久強化（MTG 要素 △ バッチA）された個体は別のカード
     const perm = card?.perm ? `${card.perm.attack}/${card.perm.hp}` : '';
-    return `c:${card?.cardId ?? a.cardUid}:${card?.copy ?? ''}:${card?.grow ?? 0}:${card?.buybackTurn ?? ''}:${perm}:${extra}|${t ? (t.kind === 'player' ? 'p' : t.uid) : ''}|${a.chosen?.ally ?? ''}`;
+    return `c:${card?.cardId ?? a.cardUid}:${card?.copy ?? ''}:${card?.grow ?? 0}:${card?.buybackTurn ?? ''}:${card?.shuffleTurn ?? ''}:${perm}:${extra}|${t ? (t.kind === 'player' ? 'p' : t.uid) : ''}|${a.chosen?.ally ?? ''}`;
   }
   if (a.type === 'handAbility') {
     const card = g.players[a.player].hand.find((c) => c.uid === a.cardUid);

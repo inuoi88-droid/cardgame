@@ -46,6 +46,7 @@ node scripts/sim/draft.mts 800 2 --hard 100 --lethal 30 --tag after   # 回数�
 | `run-all.mts` | 全部回してまとめる |
 | `final.mts` | 最終調整（#84）の測定：プリセット総当たり・ミラー・BURN・モンスターだけのデッキ MONO・挑発に寄せた TAUNTX・パワーの極端デッキ。`node scripts/sim/final.mts after 200 valid rr mirror burn mono taunt tauntvs`、`node scripts/sim/final.mts power 150 power`。結果の読み方は `out/final.md`（git には入れない）と決定事項 #84 |
 | `draft.mts` | ドラフト戦の本番の形の測定（決定事項 #118）：公式カードでエンジンの createDraft・applyTake のドラフトをして、1戦目の先攻はランダム（決定事項 #125）、2戦目は「同じデッキでもう一戦」（前の負けが先攻）。席ごとの取り方は `draftlib.mts` の PROFILES（本物のおまかせ よわい・ふつう・つよい と、色をそろえる focus・ばらつきの大きい focus-wide）からシードで選ぶ。出すもの：デッキがルールどおりか・先に取った人と先攻の勝率・主な色（いちばん多い色が4回以下なら「混色」）ごとのデッキの割合と勝率・色ごとの取られ方（場に出た割合との比）・取り方ごとの勝率・色どうしの勝率・カードごとの「場に出た回数・取られた割合・平均の取った順・入っていたデッキの勝率」と外れ値の印・試合の長さの分布・引き分け・リーサルの見逃し。並列は `draft-worker.mts`（ドラフト2回ずつ） |
+| `otk-feedback.mts` | プレイヤーの報告（決定事項 #133）の OTK の測定：報告 #4 のデッキ（spark）・報告 #5 の竜デッキの組み直し（dragon）・1枚で出し直すループ（loop1）を CPU（つよい）で基準デッキ B0 と戦わせ、自分の1ターン目・2ターン目までに勝った数を数える。`node scripts/sim/otk-feedback.mts 20 spark dragon`。`AFF_MIN=1` で親和の下限を差し替えて比べられる |
 | `official.mts` | 公式カード（ドラフト戦の山。決定事項 #116）の測定：色ごとのコモンだけのデッキ（`officialCommonDeck`）の総当たりと、簡単な CPU による「場から交互に取る」ドラフトの勝率（主なアーキタイプ・先に取った側・カードごと）。ドラフトはエンジンの createDraft・applyTake（山はコモン2枚ずつ）。draft の取り方はこのスクリプトだけの目安で、pickers は本物のおまかせ（autoPick）と、燃やし（顔へのダメージ）だけ・汎用だけ・でたらめに取る人との対戦（#117） |
 
 ## 基準デッキ（`lib.mts`）

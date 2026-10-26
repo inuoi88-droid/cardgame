@@ -21,7 +21,7 @@ export default defineAbility({
   name: '親和',
   order: 11,
   group: 'コスト',
-  summary: `自分の場のモンスター1体（またはこのターン使ったカード1枚）につきコスト−1（最大−${B.maxReduction}、コストは${B.minCost}まで）。印刷コスト2以上のカードだけ`,
+  summary: `自分の場のモンスター1体（またはこのターン使ったカード1枚）につきコスト−1（最大−${B.maxReduction}、コストは${B.minCost}まで）。印刷コスト${B.minPrintedCost}以上のカードだけ（軽くなるのは${B.minCost + 1}以上）`,
   option: OPTION,
   points: (_a, ctx) => B.perStep * steps(ctx.card.cost),
   formula: (_a, ctx) => `${B.perStep}×${steps(ctx.card.cost)}`,

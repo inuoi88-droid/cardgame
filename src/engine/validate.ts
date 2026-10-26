@@ -558,9 +558,9 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     if (def.battle.lifePay && (a.value ?? 0) > card.cost) {
       out.push({ code: 'LIFEPAY_COST', path: `${path}.value`, message: `${what}の数は、印刷コスト（${card.cost}）以下にしてください` });
     }
-    // 親和は印刷コスト2以上のカードだけ（コスト1では軽減できない）
-    if (a.id === 'affinity' && card.cost < BALANCE.abilities.affinity.minCost + 1) {
-      out.push({ code: 'AFFINITY_LOW_COST', path, message: `${what}は、コスト${BALANCE.abilities.affinity.minCost + 1}以上のカードにしか付けられません` });
+    // 親和は印刷コスト minPrintedCost 以上のカードだけ（軽減の下限 minCost とは別：決定事項 #133）
+    if (a.id === 'affinity' && card.cost < BALANCE.abilities.affinity.minPrintedCost) {
+      out.push({ code: 'AFFINITY_LOW_COST', path, message: `${what}は、コスト${BALANCE.abilities.affinity.minPrintedCost}以上のカードにしか付けられません` });
     }
     // ---- MTG 要素 △ バッチC
     // 忠誠は「忠誠+1」か「忠誠−K」の効果が要る

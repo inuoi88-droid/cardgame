@@ -577,8 +577,12 @@ export const BALANCE = {
     cycling: { flat: x(2), cost: 1 },
     /** 魂力：払うエナジーは0〜maxCost（ポイントはタイミングの倍率 timing.channel と二者択一の割引） */
     channel: { maxCost: 2, flat: x(0) },
-    /** 親和：perStep×min(maxReduction, 印刷コスト−minCost)。軽減してもコストは minCost まで */
-    affinity: { perStep: x(4), maxReduction: 3, minCost: 1 },
+    /**
+     * 親和：perStep×min(maxReduction, 印刷コスト−minCost)。軽減してもコストは minCost まで（1→2：報告 #4・#5・決定事項 #133。
+     * コスト1まで下がると召喚時のエナジー+1で差し引き0になり、1ターン目に何度も出せた）。付けられるのは印刷コスト minPrintedCost 以上
+     * （保存済みのコスト2のカードを違反にしないため2のまま。コスト2では軽くならず、ポイントも0）
+     */
+    affinity: { perStep: x(4), maxReduction: 3, minCost: 2, minPrintedCost: 2 },
     /** 条件付き軽減：perStep×K×条件の倍率（K は印刷コストまで）。軽減してもコストは minCost まで */
     costCut: { perStep: x(10), maxReduction: 2, minCost: 0 },
     /** キッカー：追加エナジー1〜maxExtra（ポイントは条件「キッカーを払っていれば」の倍率） */

@@ -1374,10 +1374,12 @@ function spellDestination(
     log(g, depth, `再利用：「${def.name}」は手札に戻った（同じカードは1ターン1回）`);
     return;
   }
-  if (after === 'shuffle' && keepable) {
+  // 循環も同じカードは1ターン1回（同じコストのサーチと回すとコスト0で何度でも使えた：報告 #3・決定事項 #133）
+  if (after === 'shuffle' && keepable && card.shuffleTurn !== g.turnIndex) {
+    card.shuffleTurn = g.turnIndex;
     const deck = g.players[card.owner].deck;
     deck.splice(randInt(g, deck.length + 1), 0, card);
-    log(g, depth, `循環：「${def.name}」は山札に混ざった`);
+    log(g, depth, `循環：「${def.name}」は山札に混ざった（同じカードは1ターン1回）`);
     return;
   }
   if (def.drawbacks.some((d) => getDrawback(d.id)?.battle.exhaust)) {

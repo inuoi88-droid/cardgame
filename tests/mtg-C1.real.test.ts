@@ -34,7 +34,7 @@ describe('○ バッチC1（実際の倍率）', () => {
     expect(A.flashback).toMatchObject({ rateByExtra: [0.5, 0.4, 0.3], fromDiscardFlat: 20, maxExtra: 2 });
     expect(A.escape).toMatchObject({ minCount: 2, maxCount: 5 });
     expect(A.cycling).toEqual({ flat: 40, cost: 1 });
-    expect(A.affinity).toEqual({ perStep: 80, maxReduction: 3, minCost: 1 });
+    expect(A.affinity).toEqual({ perStep: 80, maxReduction: 3, minCost: 2, minPrintedCost: 2 });
     expect(A.costCut).toEqual({ perStep: 200, maxReduction: 2, minCost: 0 });
     expect(BALANCE.timing.activatedMonster).toEqual([2.2, 1.6, 1.1]);
     expect(BALANCE.conditionByKicker).toEqual([0.6, 0.45]);
@@ -42,12 +42,12 @@ describe('○ バッチC1（実際の倍率）', () => {
     expect(createAbility('escape')).toEqual({ id: 'escape', value: 3 });
   });
 
-  it('価格の例（倍率20）：フラッシュバックの火の雨は 450、親和コスト4は 240', () => {
+  it('価格の例（倍率20）：フラッシュバックの火の雨は 450、親和コスト4は 160（下限2：決定事項 #133）', () => {
     const fb = fromBaseScale(card({ id: 'fb', name: '火の雨', cost: 2, effects: [fx({ id: 'damage', value: 5 })], abilities: [{ id: 'flashback', value: 0 }] }));
     expect(analyzeCard(fb).violations).toEqual([]);
     expect(analyzeCard(fb).points.total + BALANCE.card.costPoints[2]!).toBe(450);
     const aff = fromBaseScale(card({ id: 'af', name: '嵐', rarity: 'epic', cost: 4, effects: [fx({ id: 'damage', value: 5 })], abilities: [{ id: 'affinity' }] }));
-    expect(analyzeCard(aff).points.lines.find((l) => l.kind === 'ability')!.value).toBe(240);
+    expect(analyzeCard(aff).points.lines.find((l) => l.kind === 'ability')!.value).toBe(160);
   });
 
   it('捨て札から使う・起動・サイクリングが倍率20の数値で動く', () => {

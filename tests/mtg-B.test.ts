@@ -156,7 +156,7 @@ describe('効果（○ バッチB）：ポイントとテキスト', () => {
 describe('カードの能力（○ バッチB）：ポイント・テキスト・検証', () => {
   const DMG5 = fx({ id: 'damage', value: 5 });
   const table: [string, CardDef, number, string][] = [
-    ['shuffleBack', SPELL([DMG5], { abilities: [AB('shuffleBack')] }), 1, '使ったあと、捨て札ではなく山札に混ぜる。'],
+    ['shuffleBack', SPELL([DMG5], { abilities: [AB('shuffleBack')] }), 1, '使ったあと、捨て札ではなく山札に混ぜる（1ターン1回）。'],
     ['buyback', SPELL([DMG5], { abilities: [AB('buyback')] }), 8, '使ったあと、手札に戻る（同じカードは1ターン1回）。'],
     ['rebound', SPELL([DMG5], { abilities: [AB('rebound')] }), 11, '次の自分のターン開始時に、使用時の効果がもう一度発動する（対象はランダム）。'],
     // ダメージ1つ＋連撃3回＝4発ぶん

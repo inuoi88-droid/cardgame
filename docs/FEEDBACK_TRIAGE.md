@@ -11,6 +11,8 @@
 終わったらスマホに通知。**報告を DB から読み、Edge Function を作り直すには、定期タスクに Supabase のコネクタが付いている必要がある**
 （セッションから作った定期タスクにはコネクタを付けられないので、オーナーが claude.ai の定期タスク（ルーティン）の画面で付ける）。
 付いていない回は、セッションが「Supabase のツールが使えない」とまとめに書いて止まる。
+**同じ画面で、リポジトリ `inuoi88-droid/cardgame` も定期タスクに加えておく必要がある**（2026-10-26 に確かめた：定期タスクの
+セッションには `add_repo` が無く、リポジトリが加わっていないと clone も push もできない。push できない回は 1 の確認で止まる）。
 
 報告の受付は `src/online/feedback/`（op `feedback`・`feedbackStatus`）、画面は `src/ui/feedback/`、保存は Supabase の
 `cardgame.feedback`（`supabase/migrations/20261026000000_cardgame_feedback.sql`）。
@@ -37,9 +39,10 @@
 
 ## 1. 準備
 
-**最初に必ず push の権限を付ける。** 定期タスクのセッションには、読むだけの clone が最初から置かれていることがある（そのままでは
-`git push` が 403「not in this session's authorized repository set」になる）。clone が手元にあっても、まず `add_repo`
-（owner `inuoi88-droid`・repo `cardgame`・access `push`）を呼び、push できることを確かめてから報告を読む。
+**最初に push できることを確かめる。** 定期タスクのセッションには、読むだけの clone が置かれていることがある（そのままでは
+`git push` が 403「not in this session's authorized repository set」になる）。`add_repo` が使えるなら clone が手元にあっても
+（owner `inuoi88-droid`・repo `cardgame`・access `push`）で呼ぶ。使えなければ、定期タスクにリポジトリが加わっている前提で進め、
+下の `git push --dry-run` で確かめてから報告を読む。
 
 ```
 git fetch origin claude/card-game-battle-system-tfb8gr

@@ -244,8 +244,10 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
     amount -= monster.defense;
     steps.push(`守備力−${monster.defense}で${amount}`);
   }
-  if (mitigated && base > 0 && amount < B.minMonsterDamage) {
-    amount = B.minMonsterDamage;
+  // 最低ダメージは元のダメージを超えない（倍率の大きさ x(1) に引き上げると、ダメージ1の連撃が1発20になった：決定事項 #135）
+  const minHit = Math.min(B.minMonsterDamage, base);
+  if (mitigated && base > 0 && amount < minHit) {
+    amount = minHit;
     steps.push(`最低${amount}`);
   }
   // 出血：1枚のカード（1回の攻撃）につき1回だけ（決定事項 #70 R4）

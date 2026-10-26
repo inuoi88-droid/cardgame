@@ -129,12 +129,14 @@ function scaledEffect(g: GameState, step: Extract<Step, { t: 'effect' }>, def: E
       break;
     }
     case 'gamble': {
-      // ばらつき（MTG 要素 △ バッチA）：決めた倍率を掛けて、量の刻みに切り捨てる（最低も刻み）
+      // ばらつき（MTG 要素 △ バッチA）：決めた倍率を掛けて、量の刻みに切り捨てる（最低は刻みか元の数値の小さいほう：
+      // 刻みに引き上げると、数値1が10になった：決定事項 #135）
       const rate = step.gambleRate ?? 1;
       const unit = Math.max(1, Math.floor(BALANCE.modifierParams.gambleStep));
-      const raw = (step.effect.value ?? 0) * rate;
+      const base = step.effect.value ?? 0;
+      const raw = base * rate;
       const max = def.value?.max ?? Infinity;
-      const value = Math.min(max, Math.max(unit, Math.floor(raw / unit) * unit));
+      const value = Math.min(max, Math.max(Math.min(unit, base), Math.floor(raw / unit) * unit));
       return { effect: { ...step.effect, value }, factor: rate, why: 'ばらつき' };
     }
     default:

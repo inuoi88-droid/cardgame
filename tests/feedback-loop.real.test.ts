@@ -179,3 +179,56 @@ describe('報告 #4・#5：親和でコスト1まで下がり、召喚時のエ�
     expect(battle.applyAction(g, { type: 'playCard', player: 0, cardUid: 'H2' }).ok).toBe(false);
   });
 });
+
+describe('数値1が倍率の大きさ（20・10）に引き上げられない（実際の倍率。ユーザーの指摘・決定事項 #135）', () => {
+  const spell = (id: string, effects: CardDef['effects']): CardDef => card({ id, name: id, cost: 0, scale: 20, effects });
+
+  it('ダメージ1の連撃×5 は合計5（以前は1発ごとに最低20に上がって100）', () => {
+    let g = started();
+    g.cards['p0:multi'] = spell('multi', [{ id: 'multiHit', value: 1, hits: 5, target: 'chosen', timing: 'play', condition: null }]);
+    g.players[0].hand.push({ uid: 'M', cardId: 'p0:multi', owner: 0 });
+    const hp = g.players[1].hp;
+    g = act(g, { type: 'playCard', player: 0, cardUid: 'M', chosen: { enemy: { kind: 'player', player: 1 } } });
+    expect(g.players[1].hp).toBe(hp - 5);
+  });
+
+  it('守備力のあるモンスターへの最低ダメージは、元のダメージを超えない（20 以上の攻撃は今までどおり最低20）', () => {
+    let g = started();
+    // 相手の番に守備力40の壁を出してもらう
+    g = act(g, { type: 'endTurn', player: 0 });
+    g.cards['p1:wall'] = card({ id: 'wall', name: '壁', rarity: 'rare', cost: 0, scale: 20, stats: { attack: 0, hp: 200, defense: 40 } });
+    g.players[1].hand.push({ uid: 'W', cardId: 'p1:wall', owner: 1 });
+    g = act(g, { type: 'playCard', player: 1, cardUid: 'W' });
+    g = act(g, { type: 'endTurn', player: 1 });
+    g.cards['p0:poke'] = spell('poke', [{ id: 'damage', value: 1, target: 'chosen', timing: 'play', condition: null }]);
+    g.cards['p0:bolt'] = spell('bolt', [{ id: 'damage', value: 20, target: 'chosen', timing: 'play', condition: null }]);
+    g.players[0].hand.push({ uid: 'P', cardId: 'p0:poke', owner: 0 }, { uid: 'B', cardId: 'p0:bolt', owner: 0 });
+    g = act(g, { type: 'playCard', player: 0, cardUid: 'P', chosen: { enemy: { kind: 'monster', uid: 'W' } } });
+    expect(g.players[1].board.find((m) => m.uid === 'W')!.hp).toBe(199);
+    g = act(g, { type: 'playCard', player: 0, cardUid: 'B', chosen: { enemy: { kind: 'monster', uid: 'W' } } });
+    expect(g.players[1].board.find((m) => m.uid === 'W')!.hp).toBe(199 - BALANCE.battle.minMonsterDamage);
+  });
+
+  it('ばらつきの付いた数値1は、どの倍率でも1（以前は最低の刻み10に上がった）', () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      let g = started();
+      g.rng = seed;
+      g.cards['p0:g'] = spell('g', [{ id: 'damage', value: 1, mods: ['gamble'], target: 'chosen', timing: 'play', condition: null }]);
+      g.players[0].hand.push({ uid: 'G', cardId: 'p0:g', owner: 0 });
+      const hp = g.players[1].hp;
+      g = act(g, { type: 'playCard', player: 0, cardUid: 'G', chosen: { enemy: { kind: 'player', player: 1 } } });
+      expect(hp - g.players[1].hp).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('試作で出した体力1のモンスターは体力1のまま（以前は最低の刻み10に上がった）', () => {
+    let g = started();
+    g.cards['p0:tiny'] = card({ id: 'tiny', name: '小', rarity: 'rare', cost: 2, scale: 20, stats: { attack: 40, hp: 1, defense: 0 }, abilities: [{ id: 'prototype', value: 1 }] });
+    g.players[0].hand.push({ uid: 'T', cardId: 'p0:tiny', owner: 0 });
+    g.players[0].energy = 5;
+    g = act(g, { type: 'playCard', player: 0, cardUid: 'T', alt: 'prototype' });
+    const m = g.players[0].board.find((x) => x.card.uid === 'T')!;
+    expect(m.hp).toBe(1);
+    expect(m.attack).toBe(20);
+  });
+});

@@ -189,9 +189,10 @@ export function placeMonster(g: GameState, p: PlayerId, card: CardInst, depth: n
   let hp = (card.token?.hp ?? def.stats.hp) + (perm?.hp ?? 0);
   // 試作（MTG 要素 △ バッチB）：永久強化を足してから半分
   if (enter.prototype) {
+    // 体力の最低は刻みか元の体力の小さいほう（刻みに引き上げると、体力1が10になった：決定事項 #135）
     const step = Math.max(1, Math.floor(BALANCE.abilities.prototype.step));
     attack = halve(attack, 0);
-    hp = halve(hp, step);
+    hp = halve(hp, Math.min(step, Math.max(1, hp)));
   }
   if (enter.unleash) attack += enter.unleash;
   const defense = card.token ? (card.token.defense ?? 0) : def.stats.defense;

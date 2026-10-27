@@ -7,6 +7,7 @@ import { useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObj
 import { analyzeCard, CARD_TYPE_LABEL, CURSE_LABEL, RARITY_LABEL, TRIBE_LABEL, type CardAnalysis, type CardDef } from '../../engine/index.ts';
 import { cx } from '../util.ts';
 import { CardArt } from './CardArt.tsx';
+import { sceneStyle } from './cardScene.ts';
 import { CostGem, Emblem, frameClasses, nameFit, RarityGem } from './cardParts.tsx';
 import './cards.css';
 
@@ -56,8 +57,13 @@ export function CardView({ card, analysis, size = 'lg', onClick, actionLabel, ta
         <div className="tcg__banner">
           <span className={cx('tcg__name', nameFit(name))}>{name}</span>
         </div>
-        <div className="tcg__art">
+        <div className="tcg__art" style={sceneStyle(card, a.cardType, a.isCurse)}>
           <CardArt icon={card.icon} rarity={card.rarity} cardType={a.cardType} curse={a.isCurse} size={sm ? 'var(--card-art-sm, 52px)' : 'var(--card-art-lg, 92px)'} />
+          {tribe && card.tribe && (
+            <span className={cx('tcg__tribe', `tcg__tribe--${card.tribe}`)} aria-hidden="true">
+              {tribe}
+            </span>
+          )}
           {a.isCurse && (
             <span className="tcg__seal" aria-hidden="true">
               呪

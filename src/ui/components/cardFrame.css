@@ -386,7 +386,7 @@
   font-size: 13px;
   letter-spacing: 0;
 }
-/* 絵のアーチ窓（地は種類の色の光と細い放射線） */
+/* 絵のアーチ窓（地は種類の色の光と、種族・属性の風景 --art-scene。決定事項 #142。風景が無ければ細い放射線） */
 .tcg__art {
   position: relative;
   height: 118px;
@@ -397,7 +397,7 @@
   border-radius: 46% 46% 6px 6px / 30% 30% 6px 6px;
   background:
     radial-gradient(closest-side at 50% 50%, color-mix(in srgb, var(--type) 42%, transparent) 0%, transparent 100%) padding-box,
-    repeating-conic-gradient(from 0deg at 50% 50%, rgba(255, 255, 255, 0.045) 0 5deg, transparent 5deg 12deg) padding-box,
+    var(--art-scene, repeating-conic-gradient(from 0deg at 50% 50%, rgba(255, 255, 255, 0.045) 0 5deg, transparent 5deg 12deg)) padding-box,
     linear-gradient(180deg, #222944 0%, #0c0f1c 100%) padding-box,
     var(--metal) border-box;
   box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.7);
@@ -405,7 +405,7 @@
 .is-cursed .tcg__art {
   background:
     radial-gradient(closest-side, rgba(224, 56, 111, 0.4), transparent) padding-box,
-    repeating-conic-gradient(from 0deg at 50% 50%, rgba(255, 120, 160, 0.05) 0 5deg, transparent 5deg 12deg) padding-box,
+    var(--art-scene, repeating-conic-gradient(from 0deg at 50% 50%, rgba(255, 120, 160, 0.05) 0 5deg, transparent 5deg 12deg)) padding-box,
     linear-gradient(180deg, #2c0f1f, #0d0408) padding-box,
     var(--metal) border-box;
 }
@@ -631,6 +631,48 @@
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.85),
     inset 0 0 0 1px rgba(224, 56, 111, 0.45);
+}
+/* 種族の印（決定事項 #142）：絵の窓の左下の小さな札。色は種族ごと */
+.tcg__tribe {
+  position: absolute;
+  left: 6px;
+  bottom: 5px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--font-title);
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #fff;
+  background: var(--tribe, #4a5266);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 1px 3px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+.tcg__tribe--beast {
+  --tribe: #2f7a4f;
+}
+.tcg__tribe--dragon {
+  --tribe: #b8461f;
+}
+.tcg__tribe--undead {
+  --tribe: #6b4f9a;
+}
+.tcg__tribe--machine {
+  --tribe: #3f6c95;
+}
+.tcg__tribe--spirit {
+  --tribe: #2b9a8f;
+}
+.tcg__tribe--human {
+  --tribe: #9a7a32;
+}
+.tcg--sm .tcg__tribe {
+  left: 4px;
+  bottom: 3px;
+  padding: 0 4px;
+  font-size: 12px;
 }
 .tcg__seal {
   position: absolute;

@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { BALANCE, battle, CARD_TYPE_LABEL, CONDITIONS, analyzeCard, describeEffect, getEffect, LEADERS, TIMINGS, toLeaderId, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
 import { CardArt, NOISE_ART } from '../components/CardArt.tsx';
+import { sceneStyle } from '../components/cardScene.ts';
 import { CostGem, Emblem, frameClasses, nameFit } from '../components/cardParts.tsx';
 import { Popover, type PopoverCard } from '../components/Popover.tsx';
 import { glossary, keywordGlossary, mechanicGlossary, type GlossaryEntry } from '../glossary.ts';
@@ -1178,7 +1179,7 @@ export function MonsterTile({
           {targetable && extraCost > 0 && <em>護法+{extraCost}⚡</em>}
         </span>
       )}
-      <span className="mt__icon" aria-hidden="true">
+      <span className="mt__icon" aria-hidden="true" style={m.faceDown ? undefined : sceneStyle(def, 'monster', curse)}>
         {m.faceDown ? (
           <span className="mt__back">
             <b>?</b>
@@ -1367,7 +1368,7 @@ export function HandCard({ card, def, info, energy, playable, selected, dim, onC
           {abil.icon}
         </span>
       )}
-      <span className="hc__icon" aria-hidden="true">
+      <span className="hc__icon" aria-hidden="true" style={sceneStyle(def, a.cardType, a.isCurse)}>
         <CardArt icon={def.icon} rarity={def.rarity} cardType={a.cardType} curse={a.isCurse} />
       </span>
       <span className={cx('hc__name', nameFit(def.name))}>{def.name}</span>

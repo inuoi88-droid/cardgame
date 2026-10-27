@@ -773,6 +773,7 @@ body:has(.battle) .toast__action {
   border-radius: 40% 40% 4px 4px / 30% 30% 4px 4px;
   background:
     radial-gradient(closest-side, color-mix(in srgb, var(--type) 38%, transparent), transparent) padding-box,
+    var(--art-scene, none) padding-box,
     linear-gradient(180deg, #222944, #0c0f1c) padding-box,
     var(--metal) border-box;
   box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.7);
@@ -1103,6 +1104,7 @@ body:has(.battle) .toast__action {
   border-radius: 40% 40% 4px 4px / 30% 30% 4px 4px;
   background:
     radial-gradient(closest-side, color-mix(in srgb, var(--type) 40%, transparent), transparent) padding-box,
+    var(--art-scene, none) padding-box,
     linear-gradient(180deg, #222944, #0c0f1c) padding-box,
     var(--metal) border-box;
   box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.7);

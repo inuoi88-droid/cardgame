@@ -56,8 +56,8 @@ export const EVENT_KEEP_MS = DECLINE_MEMORY_MS;
 const HOUR_MS = 60 * 60 * 1000;
 export const RATE_WINDOW = { hour: HOUR_MS, day: 24 * HOUR_MS } as const;
 
-/** 回数の記録の種類（rate_events.kind） */
-export type RateKind = 'register' | 'request' | 'declined' | 'linkInfo';
+/** 回数の記録の種類（rate_events.kind。staffFail は運営のパスワードの間違い：決定事項 #141） */
+export type RateKind = 'register' | 'request' | 'declined' | 'linkInfo' | 'staffFail';
 
 /** サーバーに保存するプレイヤー */
 export interface PlayerRecord {

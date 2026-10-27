@@ -27,11 +27,10 @@ import {
   handleBody,
   normalizeFriendCode,
   type HttpDeps,
+  type HttpResult,
   type InboxEvent,
   type SocialOk,
   type SocialOp,
-  type FeedbackResponse,
-  type SocialResponse,
 } from '../src/online/index.ts';
 import { matchRecordOf, presenceUpdates } from '../src/online/social/rooms.ts';
 
@@ -141,7 +140,7 @@ describe('相手のデッキ（RoomView.opponentDeck）', () => {
 // 受付（handleBody）＋メモリの保存場所で、フレンド機能の操作を通す
 // ---------------------------------------------------------------------------
 
-type Body = OnlineResponse | SocialResponse | FeedbackResponse;
+type Body = HttpResult['body'];
 
 function world(opts: { social?: boolean } = {}) {
   const store = new MemoryStore();

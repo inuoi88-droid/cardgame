@@ -14,19 +14,24 @@
  * 自分あての通知（cardgame:inbox:<inboxId>）は届かないので、画面は hello を定期的に送って気づく。通知の代わりに端末に1行出す。
  * GET / で部屋とプレイヤーと報告の一覧（鍵は出さない）。
  * プレイヤーを作る回数の上限は、全体の上限だけを見る（送り元の鍵 clientKey は渡さない。同じ PC の複数のブラウザで試せるように。決定事項 #124）。
+ * みんなの広場・運営・公式カードの上書き（決定事項 #141）もメモリで動く。運営のパスワードは手元専用（STAFF_PASSWORD、既定は dev-staff。
+ * 本番のパスワードはコードに書かない：DB の cardgame.admin_settings にハッシュだけ）。
  */
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { createServer } from 'node:http';
-import { handleBody, MAX_BODY_CHARS, MemoryFeedbackStore, MemoryStore, type HttpDeps } from '../src/online/index.ts';
+import { createMemoryPlazaStore, handleBody, MAX_BODY_CHARS, MemoryFeedbackStore, MemoryStore, staffPasswordHash, type HttpDeps } from '../src/online/index.ts';
 
 const PORT = Number(process.env.PORT ?? 8787);
 
 const store = new MemoryStore();
 const feedback = new MemoryFeedbackStore();
+const sha256 = async (t: string) => createHash('sha256').update(t).digest('hex');
+const plaza = createMemoryPlazaStore({ staffPassword: await staffPasswordHash(process.env.STAFF_PASSWORD ?? 'dev-staff', 'dev', 10, sha256) });
 const deps: HttpDeps = {
   store,
   social: store,
   feedback,
+  plaza,
   now: () => Date.now(),
   randomInt: (n) => randomInt(n),
   newToken: () => randomBytes(32).toString('hex'),

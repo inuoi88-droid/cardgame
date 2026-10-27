@@ -1,11 +1,11 @@
-// Edge Function「cardgame」：オンライン対戦とフレンド機能とプレイヤーからの報告（決定事項 #129）の受付（Deno）。
+// Edge Function「cardgame」：オンライン対戦とフレンド機能とプレイヤーからの報告（決定事項 #129）とみんなの広場・運営（決定事項 #141）の受付（Deno）。
 // 処理の中身は engine.js（src/online と src/engine をまとめたもの。npm run build:server で作る）にあり、
 // ここでは本物の DB（cardgame スキーマへの直接接続。SQL は sqlStore.ts）・時刻・暗号学的乱数・Realtime の通知をつなぐだけ。
 // 本人確認は独自のトークン（部屋）とプレイヤーの鍵（フレンド機能。決定事項 #121）で行うため、Supabase の JWT 検証は使わない（verify_jwt = false）。
 // デプロイするファイル：index.ts・sqlStore.ts・engine.js の3つ。
 import postgres from 'npm:postgres@3.4.5';
 import { handleBody } from './engine.js';
-import { makeFeedbackStore, makeRoomStore, makeSocialStore } from './sqlStore.ts';
+import { makeFeedbackStore, makePlazaStore, makeRoomStore, makeSocialStore } from './sqlStore.ts';
 
 // DB はほかのアプリと共用で、同時接続は全体で 60 まで。関数は同時にいくつも動くので、1つが持つ接続は1本・使わなければ5秒で返す
 // （以前は4本を20秒持ち、アクセスが重なると「remaining connection slots are reserved」で失敗していた：決定事項 #129 の確認で見つけた）
@@ -71,11 +71,13 @@ const RETRIES = 2;
 const store = makeRoomStore(sql);
 const social = makeSocialStore(sql);
 const feedback = makeFeedbackStore(sql);
+const plaza = makePlazaStore(sql);
 
 const deps = {
   store,
   social,
   feedback,
+  plaza,
   now: () => Date.now(),
   randomInt,
   newToken: () => hex(crypto.getRandomValues(new Uint8Array(32))),

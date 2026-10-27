@@ -76,3 +76,27 @@ export function officialCommonDeck(archetype: OfficialArchetype): Deck {
     entries: [...counts].map(([cardId, count]) => ({ cardId, count })),
   };
 }
+
+/**
+ * 運営が書き換えた公式カード（決定事項 #141）を重ねた一覧。並びと枚数は元のまま、同じ ID の上書きがあればそれに替える
+ * （知らない ID・レアリティが変わった上書きは使わない）。サーバーのドラフトの山・CPU 戦のドラフト・公式カードの一覧が同じものを使う
+ */
+export function withOfficialOverrides(base: readonly CardDef[], overrides: readonly CardDef[]): CardDef[] {
+  if (overrides.length === 0) return [...base];
+  const byId = new Map(overrides.map((c) => [c.id, c]));
+  return base.map((c) => {
+    const o = byId.get(c.id);
+    return o && o.rarity === c.rarity ? o : c;
+  });
+}
+
+/**
+ * 公式カードの書き換えとして受け付けられないときの理由（受け付けられれば null）。カードのルール違反は別に analyzeCard で見る。
+ * ID は元の公式カードのもの、レアリティは変えない（ドラフトの山の枚数とレジェンドの数が変わらないように）
+ */
+export function officialEditProblem(card: Pick<CardDef, 'id' | 'rarity'>): string | null {
+  const base = officialCard(card.id);
+  if (!base) return '公式カードではありません';
+  if (base.rarity !== card.rarity) return 'レアリティは変えられません（ドラフトの山の枚数が変わるため）';
+  return null;
+}

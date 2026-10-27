@@ -37,3 +37,9 @@ export { MemoryFeedbackStore } from './feedback/memoryStore.ts';
 export { FEEDBACK_OPS, cleanBody, isFeedbackOp, parseFeedbackRequest } from './feedback/protocol.ts';
 export type { FeedbackErrorReason, FeedbackOp, FeedbackRequest, FeedbackResponse } from './feedback/protocol.ts';
 export * from './feedback/types.ts';
+// みんなの広場・運営・公式カードの上書き（決定事項 #141）
+export { createMemoryPlazaStore } from './plaza/memoryStore.ts';
+export { PLAZA_OPS, isPlazaOp, parsePlazaRequest } from './plaza/protocol.ts';
+export type { OfficialHistoryView, PlazaErrorReason, PlazaOk, PlazaOp, PlazaOwner, PlazaReplies, PlazaRequest, PlazaResponse, PublicItemFull, PublicItemView } from './plaza/protocol.ts';
+export { staffPasswordHash } from './plaza/handlers.ts';
+export * from './plaza/types.ts';

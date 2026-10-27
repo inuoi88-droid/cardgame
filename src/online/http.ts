@@ -3,9 +3,14 @@
  * Edge Function（supabase/functions/cardgame/index.ts）は、これに本物の DB などをつなぐだけにする。
  */
 import type { CardDef } from '../engine/types.ts';
+import { withOfficialOverrides } from '../official/index.ts';
 import { generateCode } from './codes.ts';
+import { ONLINE_DRAFT_CARDS } from './draftCards.ts';
 import { handleFeedback } from './feedback/handlers.ts';
 import { isFeedbackOp, parseFeedbackRequest, type FeedbackResponse } from './feedback/protocol.ts';
+import { handlePlaza } from './plaza/handlers.ts';
+import { isPlazaOp, parsePlazaRequest, type PlazaResponse } from './plaza/protocol.ts';
+import type { PlazaStore } from './plaza/types.ts';
 import type { FeedbackStore } from './feedback/types.ts';
 import { MAX_BODY_CHARS, parseRequest, type OnlineResponse } from './protocol.ts';
 import { ROOM_TTL_MS, type RoomRecord, type SeatPlayer } from './room.ts';
@@ -48,6 +53,11 @@ export interface HttpDeps {
   notifyInbox?(inboxId: string, event: InboxEvent): Promise<void>;
   /** プレイヤーからの報告の保存場所（決定事項 #129）。無ければ報告の操作は unsupported */
   feedback?: FeedbackStore;
+  /**
+   * みんなの広場・運営・公式カードの上書きの保存場所（決定事項 #141。フレンド機能の social も要る）。無ければその操作は unsupported。
+   * あれば、ドラフトの部屋に入ったときの山（draftPool が無いとき）に公式カードの上書きを重ねる
+   */
+  plaza?: PlazaStore;
 }
 
 /** 1回の送信ごとの情報（決定事項 #124） */
@@ -58,7 +68,7 @@ export interface RequestContext {
 
 export interface HttpResult {
   status: number;
-  body: OnlineResponse | SocialResponse | FeedbackResponse;
+  body: OnlineResponse | SocialResponse | FeedbackResponse | PlazaResponse;
 }
 
 const CODE_TRIES = 5;
@@ -74,6 +84,7 @@ export async function handleBody(text: string, deps: HttpDeps, ctx: RequestConte
   }
   if (typeof raw === 'object' && raw !== null && isSocialOp((raw as { op?: unknown }).op)) return socialBody(raw, deps, ctx);
   if (typeof raw === 'object' && raw !== null && isFeedbackOp((raw as { op?: unknown }).op)) return feedbackBody(raw, deps, ctx);
+  if (typeof raw === 'object' && raw !== null && isPlazaOp((raw as { op?: unknown }).op)) return plazaBody(raw, deps, ctx);
   const parsed = parseRequest(raw);
   if (!parsed.ok) return { status: 400, body: { ok: false, error: parsed.error, reason: 'invalid' } };
   const req = parsed.value;
@@ -108,10 +119,19 @@ export async function handleBody(text: string, deps: HttpDeps, ctx: RequestConte
     const token = req.op === 'join' ? deps.newToken() : req.token;
     const tokenHash = await deps.hash(token);
     const seed = deps.randomInt(SEED_RANGE);
+    // ドラフトの山は入ったときに作る：運営が書き換えた公式カードを重ねる（決定事項 #141。読めなくてもドラフトは元のカードで進める）
+    let draftPool = deps.draftPool;
+    if (req.op === 'join' && !draftPool && deps.plaza) {
+      try {
+        draftPool = withOfficialOverrides(ONLINE_DRAFT_CARDS, (await deps.plaza.officialOverrides()).cards);
+      } catch (e) {
+        deps.log?.(`official overrides failed: ${String(e)}`);
+      }
+    }
     let match: MatchRecord | null = null;
     let presence: PresenceUpdate[] = [];
     const r: ServeResult = await deps.store.update(req.code, (room) => {
-      const result = serve(req, room, { now, tokenHash, code: req.code, seed, ...(deps.draftPool ? { draftPool: deps.draftPool } : {}), ...withPlayer });
+      const result = serve(req, room, { now, tokenHash, code: req.code, seed, ...(draftPool ? { draftPool } : {}), ...withPlayer });
       // 決着の記録と「見かけた」は、部屋の前後から作る（保存は部屋の書き込みのあと。失敗しても対戦は止めない）
       if (deps.social) {
         match = matchRecordOf(room, result.save, now);
@@ -167,6 +187,27 @@ async function feedbackBody(raw: unknown, deps: HttpDeps, ctx: RequestContext): 
       store: deps.feedback,
       now: deps.now(),
       hash: deps.hash,
+      ...(ctx.clientKey ? { clientKey: ctx.clientKey } : {}),
+    });
+    return { status: 200, body };
+  } catch (e) {
+    deps.log?.(`error: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
+    return { status: 500, body: { ok: false, error: 'サーバーでエラーが起きました。少し待ってからもう一度お試しください' } };
+  }
+}
+
+/** みんなの広場・運営・公式カードの上書き（決定事項 #141） */
+async function plazaBody(raw: unknown, deps: HttpDeps, ctx: RequestContext): Promise<HttpResult> {
+  const parsed = parsePlazaRequest(raw);
+  if (!parsed.ok) return { status: 400, body: { ok: false, error: parsed.error, reason: 'invalid' } };
+  if (!deps.plaza || !deps.social) return { status: 200, body: { ok: false, error: 'このサーバーはみんなの広場に対応していません', reason: 'unsupported' } };
+  try {
+    const body = await handlePlaza(parsed.value, {
+      plaza: deps.plaza,
+      social: deps.social,
+      now: deps.now(),
+      hash: deps.hash,
+      newToken: deps.newToken,
       ...(ctx.clientKey ? { clientKey: ctx.clientKey } : {}),
     });
     return { status: 200, body };

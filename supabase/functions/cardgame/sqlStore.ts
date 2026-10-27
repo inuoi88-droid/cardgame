@@ -1,6 +1,6 @@
 // Edge Function「cardgame」の保存場所：cardgame スキーマの表への SQL（postgres.js）。
 // 部屋（RoomStore。rooms）とフレンド機能（SocialStore。players・friendships・friend_requests・invites・matches・shared_decks。決定事項 #121）と
-// プレイヤーからの報告（FeedbackStore。feedback。決定事項 #129）。
+// プレイヤーからの報告（FeedbackStore。feedback。決定事項 #129）とみんなの広場・運営・公式カードの上書き（PlazaStore。決定事項 #141）。
 // 約束（メソッドの意味）は src/online/http.ts の RoomStore と src/online/social/types.ts の SocialStore と src/online/feedback/types.ts の FeedbackStore。
 // 同じ約束のメモリ版は src/online/social/memoryStore.ts（手元のサーバーとテスト）。
 // このファイルは Deno 専用の API を使わない（Node でも手元の Postgres に当てて試せる：docs/ONLINE_SOCIAL.md）。
@@ -461,6 +461,135 @@ export function makeFeedbackStore(sql: Sql) {
         createdAt: Number(r.created_ms),
         updatedAt: Number(r.updated_ms),
       }));
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// みんなの広場・運営・公式カードの上書き（決定事項 #141）
+// ---------------------------------------------------------------------------
+
+type PublicKind = 'card' | 'deck';
+interface PublicItemRecord {
+  id: string;
+  ownerId: string;
+  kind: PublicKind;
+  sourceId: string;
+  name: string;
+  card?: Json;
+  deck?: Json;
+  cards?: Json[];
+  count: number;
+  size: number;
+  cover: Json | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+const ITEM_COLS = `id, owner_id, kind, source_id, name, cover, card_count, size, ${ms('created_at')} as created_ms, ${ms('updated_at')} as updated_ms`;
+
+// deno-lint-ignore no-explicit-any
+const fromItemRow = (r: any) => ({
+  id: r.id,
+  ownerId: r.owner_id,
+  kind: r.kind as PublicKind,
+  sourceId: r.source_id,
+  name: r.name,
+  count: Number(r.card_count),
+  size: Number(r.size),
+  cover: r.cover ?? null,
+  createdAt: Number(r.created_ms),
+  updatedAt: Number(r.updated_ms),
+});
+
+export function makePlazaStore(sql: Sql) {
+  const q = (text: string, params: unknown[] = []) => sql.unsafe(text, params);
+  return {
+    async staffPassword(): Promise<string | null> {
+      const rows = await sql`select value from cardgame.admin_settings where key = 'staff_password'`;
+      return rows[0]?.value ?? null;
+    },
+    async isStaff(playerId: string): Promise<boolean> {
+      const rows = await sql`select 1 from cardgame.staff where player_id = ${playerId}`;
+      return rows.length > 0;
+    },
+    async setStaff(playerId: string, on: boolean, at: number): Promise<void> {
+      if (on) await sql`insert into cardgame.staff (player_id, since) values (${playerId}, ${time(at)}) on conflict do nothing`;
+      else await sql`delete from cardgame.staff where player_id = ${playerId}`;
+    },
+    async putItem(it: PublicItemRecord): Promise<string> {
+      const item = it.kind === 'card' ? it.card : { deck: it.deck, cards: it.cards };
+      const rows = await sql`
+        insert into cardgame.public_items (id, owner_id, kind, source_id, name, item, cover, card_count, size, created_at, updated_at)
+        values (${it.id}, ${it.ownerId}, ${it.kind}, ${it.sourceId}, ${it.name}, ${sql.json(item)}, ${json(sql, it.cover)}, ${it.count}, ${it.size},
+                ${time(it.createdAt)}, ${time(it.updatedAt)})
+        on conflict (owner_id, kind, source_id) do update set
+          name = excluded.name, item = excluded.item, cover = excluded.cover, card_count = excluded.card_count, size = excluded.size,
+          updated_at = excluded.updated_at
+        returning id`;
+      return rows[0].id;
+    },
+    async item(id: string) {
+      const rows = await q(`select ${ITEM_COLS}, item from cardgame.public_items where id = $1`, [id]);
+      const r = rows[0];
+      if (!r) return null;
+      const s = fromItemRow(r);
+      return s.kind === 'card' ? { ...s, card: r.item } : { ...s, deck: r.item?.deck, cards: r.item?.cards ?? [] };
+    },
+    async removeItem(id: string): Promise<void> {
+      await sql`delete from cardgame.public_items where id = ${id}`;
+    },
+    async listItems(opts: { kind?: PublicKind; before?: { at: number; id: string }; limit: number }) {
+      const conds: string[] = [];
+      const params: unknown[] = [];
+      if (opts.kind) {
+        params.push(opts.kind);
+        conds.push(`kind = $${params.length}`);
+      }
+      if (opts.before) {
+        params.push(new Date(opts.before.at), opts.before.id);
+        conds.push(`(updated_at, id) < ($${params.length - 1}, $${params.length})`);
+      }
+      params.push(opts.limit);
+      const rows = await q(
+        `select ${ITEM_COLS} from cardgame.public_items ${conds.length > 0 ? `where ${conds.join(' and ')}` : ''}
+         order by updated_at desc, id desc limit $${params.length}`,
+        params,
+      );
+      return rows.map(fromItemRow);
+    },
+    async itemsByOwner(ownerId: string) {
+      const rows = await q(`select ${ITEM_COLS} from cardgame.public_items where owner_id = $1`, [ownerId]);
+      return rows.map(fromItemRow);
+    },
+    async officialOverrides(): Promise<{ version: number; cards: Json[] }> {
+      const rows = await sql`select card from cardgame.official_cards`;
+      const v = await sql`select coalesce(max(id), 0)::bigint as v from cardgame.official_card_history`;
+      // deno-lint-ignore no-explicit-any
+      return { version: Number(v[0]?.v ?? 0), cards: rows.map((r: any) => r.card) };
+    },
+    async saveOfficial(cardId: string, card: Json | null, by: string, at: number): Promise<number> {
+      return (await sql.begin(async (tx: Sql) => {
+        if (card) {
+          await tx`
+            insert into cardgame.official_cards (card_id, card, updated_by, updated_at) values (${cardId}, ${tx.json(card)}, ${by}, ${time(at)})
+            on conflict (card_id) do update set card = excluded.card, updated_by = excluded.updated_by, updated_at = excluded.updated_at`;
+        } else {
+          await tx`delete from cardgame.official_cards where card_id = ${cardId}`;
+        }
+        const rows = await tx`
+          insert into cardgame.official_card_history (card_id, card, by_id, at) values (${cardId}, ${json(tx, card)}, ${by}, ${time(at)})
+          returning id`;
+        return Number(rows[0].id);
+      })) as number;
+    },
+    async officialHistory(cardId: string, limit: number) {
+      const rows = await q(
+        `select id, card_id, card, by_id, ${ms('at')} as at_ms from cardgame.official_card_history where card_id = $1 order by id desc limit $2`,
+        [cardId, limit],
+      );
+      // deno-lint-ignore no-explicit-any
+      return rows.map((r: any) => ({ version: Number(r.id), cardId: r.card_id, card: r.card ?? null, by: r.by_id ?? '', at: Number(r.at_ms) }));
     },
   };
 }

@@ -23,7 +23,7 @@ export default defineEffect({
     resolve(rt, e) {
       const t = rt.targets[0];
       if (!t) return;
-      rt.changeAttack(t, n(e));
+      rt.changeAttack(t, n(e) + rt.growBonus(t));
       rt.equipTo(t);
     },
   },

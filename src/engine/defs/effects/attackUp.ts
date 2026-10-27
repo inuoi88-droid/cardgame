@@ -17,7 +17,7 @@ export default defineEffect({
   describe: (e, c) => `${c.target}の攻撃力を+${n(e)}する`,
   battle: {
     resolve(rt, e) {
-      for (const t of rt.targets) rt.changeAttack(t, n(e));
+      for (const t of rt.targets) rt.changeAttack(t, n(e) + rt.growBonus(t));
     },
   },
 });

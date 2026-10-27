@@ -1,5 +1,5 @@
 /** 対戦の状態・行動・ログの型。状態はすべて JSON にできる形にする（保存・サーバー配信・テストのため）。 */
-import type { CardDef, DrawbackInstance, EffectInstance, TimingId } from '../types.ts';
+import type { CardDef, DrawbackInstance, EffectInstance, TimingId, TribeId } from '../types.ts';
 import type { FieldId, MatchRules } from '../fields.ts';
 import type { LeaderId } from '../leaders.ts';
 
@@ -554,7 +554,9 @@ export interface LogEvent {
     | 'drawback'
     | 'keyword'
     | 'stat'
-    | 'zone';
+    | 'zone'
+    // 種族（決定事項 #143）：特性・揃いのボーナスが働いた（tribe・status は 'trait' / 'set'。target はそのモンスター、player は揃えた側）
+    | 'tribe';
   player?: PlayerId;
   target?: TargetRef;
   source?: TargetRef;
@@ -584,6 +586,8 @@ export interface LogEvent {
   targets?: TargetRef[];
   /** stat：攻撃力・体力・守備力の変化（量） */
   delta?: { attack?: number; hp?: number; defense?: number };
+  /** tribe（と、種族の特性で変わった stat）：働いた種族（決定事項 #143） */
+  tribe?: TribeId;
 }
 
 /** カードの移動の種類（LogEvent の kind 'zone' の status） */
@@ -797,6 +801,8 @@ export interface EffectRuntime {
   discardRandom(player: PlayerId, count: number): void;
   cleanse(player: PlayerId): void;
   changeAttack(target: TargetRef, delta: number): void;
+  /** 人の特性「研鑽」（決定事項 #143）：攻撃力アップ・鍛錬・装備で上乗せする攻撃力（人でなければ0。働いたらログを書く） */
+  growBonus(target: TargetRef): number;
   changeDefense(target: TargetRef, delta: number): void;
   /** force：守護の不壊でも破壊する（生け贄。MTG 要素 △ バッチA） */
   destroy(target: TargetRef, force?: boolean): void;

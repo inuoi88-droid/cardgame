@@ -2,7 +2,7 @@
 import { BALANCE } from '../balance.ts';
 import { getKeyword } from '../registry.ts';
 import { fieldAttackBonus } from './rules.ts';
-import type { CardDef, KeywordInstance } from '../types.ts';
+import type { CardDef, KeywordInstance, TribeId } from '../types.ts';
 import {
   NOISE_CARD_ID,
   type GameResult,
@@ -121,9 +121,55 @@ export function auraAttack(g: GameState, m: Monster): number {
   return n;
 }
 
-/** 実効攻撃力（攻撃力＋このターンだけの上乗せ＋激励＋容疑＋フィールド。容疑は MTG 要素 △ バッチA、フィールド「火山」は △ バッチD） */
+/** 実効攻撃力（攻撃力＋このターンだけの上乗せ＋激励＋容疑＋フィールド＋種族の揃い「群れ」。容疑は MTG 要素 △ バッチA、フィールド「火山」は △ バッチD、群れは #143） */
 export const effectiveAttack = (g: GameState, m: Monster): number =>
-  m.attack + (m.tempAttack ?? 0) + auraAttack(g, m) + (m.suspected ? BALANCE.effects.suspect.attack : 0) + (m.siege ? 0 : fieldAttackBonus(g));
+  m.attack +
+  (m.tempAttack ?? 0) +
+  auraAttack(g, m) +
+  (m.suspected ? BALANCE.effects.suspect.attack : 0) +
+  (m.siege ? 0 : fieldAttackBonus(g)) +
+  (monsterTribe(g, m) === 'beast' && tribeSetActive(g, m.controller, 'beast') ? BALANCE.tribes.beast.set.attack : 0);
+
+/** 実効守備力（守備力＋種族の揃い「連結」。決定事項 #143） */
+export const effectiveDefense = (g: GameState, m: Monster): number =>
+  m.defense + (monsterTribe(g, m) === 'machine' && tribeSetActive(g, m.controller, 'machine') ? BALANCE.tribes.machine.set.defense : 0);
+
+// ---------------------------------------------------------------- 種族（決定事項 #143）
+
+/** 場のモンスターの種族（裏向きは種族なし） */
+export function monsterTribe(g: GameState, m: Monster): TribeId | undefined {
+  return m.faceDown ? undefined : g.cards[m.card.cardId]?.tribe;
+}
+
+/** 種族の特性が働いているなら、その種族（封印・休眠中は働かない） */
+export function traitTribe(g: GameState, m: Monster): TribeId | undefined {
+  return m.sealed || monsterDormant(g, m) ? undefined : monsterTribe(g, m);
+}
+
+/** 揃いに数える、自分の場のその種族のモンスターの数（特性の働いているものだけ） */
+export function tribeCount(g: GameState, p: PlayerId, tribe: TribeId): number {
+  let n = 0;
+  for (const m of g.players[p]?.board ?? []) if (traitTribe(g, m) === tribe) n += 1;
+  return n;
+}
+
+/** 揃いのボーナスが働いているか */
+export const tribeSetActive = (g: GameState, p: PlayerId, tribe: TribeId): boolean => tribeCount(g, p, tribe) >= BALANCE.tribes.setSize;
+
+/** 種族の特性で、この状態にならないか（竜鱗・鋼の体）。ならないなら、その種族 */
+export function tribeImmune(g: GameState, m: Monster, key: string): TribeId | undefined {
+  const t = traitTribe(g, m);
+  if (!t) return undefined;
+  const trait = BALANCE.tribes[t].trait as { immune?: readonly string[] };
+  return trait.immune?.includes(key) ? t : undefined;
+}
+
+/** 精霊の特性「霊体」：場に出てから次の自分のターンが始まるまで、相手のカードに選ばれない */
+export function spiritVeiled(g: GameState, m: Monster): boolean {
+  if (traitTribe(g, m) !== 'spirit') return false;
+  if (g.turnIndex === m.enteredTurn) return true;
+  return g.turnIndex === m.enteredTurn + 1 && g.active !== m.controller;
+}
 
 /**
  * 休眠（MTG 要素 △ バッチA）：起点 from（置いたときの持ち主の turnsTaken）からの、持ち主の turnsTaken の差が奇数なら休眠中

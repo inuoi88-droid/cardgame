@@ -7,7 +7,7 @@
  *   同梱していない形は対戦の始めに先読みする（fxPreload）。読めるまでは型の形（ARCH_GI。同梱）を出す。
  * - エンジン（defs/）には入れない：見た目は画面の都合なので UI 側に置く。
  */
-import type { CardDef } from '../../../engine/index.ts';
+import type { CardDef, TribeId } from '../../../engine/index.ts';
 import { EFFECT_ICON } from '../../editor/effectIcons.ts';
 import { UI_ICON_PATHS } from '../../icons/generated/uiIcons.ts';
 import { KEYWORD_GI, glossary, mechanicGlossary, type StatusId } from '../../glossary.ts';
@@ -355,6 +355,16 @@ export const EVENT_STATUS_FX: Record<string, FxSpec & { label: string }> = {
   fatigue: { ...e('bolt', 'shadow', 'empty-hourglass'), label: '疲労' },
 };
 
+/** 種族の特性・揃いの演出（決定事項 #143） */
+export const TRIBE_FX: Record<TribeId, FxSpec> = {
+  beast: e('buff', 'physical', 'wolf-head'),
+  dragon: e('ward', 'fire', 'dragon-head'),
+  undead: e('debuff', 'poison', 'shambling-zombie'),
+  machine: e('ward', 'physical', 'gears'),
+  spirit: e('ward', 'arcane', 'spark-spirit'),
+  human: e('buff', 'holy', 'mounted-knight'),
+};
+
 /** 効果・キーワード・デメリット・能力の演出（無ければ rune） */
 export function fxOf(kind: 'effect' | 'keyword' | 'drawback' | 'ability', id: string | undefined): FxSpec {
   const table = kind === 'effect' ? EFFECT_FX : kind === 'keyword' ? KEYWORD_FX : kind === 'drawback' ? DRAWBACK_FX : ABILITY_FX;
@@ -367,7 +377,7 @@ export const statusFx = (status: string | undefined): (FxSpec & { label: string 
 /** 演出に出てくる形の名前をすべて（先読み・テスト用） */
 export function allFxGlyphs(): string[] {
   const out = new Set<string>(Object.values(ARCH_GI));
-  for (const t of [EFFECT_FX, KEYWORD_FX, DRAWBACK_FX, ABILITY_FX, STATUS_FX, EVENT_STATUS_FX]) for (const s of Object.values(t)) out.add(s.gi);
+  for (const t of [EFFECT_FX, KEYWORD_FX, DRAWBACK_FX, ABILITY_FX, STATUS_FX, EVENT_STATUS_FX, TRIBE_FX]) for (const s of Object.values(t)) out.add(s.gi);
   return [...out];
 }
 
@@ -378,6 +388,7 @@ export function allFxGlyphs(): string[] {
 export function fxPreload(cards: readonly CardDef[]): string[] {
   const out = new Set<string>([...Object.values(EVENT_STATUS_FX).map((s) => s.gi), ...Object.values(KEYWORD_FX).map((s) => s.gi)]);
   for (const c of cards) {
+    if (c.tribe) out.add(TRIBE_FX[c.tribe].gi);
     for (const x of c.effects) out.add(fxOf('effect', x.id).gi);
     for (const x of c.keywords) out.add(fxOf('keyword', x.id).gi);
     for (const x of c.drawbacks) out.add(fxOf('drawback', x.id).gi);

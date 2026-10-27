@@ -19,6 +19,7 @@ import {
   isEnded,
 } from './core.ts';
 import { combatBonus, combatSourceOf, dealDamage, keywordFlags, outgoingOf, playerBonus, setCrown, targetableTaunts } from './damage.ts';
+import { afterAttack, combatTribes } from './tribes.ts';
 import { enqueueCardTiming, enqueueEnemyAttacked } from './triggers.ts';
 import { loyaltyHit } from './powers.ts';
 import { fogDamage, ruleHooks } from './rules.ts';
@@ -142,6 +143,8 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
       : null;
   /** 先制攻撃：攻撃で相手モンスターを倒したら反撃を受けない */
   const firstStrike = keywordFlags(g, m).firstStrike === true;
+  // 種族の特性（決定事項 #143）：攻撃の前の時点で決める（守った側は倒れることがある）
+  const tribes = combatTribes(g, m, defender);
   // 武士道：モンスターと戦うときだけ攻撃力に足す。猛襲：相手プレイヤーを攻撃するときだけ足す
   const enemy = other(m.controller);
   const toEnemyPlayer = target.kind === 'player' && target.player === enemy;
@@ -180,6 +183,7 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
     if (t.hpLost > 0 && defender.controller !== m.controller) loyaltyHit(g, defender.controller, depth + 2);
     if (isEnded(g)) return;
   }
+  let struck = false;
   // 反撃：守備側が倒れていても、封印・凍結・隠密でも返す。守備側の「攻撃するたび」は発動しない。
   // 先制攻撃のモンスターが相手を倒したときは反撃を受けない
   if (retaliation && defender && flags.noRetaliation) {
@@ -189,16 +193,19 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   } else if (retaliation && defender && firstStrike && r.destroyed) {
     log(g, depth + 1, `先制攻撃：${retaliation.label}の反撃を受けない`, 'effect', undefined, { kind: 'keyword', keywordId: 'firstStrike', player: m.controller, target: attackerRef });
   } else if (retaliation && defender) {
-    dealDamage(g, attackerRef, retaliation.amount, {
+    struck = dealDamage(g, attackerRef, retaliation.amount, {
       kind: 'retaliate',
       source: { kind: 'monster', uid: defender.uid },
       outgoing: retaliation.outgoing,
       combatSource: retaliation.source,
       prefix: `${retaliation.label}の反撃：`,
       depth: depth + 1,
-    });
+    }).hpLost > 0;
     if (isEnded(g)) return;
   }
+  // 種族の特性：腐食（不死の攻撃・反撃で毒）・狩猟本能（獣が攻撃で倒したら攻撃力+）
+  afterAttack(g, m.uid, defender?.uid, tribes, { hit: defender !== undefined && r.hpLost > 0, struck, killed: defender !== undefined && r.destroyed }, depth + 1);
+  if (isEnded(g)) return;
   // 攻撃するたび（攻撃したモンスターが場に残っていれば）
   const attacker = findMonster(g, m.uid);
   if (attacker && !attacker.sealed) {

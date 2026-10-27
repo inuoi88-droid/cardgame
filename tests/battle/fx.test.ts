@@ -313,6 +313,7 @@ describe('演出の台帳（fx/registry.ts）', () => {
       'gain', 'ramp', 'day', 'night', 'fight', 'infight', 'search', 'seek', 'regen', 'sanctuary', 'drain', // energy・dayNight・attack・draw・heal
       'mill', 'bounce', 'toHand', 'exile', 'noise', 'steal', // zone（ZoneMove）
       'speed', 'crown', 'chapter', 'charge', 'sagaEnd', 'none', // 速度・王冠・英雄譚・フィールド
+      'trait', 'set', // 種族（kind 'tribe'。決定事項 #143）
     ]);
     const files = [
       ...readdirSync(join(ROOT, 'src/engine/battle')).map((f) => join(ROOT, 'src/engine/battle', f)),

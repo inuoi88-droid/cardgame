@@ -3,7 +3,8 @@ import { BALANCE } from '../balance.ts';
 import { TIMINGS, type TargetRule } from '../options.ts';
 import type { EffectInstance, TimingId } from '../types.ts';
 import { getKeyword } from '../registry.ts';
-import { cardName, checkGameEnd, effectiveAttack, enqueue, findMonster, log, monsterLabel, newUid, other, playerRef, playRecord, targetExists, turnLimits } from './core.ts';
+import { cardName, checkGameEnd, effectiveAttack, enqueue, findMonster, log, monsterLabel, newUid, other, playerRef, playRecord, targetExists, traitTribe, turnLimits } from './core.ts';
+import { TRIBE_TRAITS } from '../tribes.ts';
 import { addStatus, cleanse, combatBonus, combatSourceOf, dealDamage, destroyMonster, heal, outgoingOf, setCrown } from './damage.ts';
 import { attacksPerTurn } from './combat.ts';
 import { pick, randInt } from './rng.ts';
@@ -290,6 +291,13 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       const before = m.attack;
       m.attack = Math.max(0, m.attack + delta);
       log(g, depth, `${monsterLabel(g, m)}の攻撃力 ${before}→${m.attack}`, 'effect', undefined, { kind: 'stat', target, delta: { attack: m.attack - before } });
+    },
+    growBonus(target) {
+      const m = monsterOf(target);
+      if (!m || traitTribe(g, m) !== 'human') return 0;
+      const n = BALANCE.tribes.human.trait.growBonus;
+      log(g, depth, `${TRIBE_TRAITS.human.name}：${monsterLabel(g, m)}はさらに攻撃力+${n}`, 'effect', undefined, { kind: 'tribe', tribe: 'human', status: 'trait', target });
+      return n;
     },
     changeDefense(target, delta) {
       const m = monsterOf(target);

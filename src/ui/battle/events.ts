@@ -9,9 +9,9 @@
  * - 浮かぶ文字に絵文字は使わない（形は gi。UI2）。
  * - 見える情報（viewFor の結果のログ）だけを使う。
  */
-import { battle, FIELDS, getKeyword, isFieldId, type CardDef } from '../../engine/index.ts';
+import { battle, FIELDS, getKeyword, isFieldId, TRIBE_SETS, TRIBE_TRAITS, type CardDef } from '../../engine/index.ts';
 import { elementOf } from './fx/element.ts';
-import { ARCH_GI, fxOf, statusFx, type FxArch, type FxElement } from './fx/registry.ts';
+import { ARCH_GI, fxOf, statusFx, TRIBE_FX, type FxArch, type FxElement } from './fx/registry.ts';
 
 type GameState = battle.GameState;
 type LogEntry = battle.LogEntry;
@@ -552,6 +552,17 @@ export function buildEvents(entries: LogEntry[], view: GameState, me: PlayerId, 
           DURATION.float,
           group,
         );
+        break;
+      }
+      // 種族（決定事項 #143）：特性はそのモンスター、揃いはプレイヤーの枠に名前を浮かべる
+      case 'tribe': {
+        if (!ev.tribe) break;
+        const spec = TRIBE_FX[ev.tribe];
+        const name = (ev.status === 'set' ? TRIBE_SETS : TRIBE_TRAITS)[ev.tribe].name;
+        const key = ev.target ? keyOf(ev.target) : ev.player !== undefined ? `p${ev.player}` : null;
+        if (!key) break;
+        const owner = ev.target ? ownerOf(ev.target) : (ev.player ?? null);
+        push(e.text, owner, { t: 'float', key, text: name, tone: spec.arch === 'debuff' ? 'bad' : 'good', flash: 'status', gi: spec.gi, arch: spec.arch, el: spec.el === 'auto' ? 'arcane' : spec.el }, DURATION.float, group);
         break;
       }
       case 'summon':

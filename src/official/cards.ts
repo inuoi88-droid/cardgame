@@ -203,9 +203,9 @@ const B = (...a: Parameters<typeof entry> extends [unknown, ...infer R] ? R : ne
 
 const BEAST: OfficialEntry[] = [
   // ---- コモン
-  B('noinu', '野犬の斥候', 'gi:hound', 'common', 1, '速攻の斥候。仲間の獣がいれば、相手に通すたびにドロー', {
-    stats: [1, 3],
-    kw: [kw('haste')],
+  B('noinu', '野犬の斥候', 'gi:hound', 'common', 1, '速攻と潜伏の斥候。仲間の獣がいれば、相手に通すたびにドロー', {
+    stats: [1, 2],
+    kw: [kw('haste'), kw('skulk')],
     fx: [me('draw', { value: 1, timing: 'hitEnemyPlayer', condition: 'tribeAlly' })],
     tribe: 'beast',
     desc: '群れの先を走り、獲物の匂いを仲間に知らせる',
@@ -243,7 +243,7 @@ const BEAST: OfficialEntry[] = [
     desc: '大きな角で、盾の列ごと押し倒す',
   }),
   B('mureookami', '群れ狼', 'gi:direwolf', 'common', 2, '速攻と、仲間の小鬼を連れてくる序盤の数', {
-    stats: [3, 3],
+    stats: [3, 4],
     kw: [kw('haste')],
     fx: [me('token', { value: 1, hits: 1, timing: 'summon' })],
     tribe: 'beast',
@@ -267,9 +267,9 @@ const BEAST: OfficialEntry[] = [
     tribe: 'beast',
     desc: '冬眠明けの大熊ほど、森で恐ろしいものはない',
   }),
-  B('abare-mammoth', '暴れマンモス', 'gi:mammoth', 'common', 4, '貫通の大型。仲間の獣がいれば出たときに相手モンスター全体を削る', {
-    stats: [6, 10],
-    kw: [kw('trample')],
+  B('abare-mammoth', '暴れマンモス', 'gi:mammoth', 'common', 4, '貫通と対空の大型。仲間の獣がいれば出たときに相手モンスター全体を削る', {
+    stats: [6, 9],
+    kw: [kw('trample'), kw('reach')],
     fx: [fx('damage', { value: 3, timing: 'summon', target: 'enemyMonsters', condition: 'tribeAlly' })],
     tribe: 'beast',
     desc: '凍った大地を揺らして進む。止めたければ山を動かせ',
@@ -282,7 +282,7 @@ const BEAST: OfficialEntry[] = [
     desc: '長の遠吠えが響く夜、群れは一匹残らず牙をむく',
   }),
   B('shippuu-hyou', '疾風の豹', 'gi:saber-toothed-cat-head', 'rare', 2, '速攻と先制攻撃。仲間の獣がいれば攻撃で一時強化', {
-    stats: [3, 4],
+    stats: [3, 5],
     kw: [kw('haste'), kw('firstStrike')],
     fx: [fx('pump', { value: 1, timing: 'attack', target: 'thisMonster', condition: 'tribeAlly' })],
     tribe: 'beast',
@@ -319,7 +319,7 @@ const BEAST: OfficialEntry[] = [
     desc: '王の一声で、群れはひとつの獣になる',
   }),
   B('soutou-maro', '双頭の魔狼', 'gi:double-face-mask', 'epic', 3, '二回攻撃の魔狼。攻撃のたびにランダムな相手にダメージ', {
-    stats: [3, 9],
+    stats: [3, 10],
     kw: [kw('doubleAttack')],
     fx: [fx('damage', { value: 1, timing: 'attack', target: 'random' })],
     tribe: 'beast',
@@ -437,7 +437,7 @@ const CURSE: OfficialEntry[] = [
     desc: '交わした血は、どちらかが尽きるまで流れ続ける',
   }),
   C('hone-ryuu', '骨の竜', 'gi:dinosaur-bones', 'rare', 3, '飛行と不屈の骨の竜。出たときにダメージ', {
-    stats: [5, 10],
+    stats: [5, 11],
     kw: [kw('flying'), kw('undying')],
     fx: [fx('damage', { value: 2, timing: 'summon' })],
     dr: [dr('upkeep', null), dr('selfDamage', 'summon', 6)],
@@ -497,15 +497,16 @@ const GUARD: OfficialEntry[] = [
     desc: '穢れを焼き、傷を癒す。光はいつも二つの顔を持つ',
   }),
   G('jomon-eihei', '城門の衛兵', 'gi:guards', 'common', 2, '挑発の門番。ターン終了時に自分を修理', {
-    stats: [2, 5],
+    stats: [2, 6],
     kw: [kw('taunt')],
     fx: [fx('repair', { value: 1, timing: 'turnEnd', target: 'thisMonster' })],
     tribe: 'human',
     desc: '門の前に立つことが、彼の誇りだ',
   }),
-  G('iyashite', '村の癒し手', 'gi:healing', 'common', 2, '出たときに回復し、ターン終了時に仲間を修理', {
-    stats: [3, 4],
-    fx: [me('heal', { value: 1, timing: 'summon' }), fx('repair', { value: 1, timing: 'turnEnd', target: 'allyMonsters' })],
+  G('iyashite', '村の癒し手', 'gi:healing', 'common', 2, '絆魂の癒し手。出たときに回復し、ターン終了時に仲間を修理', {
+    stats: [2, 3],
+    kw: [kw('lifelink')],
+    fx: [me('heal', { value: 2, timing: 'summon' }), fx('repair', { value: 1, timing: 'turnEnd', target: 'allyMonsters' })],
     tribe: 'human',
     desc: '村にひとりはいる、頼りになる薬師',
   }),
@@ -531,7 +532,7 @@ const GUARD: OfficialEntry[] = [
     desc: '重い鎧で一歩も動かない。それが一番の仕事',
   }),
   G('rouren-kishi', '老練の騎士', 'gi:mounted-knight', 'common', 3, '先制攻撃の騎士。出たときに少し回復', {
-    stats: [6, 7],
+    stats: [6, 8],
     kw: [kw('firstStrike')],
     fx: [me('heal', { value: 1, timing: 'summon' })],
     tribe: 'human',
@@ -542,15 +543,15 @@ const GUARD: OfficialEntry[] = [
     kw: [kw('taunt'), kw('selfRepair', 1)],
     desc: '城の門に据えられた石像。動き出すのは敵が来たときだけ',
   }),
-  G('kishidanchou', '城塞の大盾兵', 'gi:knight-banner', 'common', 4, '大きな挑発の壁。白銀の砦の終盤を支える', {
+  G('kishidanchou', '城塞の大盾兵', 'gi:knight-banner', 'common', 4, '挑発と対空の大きな壁。白銀の砦の終盤を支える', {
     stats: [7, 13],
-    kw: [kw('taunt')],
+    kw: [kw('taunt'), kw('reach')],
     tribe: 'human',
     desc: '大盾の列が立つ限り、砦は落ちない',
   }),
   // ---- レア
   G('seijun-kishi', '聖盾の騎士', 'gi:shield-reflect', 'rare', 2, '聖盾と挑発。一度は必ず耐える', {
-    stats: [3, 4],
+    stats: [3, 5],
     kw: [kw('divineShield'), kw('taunt')],
     tribe: 'human',
     desc: '女神の祝福を受けた盾は、最初の一撃を必ず防ぐ',
@@ -668,7 +669,7 @@ const MACHINE: OfficialEntry[] = [
     desc: '歩くたびに歯車が鳴る。その音が近づいてきたら逃げろ',
   }),
   M('tetsu-oogumo', '鉄の大蜘蛛', 'gi:spider-bot', 'common', 4, '対空の大蜘蛛。出たときに相手モンスター全体を少し削る', {
-    stats: [7, 11, 1],
+    stats: [7, 12, 1],
     kw: [kw('reach')],
     fx: [fx('damage', { value: 1, timing: 'summon', target: 'enemyMonsters' })],
     tribe: 'machine',
@@ -763,7 +764,7 @@ const NEUTRAL: OfficialEntry[] = [
     desc: '金さえ払えば、どの旗の下でも戦う',
   }),
   N('rurou-kenshi', '流浪の剣士', 'gi:swordwoman', 'common', 2, '武士道で、モンスターとの戦いに強い剣士', {
-    stats: [3, 6],
+    stats: [3, 7],
     kw: [kw('bushido', 3)],
     tribe: 'human',
     desc: '主を持たない剣は、どこへでも行ける',

@@ -10,6 +10,7 @@ import {
   cardKeywords,
   cardName,
   checkGameEnd,
+  effectiveDefense,
   findMonster,
   log,
   monsterDormant,
@@ -22,12 +23,18 @@ import {
   targetExists,
   targetLabel,
   isEnded,
+  other,
+  spiritVeiled,
+  traitTribe,
+  tribeImmune,
+  tribeSetActive,
   turnLimits,
 } from './core.ts';
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
 import { chargePowers } from './powers.ts';
 import { drawCards, unmask } from './zones.ts';
-import type { EffectInstance } from '../types.ts';
+import { TRIBE_SETS, TRIBE_TRAITS } from '../tribes.ts';
+import { TRIBE_LABEL, type EffectInstance } from '../types.ts';
 import type { DamageKind, GameState, LogEvent, Monster, PlayerId, PlayRecord, StatusKey, TargetRef } from './types.ts';
 
 export type { DamageKind } from './types.ts';
@@ -229,9 +236,9 @@ export function targetableTaunts(g: GameState, owner: PlayerId): Monster[] {
   return g.players[owner].board.filter((m) => !m.stealth && keywordFlags(g, m).taunt);
 }
 
-/** カードの「選んだ1体」で選べる相手のモンスターか（隠密・呪禁・守護の加護は選べない。MTG 要素バッチ2・△ バッチA） */
+/** カードの「選んだ1体」で選べる相手のモンスターか（隠密・呪禁・守護の加護・精霊の霊体は選べない。MTG 要素バッチ2・△ バッチA・#143） */
 export function cardTargetable(g: GameState, m: Monster): boolean {
-  return !m.stealth && !keywordFlags(g, m).hexproof && !guarded(m, 'protection');
+  return !m.stealth && !keywordFlags(g, m).hexproof && !guarded(m, 'protection') && !spiritVeiled(g, m);
 }
 
 /** 守護（MTG 要素 △ バッチA）が今かかっているか（kind を渡すとその種類だけ） */
@@ -287,9 +294,11 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
     amount = Math.floor(amount * (1 + B.vulnerableRate));
     steps.push(`脆弱で${amount}`);
   }
-  if (monster && !opts.pierce && mitigated && monster.defense > 0) {
-    amount -= monster.defense;
-    steps.push(`守備力−${monster.defense}で${amount}`);
+  // 守備力は種族の揃い「連結」を含む（決定事項 #143）
+  const defense = monster ? effectiveDefense(g, monster) : 0;
+  if (monster && !opts.pierce && mitigated && defense > 0) {
+    amount -= defense;
+    steps.push(`守備力−${defense}で${amount}`);
   }
   // 最低ダメージは元のダメージを超えない（倍率の大きさ x(1) に引き上げると、ダメージ1の連撃が1発20になった：決定事項 #135）
   const minHit = Math.min(B.minMonsterDamage, base);
@@ -483,6 +492,8 @@ export function destroyMonster(g: GameState, m: Monster, depth: number, force = 
   }
   // 裏向き（MTG 要素 △ バッチC）は公開してから捨て札へ。裏向きの間は効果が無いので「破壊されたとき」は出ない
   const wasFaceDown = m.faceDown !== undefined;
+  // 種族の揃い「怨嗟」（決定事項 #143）：破壊される前に、このモンスターを含めて不死が揃っていたか
+  const grudge = traitTribe(g, m) === 'undead' && tribeSetActive(g, m.controller, 'undead');
   unmask(g, m, depth);
   board.splice(i, 1);
   const owner = g.players[m.card.owner];
@@ -500,6 +511,12 @@ export function destroyMonster(g: GameState, m: Monster, depth: number, force = 
     uid: m.uid,
   });
   onLeaveBoard(g, m, depth + 1, true);
+  if (grudge && !isEnded(g)) {
+    const p = m.controller;
+    log(g, depth + 1, `${TRIBE_SETS.undead.name}：${g.players[p].name}の${TRIBE_LABEL.undead}が倒れた`, 'effect', undefined, { kind: 'tribe', tribe: 'undead', status: 'set', player: p });
+    dealDamage(g, playerRef(other(p)), BALANCE.tribes.undead.set.onDeath, { kind: 'hit', source: playerRef(p), depth: depth + 2 });
+    if (isEnded(g)) return;
+  }
   // このターンの記録（手番のプレイヤーの記録に、敵味方どちらのモンスターも数える）
   if (g.phase === 'main') {
     const turn = g.players[g.active].turn;
@@ -574,6 +591,12 @@ export function addStatus(g: GameState, target: TargetRef, key: StatusKey, amoun
   if (target.kind === 'player' && key === 'confuse') return;
   const s = statusOf(g, target)!;
   const name = targetLabel(g, target);
+  // 種族の特性（竜鱗・鋼の体。決定事項 #143）：この状態にならない
+  const immune = target.kind === 'monster' ? tribeImmune(g, findMonster(g, target.uid)!, key) : undefined;
+  if (immune) {
+    log(g, depth, `${name}は${TRIBE_TRAITS[immune].name}で${STATUS_LABEL[key]}にならない`, 'effect', undefined, { kind: 'tribe', tribe: immune, status: 'trait', target });
+    return;
+  }
   const ev = (n: number) => ({ kind: 'status' as const, target, status: key, amount: n });
   switch (key) {
     case 'freeze':

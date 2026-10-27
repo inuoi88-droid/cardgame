@@ -25,7 +25,7 @@ import {
   type AttackProfile,
 } from './options.ts';
 import { getAbility, getDrawback, getEffect, getKeyword, getModifier } from './registry.ts';
-import type { AbilityInstance, CardBase, CardDef, DrawbackInstance, EffectInstance, KeywordInstance, PointLine, PointSummary, TimingId } from './types.ts';
+import { TRIBE_LABEL, type AbilityInstance, type CardBase, type CardDef, type DrawbackInstance, type EffectInstance, type KeywordInstance, type PointLine, type PointSummary, type TimingId } from './types.ts';
 import type { AbilityPointContext } from './define.ts';
 
 export interface Factor {
@@ -378,6 +378,41 @@ export function abilityLabel(a: AbilityInstance): string {
   return def ? `能力 ${def.displayName(a)}` : `不明な能力（${a.id}）`;
 }
 
+const pct = (r: number) => `${Math.round(r * 100)}%`;
+
+/** 種族の得意・苦手の ID（キーワード・効果の ID と、ステータスは `stat:defense`）。得意でも苦手でもなければ undefined */
+export function tribeLeanOf(tribe: CardDef['tribe'], id: string): 'favored' | 'unfavored' | undefined {
+  if (!tribe) return undefined;
+  const T = BALANCE.tribes[tribe];
+  if ((T.favored as readonly string[]).includes(id)) return 'favored';
+  if ((T.unfavored as readonly string[]).includes(id)) return 'unfavored';
+  return undefined;
+}
+
+/**
+ * 種族の得意・苦手（決定事項 #143）：モンスターのカードだけ。得意のキーワード・効果・守備力のポイントの合計 favored から
+ * (1−favorRate) を引き（切り捨て）、苦手の合計 unfavored に (unfavorRate−1) を足す（切り上げ）。種族の無いカード・呪文は null
+ */
+export function tribeLeaning(card: Pick<CardDef, 'stats' | 'tribe' | 'keywords' | 'effects'> & PointCard): { favored: number; unfavored: number; discount: number; surcharge: number } | null {
+  if (!card.stats || !card.tribe) return null;
+  let favored = 0;
+  let unfavored = 0;
+  const add = (id: string, value: number) => {
+    const lean = tribeLeanOf(card.tribe, id);
+    if (lean === 'favored') favored += Math.max(0, value);
+    else if (lean === 'unfavored') unfavored += Math.max(0, value);
+  };
+  add('stat:defense', card.stats.defense * BALANCE.stats.defensePoints);
+  const ks = keywordStats(card);
+  for (const k of card.keywords) {
+    const def = getKeyword(k.id);
+    if (def) add(k.id, def.points(k, ks));
+  }
+  for (const e of card.effects) add(e.id, effectPoints(e, card).value);
+  const T = BALANCE.tribes;
+  return { favored, unfavored, discount: floorPoints(favored * (1 - T.favorRate)), surcharge: ceilPoints(unfavored * (T.unfavorRate - 1)) };
+}
+
 /** コストの差し引き（表にないコストは0。範囲外は validate が弾く） */
 export function costPoints(cost: number): number {
   return BALANCE.card.costPoints[cost] ?? 0;
@@ -424,6 +459,15 @@ export function calculatePoints(card: CardDef): PointSummary {
     const p = abilityPoints(a, ctx);
     lines.push({ kind: 'ability', index, label: abilityLabel(a), formula: p.formula, value: p.value });
   });
+
+  // 種族の得意・苦手（決定事項 #143）
+  const lean = tribeLeaning(card);
+  if (lean && lean.discount > 0) {
+    lines.push({ kind: 'limit', label: `種族（${TRIBE_LABEL[card.tribe!]}）の得意`, formula: `得意${lean.favored}の${pct(1 - BALANCE.tribes.favorRate)}引き`, value: -lean.discount });
+  }
+  if (lean && lean.surcharge > 0) {
+    lines.push({ kind: 'limit', label: `種族（${TRIBE_LABEL[card.tribe!]}）の苦手`, formula: `苦手${lean.unfavored}の${pct(BALANCE.tribes.unfavorRate - 1)}増し`, value: lean.surcharge });
+  }
 
   // モード選択の割引（MTG 要素 ○ バッチC2）
   const modal = modeDiscount(card);

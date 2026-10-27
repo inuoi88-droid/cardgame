@@ -9,6 +9,7 @@ import { randInt } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
 import { enqueueDelayed, enqueueMonsters, enqueuePowers, powerSource } from './triggers.ts';
 import { advanceSagas, altWinOnTurnStart, chargePowers, checkAchievements } from './powers.ts';
+import { spiritExtraDraw, tribeTurnStart } from './tribes.ts';
 import { deckToDiscard, discardCard, drawCards, exileFromBoard, hatchEggs, returnBorrowed, vanish, warpAway } from './zones.ts';
 import { tickSuspend } from './waiting.ts';
 import { dayNightAtTurnEnd, planarTick } from './matchRules.ts';
@@ -101,6 +102,10 @@ export function startTurn(g: GameState, p: PlayerId, extra = false): void {
     heal(g, playerRef(p), hooks.startHeal, 1, { status: 'sanctuary' });
   }
 
+  // 種族の揃い（決定事項 #143）：隊列（自分のHPが回復）・竜の息（相手プレイヤーにダメージ）
+  tribeTurnStart(g, p);
+  if (isEnded(g)) return;
+
   // 維持費・裏切りの経過（封印されても働く）、自己修復
   for (const m of [...ps.board]) {
     const def = g.cards[m.card.cardId];
@@ -177,7 +182,9 @@ export function startTurn(g: GameState, p: PlayerId, extra = false): void {
     const why = [hooks.fieldDraw ? `${FIELDS.library.icon}${FIELDS.library.name}` : '', hooks.leaderDraw ? `${LEADERS.scholar.icon}${LEADERS.scholar.name}` : ''].filter(Boolean).join('・');
     log(g, 1, `${ps.name}は${why}で${ruleDraw}枚多く引く`, 'info');
   }
-  const drawCount = (ps.turnsTaken === 1 ? Math.max(0, ps.next.draw + extraDraw) : Math.max(0, B.drawPerTurn + ps.next.draw)) + crownDraw + ruleDraw;
+  // 種族の揃い「共鳴」（決定事項 #143）：多く引く（1ターン目も。上限は1ターンに引ける枚数）
+  const spiritDraw = spiritExtraDraw(g, p);
+  const drawCount = (ps.turnsTaken === 1 ? Math.max(0, ps.next.draw + extraDraw) : Math.max(0, B.drawPerTurn + ps.next.draw)) + crownDraw + ruleDraw + spiritDraw;
   ps.next = { draw: 0, energy: 0 };
   drawCards(g, p, drawCount, 1);
   if (isEnded(g)) return;

@@ -248,6 +248,8 @@ export interface TurnLimits {
   drawn: number;
   energyGained: number;
   noiseIn: number;
+  /** 居住で出したトークンの数（1ターン battle.maxPopulatesPerTurn 体まで） */
+  populated?: number;
 }
 
 export interface PlayerState {
@@ -843,6 +845,8 @@ export interface EffectRuntime {
   addBounty(target: TargetRef, player: PlayerId, draw: number): void;
   /** トークンを1体出す（複写トークンは召喚扱いで召喚時の効果も出る）。出せたら場のモンスター */
   createToken(player: PlayerId, cardId: string | null, token: TokenSpec): Monster | undefined;
+  /** 居住の1ターンの上限（battle.maxPopulatesPerTurn）に空きがあれば数えて true、無ければ false */
+  takePopulateSlot(player: PlayerId): boolean;
   /** 動員：軍団を（いなければ出してから）攻撃力・体力+n */
   amass(player: PlayerId, n: number): void;
   /** 動力化：まだ攻撃できるモンスターをこのターン攻撃できなくする。できたら true */

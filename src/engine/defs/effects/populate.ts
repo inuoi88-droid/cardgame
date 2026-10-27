@@ -30,6 +30,7 @@ export default defineEffect({
     resolve(rt, _e, picks) {
       const m = picks?.[0] ? rt.monster({ kind: 'monster', uid: picks[0] }) : undefined;
       if (!m?.card.token || m.controller !== rt.controller) return;
+      if (!rt.takePopulateSlot(rt.controller)) return;
       rt.createToken(rt.controller, m.card.cardId, { ...m.card.token });
     },
   },

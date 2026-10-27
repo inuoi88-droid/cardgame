@@ -434,6 +434,15 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
         amount: draw,
       });
     },
+    takePopulateSlot(p) {
+      const limits = turnLimits(g, g.players[p]);
+      if ((limits.populated ?? 0) >= B.maxPopulatesPerTurn) {
+        log(g, depth, `居住は1ターンに${B.maxPopulatesPerTurn}回までなので、コピーは出ない`);
+        return false;
+      }
+      limits.populated = (limits.populated ?? 0) + 1;
+      return true;
+    },
     createToken(p, cardId, token) {
       return createToken(g, p, cardId, token, depth);
     },

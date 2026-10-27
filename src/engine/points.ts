@@ -147,6 +147,24 @@ export function effectModifiers(e: EffectInstance): ModifierDef[] {
 }
 
 /** 効果1つのポイント：基礎ポイント ×（1 + オプション）× タイミング × 対象 × 条件 → 切り上げ */
+/** 毒を相手プレイヤーに与える対象 */
+const POISON_ON_ENEMY_PLAYER: readonly string[] = ['enemyAll', 'everyone', 'enemyPlayer', 'bothPlayers'];
+
+/**
+ * この効果の条件が、同じカードのほかの部分で必ず満たされるか（報告 #7・#8）。
+ * - 自分の場にモンスターがいる：モンスターの召喚時は、そのモンスター自身が場にいる
+ * - 相手が毒状態：同じタイミングで、この効果より前に、条件なしで相手プレイヤーに毒を与える効果がある
+ */
+export function conditionSelfSatisfied(e: EffectInstance, card: PointCard): boolean {
+  if (e.condition === 'hasMonster') return e.timing === 'summon' && cardBase(card) === 'monster';
+  if (e.condition === 'enemyPoisoned') {
+    const effects = card.effects ?? [];
+    const at = effects.indexOf(e);
+    return effects.some((o, i) => i < at && o.id === 'poison' && o.timing === e.timing && o.condition === null && (o.value ?? 0) > 0 && POISON_ON_ENEMY_PLAYER.includes(o.target));
+  }
+  return false;
+}
+
 export function effectPoints(e: EffectInstance, card: PointCard): EffectPoints {
   const def = getEffect(e.id);
   if (!def) return { base: 0, factors: [], raw: 0, value: 0, formula: '0' };
@@ -163,7 +181,9 @@ export function effectPoints(e: EffectInstance, card: PointCard): EffectPoints {
     factors.push({ label: targetLabel(e.target, def.targetRule, e.timing), value: targetMultiplier(e.target, def.targetRule) });
   }
   if (e.condition && CONDITIONS[e.condition]) {
-    factors.push({ label: CONDITIONS[e.condition].label, value: conditionMultiplier(e.condition, card) });
+    // 同じカードの中で必ず満たされる条件（自分のモンスターがいる・自分の毒で相手が毒状態）は、きびしくないので割り引かない
+    const free = conditionSelfSatisfied(e, card);
+    factors.push({ label: CONDITIONS[e.condition].label + (free ? '（このカード自身で満たす）' : ''), value: free ? 1 : conditionMultiplier(e.condition, card) });
   }
 
   const raw = factors.reduce((x, f) => x * f.value, b);
@@ -201,15 +221,28 @@ export function drawbackLabel(d: DrawbackInstance, base: CardBase): string {
   return `${timing}${def.name}${def.value ? (d.value ?? 0) : ''}`;
 }
 
+/**
+ * キーワードのポイント（攻撃力に比例するもの）に使う攻撃力。召喚時に自分に（自分も選べる「選んだ1体」を含む）攻撃力を足す
+ * 条件なしの鍛錬・攻撃力アップは、最初から攻撃力があるものとして数える（攻撃力0で作って後から足すと比例分を逃れられるため。報告 #11）
+ */
+export function keywordStats(card: Pick<CardDef, 'stats' | 'effects'>): NonNullable<CardDef['stats']> {
+  const s = card.stats!;
+  let extra = 0;
+  for (const e of card.effects) {
+    if ((e.id === 'train' || e.id === 'attackUp') && e.timing === 'summon' && e.condition === null && (e.target === 'thisMonster' || e.target === 'chosen')) extra += e.value ?? 0;
+  }
+  return extra > 0 ? { ...s, attack: s.attack + extra } : s;
+}
+
 /** ステータスとキーワードのポイントの合計（MTG 要素 ○ バッチC1：捨て札から使う能力・魂力の二者択一） */
-export function bodyPoints(card: Pick<CardDef, 'stats' | 'keywords'>): number {
+export function bodyPoints(card: Pick<CardDef, 'stats' | 'keywords'> & { effects?: CardDef['effects'] }): number {
   if (!card.stats) return 0;
   const S = BALANCE.stats;
   const { attack, hp, defense } = card.stats;
   let v = attack * S.attackPoints + hp * S.hpPoints + defense * S.defensePoints;
   for (const k of card.keywords) {
     const def = getKeyword(k.id);
-    if (def) v += def.points(k, card.stats);
+    if (def) v += def.points(k, keywordStats({ stats: card.stats, effects: card.effects ?? [] }));
   }
   return v;
 }
@@ -370,7 +403,7 @@ export function calculatePoints(card: CardDef): PointSummary {
     card.keywords.forEach((k, index) => {
       const def = getKeyword(k.id);
       if (!def || !card.stats) return;
-      lines.push({ kind: 'keyword', index, label: def.displayName(k), formula: def.formula(k, card.stats), value: def.points(k, card.stats) });
+      lines.push({ kind: 'keyword', index, label: def.displayName(k), formula: def.formula(k, keywordStats(card)), value: def.points(k, keywordStats(card)) });
     });
   }
 
@@ -378,6 +411,12 @@ export function calculatePoints(card: CardDef): PointSummary {
     const p = effectPoints(e, card);
     lines.push({ kind: 'effect', index, label: effectLabel(e, base), formula: p.formula, value: p.value });
   });
+
+  // 新生のコピーも召喚時の効果を出す（攻撃力アップなどが2回出る）ので、その分のポイントを足す（報告 #7）
+  if (card.effects.some((e) => e.id === 'offspring')) {
+    const again = card.effects.reduce((s, e) => (e.id !== 'offspring' && e.timing === 'summon' ? s + effectPoints(e, card).value : s), 0);
+    if (again > 0) lines.push({ kind: 'limit', label: '新生のコピーにも出る召喚時の効果', formula: `召喚時の効果の合計${again}をもう1回`, value: again });
+  }
 
   // カードの能力（MTG 要素 ○ バッチB）：再利用・反復は効果のポイントから決まる
   const ctx = abilityContext(card);

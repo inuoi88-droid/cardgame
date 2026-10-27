@@ -3,7 +3,7 @@ export * from './types.ts';
 export { BALANCE } from './balance.ts';
 export { analyzeCard } from './analyze.ts';
 export { cardBase, classifyCard, isCurseCard, rarityRank } from './classify.ts';
-export { calculatePoints, effectPoints, drawbackPoints, attackProfile, costPoints, rarityCap, abilityContext, abilityPoints, modeSummary, modeDiscount } from './points.ts';
+export { calculatePoints, effectPoints, drawbackPoints, attackProfile, costPoints, rarityCap, abilityContext, abilityPoints, modeSummary, modeDiscount, keywordStats } from './points.ts';
 export { describeCard, describeEffect, describeEffects, describeDrawback, describeAbility, modeTexts, type ModeText } from './text.ts';
 export * from './labels.ts';
 export * from './options.ts';

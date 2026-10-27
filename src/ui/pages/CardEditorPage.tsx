@@ -27,6 +27,7 @@ import {
   getKeyword,
   isNameTaken,
   newCard,
+  keywordStats,
   normalizeDescription,
   setMonster,
   setTribe,
@@ -686,7 +687,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
                             <div className="ed-kw__head">
                               <EffectIcon kind="keyword" className="ed-kw__icon" />
                               <b>{def.displayName(k)}</b>
-                              <span className="ed-kw__pts">{def.points(k, card.stats!)}pt</span>
+                              <span className="ed-kw__pts">{def.points(k, keywordStats(card))}pt</span>
                               <button type="button" className="btn btn--ghost btn--icon btn--small" onClick={() => toggleKeyword(k.id)} aria-label={`${def.name}を外す`}>
                                 ✕
                               </button>

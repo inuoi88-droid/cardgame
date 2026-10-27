@@ -818,6 +818,8 @@ export const BALANCE = {
     maxNoiseReceivedPerTurn: 3,
     /** トークン（MTG 要素バッチ2）：場に出せるトークンは1人この数まで（数なので倍率は掛けない） */
     maxTokens: 5,
+    /** 居住で出せるトークンは1人1ターンこの数まで（攻撃のたびに複写→自壊を繰り返す無限のコピーを止める。報告 #14。数なので倍率は掛けない） */
+    maxPopulatesPerTurn: 2,
     tokenName: '小鬼',
     tokenIcon: '👺',
     /** トークンのカードの絵（game-icons。文字の中では tokenIcon の絵文字を使う。決定事項 #105） */

@@ -201,15 +201,28 @@ export function drawbackLabel(d: DrawbackInstance, base: CardBase): string {
   return `${timing}${def.name}${def.value ? (d.value ?? 0) : ''}`;
 }
 
+/**
+ * キーワードのポイント（攻撃力に比例するもの）に使う攻撃力。召喚時に自分に（自分も選べる「選んだ1体」を含む）攻撃力を足す
+ * 条件なしの鍛錬・攻撃力アップは、最初から攻撃力があるものとして数える（攻撃力0で作って後から足すと比例分を逃れられるため。報告 #11）
+ */
+export function keywordStats(card: Pick<CardDef, 'stats' | 'effects'>): NonNullable<CardDef['stats']> {
+  const s = card.stats!;
+  let extra = 0;
+  for (const e of card.effects) {
+    if ((e.id === 'train' || e.id === 'attackUp') && e.timing === 'summon' && e.condition === null && (e.target === 'thisMonster' || e.target === 'chosen')) extra += e.value ?? 0;
+  }
+  return extra > 0 ? { ...s, attack: s.attack + extra } : s;
+}
+
 /** ステータスとキーワードのポイントの合計（MTG 要素 ○ バッチC1：捨て札から使う能力・魂力の二者択一） */
-export function bodyPoints(card: Pick<CardDef, 'stats' | 'keywords'>): number {
+export function bodyPoints(card: Pick<CardDef, 'stats' | 'keywords'> & { effects?: CardDef['effects'] }): number {
   if (!card.stats) return 0;
   const S = BALANCE.stats;
   const { attack, hp, defense } = card.stats;
   let v = attack * S.attackPoints + hp * S.hpPoints + defense * S.defensePoints;
   for (const k of card.keywords) {
     const def = getKeyword(k.id);
-    if (def) v += def.points(k, card.stats);
+    if (def) v += def.points(k, keywordStats({ stats: card.stats, effects: card.effects ?? [] }));
   }
   return v;
 }
@@ -370,7 +383,7 @@ export function calculatePoints(card: CardDef): PointSummary {
     card.keywords.forEach((k, index) => {
       const def = getKeyword(k.id);
       if (!def || !card.stats) return;
-      lines.push({ kind: 'keyword', index, label: def.displayName(k), formula: def.formula(k, card.stats), value: def.points(k, card.stats) });
+      lines.push({ kind: 'keyword', index, label: def.displayName(k), formula: def.formula(k, keywordStats(card)), value: def.points(k, keywordStats(card)) });
     });
   }
 

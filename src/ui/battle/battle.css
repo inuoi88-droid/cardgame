@@ -5158,7 +5158,7 @@ button.lt-card:focus-visible {
   }
 }
 
-/* ダメージの見込み（決定事項 #137）：ドラッグ中、離したら起きることをダメージを受けるものの上に出す。pointer-events: none */
+/* ダメージの見込み（決定事項 #138）：ドラッグ中、離したら起きることをダメージを受けるものの上に出す。pointer-events: none */
 .dmg-preview {
   position: fixed;
   inset: 0;

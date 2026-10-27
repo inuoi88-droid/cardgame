@@ -272,7 +272,7 @@ export function nextTurnThreat(g: GameState, p: PlayerId): Threat {
     // 激励・猛襲（相手プレイヤーへの攻撃）も見込む
     // フィールド「火山」・「霧」（MTG 要素 △ バッチD）も見込む
     let atk = m.attack + auraAttack(g, m) + playerBonus(g, m) + fieldAttackBonus(g);
-    // やけど（半減）・脱力（1発の上限）：決定事項 #137
+    // やけど（半減）・脱力（1発の上限）：決定事項 #138
     if (m.status.burn > 0) atk = Math.floor(atk * B.burnDamageRate);
     if (m.status.weak > 0) atk = Math.min(atk, B.exhaustCap);
     atk = fogDamage(g, atk);
@@ -377,7 +377,7 @@ function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   }
   let attackTurns = T;
   if (m.status.freezePending || m.status.freezeActive) attackTurns -= 1;
-  // やけど（半減）・脱力（1発の上限。攻撃するたび1つ減る）：決定事項 #137
+  // やけど（半減）・脱力（1発の上限。攻撃するたび1つ減る）：決定事項 #138
   const atkNow = m.attack + auraAttack(g, m) + fieldAttackBonus(g);
   if (m.status.burn > 0) attackTurns -= Math.min(m.status.burn, attackTurns) * (1 - B.burnDamageRate);
   if (m.status.weak > 0 && atkNow > B.exhaustCap) attackTurns -= Math.min(m.status.weak, Math.max(0, attackTurns)) * (1 - B.exhaustCap / atkNow);
@@ -445,7 +445,7 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
   v -= Math.min(s.burn * B.burnDamage, ps.hp) * W.burn;
   // 呪縛：減らずに毎ターン効く（見込みのターン数ぶん）
   v -= Math.min((s.doom ?? 0) * W.doomTurns, ps.hp) * W.poison;
-  // やけど・脱力（決定事項 #137）：そのプレイヤーの効果のダメージが半減・1発の上限まで（脱力はダメージのカードを使うたび1つ減る）
+  // やけど・脱力（決定事項 #138）：そのプレイヤーの効果のダメージが半減・1発の上限まで（脱力はダメージのカードを使うたび1つ減る）
   if (s.burn > 0) v -= ctx.threat[p].cards * (1 - B.burnDamageRate) * W.weak;
   if (s.weak > 0) v -= Math.max(0, ctx.threat[p].cards - B.exhaustCap) * Math.min(s.weak, W.exhaustUses) * W.weak;
   // 脆弱：相手がそのターンに出す打点が増える（残りターンは持ち主のターン終了時に減る）

@@ -9,7 +9,7 @@ export default defineEffect({
   group: 'buff',
   order: 41,
   summary: 'このターンだけ、アタックのダメージ+N',
-  value: valueParam('上昇量', { default: 2 }),
+  value: valueParam('上昇量', { default: 2, max: B.maxValue }),
   targetRule: 'self',
   scalable: true,
   basePoints: (e) => B.perValue * n(e),

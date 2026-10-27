@@ -182,7 +182,7 @@ export function activate(g: GameState, p: PlayerId, sourceUid: string, chosen: C
   log(g, 0, `${ps.name}は${src.kind === 'power' ? 'パワー' : ''}「${src.name}」を起動した（${energy}）`, 'action', undefined, { kind: 'activate', player: p, uid: src.uid, cardId: src.cardId, amount: cost });
   if (src.monster) {
     const ref: SourceRef = { kind: 'monster', uid: src.uid, cardId: src.cardId, name: src.name, controller: p, ...(src.monster.card.token ? { token: true } : {}) };
-    // 脱力（決定事項 #137）：ダメージの効果を起動したら1つ減る（そのときだけ記録のキーを付ける）
+    // 脱力（決定事項 #138）：ダメージの効果を起動したら1つ減る（そのときだけ記録のキーを付ける）
     const effects = activatedEffects(src);
     if (ps.status.weak > 0 && effects.some((e) => getEffect(e.id)?.isDamage)) {
       const protectKey = newUid(g, 'pk');

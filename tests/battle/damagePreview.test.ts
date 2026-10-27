@@ -1,4 +1,4 @@
-// ダメージの見込みの札の言葉（決定事項 #137）
+// ダメージの見込みの札の言葉（決定事項 #138）
 import { describe, expect, it } from 'vitest';
 import type { battle } from '../../src/engine/index.ts';
 import { hitTexts } from '../../src/ui/battle/damagePreview.ts';

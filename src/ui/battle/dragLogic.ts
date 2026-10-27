@@ -393,7 +393,7 @@ export function arrowPath(from: { x: number; y: number }, to: { x: number; y: nu
 }
 
 /**
- * ダメージの見込み（決定事項 #137）：ドラッグ中の落とし先で、離したらそのまま起きる行動（エンジンの previewAction に渡す）。
+ * ダメージの見込み（決定事項 #138）：ドラッグ中の落とし先で、離したらそのまま起きる行動（エンジンの previewAction に渡す）。
  * モードを選ぶ・続けて対象を選ぶものは出さない。支払いのシートが出るカードは、追加で払わない使い方で試す
  */
 export function previewActionOf(src: DragSource, spot: Spot, player: PlayerId): battle.Action | null {

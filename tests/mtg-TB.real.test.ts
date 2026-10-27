@@ -32,7 +32,7 @@ function give(g: battle.GameState, def: CardDef, p: battle.PlayerId = 0): string
 describe('△ バッチB（実際の倍率）', () => {
   it('量と固定ポイントには倍率を掛け、回数・エナジー・割合には掛けない', () => {
     expect(BALANCE.abilities.prototype).toEqual({ perCost: 40, maxCut: 3, step: 10 });
-    expect(BALANCE.abilities.lifePay).toEqual({ perEnergy: 40, hpPerEnergy: 40, max: 2 });
+    expect(BALANCE.abilities.lifePay).toEqual({ perEnergy: 40, hpPerEnergy: 60, max: 2 });
     expect(BALANCE.abilities.embalm).toMatchObject({ eternalStats: 80, eternalFlat: 40, rate: [0.4, 0.3, 0.2] });
     expect(BALANCE.abilities.unleash).toEqual({ perValue: 2, minValue: 20, maxValue: 40 });
     expect(BALANCE.abilities.casualty).toMatchObject({ minValue: 20, maxValue: 60 });
@@ -52,7 +52,7 @@ describe('△ バッチB（実際の倍率）', () => {
     expect(a.points.lines.find((l) => l.kind === 'ability')?.value).toBe(40);
   });
 
-  it('試作は刻み10に切り捨て・血の支払いは HP40・永遠のコピーは80/80', () => {
+  it('試作は刻み10に切り捨て・血の支払いは HP60・永遠のコピーは80/80', () => {
     let g = started();
     const proto = fromBaseScale(card({ id: 'p', name: '試作機', rarity: 'common', cost: 3, stats: { attack: 5, hp: 3, defense: 0 }, abilities: [{ id: 'prototype', value: 2 }] }));
     g = act(g, { type: 'playCard', player: 0, cardUid: give(g, proto), alt: 'prototype' });
@@ -60,7 +60,7 @@ describe('△ バッチB（実際の倍率）', () => {
     const blood = fromBaseScale(card({ id: 'b', name: '血', rarity: 'common', cost: 2, effects: [fx({ id: 'damage', value: 3 })], abilities: [{ id: 'lifePay', value: 1 }] }));
     const hp = g.players[0].hp;
     g = act(g, { type: 'playCard', player: 0, cardUid: give(g, blood), chosen: { enemy: { kind: 'player', player: 1 } }, lifePay: 1 });
-    expect(g.players[0].hp).toBe(hp - 40);
+    expect(g.players[0].hp).toBe(hp - 60);
     const mummy = fromBaseScale(card({ id: 'm', name: '木乃伊', rarity: 'common', cost: 2, stats: { attack: 1, hp: 1, defense: 0 }, abilities: [{ id: 'embalm', value: 1, option: 'eternal' }] }));
     const uid = give(g, mummy);
     g.players[0].discard.push(...g.players[0].hand.splice(g.players[0].hand.findIndex((c) => c.uid === uid), 1));

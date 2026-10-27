@@ -20,7 +20,7 @@
  * | poison       | 毒 N ×30                                         | |
  * | burn         | やけど（延長 N）×30                              | |
  * | freeze       | 凍結 ×30                                         | |
- * | weak         | 脱力 N 個 ×30（id は weak。#137）                | |
+ * | weak         | 脱力 N 個 ×30（id は weak。#138）                | |
  * | vulnerable   | 脆弱 N ターン ×30                                | |
  * | bleed        | 出血 N ×30                                       | |
  * | seal         | 封印 ×30                                         | モンスター限定 |

@@ -1,6 +1,6 @@
 /**
  * ダメージ・回復・破壊・状態異常。
- * ダメージの計算順（決定事項 #30・#137）：基本値（＋筋力・気合）→ やけど（半減）→ 脱力（1発の上限）→ 脆弱 → 守備力 → 最低1 → 出血 → 無効化 → シールド → HP。
+ * ダメージの計算順（決定事項 #30・#138）：基本値（＋筋力・気合）→ やけど（半減）→ 脱力（1発の上限）→ 脆弱 → 守備力 → 最低1 → 出血 → 無効化 → シールド → HP。
  * やけど・脱力は出どころの状態で決まる：戦闘のダメージ（攻撃・反撃・格闘）はモンスター自身、効果のダメージは持ち主のプレイヤー
  */
 import { BALANCE } from '../balance.ts';
@@ -75,7 +75,7 @@ export interface DamageResult {
   destroyed: boolean;
 }
 
-/** 出どころの与えるダメージの補正（決定事項 #137） */
+/** 出どころの与えるダメージの補正（決定事項 #138） */
 export interface Outgoing {
   /** やけど：半減 */
   burn: boolean;
@@ -84,7 +84,7 @@ export interface Outgoing {
 }
 
 /**
- * 出どころのやけど・脱力（決定事項 #137）。戦闘のダメージ（攻撃・反撃・格闘・同士討ち）はそのモンスター自身の状態、
+ * 出どころのやけど・脱力（決定事項 #138）。戦闘のダメージ（攻撃・反撃・格闘・同士討ち）はそのモンスター自身の状態、
  * 効果のダメージはカードの持ち主のプレイヤーの状態（モンスターの召喚時などの効果も、持ち主のプレイヤーで決まる）
  */
 export function outgoingOf(g: GameState, source: TargetRef | null, combat: boolean): Outgoing {
@@ -100,7 +100,7 @@ export function outgoingOf(g: GameState, source: TargetRef | null, combat: boole
 }
 
 /**
- * 脱力（決定事項 #137）：プレイヤーがダメージを与える効果を使う（カードを使う・起動する）ときに1つ減らし、
+ * 脱力（決定事項 #138）：プレイヤーがダメージを与える効果を使う（カードを使う・起動する）ときに1つ減らし、
  * その使用の記録（PlayRecord.exhaust）に印を付ける（そのカードの効果のダメージには、減ったあとも最後まで上限が効く）。減らしたら true
  */
 export function spendExhaust(g: GameState, p: PlayerId, rec: PlayRecord, effects: readonly EffectInstance[], depth: number): boolean {
@@ -529,7 +529,7 @@ export function destroyMonster(g: GameState, m: Monster, depth: number, force = 
 /** extra は演出の出来事に足すもの（絆魂の keywordId、再生の status など。決定事項 #126） */
 export function heal(g: GameState, target: TargetRef, amount: number, depth: number, extra?: Partial<LogEvent>): number {
   if (isEnded(g) || !targetExists(g, target) || amount <= 0) return 0;
-  // やけどで回復量が半分になる決まりはやめた（決定事項 #137）
+  // やけどで回復量が半分になる決まりはやめた（決定事項 #138）
   const n = amount;
   const note = '';
   if (target.kind === 'player') {
@@ -585,7 +585,7 @@ export function addStatus(g: GameState, target: TargetRef, key: StatusKey, amoun
       log(g, depth, `${name}を混乱させた（次の持ち主のターンに発効）`, 'effect', undefined, ev(1));
       return;
     case 'weak':
-      // 脱力（決定事項 #137）：個数。モンスターは攻撃するたび、プレイヤーはダメージの効果のカードを使うたびに1つ減る
+      // 脱力（決定事項 #138）：個数。モンスターは攻撃するたび、プレイヤーはダメージの効果のカードを使うたびに1つ減る
       s.weak += amount;
       log(g, depth, `${name}に脱力${amount}：合計${s.weak}`, 'effect', undefined, ev(amount));
       return;

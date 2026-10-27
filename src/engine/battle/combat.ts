@@ -151,7 +151,7 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   if (amount < raw) log(g, depth + 1, `霧：攻撃のダメージが${raw}→${amount}に減る`, 'info');
   const r = dealDamage(g, target, amount, { kind: 'attack', source: attackerRef, playKey, depth: depth + 1 });
   if (isEnded(g)) return;
-  // 脱力（決定事項 #137）：攻撃するたび1つ減る（反撃・格闘では減らない）
+  // 脱力（決定事項 #138）：攻撃するたび1つ減る（反撃・格闘では減らない）
   const self = findMonster(g, m.uid);
   if (self && self.status.weak > 0) {
     self.status.weak -= 1;

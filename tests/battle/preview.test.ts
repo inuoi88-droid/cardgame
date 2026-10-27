@@ -1,4 +1,4 @@
-// ダメージの見込み（決定事項 #137）：previewAction は実際に解決したときと同じ数字を、見え方の状態（viewFor）から出す
+// ダメージの見込み（決定事項 #138）：previewAction は実際に解決したときと同じ数字を、見え方の状態（viewFor）から出す
 import { describe, expect, it } from 'vitest';
 import { BALANCE, battle } from '../../src/engine/index.ts';
 import { card } from '../helpers.ts';

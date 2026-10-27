@@ -349,7 +349,7 @@ describe('待機ゾーン・Lv・忠誠・表にする（MTG 要素 △ バッ�
   });
 });
 
-describe('ダメージの見込みの行動（決定事項 #137）', () => {
+describe('ダメージの見込みの行動（決定事項 #138）', () => {
   const enemy = { kind: 'player', player: 1 } as const;
   it('攻撃・対象を選ぶカード・対象のないカード', () => {
     const atk: DragSource = { kind: 'attacker', uid: 'a', blocked: null, targets: [enemy] };

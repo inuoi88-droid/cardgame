@@ -13,7 +13,7 @@ export interface Statuses {
   poison: number;
   /** やけどの残りターン */
   burn: number;
-  /** 脱力の数（id は weak のまま。決定事項 #137）：与えるダメージの1発が上限まで。モンスターは攻撃するたび、プレイヤーはダメージの効果のカードを使うたびに1つ減る */
+  /** 脱力の数（id は weak のまま。決定事項 #138）：与えるダメージの1発が上限まで。モンスターは攻撃するたび、プレイヤーはダメージの効果のカードを使うたびに1つ減る */
   weak: number;
   /** 脆弱の残りターン */
   vulnerable: number;
@@ -248,6 +248,8 @@ export interface TurnLimits {
   drawn: number;
   energyGained: number;
   noiseIn: number;
+  /** 居住で出したトークンの数（1ターン battle.maxPopulatesPerTurn 体まで） */
+  populated?: number;
 }
 
 export interface PlayerState {
@@ -619,7 +621,7 @@ export interface LogEntry {
 export interface PlayRecord {
   poison: number;
   burn: number;
-  /** 脱力（決定事項 #137）：このカードを使うときに脱力を1つ使った。このカードの効果のダメージは最後まで1発の上限まで */
+  /** 脱力（決定事項 #138）：このカードを使うときに脱力を1つ使った。このカードの効果のダメージは最後まで1発の上限まで */
   exhaust?: boolean;
   bonus?: number;
   bonusUsed?: boolean;
@@ -845,6 +847,8 @@ export interface EffectRuntime {
   addBounty(target: TargetRef, player: PlayerId, draw: number): void;
   /** トークンを1体出す（複写トークンは召喚扱いで召喚時の効果も出る）。出せたら場のモンスター */
   createToken(player: PlayerId, cardId: string | null, token: TokenSpec): Monster | undefined;
+  /** 居住の1ターンの上限（battle.maxPopulatesPerTurn）に空きがあれば数えて true、無ければ false */
+  takePopulateSlot(player: PlayerId): boolean;
   /** 動員：軍団を（いなければ出してから）攻撃力・体力+n */
   amass(player: PlayerId, n: number): void;
   /** 動力化：まだ攻撃できるモンスターをこのターン攻撃できなくする。できたら true */

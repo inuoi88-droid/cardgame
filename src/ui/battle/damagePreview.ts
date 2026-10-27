@@ -1,5 +1,5 @@
 /**
- * ダメージの見込みの札の言葉（純粋関数。決定事項 #137。tests/battle/damagePreview.test.ts）。
+ * ダメージの見込みの札の言葉（純粋関数。決定事項 #138。tests/battle/damagePreview.test.ts）。
  * エンジンの previewAction の1件（PreviewHit）から、大きい数字・HP の変化・理由（聖盾・シールド・守備力・やけど・脱力など）を作る
  */
 import type { battle } from '../../engine/index.ts';

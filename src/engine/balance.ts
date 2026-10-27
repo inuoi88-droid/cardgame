@@ -364,7 +364,7 @@ export const BALANCE = {
     poison: { perValue: 4, maxValue: x(10) },
     burn: { flat: x(9), perExtraTurn: x(3), maxExtraTurns: 5 },
     freeze: { flat: x(10) },
-    /** 脱力（id は weak）の N は個数（1つ x(5)、1つの効果で3つまで。決定事項 #137）、脆弱の N はターン数（上限あり） */
+    /** 脱力（id は weak）の N は個数（1つ x(5)、1つの効果で3つまで。決定事項 #138）、脆弱の N はターン数（上限あり） */
     weak: { perValue: x(5), maxValue: 3 },
     vulnerable: { perValue: x(7), maxValue: 3 },
     bleed: { perValue: 6 },
@@ -372,7 +372,8 @@ export const BALANCE = {
     confuse: { flat: x(4) },
 
     strength: { perValue: 9 },
-    focus: { perValue: 3 },
+    /** 気合は1枚につき最初の1発に乗るので、0コストのカードを何枚も作る効果と組むと量が掛かる。上限は報告 #10 から */
+    focus: { perValue: 3, maxValue: x(5) },
     attackUp: { perValue: 3 },
     defenseUp: { perValue: 4, maxValue: x(3) },
     regen: { perValue: 5 },
@@ -637,7 +638,7 @@ export const BALANCE = {
     /** 探査：固定。除外する捨て札1枚につきコスト−1（max まで）。印刷コスト minCost 以上 */
     delve: { flat: x(3), max: 3, minCost: 2 },
     /** 血の支払い：K×perEnergy。エナジー1を HP hpPerEnergy で払う（K は max まで） */
-    lifePay: { perEnergy: x(2), hpPerEnergy: x(2), max: 2 },
+    lifePay: { perEnergy: x(2), hpPerEnergy: x(3), max: 2 },
     /** 代替コスト：固定（1ターン battle.maxPitchPerTurn 回） */
     pitch: { flat: x(6) },
     /** 最悪の二択：低いモード＋高いモード×highRate */
@@ -773,9 +774,9 @@ export const BALANCE = {
     minMonsterDamage: x(1),
     burnTurns: 3,
     burnDamage: x(2),
-    /** やけど：与えるダメージの倍率（モンスターは攻撃・反撃・格闘、プレイヤーはダメージの効果。決定事項 #137） */
+    /** やけど：与えるダメージの倍率（モンスターは攻撃・反撃・格闘、プレイヤーはダメージの効果。決定事項 #138） */
     burnDamageRate: 0.5,
-    /** 脱力：与えるダメージの1発の上限（やけどと同じ範囲。決定事項 #137） */
+    /** 脱力：与えるダメージの1発の上限（やけどと同じ範囲。決定事項 #138） */
     exhaustCap: x(5),
     vulnerableRate: 0.5,
     noiseRemoveCost: 1,
@@ -820,6 +821,8 @@ export const BALANCE = {
     maxNoiseReceivedPerTurn: 3,
     /** トークン（MTG 要素バッチ2）：場に出せるトークンは1人この数まで（数なので倍率は掛けない） */
     maxTokens: 5,
+    /** 居住で出せるトークンは1人1ターンこの数まで（攻撃のたびに複写→自壊を繰り返す無限のコピーを止める。報告 #14。数なので倍率は掛けない） */
+    maxPopulatesPerTurn: 2,
     tokenName: '小鬼',
     tokenIcon: '👺',
     /** トークンのカードの絵（game-icons。文字の中では tokenIcon の絵文字を使う。決定事項 #105） */

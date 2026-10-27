@@ -959,7 +959,7 @@ function resolvePlay(
   const protectKey = newUid(g, 'pk');
   const rec = playRecord(g, protectKey);
   if (opts.freeDepth !== undefined) rec.freeDepth = opts.freeDepth;
-  // 脱力（決定事項 #137）：使用時・召喚時にダメージの効果があるカードを使うたび1つ減る（裏向きで出すときは効果が出ないので減らない）
+  // 脱力（決定事項 #138）：使用時・召喚時にダメージの効果があるカードを使うたび1つ減る（裏向きで出すときは効果が出ないので減らない）
   if (opts.alt !== 'faceDown') spendExhaust(g, p, rec, def.effects.filter((e) => e.timing === timing), depth);
   // モード選択（MTG 要素 ○ バッチC2）：選んだモードを記録（反復でも同じモード。放題は最初の1つ）
   if (mode !== undefined) rec.mode = firstMode(mode);

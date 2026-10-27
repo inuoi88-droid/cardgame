@@ -925,7 +925,7 @@ export function BattleBoard({
     },
   });
   const dragging = drag.drag?.phase === 'drag' ? drag.drag : null;
-  // ダメージの見込み（決定事項 #137）：落とし先の上で、離したらそのまま起きる行動を見えている状態で試す（落とし先が変わったときだけ）
+  // ダメージの見込み（決定事項 #138）：落とし先の上で、離したらそのまま起きる行動を見えている状態で試す（落とし先が変わったときだけ）
   const previewAct = useMemo(() => (dragging && dragging.hover ? previewActionOf(dragging.src, parseSpot(dragging.hover), me) : null), [dragging, me]);
   const previewKey = previewAct ? JSON.stringify(previewAct) : '';
   const damagePreview = useMemo(() => {

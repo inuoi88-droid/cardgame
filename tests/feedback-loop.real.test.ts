@@ -183,7 +183,7 @@ describe('報告 #4・#5：親和でコスト1まで下がり、召喚時のエ�
 describe('数値1が倍率の大きさ（20・10）に引き上げられない（実際の倍率。ユーザーの指摘・決定事項 #135）', () => {
   const spell = (id: string, effects: CardDef['effects']): CardDef => card({ id, name: id, cost: 0, scale: 20, effects });
 
-  it('脱力（#137）：150×2 の連撃は 100×2。やけどなら 75×2', () => {
+  it('脱力（#138）：150×2 の連撃は 100×2。やけどなら 75×2', () => {
     let g = started();
     g.cards['p0:multi2'] = spell('multi2', [{ id: 'multiHit', value: 150, hits: 2, target: 'chosen', timing: 'play', condition: null }]);
     g.players[0].hand.push({ uid: 'W', cardId: 'p0:multi2', owner: 0 }, { uid: 'X', cardId: 'p0:multi2', owner: 0 });

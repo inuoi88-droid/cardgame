@@ -36,7 +36,7 @@ describe('ダメージの基本', () => {
     expect(g.players[1].shield).toBe(0);
   });
 
-  it('計算順：筋力 → やけど → 脱力 → 脆弱 → 守備力 → 最低1 → 出血（#137）', () => {
+  it('計算順：筋力 → やけど → 脱力 → 脆弱 → 守備力 → 最低1 → 出血（#138）', () => {
     let g = rich(startGame());
     const m = putMonster(g, 1, unit(1, 30, 3));
     g.players[0].status.strength = 2; // アタックなので筋力が乗る
@@ -219,7 +219,7 @@ describe('毒・やけど・自傷と無効化（#33・#37・#69）', () => {
     expect(g.players[0].status.nullify).toBe(1);
   });
 
-  it('やけど中でも回復量はそのまま（回復半分の決まりはやめた：#137）', () => {
+  it('やけど中でも回復量はそのまま（回復半分の決まりはやめた：#138）', () => {
     let g = rich(startGame());
     g.players[0].hp = 40;
     g.players[0].status.burn = 2;

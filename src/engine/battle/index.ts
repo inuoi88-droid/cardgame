@@ -60,6 +60,7 @@ export { waitingEntry, WAITING_LABEL, setAsideKinds } from './waiting.ts';
 export { altWinGoalOf, altWinTarget, achieveOf, isEmblemCard } from './powers.ts';
 export { waitingRule, revealCostOf } from './play.ts';
 export { viewFor, HIDDEN_CARD_ID } from './view.ts';
+export { previewAction, type ActionPreview, type PreviewHit } from './preview.ts';
 export { attackBlockReason, attackTargets, attacksPerTurn, cannotAttack, enlistOptions } from './combat.ts';
 export { keywordFlags, targetableTaunts, cardTargetableTaunts, combatBonus, guarded } from './damage.ts';
 export { lifespanOf } from './play.ts';

@@ -391,3 +391,26 @@ export function arrowPath(from: { x: number; y: number }, to: { x: number; y: nu
   const r = (n: number) => Math.round(n * 10) / 10;
   return { d: `M ${r(from.x)} ${r(from.y)} Q ${r(c.x)} ${r(c.y)} ${r(to.x)} ${r(to.y)}`, angle: r(angle) };
 }
+
+/**
+ * ダメージの見込み（決定事項 #137）：ドラッグ中の落とし先で、離したらそのまま起きる行動（エンジンの previewAction に渡す）。
+ * モードを選ぶ・続けて対象を選ぶものは出さない。支払いのシートが出るカードは、追加で払わない使い方で試す
+ */
+export function previewActionOf(src: DragSource, spot: Spot, player: PlayerId): battle.Action | null {
+  const d = resolveDrop(src, spot);
+  if (d.t === 'attack' && src.kind === 'attacker') return { type: 'attack', player, attackerUid: src.uid, target: d.target };
+  if (d.t !== 'play' && d.t !== 'pay') return null;
+  const chosen = d.chosen;
+  switch (src.kind) {
+    case 'card':
+      return { type: 'playCard', player, cardUid: src.uid, chosen, ...(src.from === 'discard' || src.from === 'waiting' ? { from: src.from } : {}) };
+    case 'activate':
+      return { type: 'activate', player, sourceUid: src.uid, chosen, ...(src.use ? { use: src.use } : {}) };
+    case 'reveal':
+      return { type: 'reveal', player, uid: src.uid, chosen };
+    case 'discardAbility':
+      return { type: 'discardAbility', player, cardUid: src.uid, ability: src.ability, chosen };
+    default:
+      return null;
+  }
+}

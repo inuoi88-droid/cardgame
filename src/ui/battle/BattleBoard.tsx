@@ -44,7 +44,8 @@ import {
   type PayChoice,
 } from './dialogs.tsx';
 import { DragLayer } from './DragLayer.tsx';
-import { resolveDrop, resolveModeDrop, parseSpot, targetKey, type DragSource } from './dragLogic.ts';
+import { previewActionOf, resolveDrop, resolveModeDrop, parseSpot, targetKey, type DragSource } from './dragLogic.ts';
+import { DamagePreview } from './DamagePreview.tsx';
 import { keyOf } from './events.ts';
 import type { FxDirector, FxEnv } from './fx/director.ts';
 import { FxLayer } from './fx/FxLayer.tsx';
@@ -924,6 +925,21 @@ export function BattleBoard({
     },
   });
   const dragging = drag.drag?.phase === 'drag' ? drag.drag : null;
+  // ダメージの見込み（決定事項 #137）：落とし先の上で、離したらそのまま起きる行動を見えている状態で試す（落とし先が変わったときだけ）
+  const previewAct = useMemo(() => (dragging && dragging.hover ? previewActionOf(dragging.src, parseSpot(dragging.hover), me) : null), [dragging, me]);
+  const previewKey = previewAct ? JSON.stringify(previewAct) : '';
+  const damagePreview = useMemo(() => {
+    if (!previewAct || !myTurn) return null;
+    try {
+      const p = battle.previewAction(view, previewAct);
+      return p && (p.hits.length > 0 || p.ends) ? p : null;
+    } catch {
+      return null;
+    }
+    // previewKey が同じなら同じ行動
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewKey, view, myTurn]);
+  const isMineRef = (t: TargetRef) => (t.kind === 'player' ? t.player === me : battle.findMonster(view, t.uid)?.controller === me);
   const dragTargets = useMemo(() => new Set(dragging ? dragging.plan.targets.map(targetKey) : []), [dragging]);
   /** 光らせる対象か（ドラッグ中はドラッグの候補、対象選択中はその候補） */
   const isLit = (t: TargetRef): boolean => (dragging ? dragTargets.has(targetKey(t)) : candidates.some((x) => sameRef(x, t)));
@@ -1778,6 +1794,7 @@ export function BattleBoard({
           }
         />
       )}
+      {dragging && <DamagePreview preview={damagePreview} me={me} isMine={isMineRef} rootRef={rootRef} />}
 
       {view.phase === 'mulligan' && !mine.mulligan.done && !busy && <MulliganDialog view={view} me={me} onAction={act} timeLeft={timeLeft} />}
       {view.pending && view.pending.player === me && !busy && <ChoiceDialog view={view} me={me} onAction={act} timeLeft={timeLeft} />}

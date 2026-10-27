@@ -5157,3 +5157,86 @@ button.lt-card:focus-visible {
     }
   }
 }
+
+/* ダメージの見込み（決定事項 #137）：ドラッグ中、離したら起きることをダメージを受けるものの上に出す。pointer-events: none */
+.dmg-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 46;
+  pointer-events: none;
+}
+.dmg-tag {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  min-width: 64px;
+  max-width: 132px;
+  padding: 3px 8px 4px;
+  border-radius: var(--u-r-sm);
+  background:
+    linear-gradient(180deg, #2a1418, #160b0e) padding-box,
+    var(--u-rim-iron) border-box;
+  border: 1px solid transparent;
+  color: var(--u-ink);
+  font-size: var(--fs-xs);
+  line-height: 1.25;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+}
+.dmg-tag__num {
+  color: var(--ng);
+  font-size: 1.35rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.dmg-tag__hp {
+  color: var(--u-ink-2);
+  white-space: nowrap;
+}
+.dmg-tag__why {
+  color: var(--u-gold);
+  white-space: nowrap;
+}
+.dmg-tag.is-kill {
+  border-color: var(--ng);
+}
+.dmg-tag.is-kill .dmg-tag__hp {
+  color: var(--ng);
+  font-weight: bold;
+}
+.dmg-tag.is-none .dmg-tag__num {
+  color: var(--u-ink-3);
+}
+/* 自分が受けるもの（反撃・自傷） */
+.dmg-tag.is-mine {
+  transform: translate(-50%, 0);
+  background:
+    linear-gradient(180deg, #241d10, #140f07) padding-box,
+    var(--u-rim-iron) border-box;
+}
+.dmg-tag.is-mine .dmg-tag__num {
+  color: var(--u-gold);
+}
+.dmg-tag.is-mine .dmg-tag__num::before {
+  content: '受ける ';
+  font-size: var(--fs-xs);
+  color: var(--u-ink-2);
+}
+.dmg-preview__end {
+  position: fixed;
+  left: 50%;
+  top: 40%;
+  transform: translate(-50%, -50%);
+  padding: 6px 16px;
+  border-radius: var(--u-r-sm);
+  background: rgba(10, 12, 20, 0.88);
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  font-weight: bold;
+}
+.dmg-preview__end.is-lose {
+  border-color: var(--ng);
+  color: var(--ng);
+}

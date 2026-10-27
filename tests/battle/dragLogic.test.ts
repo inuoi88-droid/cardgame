@@ -1,6 +1,6 @@
 /** ドラッグ＆ドロップの判断（src/ui/battle/dragLogic.ts）。DOM は使わない */
 import { describe, expect, it } from 'vitest';
-import { arrowPath, gestureOf, parseSpot, pickSpot, planDrag, resolveDrop, resolveModeDrop, spotKey, type DragSource } from '../../src/ui/battle/dragLogic.ts';
+import { arrowPath, gestureOf, parseSpot, pickSpot, planDrag, previewActionOf, resolveDrop, resolveModeDrop, spotKey, type DragSource } from '../../src/ui/battle/dragLogic.ts';
 
 const opp = { kind: 'player', player: 1 } as const;
 const m = (uid: string) => ({ kind: 'monster', uid }) as const;
@@ -346,5 +346,26 @@ describe('待機ゾーン・Lv・忠誠・表にする（MTG 要素 △ バッ�
     expect(pickSpot(210, 70, boxes, new Set(['waiting']))).toBe('waiting');
     expect(pickSpot(250, 70, boxes, new Set(['waiting']))).toBe('waiting');
     expect(pickSpot(210, 70, boxes, new Set(['p:0']))).toBe('p:0');
+  });
+});
+
+describe('ダメージの見込みの行動（決定事項 #137）', () => {
+  const enemy = { kind: 'player', player: 1 } as const;
+  it('攻撃・対象を選ぶカード・対象のないカード', () => {
+    const atk: DragSource = { kind: 'attacker', uid: 'a', blocked: null, targets: [enemy] };
+    expect(previewActionOf(atk, parseSpot('p:1'), 0)).toEqual({ type: 'attack', player: 0, attackerUid: 'a', target: enemy });
+    expect(previewActionOf(atk, parseSpot('p:0'), 0)).toBeNull();
+    const c: DragSource = { kind: 'card', uid: 'c', noise: false, blocked: null, enemyTargets: [enemy], allyTargets: [] };
+    expect(previewActionOf(c, parseSpot('p:1'), 0)).toEqual({ type: 'playCard', player: 0, cardUid: 'c', chosen: { enemy } });
+    const aoe: DragSource = { kind: 'card', uid: 'z', noise: false, blocked: null, enemyTargets: [], allyTargets: [], from: 'discard' };
+    expect(previewActionOf(aoe, parseSpot('zone'), 0)).toEqual({ type: 'playCard', player: 0, cardUid: 'z', chosen: {}, from: 'discard' });
+  });
+  it('使えない・モードを選ぶ・続けて選ぶものは出さない', () => {
+    const blocked: DragSource = { kind: 'card', uid: 'c', noise: false, blocked: 'エナジーが足りません', enemyTargets: [enemy], allyTargets: [] };
+    expect(previewActionOf(blocked, parseSpot('p:1'), 0)).toBeNull();
+    const modal: DragSource = { kind: 'card', uid: 'm', noise: false, blocked: null, enemyTargets: [enemy], allyTargets: [], modal: true };
+    expect(previewActionOf(modal, parseSpot('p:1'), 0)).toBeNull();
+    const two: DragSource = { kind: 'card', uid: 't', noise: false, blocked: null, enemyTargets: [enemy], allyTargets: ['x', 'y'] };
+    expect(previewActionOf(two, parseSpot('p:1'), 0)).toBeNull();
   });
 });

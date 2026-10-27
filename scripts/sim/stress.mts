@@ -20,7 +20,7 @@
  * | poison       | 毒 N ×30                                         | |
  * | burn         | やけど（延長 N）×30                              | |
  * | freeze       | 凍結 ×30                                         | |
- * | weak         | 弱体 N ターン ×30                                | |
+ * | weak         | 脱力 N 個 ×30（id は weak。#137）                | |
  * | vulnerable   | 脆弱 N ターン ×30                                | |
  * | bleed        | 出血 N ×30                                       | |
  * | seal         | 封印 ×30                                         | モンスター限定 |
@@ -236,7 +236,7 @@ export const EXTREME: Record<string, () => DeckSpec> = {
   poison: () => single('poison', (v) => ({ effects: [eff('poison', { value: v })], name: `毒${v}` })),
   burn: () => single('burn', (v) => ({ effects: [eff('burn', { value: v })], name: `やけど+${v}` }), 'common', 1),
   freeze: () => flat('freeze', [eff('freeze')]),
-  weak: () => single('weak', (v) => ({ effects: [eff('weak', { value: v })], name: `弱体${v}` })),
+  weak: () => single('weak', (v) => ({ effects: [eff('weak', { value: v })], name: `脱力${v}` })),
   vulnerable: () => single('vulnerable', (v) => ({ effects: [eff('vulnerable', { value: v })], name: `脆弱${v}` })),
   bleed: () => single('bleed', (v) => ({ effects: [eff('bleed', { value: v })], name: `出血${v}` })),
   seal: () => flat('seal', [eff('seal')]),

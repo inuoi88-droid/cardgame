@@ -102,5 +102,5 @@ npm run gen:font      # 見出し用の明朝（src/ui/theme/fonts/）を作り�
 ```
 
 - フェーズの終わりや画面を変えたときは `npm run build:single` で `release/cardgame.html` を更新してコミットする（ユーザーはこのファイルで動作確認する）。
-- `src/online` かエンジンを変えたら `npm run build:server` → コミット・push → Edge Function「cardgame」を再デプロイする（Supabase プロジェクト ability-debate `hefydmrqrdumpifbqlfp`、verify_jwt なし）。MCP でデプロイするときは、`index.ts` はそのまま、`engine.js` は push 済みコミットの raw.githubusercontent.com の URL を `export *` する1行にする（決定事項 #61）。
+- `src/online` かエンジンを変えたら `npm run build:server` → コミット・push → Edge Function「cardgame」を再デプロイする（Supabase プロジェクト ability-debate `hefydmrqrdumpifbqlfp`、verify_jwt なし）。MCP でデプロイするときは、`index.ts` はそのまま、`engine.js` と `sqlStore.ts` は push 済みコミットの raw.githubusercontent.com の URL を `export *` する1行にする（決定事項 #61・#141）。
 - Supabase は ability-debate と共用。触ってよいのは `cardgame` スキーマと Edge Function「cardgame」だけ。

@@ -52,6 +52,8 @@ import { Sheet } from '../components/Sheet.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { budgetOf } from '../editor/budget.ts';
 import { EffectPicker, type PickerMode } from '../editor/EffectPicker.tsx';
+import { FitSheet } from '../editor/FitSheet.tsx';
+import type { FitItem } from '../editor/fits.ts';
 import { MiniPreview } from '../editor/MiniPreview.tsx';
 import { OptionPicker } from '../editor/OptionPicker.tsx';
 import { abilityConditionOptions, abilityOptionOptions, tribeFromValue, tribeOptions, tribeValue } from '../editor/pickOptions.ts';
@@ -129,7 +131,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
   const [touchedName, setTouchedName] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [picker, setPicker] = useState<PickerMode | null>(null);
-  const [sheet, setSheet] = useState<'preview' | 'templates' | null>(null);
+  const [sheet, setSheet] = useState<'preview' | 'templates' | 'fits' | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [flash, setFlash] = useState(false);
   const [pendingJump, setPendingJump] = useState<string | null>(null);
@@ -321,6 +323,18 @@ function Editor({ saved }: { saved: CardDef | null }) {
     setEffects([...card.effects, createEffect(id, base, card.abilities, card.effects)], [...eKeys, key]);
     setExpanded(new Set([key])); // 追加・複製した行だけを開き、ほかは要約にたたむ
     setFocusKey(key);
+  };
+  /** 「入れられるもの」から足す（決定事項 #140）：最大の数値のまま */
+  const addFit = (it: FitItem) => {
+    if (it.effect) {
+      const key = genKey();
+      setEffects([...card.effects, it.effect], [...eKeys, key]);
+      setExpanded(new Set([key]));
+      setFocusKey(key);
+    } else if (it.keyword) setCard((c) => ({ ...c, keywords: [...c.keywords, it.keyword!] }));
+    else if (it.ability) setAbilities([...(card.abilities ?? []), it.ability]);
+    else if (it.stat && it.max !== undefined) setCard((c) => (c.stats ? { ...c, stats: { ...c.stats, [it.stat!]: c.stats[it.stat!] + it.max! } } : c));
+    toast({ text: `「${it.name}」を足しました（あとで数値を下げられます）`, kind: 'ok' });
   };
   const removeEffect = (i: number) => {
     const removed = card.effects[i]!;
@@ -969,6 +983,18 @@ function Editor({ saved }: { saved: CardDef | null }) {
       </div>
 
       <div className="savebar ed-savebar">
+        {/* 残りのポイント（決定事項 #140）：押すと残りで入れられるものの一覧 */}
+        <button
+          type="button"
+          className={cx('ed-remain', budget.over > 0 ? 'is-over' : budget.remaining === 0 ? 'is-full' : 'is-ok')}
+          onClick={() => setSheet('fits')}
+          aria-label={budget.over > 0 ? `予算を${budget.over}pt超えています。入れられるものを見る` : `あと${budget.remaining}pt。入れられるものを見る`}
+        >
+          <span className="ed-remain__label">{budget.over > 0 ? '超過' : 'あと'}</span>
+          <b className="ed-remain__num">{budget.over > 0 ? budget.over : budget.remaining}</b>
+          <span className="ed-remain__unit">pt</span>
+          <span className="ed-remain__more">入れられるもの</span>
+        </button>
         <div className={cx('savebar__status', showProblems && !canSave && 'is-ng', !showProblems && !canSave && 'is-pending')} aria-live="polite">
           {canSave ? (dirty ? '保存できます' : '保存済み') : showProblems ? `要修正 ${allViolations.length}件` : 'カード名と効果を入れると保存できます'}
         </div>
@@ -1007,6 +1033,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
         </div>
         {panel(false)}
       </Sheet>
+      {sheet === 'fits' && <FitSheet card={card} onPick={addFit} onClose={() => setSheet(null)} />}
       <Sheet open={sheet === 'templates'} title="テンプレートから作る" onClose={() => setSheet(null)} desktop="modal">
         <p className="hint">予算をほどよく使った雛形です。読み込んだあと、名前・数値・効果を自由に変えられます。</p>
         <ul className="ed-tpls">

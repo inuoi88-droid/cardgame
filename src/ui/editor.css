@@ -1369,6 +1369,100 @@
   }
 }
 
+/* 残りのポイント（決定事項 #140）：保存バーの左。押すと「入れられるもの」 */
+.ed-remain {
+  flex: none;
+  display: inline-grid;
+  grid-template-columns: auto auto auto;
+  grid-template-rows: auto auto;
+  align-items: baseline;
+  column-gap: 2px;
+  min-height: var(--tap);
+  padding: 4px 12px;
+  border-radius: var(--r-md, 10px);
+  border: 1px solid #000;
+  background: radial-gradient(circle at 50% 30%, #23304a, #0d1220 80%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px #4a5570;
+  color: var(--text);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.ed-remain__label,
+.ed-remain__unit {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.ed-remain__num {
+  font-size: 1.35rem;
+  line-height: 1;
+  font-weight: 800;
+}
+.ed-remain__more {
+  grid-column: 1 / -1;
+  font-size: var(--fs-xs);
+  color: var(--u-sap-hi);
+  line-height: 1.2;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ed-remain.is-ok .ed-remain__num {
+  color: var(--u-sap-hi);
+}
+.ed-remain.is-full .ed-remain__num {
+  color: var(--text);
+}
+.ed-remain.is-over {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px var(--u-crim);
+}
+.ed-remain.is-over .ed-remain__num,
+.ed-remain.is-over .ed-remain__label {
+  color: var(--u-crim-hi);
+}
+.ed-remain:focus-visible {
+  outline: 2px solid var(--u-gold);
+  outline-offset: 2px;
+}
+@media (max-width: 480px) {
+  .ed-remain {
+    padding: 4px 8px;
+  }
+  .ed-remain__num {
+    font-size: 1.15rem;
+  }
+}
+
+/* 入れられるものの一覧（FitSheet） */
+.fit__sec {
+  display: grid;
+  gap: 6px;
+}
+.fit__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-size: var(--fs-md);
+}
+.fit__count {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  font-weight: normal;
+}
+.fit__value {
+  margin-left: 8px;
+  font-size: var(--fs-sm);
+  font-weight: bold;
+  color: var(--u-sap-hi);
+}
+.ed-sigil--stat {
+  font-weight: 800;
+  font-size: var(--fs-md);
+}
+
 /* ------------------------------------------------------------ ピッカー（効果・デメリット・キーワード・能力を追加） */
 .pk {
   display: grid;

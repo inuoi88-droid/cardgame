@@ -183,6 +183,24 @@ describe('報告 #4・#5：親和でコスト1まで下がり、召喚時のエ�
 describe('数値1が倍率の大きさ（20・10）に引き上げられない（実際の倍率。ユーザーの指摘・決定事項 #135）', () => {
   const spell = (id: string, effects: CardDef['effects']): CardDef => card({ id, name: id, cost: 0, scale: 20, effects });
 
+  it('脱力（#137）：150×2 の連撃は 100×2。やけどなら 75×2', () => {
+    let g = started();
+    g.cards['p0:multi2'] = spell('multi2', [{ id: 'multiHit', value: 150, hits: 2, target: 'chosen', timing: 'play', condition: null }]);
+    g.players[0].hand.push({ uid: 'W', cardId: 'p0:multi2', owner: 0 }, { uid: 'X', cardId: 'p0:multi2', owner: 0 });
+    g.players[0].energy = 20;
+    g.players[0].status.weak = 1;
+    let hp = g.players[1].hp;
+    g = act(g, { type: 'playCard', player: 0, cardUid: 'W', chosen: { enemy: { kind: 'player', player: 1 } } });
+    expect(BALANCE.battle.exhaustCap).toBe(100);
+    expect(g.players[1].hp).toBe(Math.max(0, hp - 200));
+    expect(g.players[0].status.weak).toBe(0);
+    g.players[1].hp = 1000;
+    g.players[0].status.burn = 1;
+    hp = g.players[1].hp;
+    g = act(g, { type: 'playCard', player: 0, cardUid: 'X', chosen: { enemy: { kind: 'player', player: 1 } } });
+    expect(g.players[1].hp).toBe(hp - 150);
+  });
+
   it('ダメージ1の連撃×5 は合計5（以前は1発ごとに最低20に上がって100）', () => {
     let g = started();
     g.cards['p0:multi'] = spell('multi', [{ id: 'multiHit', value: 1, hits: 5, target: 'chosen', timing: 'play', condition: null }]);

@@ -36,17 +36,20 @@ describe('ダメージの基本', () => {
     expect(g.players[1].shield).toBe(0);
   });
 
-  it('計算順：筋力 → 弱体 → 脆弱 → 守備力 → 最低1 → 出血', () => {
+  it('計算順：筋力 → やけど → 脱力 → 脆弱 → 守備力 → 最低1 → 出血（#137）', () => {
     let g = rich(startGame());
     const m = putMonster(g, 1, unit(1, 30, 3));
     g.players[0].status.strength = 2; // アタックなので筋力が乗る
+    g.players[0].status.burn = 1;
     g.players[0].status.weak = 1;
     monster(g, m)!.status.vulnerable = 1;
     monster(g, m)!.status.bleed = 2;
-    g = play(g, giveCard(g, 0, dmg(4)), { enemy: M(m) });
-    // (4+2)=6 → 弱体 4 → 脆弱 6 → 守備力3で 3 → 出血+2 で 5
-    expect(monster(g, m)!.hp).toBe(25);
-    expect(logText(g)).toContain('基本4 → 筋力・気合+2で6 → 弱体で4 → 脆弱で6 → 守備力−3で3 → 出血+2で5');
+    g = play(g, giveCard(g, 0, dmg(14)), { enemy: M(m) });
+    // (14+2)=16 → やけどで半分 8 → 脱力で1発5まで → 脆弱 7 → 守備力3で 4 → 出血+2 で 6
+    expect(monster(g, m)!.hp).toBe(24);
+    expect(logText(g)).toContain('基本14 → 筋力・気合+2で16 → やけどで8 → 脱力で5 → 脆弱で7 → 守備力−3で4 → 出血+2で6');
+    // ダメージのカードを使ったので脱力は1つ減った
+    expect(g.players[0].status.weak).toBe(0);
   });
 
   it('守備力で減っても最低1', () => {
@@ -216,12 +219,12 @@ describe('毒・やけど・自傷と無効化（#33・#37・#69）', () => {
     expect(g.players[0].status.nullify).toBe(1);
   });
 
-  it('やけど中は回復量が半分（切り捨て）', () => {
+  it('やけど中でも回復量はそのまま（回復半分の決まりはやめた：#137）', () => {
     let g = rich(startGame());
     g.players[0].hp = 40;
     g.players[0].status.burn = 2;
     g = play(g, giveCard(g, 0, legend([fx({ id: 'heal', value: 5, target: 'self' })])));
-    expect(g.players[0].hp).toBe(42);
+    expect(g.players[0].hp).toBe(45);
   });
 
   it('やけどを重ねると、新しいやけどのターン数をまるごと足す（#36）', () => {

@@ -4,10 +4,10 @@
  *   （「カードを使うたび」・封殺・使った枚数に関係しない）。召喚したターンのモンスターも使える。凍結の税・軽減効果は掛からない
  * - 手札から使う能力：サイクリング（捨てて1枚引く）・魂力（捨てて「魂力」の効果）。これもカードを使ったことには数えない
  */
-import { getAbility, getDrawback } from '../registry.ts';
+import { getAbility, getDrawback, getEffect } from '../registry.ts';
 import type { AbilityInstance, CardDef, EffectInstance, TimingId } from '../types.ts';
-import { enqueue, log, monsterDormant, newUid } from './core.ts';
-import { destroyMonster } from './damage.ts';
+import { enqueue, log, monsterDormant, newUid, playRecord } from './core.ts';
+import { destroyMonster, spendExhaust } from './damage.ts';
 import { allyCandidates, chosenRulesOf, enemyCandidates, icedBlock, validateChosen, wardTaxFor } from './play.ts';
 import { enqueueCardTiming, powerDormant } from './triggers.ts';
 import { afterDiscarded, createToken, deckToDiscard, discardCard, drawCards, tokenCount } from './zones.ts';
@@ -182,11 +182,20 @@ export function activate(g: GameState, p: PlayerId, sourceUid: string, chosen: C
   log(g, 0, `${ps.name}は${src.kind === 'power' ? 'パワー' : ''}「${src.name}」を起動した（${energy}）`, 'action', undefined, { kind: 'activate', player: p, uid: src.uid, cardId: src.cardId, amount: cost });
   if (src.monster) {
     const ref: SourceRef = { kind: 'monster', uid: src.uid, cardId: src.cardId, name: src.name, controller: p, ...(src.monster.card.token ? { token: true } : {}) };
+    // 脱力（決定事項 #137）：ダメージの効果を起動したら1つ減る（そのときだけ記録のキーを付ける）
+    const effects = activatedEffects(src);
+    if (ps.status.weak > 0 && effects.some((e) => getEffect(e.id)?.isDamage)) {
+      const protectKey = newUid(g, 'pk');
+      spendExhaust(g, p, playRecord(g, protectKey), effects, 1);
+      enqueueCardTiming(g, ref, src.def, 'activated', chosen, 1, { protectKey });
+      return;
+    }
     enqueueCardTiming(g, ref, src.def, 'activated', chosen, 1, {});
     return;
   }
   const ref: SourceRef = { kind: 'power', uid: src.uid, cardId: src.cardId, name: src.name, controller: p };
   const protectKey = newUid(g, 'pk');
+  spendExhaust(g, p, playRecord(g, protectKey), activatedEffects(src), 1);
   for (const effect of activatedEffects(src)) {
     enqueue(g, { t: 'effect', src: ref, effect, timing: 'activated', chosen, attackCard: false, protectKey, depth: 1 });
   }

@@ -4,7 +4,7 @@ import { TIMINGS, type TargetRule } from '../options.ts';
 import type { EffectInstance, TimingId } from '../types.ts';
 import { getKeyword } from '../registry.ts';
 import { cardName, checkGameEnd, effectiveAttack, enqueue, findMonster, log, monsterLabel, newUid, other, playerRef, playRecord, targetExists, turnLimits } from './core.ts';
-import { addStatus, cleanse, combatBonus, combatSourceOf, dealDamage, destroyMonster, heal, setCrown } from './damage.ts';
+import { addStatus, cleanse, combatBonus, combatSourceOf, dealDamage, destroyMonster, heal, outgoingOf, setCrown } from './damage.ts';
 import { attacksPerTurn } from './combat.ts';
 import { pick, randInt } from './rng.ts';
 import {
@@ -383,17 +383,17 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       const a = monsterOf(allyRef);
       const e = monsterOf(enemyRef);
       if (!a || !e) return;
-      // 先に両方の量（攻撃力＋一時強化＋武士道）と、弱体・接死・絆魂を決めてから、相手へ → 自分へ の順に与える
+      // 先に両方の量（攻撃力＋一時強化＋武士道）と、やけど・脱力・接死・絆魂を決めてから、相手へ → 自分へ の順に与える
       const toEnemy = effectiveAttack(g, a) + combatBonus(g, a);
       const toAlly = effectiveAttack(g, e) + combatBonus(g, e);
-      const aInfo = { weak: a.status.weak > 0, src: combatSourceOf(g, a), label: monsterLabel(g, a) };
-      const eInfo = { weak: e.status.weak > 0, src: combatSourceOf(g, e), label: monsterLabel(g, e) };
+      const aInfo = { outgoing: outgoingOf(g, allyRef, true), src: combatSourceOf(g, a), label: monsterLabel(g, a) };
+      const eInfo = { outgoing: outgoingOf(g, enemyRef, true), src: combatSourceOf(g, e), label: monsterLabel(g, e) };
       log(g, depth, `格闘：${aInfo.label}（${toEnemy}）と${eInfo.label}（${toAlly}）が戦う`, 'effect', undefined, { kind: 'attack', source: allyRef, target: enemyRef, status: 'fight' });
       if (toEnemy > 0) {
-        dealDamage(g, enemyRef, toEnemy, { kind: 'hit', source: allyRef, sourceWeak: aInfo.weak, combat: true, combatSource: aInfo.src, depth: depth + 1 });
+        dealDamage(g, enemyRef, toEnemy, { kind: 'hit', source: allyRef, outgoing: aInfo.outgoing, combat: true, combatSource: aInfo.src, depth: depth + 1 });
       }
       if (toAlly > 0 && targetExists(g, allyRef)) {
-        dealDamage(g, allyRef, toAlly, { kind: 'hit', source: enemyRef, sourceWeak: eInfo.weak, combat: true, combatSource: eInfo.src, depth: depth + 1 });
+        dealDamage(g, allyRef, toAlly, { kind: 'hit', source: enemyRef, outgoing: eInfo.outgoing, combat: true, combatSource: eInfo.src, depth: depth + 1 });
       }
     },
     createTokens(p, attack, hp, count) {
@@ -458,7 +458,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
         log(g, depth, '相手のモンスターが2体以上いないので、同士討ちは起きない');
         return;
       }
-      // 先にすべての組と量（攻撃力＋一時強化＋激励＋武士道）・弱体・接死・絆魂を決めてから、左から順に与える（同時）
+      // 先にすべての組と量（攻撃力＋一時強化＋激励＋武士道）・やけど・脱力・接死・絆魂を決めてから、左から順に与える（同時）
       const plan = board.map((m) => {
         const others = board.filter((o) => o.uid !== m.uid);
         const target = others[randInt(g, others.length)]!;
@@ -466,7 +466,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
           source: { kind: 'monster' as const, uid: m.uid },
           target: { kind: 'monster' as const, uid: target.uid },
           amount: effectiveAttack(g, m) + combatBonus(g, m),
-          weak: m.status.weak > 0,
+          outgoing: outgoingOf(g, { kind: 'monster', uid: m.uid }, true),
           combatSource: combatSourceOf(g, m),
           label: `${monsterLabel(g, m)}→${monsterLabel(g, target)}`,
         };
@@ -474,7 +474,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       for (const x of plan) {
         if (x.amount <= 0 || !targetExists(g, x.target)) continue;
         log(g, depth, `同士討ち：${x.label}`, 'effect', undefined, { kind: 'attack', source: x.source, target: x.target, status: 'infight' });
-        dealDamage(g, x.target, x.amount, { kind: 'hit', source: x.source, sourceWeak: x.weak, combat: true, combatSource: x.combatSource, depth: depth + 1 });
+        dealDamage(g, x.target, x.amount, { kind: 'hit', source: x.source, outgoing: x.outgoing, combat: true, combatSource: x.combatSource, depth: depth + 1 });
       }
     },
     deckToDiscard(p, uids, why) {

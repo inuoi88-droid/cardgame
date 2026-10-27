@@ -18,7 +18,7 @@ import {
   targetLabel,
   isEnded,
 } from './core.ts';
-import { combatBonus, combatSourceOf, dealDamage, keywordFlags, playerBonus, setCrown, targetableTaunts } from './damage.ts';
+import { combatBonus, combatSourceOf, dealDamage, keywordFlags, outgoingOf, playerBonus, setCrown, targetableTaunts } from './damage.ts';
 import { enqueueCardTiming, enqueueEnemyAttacked } from './triggers.ts';
 import { loyaltyHit } from './powers.ts';
 import { fogDamage, ruleHooks } from './rules.ts';
@@ -133,12 +133,12 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   const defender = target.kind === 'monster' ? findMonster(g, target.uid) : undefined;
   // この1回の攻撃の記録のキー：出血・反撃（状態）は攻撃と「攻撃するたび」の効果を合わせて1回（決定事項 #70 R4）
   const playKey = newUid(g, 'pk');
-  // モンスターの反撃（決定事項 #69）：攻撃される前の守備側の攻撃力（一時強化・武士道を含む）・弱体・接死・絆魂で決まる（同時に解決する扱い）
+  // モンスターの反撃（決定事項 #69）：攻撃される前の守備側の攻撃力（一時強化・武士道を含む）・やけど・脱力・接死・絆魂で決まる（同時に解決する扱い）
   const retaliationAmount = defender ? effectiveAttack(g, defender) + combatBonus(g, defender) : 0;
   // 容疑（MTG 要素 △ バッチA）・解鎖（△ バッチB）のモンスターは反撃しない
   const retaliation =
     defender && BALANCE.battle.retaliation.enabled && retaliationAmount > 0 && !defender.suspected && !defender.unleashed && !defender.siege
-      ? { amount: retaliationAmount, weak: defender.status.weak > 0, label: monsterLabel(g, defender), source: combatSourceOf(g, defender) }
+      ? { amount: retaliationAmount, outgoing: outgoingOf(g, target, true), label: monsterLabel(g, defender), source: combatSourceOf(g, defender) }
       : null;
   /** 先制攻撃：攻撃で相手モンスターを倒したら反撃を受けない */
   const firstStrike = keywordFlags(g, m).firstStrike === true;
@@ -151,6 +151,12 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
   if (amount < raw) log(g, depth + 1, `霧：攻撃のダメージが${raw}→${amount}に減る`, 'info');
   const r = dealDamage(g, target, amount, { kind: 'attack', source: attackerRef, playKey, depth: depth + 1 });
   if (isEnded(g)) return;
+  // 脱力（決定事項 #137）：攻撃するたび1つ減る（反撃・格闘では減らない）
+  const self = findMonster(g, m.uid);
+  if (self && self.status.weak > 0) {
+    self.status.weak -= 1;
+    log(g, depth + 1, `${monsterLabel(g, self)}の脱力が1つ減った（残り${self.status.weak}）`, 'info');
+  }
   /** 相手プレイヤーのHPを減らしたか（「相手プレイヤーにダメージを与えたとき」。裏切り・混乱で自分を殴ったときは数えない） */
   let hitEnemy = target.kind === 'player' && target.player === enemy && r.hpLost > 0;
   // 王冠（MTG 要素 ○ バッチC2）：王冠を持つプレイヤーのHPを相手のモンスターの攻撃が減らしたら、王冠はそのモンスターの持ち主へ
@@ -186,7 +192,7 @@ export function performAttack(g: GameState, m: Monster, target: TargetRef, depth
     dealDamage(g, attackerRef, retaliation.amount, {
       kind: 'retaliate',
       source: { kind: 'monster', uid: defender.uid },
-      sourceWeak: retaliation.weak,
+      outgoing: retaliation.outgoing,
       combatSource: retaliation.source,
       prefix: `${retaliation.label}の反撃：`,
       depth: depth + 1,

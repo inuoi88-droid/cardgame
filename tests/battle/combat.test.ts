@@ -109,7 +109,7 @@ describe('モンスターの反撃（#69）', () => {
     expect(g.players[1].discard.some((c) => c.uid === d)).toBe(true);
   });
 
-  it('反撃には攻撃側の脆弱・出血と、守備側の弱体が働く', () => {
+  it('反撃には攻撃側の脆弱・出血と、守備側のやけどが働く', () => {
     let g = startGame();
     const a = putMonster(g, 0, unit(1, 20));
     const d = putMonster(g, 1, unit(4, 20));
@@ -117,10 +117,10 @@ describe('モンスターの反撃（#69）', () => {
     monster(g, a)!.status.bleed = 2;
     g = attack(g, a, M(d));
     expect(monster(g, a)!.hp).toBe(20 - (6 + 2)); // 4 → 脆弱で6 → 出血+2
-    monster(g, d)!.status.weak = 1;
+    monster(g, d)!.status.burn = 1;
     const b = putMonster(g, 0, unit(1, 20));
     g = attack(g, b, M(d));
-    expect(monster(g, b)!.hp).toBe(17); // 4 → 弱体で3
+    expect(monster(g, b)!.hp).toBe(18); // 4 → やけどで2
   });
 
   it('攻撃力0のモンスターは反撃しない。balance で切れる', () => {

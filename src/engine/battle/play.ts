@@ -10,7 +10,7 @@ import { checkCondition } from './conditions.ts';
 import { cardName, effectiveAttack, enqueue, findMonster, log, newUid, other, playerRef, playRecord } from './core.ts';
 import { attacksPerTurn } from './combat.ts';
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
-import { cardTargetable, cardTargetableTaunts, destroyMonster, wardTax } from './damage.ts';
+import { cardTargetable, cardTargetableTaunts, destroyMonster, spendExhaust, wardTax } from './damage.ts';
 import { randInt } from './rng.ts';
 import { afterDiscarded, createToken, discardCard, placeFaceDown, summon } from './zones.ts';
 import { altWinOnCardPlayed, emblemFull, isEmblemCard } from './powers.ts';
@@ -959,6 +959,8 @@ function resolvePlay(
   const protectKey = newUid(g, 'pk');
   const rec = playRecord(g, protectKey);
   if (opts.freeDepth !== undefined) rec.freeDepth = opts.freeDepth;
+  // 脱力（決定事項 #137）：使用時・召喚時にダメージの効果があるカードを使うたび1つ減る（裏向きで出すときは効果が出ないので減らない）
+  if (opts.alt !== 'faceDown') spendExhaust(g, p, rec, def.effects.filter((e) => e.timing === timing), depth);
   // モード選択（MTG 要素 ○ バッチC2）：選んだモードを記録（反復でも同じモード。放題は最初の1つ）
   if (mode !== undefined) rec.mode = firstMode(mode);
   if (mode !== undefined && typeof mode !== 'number') rec.modes = [...mode];

@@ -67,14 +67,14 @@ export function effectHint(e: EffectInstance, _card: CardDef): Hint | null {
     }
     case 'burn': {
       const turns = B.burnTurns + v;
-      description = `${turns}ターンの間、ターン終了時に${B.burnDamage}ダメージ（合計${B.burnDamage * turns}）。かかっている間は回復が半分`;
+      description = `${turns}ターンの間、ターン終了時に${B.burnDamage}ダメージ（合計${B.burnDamage * turns}）。かかっている間は与えるダメージが半分（モンスターは攻撃・反撃、プレイヤーは効果のダメージ）`;
       break;
     }
     case 'freeze':
       description = `モンスターなら次の攻撃1回ぶん、プレイヤーなら次のターンのエナジー約${B.freezeCostIncrease}ぶんを奪う`;
       break;
     case 'weak':
-      description = `${v}ターンの間、相手の与えるダメージが${Math.round(B.weakRate * 100)}%減る`;
+      description = `相手の与えるダメージが1発${B.exhaustCap}まで（モンスターは攻撃${v}回ぶん、プレイヤーはダメージのカード${v}枚ぶん）`;
       break;
     case 'vulnerable':
       description = `${v}ターンの間、相手の受けるダメージが${Math.round(B.vulnerableRate * 100)}%増える。同じターンの残りの攻撃に乗る`;

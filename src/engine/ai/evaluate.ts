@@ -7,7 +7,7 @@
  *   モンスターの攻撃力は残りターン数ぶんだけ価値がある。レースが有利なら相手の HP（顔へのダメージ）を重く見る。
  *   この2つは1回の判断の中では判断の前の盤面で固定する（RaceFrame。決定事項 #81）。
  * - シールドは相手の次ターンの見込み打点まで、相手のシールドは自分がこのターンに出せる残りの打点までしか価値がない。
- * - 状態異常は実際のルールに合わせる：プレイヤーの弱体はそのプレイヤーのカードのダメージだけ、脆弱・出血は相手がそれを
+ * - 状態異常は実際のルールに合わせる：プレイヤーのやけど・脱力はそのプレイヤーの効果のダメージだけ、脆弱・出血は相手がそれを
  *   使える回数、反撃（状態）は相手の攻撃回数、毒・やけどは残り HP までしか効かない。
  */
 import { BALANCE } from '../balance.ts';
@@ -53,6 +53,8 @@ export const WEIGHTS = {
   poison: 0.9,
   burn: 0.8,
   weak: 1,
+  /** 脱力の見込みで数える使用の回数（それより多い分は先のことなので数えない） */
+  exhaustUses: 2,
   vulnerable: 0.8,
   monsterVulnerable: 1 * S,
   bleed: 0.8,
@@ -270,7 +272,9 @@ export function nextTurnThreat(g: GameState, p: PlayerId): Threat {
     // 激励・猛襲（相手プレイヤーへの攻撃）も見込む
     // フィールド「火山」・「霧」（MTG 要素 △ バッチD）も見込む
     let atk = m.attack + auraAttack(g, m) + playerBonus(g, m) + fieldAttackBonus(g);
-    if (m.status.weak > 0) atk = Math.floor(atk * (1 - B.weakRate));
+    // やけど（半減）・脱力（1発の上限）：決定事項 #137
+    if (m.status.burn > 0) atk = Math.floor(atk * B.burnDamageRate);
+    if (m.status.weak > 0) atk = Math.min(atk, B.exhaustCap);
     atk = fogDamage(g, atk);
     if (m.status.confusePending) atk *= W.confusedFactor;
     board += atk * n;
@@ -373,7 +377,10 @@ function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   }
   let attackTurns = T;
   if (m.status.freezePending || m.status.freezeActive) attackTurns -= 1;
-  if (m.status.weak > 0) attackTurns -= Math.min(m.status.weak, attackTurns) * B.weakRate;
+  // やけど（半減）・脱力（1発の上限。攻撃するたび1つ減る）：決定事項 #137
+  const atkNow = m.attack + auraAttack(g, m) + fieldAttackBonus(g);
+  if (m.status.burn > 0) attackTurns -= Math.min(m.status.burn, attackTurns) * (1 - B.burnDamageRate);
+  if (m.status.weak > 0 && atkNow > B.exhaustCap) attackTurns -= Math.min(m.status.weak, Math.max(0, attackTurns)) * (1 - B.exhaustCap / atkNow);
   // 防衛：攻撃しないので打点として数えない
   // 激励で上がっている分も打点（激励を持つモンスターの価値は、味方の攻撃力の上がり方に出る）
   let attackVal = cannotAttack(g, m) ? 0 : (m.attack + auraAttack(g, m) + fieldAttackBonus(g)) * n * W.monsterAttack * Math.max(0, attackTurns);
@@ -438,8 +445,9 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
   v -= Math.min(s.burn * B.burnDamage, ps.hp) * W.burn;
   // 呪縛：減らずに毎ターン効く（見込みのターン数ぶん）
   v -= Math.min((s.doom ?? 0) * W.doomTurns, ps.hp) * W.poison;
-  // 弱体：そのプレイヤーのカードのダメージだけ減る
-  v -= s.weak * ctx.threat[p].cards * B.weakRate * W.weak;
+  // やけど・脱力（決定事項 #137）：そのプレイヤーの効果のダメージが半減・1発の上限まで（脱力はダメージのカードを使うたび1つ減る）
+  if (s.burn > 0) v -= ctx.threat[p].cards * (1 - B.burnDamageRate) * W.weak;
+  if (s.weak > 0) v -= Math.max(0, ctx.threat[p].cards - B.exhaustCap) * Math.min(s.weak, W.exhaustUses) * W.weak;
   // 脆弱：相手がそのターンに出す打点が増える（残りターンは持ち主のターン終了時に減る）
   if (s.vulnerable > 0) {
     const later = Math.max(0, s.vulnerable - 1) * ctx.threat[user].total;

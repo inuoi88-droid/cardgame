@@ -274,7 +274,6 @@ export function beginEndTurn(g: GameState, p: PlayerId): void {
 
 function tickEnd(s: Statuses): void {
   s.bleed = Math.floor(s.bleed / 2);
-  s.weak = Math.max(0, s.weak - 1);
   s.vulnerable = Math.max(0, s.vulnerable - 1);
   s.freezeActive = false;
   s.confuseActive = false;
@@ -295,7 +294,7 @@ export function turnEndEffects(g: GameState, p: PlayerId): void {
       if (isEnded(g)) return;
     }
   }
-  // 出血が半分、弱体・脆弱の残りターン、凍結・混乱が切れる
+  // 出血が半分、脆弱の残りターン、凍結・混乱が切れる（脱力は使うまで減らない：決定事項 #137）
   tickEnd(ps.status);
   for (const m of ps.board) tickEnd(m.status);
 

@@ -13,7 +13,7 @@ export interface Statuses {
   poison: number;
   /** やけどの残りターン */
   burn: number;
-  /** 弱体の残りターン */
+  /** 脱力の数（id は weak のまま。決定事項 #137）：与えるダメージの1発が上限まで。モンスターは攻撃するたび、プレイヤーはダメージの効果のカードを使うたびに1つ減る */
   weak: number;
   /** 脆弱の残りターン */
   vulnerable: number;
@@ -619,6 +619,8 @@ export interface LogEntry {
 export interface PlayRecord {
   poison: number;
   burn: number;
+  /** 脱力（決定事項 #137）：このカードを使うときに脱力を1つ使った。このカードの効果のダメージは最後まで1発の上限まで */
+  exhaust?: boolean;
   bonus?: number;
   bonusUsed?: boolean;
   bleedHit?: string[];

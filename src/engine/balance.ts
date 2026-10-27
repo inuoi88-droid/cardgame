@@ -364,7 +364,7 @@ export const BALANCE = {
     poison: { perValue: 4, maxValue: x(10) },
     burn: { flat: x(9), perExtraTurn: x(3), maxExtraTurns: 5 },
     freeze: { flat: x(10) },
-    /** 弱体・脆弱の N はターン数（上限あり） */
+    /** 脱力（id は weak）の N は個数（1つ x(5)、1つの効果で3つまで。決定事項 #137）、脆弱の N はターン数（上限あり） */
     weak: { perValue: x(5), maxValue: 3 },
     vulnerable: { perValue: x(7), maxValue: 3 },
     bleed: { perValue: 6 },
@@ -773,8 +773,10 @@ export const BALANCE = {
     minMonsterDamage: x(1),
     burnTurns: 3,
     burnDamage: x(2),
-    burnHealRate: 0.5,
-    weakRate: 0.25,
+    /** やけど：与えるダメージの倍率（モンスターは攻撃・反撃・格闘、プレイヤーはダメージの効果。決定事項 #137） */
+    burnDamageRate: 0.5,
+    /** 脱力：与えるダメージの1発の上限（やけどと同じ範囲。決定事項 #137） */
+    exhaustCap: x(5),
     vulnerableRate: 0.5,
     noiseRemoveCost: 1,
     freezeCostIncrease: 1,

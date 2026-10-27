@@ -1,10 +1,11 @@
 /**
  * ダメージ・回復・破壊・状態異常。
- * ダメージの計算順（決定事項 #30）：基本値（＋筋力・気合）→ 弱体 → 脆弱 → 守備力 → 最低1 → 出血 → 無効化 → シールド → HP
+ * ダメージの計算順（決定事項 #30・#137）：基本値（＋筋力・気合）→ やけど（半減）→ 脱力（1発の上限）→ 脆弱 → 守備力 → 最低1 → 出血 → 無効化 → シールド → HP。
+ * やけど・脱力は出どころの状態で決まる：戦闘のダメージ（攻撃・反撃・格闘）はモンスター自身、効果のダメージは持ち主のプレイヤー
  */
 import { BALANCE } from '../balance.ts';
 import type { KeywordDef } from '../define.ts';
-import { getKeyword } from '../registry.ts';
+import { getEffect, getKeyword } from '../registry.ts';
 import {
   cardKeywords,
   cardName,
@@ -14,6 +15,7 @@ import {
   monsterDormant,
   monsterLabel,
   newUid,
+  playerRef,
   playRecord,
   sourceOfMonster,
   statusOf,
@@ -25,7 +27,8 @@ import {
 import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
 import { chargePowers } from './powers.ts';
 import { drawCards, unmask } from './zones.ts';
-import type { DamageKind, GameState, LogEvent, Monster, PlayerId, StatusKey, TargetRef } from './types.ts';
+import type { EffectInstance } from '../types.ts';
+import type { DamageKind, GameState, LogEvent, Monster, PlayerId, PlayRecord, StatusKey, TargetRef } from './types.ts';
 
 export type { DamageKind } from './types.ts';
 
@@ -33,10 +36,10 @@ const B = BALANCE.battle;
 
 export interface DamageOpts {
   kind: DamageKind;
-  /** 出どころ（弱体の判定、反撃の返し先、「ダメージを受けたとき」の相手） */
+  /** 出どころ（やけど・脱力の判定、反撃の返し先、「ダメージを受けたとき」の相手） */
   source: TargetRef | null;
-  /** 出どころが弱体か。出どころが場からいなくなっていても判定できるように、呼び出し側が先に調べて渡せる */
-  sourceWeak?: boolean;
+  /** 出どころのやけど・脱力。出どころが場からいなくなっていても判定できるように、呼び出し側が先に調べて渡せる（反撃・格闘） */
+  outgoing?: Outgoing;
   /** 基本値への加算（筋力・気合） */
   bonus?: number;
   /** 防御無視（守備力とシールドを無視） */
@@ -72,7 +75,44 @@ export interface DamageResult {
   destroyed: boolean;
 }
 
-/** 攻撃・ダメージ効果・モンスターの反撃：弱体・脆弱・守備力・最低1・出血が働く */
+/** 出どころの与えるダメージの補正（決定事項 #137） */
+export interface Outgoing {
+  /** やけど：半減 */
+  burn: boolean;
+  /** 脱力：1発の上限 */
+  exhaust: boolean;
+}
+
+/**
+ * 出どころのやけど・脱力（決定事項 #137）。戦闘のダメージ（攻撃・反撃・格闘・同士討ち）はそのモンスター自身の状態、
+ * 効果のダメージはカードの持ち主のプレイヤーの状態（モンスターの召喚時などの効果も、持ち主のプレイヤーで決まる）
+ */
+export function outgoingOf(g: GameState, source: TargetRef | null, combat: boolean): Outgoing {
+  if (!source) return { burn: false, exhaust: false };
+  let ref: TargetRef = source;
+  if (source.kind === 'monster' && !combat) {
+    const m = findMonster(g, source.uid);
+    if (!m) return { burn: false, exhaust: false };
+    ref = playerRef(m.controller);
+  }
+  const s = statusOf(g, ref);
+  return { burn: (s?.burn ?? 0) > 0, exhaust: (s?.weak ?? 0) > 0 };
+}
+
+/**
+ * 脱力（決定事項 #137）：プレイヤーがダメージを与える効果を使う（カードを使う・起動する）ときに1つ減らし、
+ * その使用の記録（PlayRecord.exhaust）に印を付ける（そのカードの効果のダメージには、減ったあとも最後まで上限が効く）。減らしたら true
+ */
+export function spendExhaust(g: GameState, p: PlayerId, rec: PlayRecord, effects: readonly EffectInstance[], depth: number): boolean {
+  const ps = g.players[p];
+  if (ps.status.weak <= 0 || !effects.some((e) => getEffect(e.id)?.isDamage)) return false;
+  rec.exhaust = true;
+  ps.status.weak -= 1;
+  log(g, depth, `脱力：${ps.name}の脱力が1つ減った（残り${ps.status.weak}）`, 'info');
+  return true;
+}
+
+/** 攻撃・ダメージ効果・モンスターの反撃：やけど・脱力・脆弱・守備力・最低1・出血が働く */
 const isHitKind = (k: DamageKind) => k === 'attack' || k === 'hit' || k === 'retaliate';
 const detailOf = (base: number, steps: string[]) => (steps.length ? `（基本${base} → ${steps.join(' → ')}）` : '');
 /** 毒・やけど・呪縛・放射能・疲労（決定事項 #102）：シールド・無効化・聖盾を無視し、「ダメージを受けたとき」は出ない */
@@ -226,15 +266,22 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
   let amount = Math.max(0, base);
   const hit = isHitKind(opts.kind);
   const mitigated = hit || opts.kind === 'counter';
-  const sourceWeak = opts.sourceWeak ?? (opts.source ? (statusOf(g, opts.source)?.weak ?? 0) > 0 : false);
+  const combatHit = opts.kind === 'attack' || opts.kind === 'retaliate' || opts.combat === true;
+  const out = hit ? (opts.outgoing ?? outgoingOf(g, opts.source, combatHit)) : { burn: false, exhaust: false };
+  // 脱力を使ったカードの効果は、使ったあとに脱力が無くなっても最後まで上限が効く
+  const exhaust = out.exhaust || (opts.playKey !== undefined && g.protect[opts.playKey]?.exhaust === true);
 
   if (hit && opts.bonus) {
     amount += opts.bonus;
     steps.push(`筋力・気合+${opts.bonus}で${amount}`);
   }
-  if (hit && sourceWeak) {
-    amount = Math.floor(amount * (1 - B.weakRate));
-    steps.push(`弱体で${amount}`);
+  if (hit && out.burn) {
+    amount = Math.floor(amount * B.burnDamageRate);
+    steps.push(`やけどで${amount}`);
+  }
+  if (hit && exhaust && amount > B.exhaustCap) {
+    amount = B.exhaustCap;
+    steps.push(`脱力で${amount}`);
   }
   if (hit && status.vulnerable > 0) {
     amount = Math.floor(amount * (1 + B.vulnerableRate));
@@ -482,13 +529,9 @@ export function destroyMonster(g: GameState, m: Monster, depth: number, force = 
 /** extra は演出の出来事に足すもの（絆魂の keywordId、再生の status など。決定事項 #126） */
 export function heal(g: GameState, target: TargetRef, amount: number, depth: number, extra?: Partial<LogEvent>): number {
   if (isEnded(g) || !targetExists(g, target) || amount <= 0) return 0;
-  const status = statusOf(g, target)!;
-  let n = amount;
-  let note = '';
-  if (status.burn > 0) {
-    n = Math.floor(amount * B.burnHealRate);
-    note = `（やけどで${amount}→${n}）`;
-  }
+  // やけどで回復量が半分になる決まりはやめた（決定事項 #137）
+  const n = amount;
+  const note = '';
   if (target.kind === 'player') {
     const ps = g.players[target.player];
     const before = ps.hp;
@@ -508,7 +551,7 @@ export function heal(g: GameState, target: TargetRef, amount: number, depth: num
 const STATUS_LABEL: Record<StatusKey, string> = {
   poison: '毒',
   burn: 'やけど',
-  weak: '弱体',
+  weak: '脱力',
   vulnerable: '脆弱',
   bleed: '出血',
   freeze: '凍結',
@@ -541,8 +584,12 @@ export function addStatus(g: GameState, target: TargetRef, key: StatusKey, amoun
       s.confusePending = true;
       log(g, depth, `${name}を混乱させた（次の持ち主のターンに発効）`, 'effect', undefined, ev(1));
       return;
-    case 'burn':
     case 'weak':
+      // 脱力（決定事項 #137）：個数。モンスターは攻撃するたび、プレイヤーはダメージの効果のカードを使うたびに1つ減る
+      s.weak += amount;
+      log(g, depth, `${name}に脱力${amount}：合計${s.weak}`, 'effect', undefined, ev(amount));
+      return;
+    case 'burn':
     case 'vulnerable':
       s[key] += amount;
       log(g, depth, `${name}に${STATUS_LABEL[key]}（${amount}ターン）：残り${s[key]}ターン`, 'effect', undefined, ev(amount));

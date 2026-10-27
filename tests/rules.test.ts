@@ -51,9 +51,9 @@ describe('効果のポイント', () => {
     expect(effectValue(fx({ id: 'seal', target: 'everyone' }))).toBe(12); // 8 × 1.4 = 11.2 → 12
   });
 
-  it('やけどは延長1ターンごとに+3pt（延長は5ターンまで）', () => {
-    expect(effectValue(fx({ id: 'burn', value: 0 }))).toBe(9);
-    expect(effectValue(fx({ id: 'burn', value: 2 }))).toBe(15);
+  it('やけどは12pt、延長1ターンごとに+4pt（延長は5ターンまで。#139）', () => {
+    expect(effectValue(fx({ id: 'burn', value: 0 }))).toBe(12);
+    expect(effectValue(fx({ id: 'burn', value: 2 }))).toBe(20);
     expect(analyzeCard(card({ rarity: 'legend', cost: 5, effects: [fx({ id: 'burn', value: 6 })] })).violations.map((v) => v.code)).toEqual([
       'EFFECT_VALUE',
     ]);

@@ -52,7 +52,7 @@ export function effectHint(e: EffectInstance, _card: CardDef): Hint | null {
       description = `${v}ダメージぶんを肩代わり（HP ${HP} の ${pct(v)}）。次の自分のターン開始時に消える`;
       break;
     case 'heal':
-      description = `HP を${v}回復（HP ${HP} の ${pct(v)}）。やけど中は半分になる`;
+      description = `HP を${v}回復（HP ${HP} の ${pct(v)}）`;
       break;
     case 'nullify':
       description = '次に受けるダメージ1回を 0 にする。毒・やけどは防げない';
@@ -67,7 +67,7 @@ export function effectHint(e: EffectInstance, _card: CardDef): Hint | null {
     }
     case 'burn': {
       const turns = B.burnTurns + v;
-      description = `${turns}ターンの間、ターン終了時に${B.burnDamage}ダメージ（合計${B.burnDamage * turns}）。かかっている間は与えるダメージが半分（モンスターは攻撃・反撃、プレイヤーは効果のダメージ）`;
+      description = `${turns}ターンの間、ターン終了時に${B.burnDamage}ダメージ（合計${B.burnDamage * turns}）。かかっている間は与えるダメージが${B.burnDamageRateLabel}（モンスターは攻撃・反撃、プレイヤーは効果のダメージ）`;
       break;
     }
     case 'freeze':

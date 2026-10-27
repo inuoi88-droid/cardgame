@@ -24,7 +24,7 @@ describe('倍率', () => {
     expect(BALANCE.card.cost0CapPenalty).toBe(40);
     expect(BALANCE.keywords.flying.flat).toBe(60);
     expect(BALANCE.effects.draw.perValue).toBe(80);
-    expect(BALANCE.effects.burn.flat).toBe(180);
+    expect(BALANCE.effects.burn.flat).toBe(240);
     expect(BALANCE.drawbacks.gift.flat).toBe(60);
     // 量1あたりのポイントは変わらない（#84 でダメージは 3pt）
     expect(BALANCE.effects.damage.perValue).toBe(3);
@@ -39,9 +39,9 @@ describe('倍率', () => {
 
   it('作成例4枚は数字が20倍になり、どれも作れる', () => {
     const hinoko = analyzeCard(sample('hinoko'));
-    expect(sample('hinoko').effects[0]!.value).toBe(40);
-    expect(hinoko.text.effects[0]).toBe('相手1体に40ダメージを与える。');
-    // ダメージ40（120pt）＋やけど180pt − コスト200pt（#84）
+    expect(sample('hinoko').effects[0]!.value).toBe(20);
+    expect(hinoko.text.effects[0]).toBe('相手1体に20ダメージを与える。');
+    // ダメージ20（60pt）＋やけど240pt − コスト200pt（#139 でやけどの値上げに合わせてダメージ2→1）
     expect(hinoko.points.total).toBe(100);
     expect(hinoko.points.cap).toBe(100);
 
@@ -138,17 +138,17 @@ describe('保存してあったカードの移行', () => {
   });
 
   it('前の版（10倍）のカードは、移行しても新しい価格表で計算される', () => {
-    // 前の版（10倍）のコモン「ダメージ20＋やけど」。移行後は 120 + 180 − 200 = 100 / 100（#84 の価格）
+    // 前の版（10倍）のコモン「ダメージ10＋やけど」。移行後は 60 + 240 − 200 = 100 / 100（#139 の価格）
     const fire = parsed({
       ...card({
         effects: [
-          { id: 'damage', value: 20, timing: 'play', target: 'chosen', condition: null },
+          { id: 'damage', value: 10, timing: 'play', target: 'chosen', condition: null },
           { id: 'burn', value: 0, timing: 'play', target: 'chosen', condition: null },
         ],
       }),
       scale: 10,
     });
-    expect(fire.effects[0]!.value).toBe(40);
+    expect(fire.effects[0]!.value).toBe(20);
     const a = analyzeCard(fire);
     expect(a.valid).toBe(true);
     expect(a.points.remaining).toBe(0);

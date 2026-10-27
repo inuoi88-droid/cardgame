@@ -45,9 +45,9 @@ describe('ダメージの基本', () => {
     monster(g, m)!.status.vulnerable = 1;
     monster(g, m)!.status.bleed = 2;
     g = play(g, giveCard(g, 0, dmg(14)), { enemy: M(m) });
-    // (14+2)=16 → やけどで半分 8 → 脱力で1発5まで → 脆弱 7 → 守備力3で 4 → 出血+2 で 6
+    // (14+2)=16 → やけどで3分の2（切り捨て）10 → 脱力で1発5まで → 脆弱 7 → 守備力3で 4 → 出血+2 で 6
     expect(monster(g, m)!.hp).toBe(24);
-    expect(logText(g)).toContain('基本14 → 筋力・気合+2で16 → やけどで8 → 脱力で5 → 脆弱で7 → 守備力−3で4 → 出血+2で6');
+    expect(logText(g)).toContain('基本14 → 筋力・気合+2で16 → やけどで10 → 脱力で5 → 脆弱で7 → 守備力−3で4 → 出血+2で6');
     // ダメージのカードを使ったので脱力は1つ減った
     expect(g.players[0].status.weak).toBe(0);
   });

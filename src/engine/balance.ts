@@ -362,7 +362,7 @@ export const BALANCE = {
 
     /** 毒は残り続けて合計ダメージが大きくなるので、1つの効果で与えられる値に上限を置く */
     poison: { perValue: 4, maxValue: x(10) },
-    burn: { flat: x(9), perExtraTurn: x(3), maxExtraTurns: 5 },
+    burn: { flat: x(12), perExtraTurn: x(4), maxExtraTurns: 5 },
     freeze: { flat: x(10) },
     /** 脱力（id は weak）の N は個数（1つ x(5)、1つの効果で3つまで。決定事項 #138）、脆弱の N はターン数（上限あり） */
     weak: { perValue: x(5), maxValue: 3 },
@@ -774,8 +774,10 @@ export const BALANCE = {
     minMonsterDamage: x(1),
     burnTurns: 3,
     burnDamage: x(2),
-    /** やけど：与えるダメージの倍率（モンスターは攻撃・反撃・格闘、プレイヤーはダメージの効果。決定事項 #138） */
-    burnDamageRate: 0.5,
+    /** やけど：与えるダメージの倍率（モンスターは攻撃・反撃・格闘、プレイヤーはダメージの効果。決定事項 #138。半減から 2/3 へ：#139） */
+    burnDamageRate: 2 / 3,
+    /** burnDamageRate の言い方（画面と効果の文。数値と一緒に変える） */
+    burnDamageRateLabel: '3分の2',
     /** 脱力：与えるダメージの1発の上限（やけどと同じ範囲。決定事項 #138） */
     exhaustCap: x(5),
     vulnerableRate: 0.5,

@@ -26,7 +26,7 @@ export const EXAMPLES = {
     rarity: 'common',
     cost: 1,
     effects: [
-      { id: 'damage', value: 2, timing: 'play', target: 'chosen', condition: null },
+      { id: 'damage', value: 1, timing: 'play', target: 'chosen', condition: null },
       { id: 'burn', value: 0, timing: 'play', target: 'chosen', condition: null },
     ],
   }),

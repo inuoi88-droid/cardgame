@@ -20,14 +20,14 @@ function expectViolation(c: CardDef, code: string) {
 }
 
 describe('ポイント', () => {
-  it('上限を超えると作れない（コモンでダメージ3＋やけど＝8pt）', () => {
+  it('上限を超えると作れない（コモンでダメージ3＋やけど＝11pt。#139 でやけど 12pt）', () => {
     const a = expectViolation(
       { ...EXAMPLES.hinoko, effects: [fx({ id: 'damage', value: 3 }), fx({ id: 'burn', value: 0 })] },
       'POINTS_OVER_CAP',
     );
-    expect(a.points.total).toBe(8);
-    expect(a.points.remaining).toBe(-3);
-    expect(a.violations[0]!.message).toBe('合計ポイントが上限を3pt超えています（8 / 5）');
+    expect(a.points.total).toBe(11);
+    expect(a.points.remaining).toBe(-6);
+    expect(a.violations[0]!.message).toBe('合計ポイントが上限を6pt超えています（11 / 5）');
   });
 
   it('呪いカードは、デメリットの合計がレアリティ上限以上でないと作れない', () => {

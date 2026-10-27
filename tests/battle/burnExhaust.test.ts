@@ -1,4 +1,4 @@
-// やけど・脱力（決定事項 #138）：与えるダメージの半減・1発の上限。モンスターは攻撃・反撃（格闘も）、プレイヤーは自分の効果のダメージ。
+// やけど・脱力（決定事項 #138）：与えるダメージの3分の2（#139。切り捨て）・1発の上限。モンスターは攻撃・反撃（格闘も）、プレイヤーは自分の効果のダメージ。
 // 倍率1（上限は x(5)＝5）
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../../src/engine/index.ts';
@@ -11,36 +11,36 @@ const legend = (effects: ReturnType<typeof fx>[], extra: Partial<Parameters<type
 const unit = (attack: number, hp: number, extra: Partial<Parameters<typeof card>[0]> = {}) =>
   card({ id: `U${attack}${hp}${Math.random().toString(36).slice(2, 6)}`, rarity: 'legend', cost: 5, stats: { attack, hp, defense: 0 }, ...extra });
 
-describe('やけど：与えるダメージが半分', () => {
-  it('やけどのモンスターの攻撃は半分（守備側の反撃はそのまま）', () => {
+describe('やけど：与えるダメージが3分の2', () => {
+  it('やけどのモンスターの攻撃は3分の2（守備側の反撃はそのまま）', () => {
     let g = startGame();
     const a = putMonster(g, 0, unit(6, 20));
     const d = putMonster(g, 1, unit(2, 30));
     monster(g, a)!.status.burn = 1;
     g = attack(g, a, M(d));
-    expect(monster(g, d)!.hp).toBe(27);
+    expect(monster(g, d)!.hp).toBe(26);
     expect(monster(g, a)!.hp).toBe(18);
-    expect(logText(g)).toContain('やけどで3');
+    expect(logText(g)).toContain('やけどで4');
   });
 
-  it('プレイヤーのやけど：自分のカードのダメージが半分。モンスターの攻撃は半分にならない', () => {
+  it('プレイヤーのやけど：自分のカードのダメージが3分の2。モンスターの攻撃は変わらない', () => {
     let g = rich(startGame());
     g.players[0].status.burn = 1;
     const d = putMonster(g, 1, unit(0, 30));
     g = play(g, giveCard(g, 0, legend([fx({ id: 'damage', value: 7 })])), { enemy: M(d) });
-    expect(monster(g, d)!.hp).toBe(27); // 7 → 3
+    expect(monster(g, d)!.hp).toBe(26); // 7 → 4
     const a = putMonster(g, 0, unit(6, 20));
     g = attack(g, a, M(d));
-    expect(monster(g, d)!.hp).toBe(21);
+    expect(monster(g, d)!.hp).toBe(20);
   });
 
-  it('モンスターの召喚時の効果は、持ち主のプレイヤーのやけどで半分（モンスター自身のやけどでは変わらない）', () => {
+  it('モンスターの召喚時の効果は、持ち主のプレイヤーのやけどで3分の2（モンスター自身のやけどでは変わらない）', () => {
     let g = rich(startGame());
     g.players[0].status.burn = 1;
     const d = putMonster(g, 1, unit(0, 30));
     g = play(g, giveCard(g, 0, unit(1, 5, { effects: [fx({ id: 'damage', value: 8, timing: 'summon' })] })), { enemy: M(d) });
-    expect(monster(g, d)!.hp).toBe(26); // 8 → 4
-    // 攻撃するたびの効果：やけどのモンスター自身の効果は、持ち主がやけどでなければ半分にならない
+    expect(monster(g, d)!.hp).toBe(25); // 8 → 5
+    // 攻撃するたびの効果：やけどのモンスター自身の効果は、持ち主がやけどでなければ変わらない
     g.players[0].status.burn = 0;
     const a = putMonster(g, 0, unit(0, 20, { effects: [fx({ id: 'damage', value: 6, timing: 'attack' })] }));
     monster(g, a)!.status.burn = 2;

@@ -120,7 +120,7 @@ describe('モンスターの反撃（#69）', () => {
     monster(g, d)!.status.burn = 1;
     const b = putMonster(g, 0, unit(1, 20));
     g = attack(g, b, M(d));
-    expect(monster(g, b)!.hp).toBe(18); // 4 → やけどで2
+    expect(monster(g, b)!.hp).toBe(18); // 4 → やけどで2（3分の2 の切り捨て）
   });
 
   it('攻撃力0のモンスターは反撃しない。balance で切れる', () => {

@@ -2,7 +2,7 @@
  * ダメージの見込みの札の言葉（純粋関数。決定事項 #138。tests/battle/damagePreview.test.ts）。
  * エンジンの previewAction の1件（PreviewHit）から、大きい数字・HP の変化・理由（聖盾・シールド・守備力・やけど・脱力など）を作る
  */
-import type { battle } from '../../engine/index.ts';
+import { BALANCE, type battle } from '../../engine/index.ts';
 
 export interface HitTexts {
   /** 大きく出す数字（減る HP。ランダムなら「？」） */
@@ -22,7 +22,7 @@ function stepNote(step: string): string | null {
   const s = step.trim();
   let m: RegExpExecArray | null;
   if ((m = /^守備力−(\d+)/.exec(s))) return `守備力−${m[1]}`;
-  if (s.startsWith('やけどで')) return 'やけどで半分';
+  if (s.startsWith('やけどで')) return `やけどで${BALANCE.battle.burnDamageRateLabel}`;
   if ((m = /^脱力で(\d+)/.exec(s))) return `脱力で${m[1]}まで`;
   if (s.startsWith('脆弱で')) return '脆弱で増える';
   if ((m = /^出血\+(\d+)/.exec(s))) return `出血+${m[1]}`;

@@ -66,6 +66,15 @@ export const EXTREME10: Record<string, Extreme> = {
   bleed: { slot: 'amp', step: AMOUNT, build: (v) => ({ effects: [eff('bleed', { value: v })], name: `出血${v}` }) },
   weak: { slot: 'spell', step: COUNT, build: (v) => ({ effects: [eff('weak', { value: v })], name: `脱力${v}` }) },
   burn: { slot: 'spell', step: COUNT, build: (v) => ({ effects: [eff('burn', { value: v })], name: `やけど+${v}` }) },
+  /** 延長なしのやけど（値段を上げてコモンのコスト1に入らなくなっても測れるように。決定事項 #139） */
+  burn0: { slot: 'spell', step: 0, tries: [['common', 1], ['common', 2], ['common', 3]], build: () => ({ effects: [eff('burn')], name: 'やけど' }) },
+  /** 作成例「火の粉」の形（ダメージ＋やけど）で、ダメージを入るだけ（決定事項 #139） */
+  burnDmg: {
+    slot: 'spell',
+    step: AMOUNT,
+    tries: [['common', 1], ['common', 2]],
+    build: (v) => ({ effects: [eff('damage', { value: v }), eff('burn')], name: `ダメージ${v}＋やけど` }),
+  },
   freeze: { slot: 'spell', step: 0, build: () => ({ effects: [eff('freeze')], name: '凍結' }) },
   counter: { slot: 'spell', step: AMOUNT, build: (v) => ({ effects: [eff('counter', { value: v })], name: `反撃${v}` }) },
   shield: { slot: 'spell', step: AMOUNT, build: (v) => ({ effects: [eff('shield', { value: v })], name: `シールド${v}` }) },

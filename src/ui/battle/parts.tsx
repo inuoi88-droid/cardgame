@@ -96,7 +96,7 @@ export function statusChips(s: Statuses, isPlayer: boolean): Chip[] {
   add('doom', s.doom, chipOf(G.doom, String(s.doom ?? 0), [`自分のターン開始時に毎回${s.doom ?? 0}ダメージ（減らない。浄化で消える）`]));
   // MTG 要素 △ バッチA：放射能
   add('rad', s.rad, chipOf(G.rad, String(s.rad ?? 0), [`次の自分のターン開始時に山札の上${s.rad ?? 0}枚を捨て札へ（モンスター以外1枚ごとに${BALANCE.battle.radDamage}ダメージ）`]));
-  add('burn', s.burn, chipOf(G.burn, `${s.burn}T`, [`残り${s.burn}ターン（与えるダメージが半分）`]));
+  add('burn', s.burn, chipOf(G.burn, `${s.burn}T`, [`残り${s.burn}ターン（与えるダメージが${BALANCE.battle.burnDamageRateLabel}）`]));
   add('weak', s.weak, chipOf(G.weak, String(s.weak), [`残り${s.weak}つ（与えるダメージが1発${BALANCE.battle.exhaustCap}まで）`]));
   add('vulnerable', s.vulnerable, chipOf(G.vulnerable, `${s.vulnerable}T`, [`残り${s.vulnerable}ターン`]));
   add('bleed', s.bleed, chipOf(G.bleed, String(s.bleed), [`次に受けるダメージに+${s.bleed}`]));

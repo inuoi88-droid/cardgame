@@ -9,7 +9,7 @@ export default defineEffect({
   name: 'やけど',
   group: 'status',
   order: 31,
-  summary: `やけどを与える（${BALANCE.battle.burnTurns}ターンの間、ターン終了時に${BALANCE.battle.burnDamage}ダメージ。与えるダメージが半分：モンスターは攻撃・反撃、プレイヤーは自分の効果のダメージ）`,
+  summary: `やけどを与える（${BALANCE.battle.burnTurns}ターンの間、ターン終了時に${BALANCE.battle.burnDamage}ダメージ。与えるダメージが${BALANCE.battle.burnDamageRateLabel}（切り捨て）：モンスターは攻撃・反撃、プレイヤーは自分の効果のダメージ）`,
   value: { label: '延長ターン', min: 0, max: B.maxExtraTurns, default: 0 },
   targetRule: 'enemyAny',
   basePoints: (e) => B.flat + B.perExtraTurn * n(e),

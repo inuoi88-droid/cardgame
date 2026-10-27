@@ -61,7 +61,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
         stats: null,
         keywords: [],
         effects: [
-          { id: 'damage', value: 2, timing: 'play', target: 'chosen', condition: null },
+          { id: 'damage', value: 1, timing: 'play', target: 'chosen', condition: null },
           { id: 'burn', value: 0, timing: 'play', target: 'chosen', condition: null },
         ],
         drawbacks: [],

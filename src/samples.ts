@@ -1,6 +1,6 @@
 /**
  * カード一覧の「サンプルを追加」で入るカード。数値は倍率1で書き、読み込み時に倍率を掛ける（決定事項 #65・#67）。
- * - BASE_SAMPLES：仕様の「作成例」4枚（テストで計算結果を確かめる。中身を変えない）
+ * - BASE_SAMPLES：仕様の「作成例」4枚（テストで計算結果を確かめる。中身を変えない。例外：火の粉のダメージは #139 のやけどの値上げで 2→1）
  * - SHOWCASE_SAMPLES：今の予算でどこまで作れるかを見せる見本4枚（どれも上限ちょうどか、ほぼちょうど）
  */
 import { fromBaseScale, type CardDef, type EffectInstance } from './engine/index.ts';
@@ -16,7 +16,7 @@ const BASE_SAMPLES: CardDef[] = [
     stats: null,
     keywords: [],
     effects: [
-      { id: 'damage', value: 2, timing: 'play', target: 'chosen', condition: null },
+      { id: 'damage', value: 1, timing: 'play', target: 'chosen', condition: null },
       { id: 'burn', value: 0, timing: 'play', target: 'chosen', condition: null },
     ],
     drawbacks: [],

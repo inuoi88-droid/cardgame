@@ -45,13 +45,13 @@ describe('ダメージの見込み', () => {
     expect(pl.hpAfter).toBe(g.players[1].hp - 2);
   });
 
-  it('攻撃：相手へのダメージと、受ける反撃。やけどの半減も入る', () => {
+  it('攻撃：相手へのダメージと、受ける反撃。やけどの3分の2も入る', () => {
     const g = startGame();
     const a = putMonster(g, 0, unit(8, 10));
     const d = putMonster(g, 1, unit(6, 20, 1));
     monster(g, a)!.status.burn = 1;
     const p = battle.previewAction(battle.viewFor(g, 0), { type: 'attack', player: 0, attackerUid: a, target: M(d) });
-    expect(hitOn(p, M(d))!.dealt).toBe(3); // 8 → やけどで4 → 守備力1で3
+    expect(hitOn(p, M(d))!.dealt).toBe(4); // 8 → やけどで5 → 守備力1で4
     expect(hitOn(p, M(a))!.hpLost).toBe(6); // 反撃
   });
 

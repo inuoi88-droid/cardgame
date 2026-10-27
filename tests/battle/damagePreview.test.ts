@@ -23,7 +23,7 @@ describe('hitTexts', () => {
     const t = hitTexts(hit({ hpLost: 60, hpAfter: 40, dealt: 60, steps: ['やけどで100 → 脱力で100 → 守備力−40で60'] }));
     expect(t.num).toBe('−60');
     expect(t.hp).toBe('体力 100→40');
-    expect(t.notes).toEqual(['やけどで半分', '脱力で100まで', '守備力−40']);
+    expect(t.notes).toEqual(['やけどで3分の2', '脱力で100まで', '守備力−40']);
     expect(t.kill).toBe(false);
   });
   it('聖盾で0・倒せる・プレイヤーのシールド・ランダム', () => {

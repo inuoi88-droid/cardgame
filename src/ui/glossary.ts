@@ -70,7 +70,7 @@ export const glossary: Record<StatusId, GlossaryEntry> = {
     icon: '🔥',
     gi: 'flame',
     tone: 'bad',
-    short: `自分のターン終了時に${B.burnDamage}ダメージ（シールド・無効化を無視）。かかっている間は与えるダメージが${pct(B.burnDamageRate)}（モンスターは攻撃・反撃、プレイヤーは自分の効果のダメージ）。残りターンの数だけ続く`,
+    short: `自分のターン終了時に${B.burnDamage}ダメージ（シールド・無効化を無視）。かかっている間は与えるダメージが${B.burnDamageRateLabel}（切り捨て。モンスターは攻撃・反撃、プレイヤーは自分の効果のダメージ）。残りターンの数だけ続く`,
   },
   weak: { name: '脱力', icon: '⬇', gi: 'shattered-sword', tone: 'bad', short: `与えるダメージが1発${B.exhaustCap}まで（モンスターは攻撃・反撃、プレイヤーは自分の効果のダメージ）。モンスターは攻撃するたび、プレイヤーはダメージのカードを使うたびに1つ減る` },
   vulnerable: { name: '脆弱', icon: '💔', gi: 'broken-heart', tone: 'bad', short: `受けるダメージが+${pct(B.vulnerableRate)}（切り捨て）。自分のターン終了時に1ターン減る` },

@@ -6,11 +6,11 @@ import { EXAMPLES } from './helpers.ts';
 const lineValues = (c: ReturnType<typeof analyzeCard>) => c.points.lines.map((l) => [l.label, l.value]);
 
 describe('作成例', () => {
-  it('1. 火の粉：ダメージ2で6pt、やけどで9pt、コスト1で−10pt。合計5pt（上限ちょうど）、作成可能、アタック', () => {
+  it('1. 火の粉：ダメージ1で3pt、やけどで12pt、コスト1で−10pt。合計5pt（上限ちょうど）、作成可能、アタック', () => {
     const a = analyzeCard(EXAMPLES.hinoko);
     expect(lineValues(a)).toEqual([
-      ['ダメージ2', 6],
-      ['やけど', 9],
+      ['ダメージ1', 3],
+      ['やけど', 12],
       ['コスト1', -10],
     ]);
     expect(a.points.total).toBe(5);

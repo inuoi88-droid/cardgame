@@ -9,6 +9,7 @@ import { CardView } from '../components/CardView.tsx';
 import { CardArt, NOISE_ART } from '../components/CardArt.tsx';
 import { Modal } from '../components/controls.tsx';
 import { Sheet } from '../components/Sheet.tsx';
+import { TribeInfo } from '../components/TribeInfo.tsx';
 import { keywordGlossary } from '../glossary.ts';
 import { cx } from '../util.ts';
 import { attackOf, ChipFace, monsterChips, powerLines } from './parts.tsx';
@@ -21,6 +22,8 @@ export interface DetailExtras {
   ownerTurns?: number;
   /** 実効攻撃力（激励を含む） */
   attackNow?: number;
+  /** 実効守備力（種族の揃い「連結」を含む） */
+  defenseNow?: number;
   /** 場に残っているパワー */
   power?: battle.PowerInst;
   /** 手札での今のコスト（元のコストと違えば並べて出す） */
@@ -56,6 +59,7 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
   const a = analyzeCard(def);
   const desc = descriptionOf(def);
   const chips = m ? monsterChips(def, m, extras.flags ?? {}, extras.ownerTurns, extras.attackNow, extras.realDef?.name) : [];
+  const defenseNow = m ? (extras.defenseNow ?? m.defense) : 0;
   const statusChips = chips.filter((c) => !c.id.startsWith('kw:'));
   return (
     <div className="cdetail">
@@ -74,6 +78,13 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
           </span>
           {where && <span className="cdetail__tag cdetail__tag--where">{where}</span>}
         </div>
+
+        {def.tribe && def.stats && (
+          <section className="cdetail__sec">
+            <h3>種族「{TRIBE_LABEL[def.tribe]}」</h3>
+            <TribeInfo tribe={def.tribe} />
+          </section>
+        )}
 
         {desc && (
           <section className="cdetail__sec cdetail__desc">
@@ -120,8 +131,8 @@ export function CardDetailBody({ def: rawDef, extras = {} }: { def: CardDef; ext
                   守備力
                 </dt>
                 <dd>
-                  {m.defense}
-                  {diff(m.defense, def.stats.defense) && <small className={m.defense > def.stats.defense ? 'is-up' : 'is-down'}>{diff(m.defense, def.stats.defense)}</small>}
+                  {defenseNow}
+                  {diff(defenseNow, def.stats.defense) && <small className={defenseNow > def.stats.defense ? 'is-up' : 'is-down'}>{diff(defenseNow, def.stats.defense)}</small>}
                 </dd>
               </div>
             </dl>

@@ -12,7 +12,7 @@
  */
 import { BALANCE } from '../balance.ts';
 import { attackBlockReason, attacksPerTurn, cannotAttack } from '../battle/combat.ts';
-import { auraAttack, effectiveAttack, other } from '../battle/core.ts';
+import { auraAttack, effectiveAttack, effectiveDefense, other, tribeSetActive, tribeSetAttack } from '../battle/core.ts';
 import { combatBonus, keywordFlags, playerBonus, wardTax } from '../battle/damage.ts';
 import { effectiveCost, lifespanOf, waitingRule } from '../battle/play.ts';
 import { altWinGoalOf, altWinTarget } from '../battle/powers.ts';
@@ -134,6 +134,8 @@ export const WEIGHTS = {
   speed: 0.5 * S,
   /** 王冠：残りターンの見込み1につき（ターン開始時に1枚多く引く。相手が持っていれば相手が引く） */
   crown: 2 * S,
+  /** 種族の揃い「怨嗟」：場のモンスター1体につき、倒されたときの相手へのダメージに掛ける割合（決定事項 #143） */
+  grudge: 0.5,
   // ---- MTG 要素 △ バッチA
   /** 卵：孵化したときの攻撃力の価値に掛ける割合 */
   eggFactor: 0.5,
@@ -271,7 +273,7 @@ export function nextTurnThreat(g: GameState, p: PlayerId): Threat {
     const n = attacksPerTurn(g, m);
     // 激励・猛襲（相手プレイヤーへの攻撃）も見込む
     // フィールド「火山」・「霧」（MTG 要素 △ バッチD）も見込む
-    let atk = m.attack + auraAttack(g, m) + playerBonus(g, m) + fieldAttackBonus(g);
+    let atk = m.attack + auraAttack(g, m) + playerBonus(g, m) + fieldAttackBonus(g) + tribeSetAttack(g, m);
     // やけど（×burnDamageRate）・脱力（1発の上限）：決定事項 #138
     if (m.status.burn > 0) atk = Math.floor(atk * B.burnDamageRate);
     if (m.status.weak > 0) atk = Math.min(atk, B.exhaustCap);
@@ -280,7 +282,9 @@ export function nextTurnThreat(g: GameState, p: PlayerId): Threat {
     board += atk * n;
     attacks += n;
   }
-  const cards = nextEnergy(g, p) * W.cardDamagePerEnergy + ps.status.strength;
+  // 種族の揃い「竜の息」（決定事項 #143）：次のターン開始時に相手に届くダメージ
+  const breath = tribeSetActive(g, p, 'dragon') ? BALANCE.tribes.dragon.set.breath : 0;
+  const cards = nextEnergy(g, p) * W.cardDamagePerEnergy + ps.status.strength + breath;
   return { board, attacks, cards, total: board + cards };
 }
 
@@ -378,18 +382,18 @@ function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   let attackTurns = T;
   if (m.status.freezePending || m.status.freezeActive) attackTurns -= 1;
   // やけど（×burnDamageRate）・脱力（1発の上限。攻撃するたび1つ減る）：決定事項 #138
-  const atkNow = m.attack + auraAttack(g, m) + fieldAttackBonus(g);
+  const atkNow = m.attack + auraAttack(g, m) + fieldAttackBonus(g) + tribeSetAttack(g, m);
   if (m.status.burn > 0) attackTurns -= Math.min(m.status.burn, attackTurns) * (1 - B.burnDamageRate);
   if (m.status.weak > 0 && atkNow > B.exhaustCap) attackTurns -= Math.min(m.status.weak, Math.max(0, attackTurns)) * (1 - B.exhaustCap / atkNow);
   // 防衛：攻撃しないので打点として数えない
   // 激励で上がっている分も打点（激励を持つモンスターの価値は、味方の攻撃力の上がり方に出る）
-  let attackVal = cannotAttack(g, m) ? 0 : (m.attack + auraAttack(g, m) + fieldAttackBonus(g)) * n * W.monsterAttack * Math.max(0, attackTurns);
+  let attackVal = cannotAttack(g, m) ? 0 : atkNow * n * W.monsterAttack * Math.max(0, attackTurns);
   if (m.status.confusePending || m.status.confuseActive) attackVal *= W.confusedFactor;
   // 消耗：次の自分のターンは攻撃できないので、打点を半分に数える
   if (exertedNextTurn(g, m)) attackVal *= W.exertFactor;
   // 休眠（MTG 要素 △ バッチA）：1ターンおきにしか攻撃できない
   if (m.counters.dormantFrom !== undefined) attackVal *= W.dormantFactor;
-  let v = attackVal + m.hp * W.monsterHp + m.defense * W.monsterDefense;
+  let v = attackVal + m.hp * W.monsterHp + effectiveDefense(g, m) * W.monsterDefense;
   // 一時強化・再行動：このターンに残っている攻撃のぶん（自分のターン中だけ）
   if (g.phase === 'main' && g.active === m.controller && !attackBlockReason(g, m)) {
     const left = attacksPerTurn(g, m) - m.attacksUsed;
@@ -503,6 +507,7 @@ function playerValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
   if (g.crown === p) v += W.crown * Math.max(1, ctx.turnsLeft);
   // フィールド（MTG 要素 △ バッチD）：両者に効くので、どちらに得かが分かるものだけ
   v += fieldValue(g, p, ctx, isMe);
+  v += tribeValue(g, p, ctx);
   v += ps.next.energy * W.nextEnergy + ps.next.draw * W.nextDraw + ps.discount * W.discount;
   // 予約した効果（次のターンに）：効果のポイントを HP に換算して足す（そうしないと、予約するカードを使う意味がないと判断してしまう）。
   // 反復はカードの使用時の効果すべて
@@ -558,6 +563,20 @@ function fieldValue(g: GameState, p: PlayerId, ctx: RaceContext, isMe: boolean):
   if (h.startHeal > 0) v += Math.min(h.startHeal, ps.maxHp - ps.hp) * W.regen * Math.max(1, ctx.turnsLeft);
   if (h.noSummoningSickness && isMe) v += ps.hand.filter((c) => g.cards[c.cardId]?.stats).length * W.fieldArena;
   if (h.playerAttackCut > 0) v += (ctx.threat[other(p)].board - ctx.threat[p].board) * W.fieldFog;
+  return v;
+}
+
+/**
+ * 種族の揃い（決定事項 #143）のうち、盤面の数字に出ないもの：隊列（減っている HP まで回復）・共鳴（王冠と同じく1枚多く引く）・
+ * 怨嗟（不死1体につき、倒されたときの相手へのダメージ）。群れ・連結は実効攻撃力・守備力、竜の息は次のターンの打点で見る
+ */
+function tribeValue(g: GameState, p: PlayerId, ctx: RaceContext): number {
+  const ps = g.players[p];
+  const turns = Math.max(1, ctx.turnsLeft);
+  let v = 0;
+  if (tribeSetActive(g, p, 'human')) v += Math.min(BALANCE.tribes.human.set.heal, ps.maxHp - ps.hp) * W.regen * turns;
+  if (tribeSetActive(g, p, 'spirit')) v += W.crown * BALANCE.tribes.spirit.set.draw * turns;
+  if (tribeSetActive(g, p, 'undead')) v += BALANCE.tribes.undead.set.onDeath * W.grudge * ps.board.length;
   return v;
 }
 

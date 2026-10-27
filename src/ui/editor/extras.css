@@ -38,3 +38,17 @@
   align-items: center;
   gap: 5px;
 }
+
+/* 種族の特徴（決定事項 #143）：種族の欄の下に、得意・苦手・特性・揃い */
+.ed-tribenote {
+  display: grid;
+  gap: 6px;
+  margin-top: -4px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--line-strong);
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.ed-tribenote p {
+  margin: 0;
+}

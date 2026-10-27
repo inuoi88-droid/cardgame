@@ -27,7 +27,9 @@ import {
   listKeywords,
   listModifiers,
   battle,
+  TRIBE_SUMMARIES,
 } from '../../engine/index.ts';
+import { TRIBE_FX } from '../battle/fx/registry.ts';
 import { glossary, keywordGlossary, mechanicGlossary, MTG_GUIDE, type StatusId } from '../glossary.ts';
 import { TEMPLATES } from '../editor/templates.ts';
 import { ABILITY_GI, DRAWBACK_GI, effectGi } from '../editor/effectIcons.ts';
@@ -78,6 +80,7 @@ const SECTIONS: { id: string; icon: SectionIcon; title: string }[] = [
   { id: 'turn', icon: 'cycle', title: 'ターンの流れ' },
   { id: 'cards', icon: 'card-play', title: 'カードの種類と使い方' },
   { id: 'monster', icon: 'battle-gear', title: 'モンスターの戦闘' },
+  { id: 'tribes', icon: 'gi:paw-print', title: '種族の特徴' },
   { id: 'status', icon: 'gi:bubbling-flask', title: '状態異常・持続効果' },
   { id: 'keywords', icon: 'gi:rune-sword', title: 'キーワード一覧' },
   { id: 'effects', icon: 'fairy-wand', title: '効果一覧' },
@@ -183,6 +186,7 @@ export function RulesPage() {
         </ol>
         <p className="hint">
           リーダー・フィールドがあるときは、ターンの初めに次元が移り変わり、聖域の回復（再生のあと）・錬金術師のエナジー・大図書館と賢者のドローが加わります（「リーダー・フィールド・昼と夜」の節）。
+          種族が揃っていれば、再生のあとに隊列の回復・竜の息のダメージ、ドローに共鳴の1枚が加わります（「種族の特徴」の節）。
         </p>
         <h3>ターン中</h3>
         <ul>
@@ -208,6 +212,33 @@ export function RulesPage() {
           <li>昼と夜があれば、このターンに使ったカードの枚数で昼と夜が入れ替わります。</li>
           <li>{mechanicGlossary.extraTurn!.short}。</li>
         </ol>
+      </Section>
+
+      <Section {...sec('tribes')}>
+        <p>モンスターのカードは種族を選べます（任意）。種族ごとに次の3つの特徴があります。</p>
+        <ul>
+          <li>
+            <b>得意・苦手</b>：得意なキーワード・効果のポイントは<b>{Math.round((1 - BALANCE.tribes.favorRate) * 100)}%引き</b>、苦手は
+            <b>{Math.round((BALANCE.tribes.unfavorRate - 1) * 100)}%増し</b>です（モンスターのカードだけ。呪文の種族は「同じ種族」を参照する効果の目印だけです）。
+          </li>
+          <li>
+            <b>特性</b>：その種族のモンスターがみな持つ力です（ポイントは0）。封印・休眠中は働かず、裏向きのモンスターには種族がありません。
+          </li>
+          <li>
+            <b>揃い</b>：自分の場に同じ種族のモンスターが<b>{BALANCE.tribes.setSize}体以上</b>いる間のボーナスです（封印・休眠中のモンスターは数えません）。
+          </li>
+        </ul>
+        <dl className="terms">
+          {TRIBE_SUMMARIES.map((t) => (
+            <Term key={t.id} name={`種族「${t.label}」`} gi={TRIBE_FX[t.id].gi}>
+              得意：{t.favored.join('・')}／苦手：{t.unfavored.length ? t.unfavored.join('・') : 'なし'}
+              <br />
+              特性「{t.trait.name}」：{t.trait.text}
+              <br />
+              揃い「{t.set.name}」：{t.set.text}
+            </Term>
+          ))}
+        </dl>
       </Section>
 
       <Section {...sec('cards')}>

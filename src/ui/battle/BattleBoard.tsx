@@ -8,7 +8,7 @@
  *   詳細の「使う」「攻撃する」からは、候補ボタンで対象を選ぶ（キーボード・ドラッグしにくいとき用）
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BALANCE, FIELDS, LEADERS, battle, describeEffect, getEffect, type CardDef } from '../../engine/index.ts';
+import { BALANCE, FIELDS, LEADERS, TRIBE_IDS, battle, describeEffect, getEffect, type CardDef, type TribeId } from '../../engine/index.ts';
 import { abilityGlossary, mechanicGlossary } from '../glossary.ts';
 import { CardView } from '../components/CardView.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
@@ -297,6 +297,8 @@ export function BattleBoard({
 
   const mine = view.players[me];
   const theirs = view.players[opp];
+  /** 揃えたときのボーナスが働いている種族（決定事項 #143） */
+  const tribeSetsOf = (p: battle.PlayerId): TribeId[] => TRIBE_IDS.filter((t) => battle.tribeSetActive(view, p, t));
   // 対戦中に手札へ入ったカード（引いた・サイクリング・引いたときの効果・戻ってきた）を少しの間光らせる
   const prevHand = useRef<Set<string> | null>(null);
   const [freshHand, setFreshHand] = useState<ReadonlySet<string>>(new Set());
@@ -1095,6 +1097,7 @@ export function BattleBoard({
               def={view.cards[m.card.cardId]}
               ownerTurns={view.players[m.controller].turnsTaken}
               attackNow={battle.effectiveAttack(view, m)}
+              defenseNow={battle.effectiveDefense(view, m)}
               isMine={isMine}
               ready={ready}
               blockLabel={isMine && myTurn ? shortBlock(battle.attackBlockReason(view, m)) : null}
@@ -1360,6 +1363,7 @@ export function BattleBoard({
               flags: battle.keywordFlags(view, m),
               ownerTurns: view.players[m.controller].turnsTaken,
               attackNow: battle.effectiveAttack(view, m),
+              defenseNow: battle.effectiveDefense(view, m),
               where: isMine ? 'あなたの場' : `${opponentLabel}の場`,
               // 装備しているカード（MTG 要素 ○ バッチB。公開情報）
               equipment: (m.equipment ?? []).map((c) => view.cards[c.cardId]).filter((d): d is CardDef => !!d),
@@ -1532,6 +1536,7 @@ export function BattleBoard({
         <PlayerPanel
           ps={ps}
           isMe={isMe}
+          tribeSets={tribeSetsOf(p)}
           roleLabel={isMe ? 'あなた' : '相手'}
           portrait={isMe ? undefined : opponentPortrait}
           active={view.active === p && view.phase === 'main'}
@@ -1605,6 +1610,7 @@ export function BattleBoard({
         <PlayerPanel
           ps={theirs}
           isMe={false}
+          tribeSets={tribeSetsOf(opp)}
           roleLabel="相手"
           active={view.active === opp && view.phase === 'main'}
           targetable={isLit(oppRef)}
@@ -1633,6 +1639,7 @@ export function BattleBoard({
         <PlayerPanel
           ps={mine}
           isMe
+          tribeSets={tribeSetsOf(me)}
           roleLabel="あなた"
           active={view.active === me && view.phase === 'main'}
           targetable={isLit(meRef)}

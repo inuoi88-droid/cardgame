@@ -12,8 +12,7 @@ import {
   TIMINGS,
   TIMING_GROUPS,
   TRIBE_TARGETS,
-  TRIBE_IDS,
-  TRIBE_LABEL,
+  TRIBE_SUMMARIES,
   type TribeId,
   drawbackTimings,
   effectTimings,
@@ -317,7 +316,11 @@ export function abilityConditionOptions(a: AbilityInstance, card: CardDef): Pick
 export function tribeOptions(): PickOption[] {
   return [
     { id: NONE, label: 'なし', description: '種族を付けない（ポイントは0）', pinned: true },
-    ...TRIBE_IDS.map((t) => ({ id: t, label: TRIBE_LABEL[t], description: `種族「${TRIBE_LABEL[t]}」。同じ種族を参照する条件・修飾・対象・サーチが使える（ポイントは0）` })),
+    ...TRIBE_SUMMARIES.map((t) => ({
+      id: t.id,
+      label: t.label,
+      description: `得意：${t.favored.join('・')}${t.unfavored.length ? `／苦手：${t.unfavored.join('・')}` : '／苦手なし'}。特性「${t.trait.name}」・揃い「${t.set.name}」`,
+    })),
   ];
 }
 export const tribeValue = (t: TribeId | undefined): string => t ?? NONE;

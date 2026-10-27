@@ -24,6 +24,8 @@ import {
   abilityPoints,
   createAbility,
   ABILITY_GROUPS,
+  TRIBE_LABEL,
+  tribeLeanOf,
   type AbilityGroup,
   type CardDef,
   type DrawbackDef,
@@ -50,6 +52,8 @@ interface Item {
   locked?: string;
   /** キーワードの場合、すでに付いているか */
   active?: boolean;
+  /** 種族の得意・苦手（決定事項 #143。points は倍率を掛けたあと） */
+  lean?: 'favored' | 'unfavored';
 }
 
 interface Props {
@@ -83,6 +87,14 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
   }, []);
 
   const items = useMemo<Item[]>(() => {
+    // 種族の得意・苦手（決定事項 #143）：モンスターのカードだけ。ポイントは割引・割増のあとの目安
+    const T = BALANCE.tribes;
+    const leanOf = (id: string, points: number): Pick<Item, 'lean' | 'points'> => {
+      const lean = card.stats ? tribeLeanOf(card.tribe, id) : undefined;
+      if (lean === 'favored') return { lean, points: points - Math.floor(points * (1 - T.favorRate) + 1e-9) };
+      if (lean === 'unfavored') return { lean, points: points + Math.ceil(points * (T.unfavorRate - 1) - 1e-9) };
+      return { points };
+    };
     if (mode === 'effect') {
       const ok = new Set(availableEffects(card.rarity).map((d) => d.id));
       return listEffects().map((d) => ({
@@ -90,7 +102,7 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
         name: d.name,
         summary: d.summary,
         group: d.group,
-        points: effectPoints(createEffect(d.id, base), card).value,
+        ...leanOf(d.id, effectPoints(createEffect(d.id, base), card).value),
         locked:
           d.bases && !d.bases.includes(base)
             ? d.bases.includes('monster')
@@ -138,7 +150,7 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
     const stats = card.stats ?? { attack: 0, hp: 0, defense: 0 };
     return listKeywords().map((d) => {
       const inst = card.keywords.find((k) => k.id === d.id) ?? (d.value ? { id: d.id, value: d.value.default } : { id: d.id });
-      return { id: d.id, name: d.name, summary: d.summary, points: d.points(inst, stats), active: card.keywords.some((k) => k.id === d.id) };
+      return { id: d.id, name: d.name, summary: d.summary, ...leanOf(d.id, d.points(inst, stats)), active: card.keywords.some((k) => k.id === d.id) };
     });
   }, [mode, card, base]);
 
@@ -194,6 +206,7 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
           {mode === 'effect' && `残りの予算 ${remaining}pt。ポイントは既定の値・使用時・対象1体のときの目安です`}
           {mode === 'drawback' && 'デメリットを付けると呪いカードになります。相殺できるのは上限ぶんまで'}
           {mode === 'keyword' && 'モンスター専用。タップで付け外し。ポイントは今の攻撃力から計算'}
+          {(mode === 'keyword' || mode === 'effect') && card.stats && card.tribe && `。種族「${TRIBE_LABEL[card.tribe]}」の得意は${Math.round((1 - BALANCE.tribes.favorRate) * 100)}%引き、苦手は${Math.round((BALANCE.tribes.unfavorRate - 1) * 100)}%増し`}
           {mode === 'ability' && `カード単位の性質（1枚に${BALANCE.card.maxAbilities}つまで）。ポイントは今の効果から計算`}
         </p>
         {shown.length === 0 ? (
@@ -218,6 +231,11 @@ export function EffectPicker({ mode, card, remaining, onPick, onClose }: Props) 
                     <span className="pk-row__name">
                       {it.name}
                       {it.active && <span className="badge badge--ok badge--sm">付いている</span>}
+                      {it.lean && card.tribe && (
+                        <span className={cx('badge badge--sm', it.lean === 'favored' ? 'badge--ok' : 'badge--ng')} title={`種族「${TRIBE_LABEL[card.tribe]}」の${it.lean === 'favored' ? '得意（安い）' : '苦手（高い）'}`}>
+                          {it.lean === 'favored' ? '得意' : '苦手'}
+                        </span>
+                      )}
                     </span>
                     <span className="pk-row__sum">{it.summary}</span>
                     {it.locked && <span className="pk-row__reason">{it.locked}</span>}

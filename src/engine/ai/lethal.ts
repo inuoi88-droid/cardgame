@@ -5,7 +5,7 @@
  * 相手の毒が HP 以上なら、ターンを終えるだけで勝てる（毒はシールド・無効化を貫通し、ターン開始時に最初に働く）。
  */
 import { attackBlockReason, attacksPerTurn } from '../battle/combat.ts';
-import { effectiveAttack, other } from '../battle/core.ts';
+import { effectiveAttack, effectiveDefense, other } from '../battle/core.ts';
 import { keywordFlags, playerBonus, targetableTaunts } from '../battle/damage.ts';
 import { legalActions } from '../battle/legal.ts';
 import { effectiveCost } from '../battle/play.ts';
@@ -107,7 +107,7 @@ export function damageUpperBound(g: GameState, me: PlayerId): number {
   // （除去カードがあれば倒せるものとして見る）
   const taunts = removal ? [] : targetableTaunts(g, other(me));
   let tauntHp = 0;
-  for (const m of taunts) tauntHp += m.hp + m.defense;
+  for (const m of taunts) tauntHp += m.hp + effectiveDefense(g, m);
   let blocked = 0;
   if (taunts.length > 0) {
     blocked = Math.min(cardsChosen, cards);

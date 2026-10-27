@@ -1,6 +1,6 @@
 /** 対戦画面の部品：プレイヤー情報、モンスター、手札、ログ、状態異常の札（説明はポップオーバー） */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { BALANCE, battle, CARD_TYPE_LABEL, CONDITIONS, analyzeCard, describeEffect, getEffect, LEADERS, TIMINGS, toLeaderId, TRIBE_LABEL, type CardDef } from '../../engine/index.ts';
+import { BALANCE, battle, CARD_TYPE_LABEL, CONDITIONS, analyzeCard, describeEffect, getEffect, LEADERS, TIMINGS, toLeaderId, TRIBE_LABEL, TRIBE_SETS, type CardDef, type TribeId } from '../../engine/index.ts';
 import { CardArt, NOISE_ART } from '../components/CardArt.tsx';
 import { sceneStyle } from '../components/cardScene.ts';
 import { CostGem, Emblem, frameClasses, nameFit } from '../components/cardParts.tsx';
@@ -12,6 +12,7 @@ import { logGi, stripOptionIcons, tokenizeLog, type LogNames } from './logFormat
 import { monsterForecasts, summarizeCard } from './summary.ts';
 import { dayNightBand, fieldBand } from './matchOptions.ts';
 import { briefFace, briefLabel, HAND_BADGE_ICON, isTauntChip, overflowItems, tileChipOrder } from './compact.ts';
+import { TRIBE_FX } from './fx/registry.ts';
 
 type Statuses = battle.Statuses;
 type PlayerId = battle.PlayerId;
@@ -184,6 +185,8 @@ interface PlayerPanelProps {
   onPowers?: () => void;
   /** PC の銘板の肖像（game-icons の名前。CPU は強さで形が変わる。リーダーがいればリーダーの絵。UI2） */
   portrait?: string;
+  /** 揃えたときのボーナスが働いている種族（決定事項 #143。battle.tribeSetActive） */
+  tribeSets?: readonly TribeId[];
 }
 
 /** 起動の ⚡ ボタン（モンスター・パワー）。使えないときは灰色で、押すと理由を出す */
@@ -296,6 +299,7 @@ export function PlayerPanel({
   onOpen,
   onPowers,
   portrait,
+  tribeSets = [],
 }: PlayerPanelProps) {
   const waiting = ps.waiting ?? [];
   // 手札から捨てられたカード（MTG 要素 △ バッチA：捨てられたとき。B：大混乱）が捨て札に入ったら、捨て札の山を少しの間光らせる
@@ -320,6 +324,8 @@ export function PlayerPanel({
       badges.push({ id: c.id, label: c.gi ? f.text : briefLabel(c.label), gi: f.gi, tone: c.tone, title: typeof c.card.title === 'string' ? c.card.title : c.label });
     }
     if ((ps.ice ?? 0) > 0) badges.push({ id: 'ice', label: `${M.ice!.icon}${ps.ice}`, tone: 'bad', title: `氷結${ps.ice}` });
+    // 種族の揃い（決定事項 #143）
+    for (const t of tribeSets) badges.push({ id: `tribe-${t}`, label: '', gi: TRIBE_FX[t].gi, tone: 'good', title: `揃い「${TRIBE_SETS[t].name}」：${TRIBE_SETS[t].text}` });
     // リーダーはいちばん後ろ（空きがあれば出る）
     const leaderId = toLeaderId(ps.leader);
     if (leaderId !== 'none') badges.push({ id: 'leader', label: '', gi: LEADERS[leaderId].art.replace(/^gi:/, ''), tone: 'info', title: `リーダー：${LEADERS[leaderId].name}` });
@@ -530,6 +536,15 @@ export function PlayerPanel({
             {waitingUsable > 0 && <span className="pile__usable">使える{waitingUsable}</span>}
           </button>
         )}
+        {/* 種族の揃い（決定事項 #143）：働いている間だけ */}
+        {tribeSets.map((t) => (
+          <Popover key={t} content={{ title: `揃い「${TRIBE_SETS[t].name}」`, description: `${TRIBE_LABEL[t]}が場に${BALANCE.tribes.setSize}体以上いる間：${TRIBE_SETS[t].text}` }} placement="top">
+            <span className="pp__next pp__tribe" data-fx-zone={`tribe:${t}`}>
+              <UiIcon name={`gi:${TRIBE_FX[t].gi}`} />
+              {TRIBE_SETS[t].name}
+            </span>
+          </Popover>
+        ))}
         {/* 追加ターン（MTG 要素 △ バッチC）：このターンのあとにもう一度 */}
         {ps.extraTurnPending && (
           <Popover content={{ title: `${mechanicGlossary.extraTurn!.icon} 追加ターン`, description: mechanicGlossary.extraTurn!.short }} placement="top">
@@ -860,6 +875,8 @@ interface MonsterTileProps {
   ownerTurns?: number;
   /** 実効攻撃力（激励を含む。battle.effectiveAttack(view, m)。省略すると攻撃力＋一時強化） */
   attackNow?: number;
+  /** 実効守備力（種族の揃い「連結」を含む。battle.effectiveDefense(view, m)。省略すると守備力） */
+  defenseNow?: number;
   /** 起動の ⚡ ボタン（自分のモンスターで起動の能力があるとき。MTG 要素 ○ バッチC1。△ バッチC：Lvアップ・表にする） */
   activate?: ActivateButton[] | null;
   /** 対象にするとき増えるコスト（護法。MTG 要素 ○ バッチB）。0 なら出さない */
@@ -1110,6 +1127,7 @@ export function MonsterTile({
   dragging,
   ownerTurns,
   attackNow,
+  defenseNow,
   activate,
   extraCost = 0,
   realName,
@@ -1119,8 +1137,9 @@ export function MonsterTile({
   // 裏向き：銘板が「裏向き」、絵は「？」の紋なので、「裏向き」の札は出さない（詳細には出る）
   const chips = monsterChips(def, m, flags, ownerTurns, attackNow, realName).filter((c) => !(m.faceDown && c.id === 'faceDown'));
   // スマホ：挑発を先頭に、守備力（0でなければ）はステータスの行から札へ移す（狭いタイルで数字がくっつかないように）
+  const defNow = defenseNow ?? m.defense;
   const briefChips = compact
-    ? tileChipOrder(chips, m.defense !== 0 ? { id: 'def', label: `🛡${m.defense}`, gi: 'shield', text: String(m.defense), tone: 'info', card: { title: `守備力 ${m.defense}`, description: '受けるダメージをこの数だけ減らす（最低ダメージあり）' } } : undefined)
+    ? tileChipOrder(chips, defNow !== 0 ? { id: 'def', label: `🛡${defNow}`, gi: 'shield', text: String(defNow), tone: 'info', card: { title: `守備力 ${defNow}`, description: '受けるダメージをこの数だけ減らす（最低ダメージあり）' } } : undefined)
     : [];
   // 挑発：城壁の狭間（上の縁の石の凸凹）と石の縁（カードデザイン案A）
   const taunt = chips.some((c) => isTauntChip(c.id));
@@ -1158,7 +1177,7 @@ export function MonsterTile({
       )}
       role="button"
       tabIndex={dying ? -1 : 0}
-      aria-label={`${label}（攻撃力${atk}・体力${m.hp}${hurt ? `／${m.maxHp}` : ''}・守備力${m.defense}）${state ? `・${state}` : ''}${targetable && extraCost > 0 ? `・護法でエナジー+${extraCost}` : ''}${compact && chips.length > 0 ? `・${chips.map((c) => c.label).join('・')}` : ''}。押すと詳細`}
+      aria-label={`${label}（攻撃力${atk}・体力${m.hp}${hurt ? `／${m.maxHp}` : ''}・守備力${defNow}）${state ? `・${state}` : ''}${targetable && extraCost > 0 ? `・護法でエナジー+${extraCost}` : ''}${compact && chips.length > 0 ? `・${chips.map((c) => c.label).join('・')}` : ''}。押すと詳細`}
       aria-pressed={selected || undefined}
       data-fx={m.uid}
       data-drop={dying ? undefined : `m:${m.uid}`}
@@ -1198,7 +1217,7 @@ export function MonsterTile({
       <span className="mt__stats" aria-hidden="true">
         <Emblem kind="atk" value={atk} buffed={atk > m.attack} className="mt__stat" srLabel={false} mini={compact} />
         <Emblem kind="hp" value={m.hp} hurt={hurt} className="mt__stat" srLabel={false} />
-        {!compact && m.defense !== 0 && <Emblem kind="def" value={m.defense} className="mt__stat" srLabel={false} />}
+        {!compact && defNow !== 0 && <Emblem kind="def" value={defNow} className="mt__stat" srLabel={false} />}
       </span>
       {hurt && (
         <span className="mt__hpbar" aria-hidden="true">

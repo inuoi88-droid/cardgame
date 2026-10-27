@@ -128,7 +128,11 @@ export const effectiveAttack = (g: GameState, m: Monster): number =>
   auraAttack(g, m) +
   (m.suspected ? BALANCE.effects.suspect.attack : 0) +
   (m.siege ? 0 : fieldAttackBonus(g)) +
-  (monsterTribe(g, m) === 'beast' && tribeSetActive(g, m.controller, 'beast') ? BALANCE.tribes.beast.set.attack : 0);
+  tribeSetAttack(g, m);
+
+/** 種族の揃い「群れ」で上がる攻撃力（決定事項 #143） */
+export const tribeSetAttack = (g: GameState, m: Monster): number =>
+  monsterTribe(g, m) === 'beast' && tribeSetActive(g, m.controller, 'beast') ? BALANCE.tribes.beast.set.attack : 0;
 
 /** 実効守備力（守備力＋種族の揃い「連結」。決定事項 #143） */
 export const effectiveDefense = (g: GameState, m: Monster): number =>

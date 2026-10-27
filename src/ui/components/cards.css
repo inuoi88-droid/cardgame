@@ -147,3 +147,29 @@
     border-top: 1px solid var(--line);
   }
 }
+
+/* 種族の特性と揃い（決定事項 #143。カードの詳細の一覧・対戦で共用） */
+.cd__tribe {
+  display: grid;
+  gap: 4px;
+  font-size: var(--fs-sm);
+}
+.tribe-info {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  font-size: var(--fs-sm);
+}
+.tribe-info dt {
+  font-weight: bold;
+}
+.tribe-info dt small {
+  font-weight: normal;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.tribe-info dd {
+  margin: 2px 0 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}

@@ -8,6 +8,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BALANCE,
   CARD_DESCRIPTION_MAX,
+  tribeSummary,
   CARD_TYPE_LABEL,
   CURSE_LABEL,
   RARITIES,
@@ -57,6 +58,7 @@ import { FitSheet } from '../editor/FitSheet.tsx';
 import type { FitItem } from '../editor/fits.ts';
 import { MiniPreview } from '../editor/MiniPreview.tsx';
 import { OptionPicker } from '../editor/OptionPicker.tsx';
+import { TribeInfo } from '../components/TribeInfo.tsx';
 import { abilityConditionOptions, abilityOptionOptions, tribeFromValue, tribeOptions, tribeValue } from '../editor/pickOptions.ts';
 import { TEMPLATES, type CardTemplate } from '../editor/templates.ts';
 import { effectRowViolations, effectSectionViolations, fieldId, findFieldElement, violationsAt, violationsExactly } from '../editor/validation.ts';
@@ -113,6 +115,14 @@ export function CardEditorPage({ id }: { id: string | null }) {
 }
 
 /** 公式カードを書き換える（運営だけ。決定事項 #141）：保存先がサーバーで、保存した時点で全員に効く */
+/** 種族の欄の説明（決定事項 #143）：モンスターは得意・苦手・特性・揃い、呪文は「同じ種族」の目印だけ */
+function tribeNote(card: CardDef): string {
+  if (!card.tribe) return '同じ種族を参照する条件・対象・サーチに使います。モンスターは種族ごとに得意（安い）・苦手（高い）・特性・揃えたときのボーナスがあります';
+  if (!card.stats) return '呪文の種族は「同じ種族」を参照する効果の目印です（得意・苦手・特性はモンスターだけ）';
+  const t = tribeSummary(card.tribe);
+  return `得意（${Math.round((1 - BALANCE.tribes.favorRate) * 100)}%引き）：${t.favored.join('・')}／苦手（${Math.round((BALANCE.tribes.unfavorRate - 1) * 100)}%増し）：${t.unfavored.length ? t.unfavored.join('・') : 'なし'}。特性「${t.trait.name}」：${t.trait.text}。揃い「${t.set.name}」（場に${BALANCE.tribes.setSize}体以上）：${t.set.text}`;
+}
+
 export interface OfficialEditMode {
   /** ほかの公式カード（名前の重なりを見る） */
   others: readonly CardDef[];
@@ -617,8 +627,19 @@ function Editor({ saved, official }: { saved: CardDef | null; official?: Officia
               onChange={(v) => setCard((c) => setTribe(c, tribeFromValue(v)))}
               id={fieldId('tribe')}
               invalid={violationsExactly(analysis.violations, 'tribe').length > 0}
-              note="同じ種族を参照する条件・修飾・対象・サーチ（部族シナジー）に使います。ポイントは0"
+              note={tribeNote(card)}
             />
+            {/* 種族の特徴（決定事項 #143）：モンスターだけ、選んだ種族の得意・苦手・特性・揃いを見せる */}
+            {card.tribe && card.stats && (
+              <div className="ed-tribenote">
+                <p>
+                  得意（{Math.round((1 - BALANCE.tribes.favorRate) * 100)}%引き）：{tribeSummary(card.tribe).favored.join('・')}
+                  <br />
+                  苦手（{Math.round((BALANCE.tribes.unfavorRate - 1) * 100)}%増し）：{tribeSummary(card.tribe).unfavored.join('・') || 'なし'}
+                </p>
+                <TribeInfo tribe={card.tribe} />
+              </div>
+            )}
             <div className="ed-cost">
               <Stepper
                 id={fieldId('cost')}

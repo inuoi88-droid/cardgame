@@ -5,11 +5,12 @@
  *   <CardDetail card={c} onClose={…} actions={<button …>編集</button>} status="デッキに 2枚" />
  */
 import { useMemo, type ReactNode } from 'react';
-import { CARD_TYPE_LABEL, CURSE_LABEL, RARITY_LABEL, analyzeCard, formatPoints, type CardAnalysis, type CardDef } from '../../engine/index.ts';
+import { CARD_TYPE_LABEL, CURSE_LABEL, RARITY_LABEL, TRIBE_LABEL, analyzeCard, formatPoints, type CardAnalysis, type CardDef } from '../../engine/index.ts';
 import { budgetOf } from '../editor/budget.ts';
 import { cx } from '../util.ts';
 import { CardView } from './CardView.tsx';
 import { Sheet } from './Sheet.tsx';
+import { TribeInfo } from './TribeInfo.tsx';
 import './cards.css';
 
 interface Props {
@@ -58,6 +59,13 @@ export function CardDetail({ card, analysis, onClose, actions, status, statusFir
                 ))}
               </ul>
             </div>
+          )}
+
+          {card.tribe && card.stats && (
+            <section className="cd__tribe" aria-label="種族">
+              <b>種族「{TRIBE_LABEL[card.tribe]}」</b>
+              <TribeInfo tribe={card.tribe} />
+            </section>
           )}
 
           <section className="cd__points" aria-label="ポイント">

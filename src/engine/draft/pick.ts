@@ -24,9 +24,14 @@ const CURVE_SHARE = [0.2, 0.27, 0.23, 0.17, 0.13] as const;
 const CURVE_STEP = 0.06;
 const CURVE_MIN = 0.7;
 const CURVE_MAX = 1.1;
-/** 同じ種族のカード1回につき・同じ効果やキーワード1つにつき足す割合と、その上限 */
+/**
+ * 同じ種族のモンスター1回につき・同じ効果やキーワード1つにつき足す割合と、その上限。
+ * 種族は揃えたときのボーナス（決定事項 #143）があるので、モンスターどうしは大きめ（呪文の種族は「同じ種族」系の目印だけ）
+ */
 const TRIBE_STEP = 0.04;
 const TRIBE_MAX = 0.16;
+const TRIBE_MONSTER_STEP = 0.06;
+const TRIBE_MONSTER_MAX = 0.3;
 const FEATURE_STEP = 0.012;
 const FEATURE_MAX = 0.1;
 /** コストで引く前のポイントを足す割合（同点を分けるためだけの小さな値） */
@@ -82,7 +87,12 @@ export function cpuPickScore(def: CardDef, counts: DraftCounts, byId: ReadonlyMa
   const sameCost = mine.filter((c) => curveBucket(c.cost) === bucket).length;
   const curveRate = clamp(1 + CURVE_STEP * (CURVE_SHARE[bucket]! * (taken + 1) - (sameCost + 1)), CURVE_MIN, CURVE_MAX);
   let synergy = 0;
-  if (def.tribe) synergy += Math.min(TRIBE_MAX, TRIBE_STEP * mine.filter((c) => c.tribe === def.tribe).length);
+  if (def.tribe) {
+    const kin = mine.filter((c) => c.tribe === def.tribe);
+    synergy += def.stats
+      ? Math.min(TRIBE_MONSTER_MAX, TRIBE_MONSTER_STEP * kin.filter((c) => c.stats).length + TRIBE_STEP * kin.filter((c) => !c.stats).length)
+      : Math.min(TRIBE_MAX, TRIBE_STEP * kin.length);
+  }
   const own = new Set(features(def));
   let shared = 0;
   for (const c of mine) for (const f of features(c)) if (own.has(f)) shared++;

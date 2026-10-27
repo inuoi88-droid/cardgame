@@ -106,6 +106,8 @@ describe('場面と曲', () => {
       decks: 'deck',
       deckEdit: 'deck',
       official: 'deck',
+      officialEdit: 'deck',
+      plaza: 'deck',
       battleSetup: 'lobby',
       draft: 'draft',
       battle: 'lobby',

@@ -10,7 +10,8 @@ import { InviteChip } from '../social/InviteNotices.tsx';
 import { useEffect, useMemo, useState } from 'react';
 import { ai, BALANCE, draft, uniqueName, type CardDef } from '../../engine/index.ts';
 import { PRESET_DECKS } from '../../presets.ts';
-import { OFFICIAL_CARDS, OFFICIAL_SET } from '../../official/index.ts';
+import { OFFICIAL_SET } from '../../official/index.ts';
+import { useOfficialCards } from '../plaza/plazaStore.ts';
 import { CardDetail } from '../components/CardDetail.tsx';
 import { CardArtOf } from '../components/CardArt.tsx';
 import { CardView } from '../components/CardView.tsx';
@@ -97,7 +98,9 @@ export function DraftPage() {
   const [format, setFormat] = useState<Format>('field');
   const [level, setLevel] = useState<ai.CpuLevel>('normal');
   // 場から交互に取る形式は createDraft がレジェンドも入れて山を作る（決定事項 #134）。ひとりで選ぶ形式はレジェンドを外した山
-  const source = useMemo(() => (poolKind === 'official' ? [...OFFICIAL_CARDS] : [...cards, ...PRESET_DECKS.flatMap((p) => p.cards)]), [cards, poolKind]);
+  // 公式カードは運営の書き換えを重ねたもの（決定事項 #141）
+  const officialCards = useOfficialCards();
+  const source = useMemo(() => (poolKind === 'official' ? [...officialCards] : [...cards, ...PRESET_DECKS.flatMap((p) => p.cards)]), [cards, poolKind, officialCards]);
   const pool = useMemo(() => draftPool(source), [source]);
   const [field, setField] = useState<SavedDraft | null>(() => loadSaved());
   const [solo, setSolo] = useState<{ pool: CardDef[]; level: ai.CpuLevel } | null>(null);

@@ -2,10 +2,15 @@
  * 公式カードの一覧（#/official。決定事項 #119）。ドラフト戦の山（公式カード「黎明の大陸」）を見るだけのページ。
  * カード置き場の部品（検索・並べ替え・絞り込み・3つの密度・節）をそのまま使い、編集・選択・グループはしない。
  * 節は「色（アーキタイプ）ごと」が既定（ドラフトで色をそろえるときの目安）。表示の設定は見る人ごとに localStorage。
+ * 運営が書き換えたカードは書き換えた内容で出す（決定事項 #141）。運営には詳細に「書き換える」「元に戻す」「履歴」。
  */
 import { useDeferredValue, useMemo, useState } from 'react';
 import { BALANCE, type CardGroup } from '../../engine/index.ts';
-import { OFFICIAL_ARCHETYPES, OFFICIAL_CARDS, OFFICIAL_SET, officialArchetypeName, officialEntry } from '../../official/index.ts';
+import { OFFICIAL_ARCHETYPES, OFFICIAL_SET, officialArchetypeName, officialEntry } from '../../official/index.ts';
+import { useConfirm } from '../components/ConfirmDialog.tsx';
+import { useToast } from '../components/Toast.tsx';
+import { OfficialHistorySheet } from '../plaza/OfficialHistorySheet.tsx';
+import { afterOfficialChange, overriddenIds, plazaAct, useOfficialCards, useStaff } from '../plaza/plazaStore.ts';
 import { CardDetail } from '../components/CardDetail.tsx';
 import { useMediaQuery } from '../components/dialogUtil.ts';
 import { Sheet } from '../components/Sheet.tsx';
@@ -51,8 +56,14 @@ export function OfficialCardsPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   useHeightVar('--topbar-h', '.topbar');
+  const officialCards = useOfficialCards();
+  const staff = useStaff();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [historyOf, setHistoryOf] = useState<{ id: string; name: string } | null>(null);
+  const edited = useMemo(() => (officialCards ? overriddenIds() : new Set<string>()), [officialCards]);
 
-  const entries = useEntries(OFFICIAL_CARDS);
+  const entries = useEntries(officialCards);
   const ctx = useMemo(() => ({ membership: NO_MEMBERS, deckUse: NO_DECKS }), []);
   const filters = useMemo(() => ({ ...prefs.filters, deck: 'any' as const, invalidOnly: false }), [prefs.filters]);
   const filtered = useMemo(() => filterEntries(entries, listQuery, filters, 'all', ctx), [entries, listQuery, filters, ctx]);
@@ -68,9 +79,9 @@ export function OfficialCardsPage() {
   const detail = detailId ? entries.find((e) => e.card.id === detailId) : undefined;
   const counts = useMemo(() => {
     const c = { common: 0, rare: 0, epic: 0, legend: 0 };
-    for (const card of OFFICIAL_CARDS) if (card.rarity in c) c[card.rarity as keyof typeof c]++;
+    for (const card of officialCards) if (card.rarity in c) c[card.rarity as keyof typeof c]++;
     return c;
-  }, []);
+  }, [officialCards]);
 
   const bySelect = (
     <select className="csel" value={by} aria-label="まとめ方" onChange={(e) => setBy(e.target.value as By)}>
@@ -94,7 +105,7 @@ export function OfficialCardsPage() {
         </div>
       </div>
       <p className="hint official__lead">
-        「{OFFICIAL_SET.name}」（版{OFFICIAL_SET.version}）：{OFFICIAL_CARDS.length}種類（コモン{counts.common}・レア{counts.rare}・エピック{counts.epic}・レジェンド{counts.legend}）。
+        「{OFFICIAL_SET.name}」（版{OFFICIAL_SET.version}）：{officialCards.length}種類（コモン{counts.common}・レア{counts.rare}・エピック{counts.epic}・レジェンド{counts.legend}）。
         オンラインのドラフト戦はこのカードだけを使います。伏せた山にはコモンが{BALANCE.draft.pileCopies.common}枚ずつ、レアとエピックが
         {BALANCE.draft.pileCopies.rare}枚ずつ、レジェンドが{BALANCE.draft.pileCopies.legend}枚ずつ入ります（レジェンドは1人{BALANCE.draft.legendTakes}枚まで）。カードを押すと全文と役割が見られます。
       </p>
@@ -205,11 +216,46 @@ export function OfficialCardsPage() {
             officialEntry(detail.card.id) ? (
               <>
                 {officialArchetypeName(officialEntry(detail.card.id)!.archetype)}：{officialEntry(detail.card.id)!.role}
+                {edited.has(detail.card.id) && <span className="badge badge--sm badge--warn">運営が書き換え済み</span>}
+              </>
+            ) : undefined
+          }
+          actions={
+            staff ? (
+              <>
+                <button type="button" className="btn btn--primary" onClick={() => navigate(`/official/${detail.card.id}`)}>
+                  書き換える
+                </button>
+                <button type="button" className="btn" onClick={() => setHistoryOf({ id: detail.card.id, name: detail.card.name })}>
+                  <UiIcon name="gi:backward-time" />
+                  履歴
+                </button>
+                {edited.has(detail.card.id) && (
+                  <button
+                    type="button"
+                    className="btn btn--danger"
+                    onClick={async () => {
+                      const id = detail.card.id;
+                      setDetailId(null);
+                      const ok = await confirm({ title: '元のカードに戻しますか？', message: '運営の書き換えをやめて、元の公式カードに戻します（全員に反映されます）。', okLabel: '元に戻す', danger: true });
+                      if (!ok) return;
+                      const res = await plazaAct({ op: 'officialReset', cardId: id });
+                      if (!res.ok) toast({ text: res.error, kind: 'ng' });
+                      else {
+                        await afterOfficialChange();
+                        toast({ text: '元のカードに戻しました', kind: 'ok' });
+                      }
+                    }}
+                  >
+                    元に戻す
+                  </button>
+                )}
               </>
             ) : undefined
           }
         />
       )}
+      {historyOf && <OfficialHistorySheet cardId={historyOf.id} name={historyOf.name} onClose={() => setHistoryOf(null)} />}
     </>
   );
 }

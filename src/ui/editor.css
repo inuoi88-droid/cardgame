@@ -1379,7 +1379,7 @@
   column-gap: 2px;
   min-height: var(--tap);
   padding: 4px 12px;
-  border-radius: var(--r-md, 10px);
+  border-radius: var(--radius-lg);
   border: 1px solid #000;
   background: radial-gradient(circle at 50% 30%, #23304a, #0d1220 80%);
   box-shadow:

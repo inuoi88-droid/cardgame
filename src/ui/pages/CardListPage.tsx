@@ -6,6 +6,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { buildExport, mergeImport, normalizeName, uniqueName, type CardDef, type CardGroup, type ExportBundle } from '../../engine/index.ts';
 import { CardDetail } from '../components/CardDetail.tsx';
+import { publishCard, useStaff } from '../plaza/plazaStore.ts';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { useIsPhone, useMediaQuery } from '../components/dialogUtil.ts';
 import { ExportDialog, ImportDialog } from '../components/ImportExport.tsx';
@@ -36,6 +37,7 @@ export function CardListPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const phone = useIsPhone();
+  const staff = useStaff();
   const wide = useMediaQuery('(min-width: 920px)');
   const [prefs, setPrefs] = usePrefs(PREF_KEYS.cards);
   const [query, setQuery] = useState('');
@@ -318,6 +320,11 @@ export function CardListPage() {
           <button type="button" className="btn btn--primary" onClick={() => navigate('/cards/new')}>
             <UiIcon name="quill-ink" />
             新しいカード
+          </button>
+          {/* みんなの広場（決定事項 #141）：運営が公開したカード・デッキ */}
+          <button type="button" className="btn btn--ghost" onClick={() => navigate('/plaza')} aria-label="みんなの広場" title="みんなの広場">
+            <UiIcon name="village" />
+            {!phone && 'みんなの広場'}
           </button>
           {phone ? (
             <button type="button" className="btn" onClick={() => setDialog('menu')} aria-label="サンプル・書き出し・取り込み" title="管理">
@@ -640,6 +647,19 @@ export function CardListPage() {
               <button type="button" className="btn" onClick={() => duplicate(detail.card)}>
                 複製
               </button>
+              {staff && detail.a.valid && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={async () => {
+                    const e = await publishCard(detail.card);
+                    toast(e ? { text: e, kind: 'ng' } : { text: `「${detail.card.name}」をみんなの広場に公開しました`, kind: 'ok', action: { label: '広場へ', onClick: () => navigate('/plaza') } });
+                  }}
+                >
+                  <UiIcon name="gi:wax-seal" />
+                  広場に公開
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn--danger"

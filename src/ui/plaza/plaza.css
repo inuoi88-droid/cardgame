@@ -1,0 +1,128 @@
+/* みんなの広場・運営（決定事項 #141） */
+.plaza {
+  display: grid;
+  gap: 12px;
+}
+.plaza__staff {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.plaza__staff .gi {
+  width: 1.1em;
+  height: 1.1em;
+}
+.plaza__empty {
+  color: var(--muted);
+}
+.plaza__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+.plaza__item {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+.plaza__tile {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1.5px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 40%) padding-box,
+    linear-gradient(180deg, #232840, #12162a) padding-box,
+    var(--u-rim-iron) border-box;
+  box-shadow:
+    var(--u-chamfer),
+    0 2px 0 rgba(0, 0, 0, 0.55);
+}
+.plaza__tile:focus-visible {
+  outline: 2px solid var(--u-gold);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .plaza__tile:hover {
+    background:
+      linear-gradient(180deg, rgba(111, 160, 255, 0.12), transparent 50%) padding-box,
+      linear-gradient(180deg, #1d2a4f, #121a35) padding-box,
+      var(--u-rim-sapphire) border-box;
+  }
+}
+.plaza__art {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+}
+.plaza__art > .gi {
+  width: 40px;
+  height: 40px;
+  color: var(--u-iron-hi);
+}
+.plaza__main {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.plaza__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-md);
+}
+.plaza__meta {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.plaza__remove {
+  align-self: center;
+}
+.plaza__more {
+  justify-content: center;
+}
+
+/* 運営の入口（足元の版の印を続けて押すと開く） */
+.app-foot__build {
+  margin-left: 6px;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.staff {
+  display: grid;
+  gap: 12px;
+}
+.staff__state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.staff__state .gi {
+  flex: none;
+  width: 1.4em;
+  height: 1.4em;
+  color: var(--u-gold);
+}
+.staff__form {
+  display: grid;
+  gap: 10px;
+}
+.staff__form input {
+  width: 100%;
+}

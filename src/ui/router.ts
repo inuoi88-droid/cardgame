@@ -10,6 +10,10 @@ export type Route =
   | { page: 'battle' }
   | { page: 'draft' }
   | { page: 'official' }
+  /** 公式カードを書き換える（運営だけ。#/official/<ID>。決定事項 #141） */
+  | { page: 'officialEdit'; id: string }
+  /** みんなの広場（決定事項 #141） */
+  | { page: 'plaza' }
   | { page: 'online'; code: string | null; tab?: 'friends' }
   /** 招待リンク（#/friend/<フレンドコード>/<鍵>/<名前>。決定事項 #123） */
   | { page: 'friendLink'; parts: string[] }
@@ -38,7 +42,8 @@ export function parseRoute(hash: string): Route {
   if (section === 'ui-kit') return { page: 'uiKit' };
   if (section === 'credits') return { page: 'credits' };
   if (section === 'news') return { page: 'news' };
-  if (section === 'official') return { page: 'official' };
+  if (section === 'official') return id ? { page: 'officialEdit', id } : { page: 'official' };
+  if (section === 'plaza') return { page: 'plaza' };
   if (section === 'cards' && id !== undefined) return { page: 'cardEdit', id: id === 'new' ? null : id };
   return { page: 'cards' };
 }

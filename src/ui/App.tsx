@@ -11,6 +11,10 @@ import { BattlePage } from './pages/BattlePage.tsx';
 import { BattleSetupPage } from './pages/BattleSetupPage.tsx';
 import { DraftPage } from './pages/DraftPage.tsx';
 import { OfficialCardsPage } from './pages/OfficialCardsPage.tsx';
+import { OfficialEditPage } from './plaza/OfficialEditPage.tsx';
+import { PlazaPage } from './plaza/PlazaPage.tsx';
+import { PlazaRuntime } from './plaza/PlazaRuntime.tsx';
+import { BuildStamp } from './plaza/StaffEntry.tsx';
 import { OnlineBattlePage } from './pages/OnlineBattlePage.tsx';
 import { OnlineLobbyPage } from './pages/OnlineLobbyPage.tsx';
 import { CreditsPage } from './pages/CreditsPage.tsx';
@@ -50,7 +54,7 @@ export function App() {
   const badge = badgeCount(useSocial().snap);
   // 公式カードの一覧（#/official）は CPU 戦・オンラインのどちらからも開くので、どのタブも光らせない
   const section: Section | null =
-    route.page === 'official'
+    route.page === 'official' || route.page === 'officialEdit' || route.page === 'plaza'
       ? null
       : route.page === 'decks' || route.page === 'deckEdit'
       ? 'decks'
@@ -80,6 +84,7 @@ export function App() {
       <ConfirmProvider>
         <CardSymbols />
         <SocialRuntime />
+        <PlazaRuntime />
         <div className="app">
           <header className="topbar">
             <div className="topbar__title">
@@ -125,6 +130,8 @@ export function App() {
             {route.page === 'battle' && <BattlePage />}
             {route.page === 'draft' && <DraftPage />}
             {route.page === 'official' && <OfficialCardsPage />}
+            {route.page === 'officialEdit' && <OfficialEditPage id={route.id} />}
+            {route.page === 'plaza' && <PlazaPage />}
             {route.page === 'online' && <OnlineLobbyPage code={route.code} tab={route.tab === 'friends' ? 'friends' : 'battle'} />}
             {route.page === 'friendLink' && <FriendLinkPage parts={route.parts} />}
             {route.page === 'onlineBattle' && <OnlineBattlePage />}
@@ -140,7 +147,8 @@ export function App() {
               <a href="https://game-icons.net" target="_blank" rel="noreferrer">
                 game-icons.net
               </a>
-              （Lorc・Delapouite ほか・CC BY 3.0）・<a href="#/credits">クレジット</a>・<a href="#/news">更新情報</a>
+              （Lorc・Delapouite ほか・CC BY 3.0）・<a href="#/credits">クレジット</a>・<a href="#/news">更新情報</a>・<a href="#/plaza">みんなの広場</a>
+              <BuildStamp />
             </footer>
           )}
         </div>

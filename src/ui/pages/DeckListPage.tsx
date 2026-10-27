@@ -18,6 +18,7 @@ import { OpponentHistory } from '../copy/OpponentHistory.tsx';
 import { shareBlock, shareDeckNow, unshareDeckNow } from '../social/sharing.ts';
 import { sharedDeckIds } from '../social/socialLogic.ts';
 import { useSocial } from '../social/socialStore.ts';
+import { publishDeck, useStaff } from '../plaza/plazaStore.ts';
 
 export function DeckListPage() {
   const { cards, decks } = useStore();
@@ -45,6 +46,13 @@ export function DeckListPage() {
         ? { text: e, kind: 'ng' }
         : { text: `「${name}」をフレンドに公開しました。直して保存すると、公開中のものも新しくなります`, kind: 'ok', action: { label: 'フレンドへ', onClick: () => navigate('/online/friends') } },
     );
+  };
+  // みんなの広場に公開（運営だけ。決定事項 #141）
+  const staff = useStaff();
+  const publish = async (deck: Deck) => {
+    const name = deck.name || '（名前なし）';
+    const e = await publishDeck(deck, cards);
+    toast(e ? { text: e, kind: 'ng' } : { text: `「${name}」をみんなの広場に公開しました。もう一度公開すると今の中身に置き換わります`, kind: 'ok', action: { label: '広場へ', onClick: () => navigate('/plaza') } });
   };
   const [exporting, setExporting] = useState<{ bundle: ExportBundle; name: string } | null>(null);
   // 使えるデッキが先、要修正は最後（同じ中では保存の順）
@@ -120,6 +128,7 @@ export function DeckListPage() {
               onRemove={() => void remove(deck)}
               shared={shared.has(deck.id)}
               onShare={() => void toggleShare(deck)}
+              {...(staff && a.valid ? { onPublish: () => void publish(deck) } : {})}
             />
           ))}
         </ul>

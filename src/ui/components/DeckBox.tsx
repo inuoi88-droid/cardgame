@@ -73,9 +73,11 @@ export interface DeckBoxProps {
   /** フレンドに公開中か（決定事項 #123）。onShare が無ければメニューに出さない */
   shared?: boolean;
   onShare?: () => void;
+  /** みんなの広場に公開する（運営だけ。決定事項 #141）。無ければメニューに出さない */
+  onPublish?: () => void;
 }
 
-export function DeckBox({ deck, a, cards, onOpen, onDuplicate, onExport, onRemove, shared = false, onShare }: DeckBoxProps) {
+export function DeckBox({ deck, a, cards, onOpen, onDuplicate, onExport, onRemove, shared = false, onShare, onPublish }: DeckBoxProps) {
   const s = useMemo(() => deckSummary(deck, cards), [deck, cards]);
   const name = deck.name || '（名前なし）';
   const note = a.valid ? (a.total === a.size ? '使えます' : `${a.total} / ${a.size}枚`) : `要修正 ${a.violations.length}件：${a.violations[0]?.message ?? ''}`;
@@ -95,6 +97,7 @@ export function DeckBox({ deck, a, cards, onOpen, onDuplicate, onExport, onRemov
           { icon: 'files', label: '複製', onClick: onDuplicate },
           { icon: 'share', label: '書き出し', onClick: onExport },
           ...(onShare ? [{ icon: 'three-friends' as const, label: shared ? 'フレンドへの公開をやめる' : 'フレンドに公開', onClick: onShare }] : []),
+          ...(onPublish ? [{ icon: 'wax-seal' as const, label: 'みんなの広場に公開', onClick: onPublish }] : []),
           { icon: 'trash-can', label: '削除', onClick: onRemove, danger: true },
         ]}
       />

@@ -37,6 +37,7 @@ import {
   type EffectInstance,
   type Violation,
 } from '../../engine/index.ts';
+import { officialEditProblem } from '../../official/index.ts';
 import '../editor.css';
 import '../editor/extras.css';
 import { CardView } from '../components/CardView.tsx';
@@ -111,12 +112,27 @@ export function CardEditorPage({ id }: { id: string | null }) {
   return <Editor key={id ?? NEW_DRAFT} saved={saved} />;
 }
 
-function Editor({ saved }: { saved: CardDef | null }) {
-  const { cards } = useStore();
+/** 公式カードを書き換える（運営だけ。決定事項 #141）：保存先がサーバーで、保存した時点で全員に効く */
+export interface OfficialEditMode {
+  /** ほかの公式カード（名前の重なりを見る） */
+  others: readonly CardDef[];
+  /** サーバーに保存する。できたら true */
+  onSave(card: CardDef): Promise<boolean>;
+  /** 戻る先 */
+  backTo: string;
+}
+
+export function OfficialCardEditor({ card, mode }: { card: CardDef; mode: OfficialEditMode }) {
+  return <Editor key={`official:${card.id}`} saved={card} official={mode} />;
+}
+
+function Editor({ saved, official }: { saved: CardDef | null; official?: OfficialEditMode }) {
+  const { cards: myCards } = useStore();
+  const cards = official ? official.others : myCards;
   const toast = useToast();
   const confirm = useConfirm();
   const phone = useIsPhone(919);
-  const draftKey = saved?.id ?? NEW_DRAFT;
+  const draftKey = official && saved ? `official:${saved.id}` : (saved?.id ?? NEW_DRAFT);
   const [restored] = useState(() => {
     const d = cardDrafts.get(draftKey);
     return d && !sameCard(d, saved) ? d : null;
@@ -169,6 +185,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
   const extra: Violation[] = [
     ...(nameTaken ? [{ code: 'NAME_TAKEN', path: 'name', message: `「${card.name.trim()}」という名前のカードはすでにあります` }] : []),
     ...(descOver ? [{ code: 'DESCRIPTION_TOO_LONG', path: 'description', message: `説明は${CARD_DESCRIPTION_MAX}文字までです（いま${descLength}文字）` }] : []),
+    ...(official && officialEditProblem(card) ? [{ code: 'OFFICIAL_EDIT', path: 'rarity', message: officialEditProblem(card)! }] : []),
   ];
   const allViolations = [...analysis.violations, ...extra];
   const canSave = allViolations.length === 0;
@@ -262,7 +279,8 @@ function Editor({ saved }: { saved: CardDef | null }) {
   };
 
   // ---------------------------------------------------------------- 保存・移動
-  const save = () => {
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
     if (!canSave) {
       setAttempted(true);
       showReasons();
@@ -273,6 +291,18 @@ function Editor({ saved }: { saved: CardDef | null }) {
     const out: CardDef = { ...card, name };
     if (description) out.description = description;
     else delete out.description;
+    if (official) {
+      if (saving) return;
+      setSaving(true);
+      const ok = await official.onSave(out);
+      setSaving(false);
+      if (!ok) return;
+      setNavigationGuard(null);
+      cardDrafts.clear(draftKey);
+      toast({ text: `公式カード「${name}」を書き換えました（全員に反映されます）`, kind: 'ok' });
+      navigate(official.backTo);
+      return;
+    }
     setNavigationGuard(null);
     actions.saveCard(out);
     cardDrafts.clear(draftKey);
@@ -290,7 +320,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
       if (!ok) return;
     }
     setNavigationGuard(null);
-    navigate('/cards');
+    navigate(official?.backTo ?? '/cards');
   };
   const replaceCard = (next: CardDef) => {
     setCard(next);
@@ -458,7 +488,7 @@ function Editor({ saved }: { saved: CardDef | null }) {
   return (
     <div className="ed">
       <div className="page-head">
-        <h1>{saved ? 'カードを編集' : '新しいカード'}</h1>
+        <h1>{official ? '公式カードを書き換える' : saved ? 'カードを編集' : '新しいカード'}</h1>
         {!saved && (
           <button type="button" className="btn btn--secondary" onClick={() => setSheet('templates')}>
             <UiIcon name="spell-book" />
@@ -1006,8 +1036,8 @@ function Editor({ saved }: { saved: CardDef | null }) {
         <button type="button" className="btn btn--secondary" onClick={() => void leave()}>
           一覧へ
         </button>
-        <button type="button" className="btn btn--primary" disabled={!dirty} onClick={save}>
-          保存
+        <button type="button" className="btn btn--primary" disabled={!dirty || saving} onClick={() => void save()}>
+          {official ? (saving ? '保存中…' : '全員に反映') : '保存'}
         </button>
       </div>
 

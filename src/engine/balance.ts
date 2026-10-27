@@ -372,7 +372,8 @@ export const BALANCE = {
     confuse: { flat: x(4) },
 
     strength: { perValue: 9 },
-    focus: { perValue: 3 },
+    /** 気合は1枚につき最初の1発に乗るので、0コストのカードを何枚も作る効果と組むと量が掛かる。上限は報告 #10 から */
+    focus: { perValue: 3, maxValue: x(5) },
     attackUp: { perValue: 3 },
     defenseUp: { perValue: 4, maxValue: x(3) },
     regen: { perValue: 5 },
@@ -637,7 +638,7 @@ export const BALANCE = {
     /** 探査：固定。除外する捨て札1枚につきコスト−1（max まで）。印刷コスト minCost 以上 */
     delve: { flat: x(3), max: 3, minCost: 2 },
     /** 血の支払い：K×perEnergy。エナジー1を HP hpPerEnergy で払う（K は max まで） */
-    lifePay: { perEnergy: x(2), hpPerEnergy: x(2), max: 2 },
+    lifePay: { perEnergy: x(2), hpPerEnergy: x(3), max: 2 },
     /** 代替コスト：固定（1ターン battle.maxPitchPerTurn 回） */
     pitch: { flat: x(6) },
     /** 最悪の二択：低いモード＋高いモード×highRate */

@@ -1,4 +1,4 @@
-/* 対戦の演出（決定事項 #126）のうち、ページ側に置くもの：演出の層の置き場・相手のターンのまとめ・演出の設定。
+/* 対戦の演出（決定事項 #126）のうち、ページ側に置くもの：演出の層の置き場・相手のターンのまとめ（演出の設定は settings/settings.css）。
    演出の層の中身（弾・輪・数字など）は layer.css（影の DOM） */
 
 .fx-host {
@@ -10,27 +10,73 @@
 }
 
 /* ------------------------------------------------------------ 相手のターンのまとめ */
-.recap-strip {
-  position: absolute;
-  left: 50%;
-  top: 4px;
-  z-index: 8;
-  transform: translateX(-50%);
-  max-width: calc(100% - 8px);
+/* 帯：操作バーの「直近の出来事」の行に数秒だけ出す（場には重ねない）。下の細い線が畳むまでの残り時間。
+   .battle-bar__ticker の規則（透明・枠なし）より強くするため .battle-bar を付ける */
+.battle-bar .recap-strip {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 6px 4px 10px;
-  min-height: 44px;
-  border-radius: var(--u-r-lg, 10px);
+  min-width: 0;
+  /* 直近の出来事の行と同じ高さ（出ても消えても盤面が動かない） */
+  min-height: 24px;
+  padding: 0 2px 0 10px;
+  border-radius: var(--radius-sm);
   background:
     linear-gradient(180deg, #2a1622, #170c14) padding-box,
     var(--u-rim-crimson) border-box;
   border: 1px solid transparent;
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-1);
   color: var(--u-ink);
   font-size: var(--fs-xs);
   cursor: pointer;
+  animation: recap-in var(--dur) var(--ease);
+}
+.battle-bar .recap-strip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #ff8fa3;
+  opacity: 0.75;
+  transform-origin: left center;
+  animation: recap-left var(--recap-ms, 4500ms) linear forwards;
+  pointer-events: none;
+}
+@keyframes recap-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes recap-left {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+/* スマホ：出来事の行は 44px（ターン終了の横） */
+@media (max-width: 919px) {
+  .battle-bar .recap-strip {
+    min-height: 44px;
+  }
+  .recap-strip__close {
+    width: 36px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .battle-bar .recap-strip,
+  .battle-bar .recap-strip::after {
+    animation: none;
+  }
 }
 .recap-strip__title {
   flex: none;
@@ -50,7 +96,7 @@
   align-items: center;
   gap: 3px;
   max-width: 9em;
-  padding: 2px 7px;
+  padding: 1px 7px;
   border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.07);
   font-weight: bold;
@@ -73,15 +119,25 @@
   color: #8fe8bd;
 }
 .recap-strip__close {
+  position: relative;
   flex: none;
-  width: var(--tap);
-  height: var(--tap);
-  margin: -4px -6px -4px -4px;
+  width: 28px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--muted);
   font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+/* 押せる広さは 44px（見た目は小さく） */
+.recap-strip__close::before {
+  content: '';
+  position: absolute;
+  inset: -10px -8px;
 }
 .recap-panel {
   position: absolute;
@@ -157,25 +213,3 @@
   margin: 0 0 8px;
 }
 
-/* 演出の設定（メニュー） */
-.fx-setting {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.fx-setting__seg {
-  display: inline-flex;
-  gap: 4px;
-}
-.fx-setting__seg .chip {
-  min-height: var(--tap);
-  min-width: 72px;
-  justify-content: center;
-}
-.fx-setting__note {
-  width: 100%;
-  font-size: var(--fs-xs);
-  color: var(--muted);
-}

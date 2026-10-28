@@ -8,7 +8,7 @@
  *   詳細の「使う」「攻撃する」からは、候補ボタンで対象を選ぶ（キーボード・ドラッグしにくいとき用）
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BALANCE, FIELDS, LEADERS, TRIBE_IDS, battle, describeEffect, getEffect, type CardDef, type TribeId } from '../../engine/index.ts';
+import { BALANCE, FIELDS, LEADERS, TRIBE_IDS, battle, describeEffect, getEffect, type CardDef } from '../../engine/index.ts';
 import { abilityGlossary, mechanicGlossary } from '../glossary.ts';
 import { CardView } from '../components/CardView.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
@@ -22,7 +22,7 @@ import { preloadIcons } from '../icons/load.ts';
 import { iconText } from '../icons/ref.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { sfx } from '../sound/index.ts';
-import { SoundSettings } from '../sound/SoundSettings.tsx';
+import { SettingsPanel } from '../settings/SettingsPanel.tsx';
 import { useBgmScene } from '../sound/bgmScene.ts';
 import { FeedbackButton, FeedbackSheet } from '../feedback/FeedbackSheet.tsx';
 import { matchCards, matchContext } from '../feedback/feedbackLogic.ts';
@@ -52,9 +52,9 @@ import { FxLayer } from './fx/FxLayer.tsx';
 import { buildRecap } from './fx/recap.ts';
 import { RecapButton, RecapLogButton, RecapPanel, RecapStrip, useRecapState } from './fx/Recap.tsx';
 import { fxPreload } from './fx/registry.ts';
-import { FX_LEVEL_LABEL, useFxLevel } from './fx/settings.ts';
+import { useFxLevel } from './fx/settings.ts';
 import { logNamesOf } from './logFormat.ts';
-import { EnergyGem, grownDef, HandCard, MatchBand, LogPanel, LogText, MonsterTile, PlayerPanel, PowersList, type ActivateButton } from './parts.tsx';
+import { EnergyGem, grownDef, HandCard, MatchBand, LogPanel, LogText, MonsterTile, PlayerPanel, PowersList, type ActivateButton, type TribeProgress } from './parts.tsx';
 import { useBattleDrag, type DropResult } from './useDrag.ts';
 import { useOverlay, useReplay, type OverlayStore } from './useReplay.ts';
 
@@ -297,8 +297,11 @@ export function BattleBoard({
 
   const mine = view.players[me];
   const theirs = view.players[opp];
-  /** 揃えたときのボーナスが働いている種族（決定事項 #143） */
-  const tribeSetsOf = (p: battle.PlayerId): TribeId[] => TRIBE_IDS.filter((t) => battle.tribeSetActive(view, p, t));
+  /** 場の種族の数と揃いの進み具合（決定事項 #143）：揃っているもの → 数の多いもの の順 */
+  const tribesOf = (p: battle.PlayerId): TribeProgress[] =>
+    TRIBE_IDS.map((t) => ({ tribe: t, count: battle.tribeCount(view, p, t), active: battle.tribeSetActive(view, p, t) }))
+      .filter((t) => t.count > 0)
+      .sort((a, b) => Number(b.active) - Number(a.active) || b.count - a.count);
   // 対戦中に手札へ入ったカード（引いた・サイクリング・引いたときの効果・戻ってきた）を少しの間光らせる
   const prevHand = useRef<Set<string> | null>(null);
   const [freshHand, setFreshHand] = useState<ReadonlySet<string>>(new Set());
@@ -1536,7 +1539,7 @@ export function BattleBoard({
         <PlayerPanel
           ps={ps}
           isMe={isMe}
-          tribeSets={tribeSetsOf(p)}
+          tribes={tribesOf(p)}
           roleLabel={isMe ? 'あなた' : '相手'}
           portrait={isMe ? undefined : opponentPortrait}
           active={view.active === p && view.phase === 'main'}
@@ -1610,7 +1613,7 @@ export function BattleBoard({
         <PlayerPanel
           ps={theirs}
           isMe={false}
-          tribeSets={tribeSetsOf(opp)}
+          tribes={tribesOf(opp)}
           roleLabel="相手"
           active={view.active === opp && view.phase === 'main'}
           targetable={isLit(oppRef)}
@@ -1633,13 +1636,12 @@ export function BattleBoard({
       <div className="battle__board battle__board--opp">{renderBoard(opp)}</div>
       <div className="battle__board battle__board--me">
         {renderBoard(me)}
-        {recap && recapUi.mode === 'auto' && recapReady && <RecapStrip recap={recap} onOpen={recapUi.open} onClose={recapUi.close} onShown={recapUi.shown} />}
       </div>
       <div className="battle__pp battle__pp--me">
         <PlayerPanel
           ps={mine}
           isMe
-          tribeSets={tribeSetsOf(me)}
+          tribes={tribesOf(me)}
           roleLabel="あなた"
           active={view.active === me && view.phase === 'main'}
           targetable={isLit(meRef)}
@@ -1675,27 +1677,29 @@ export function BattleBoard({
           {dragging && <span className="hand__drop">手札に戻すと取り消し</span>}
         </div>
         <div className="hand" role="list" aria-label="手札（押すと詳細、場へドラッグで使う）">
+          {/* 1枚ずつの枠（PC のマウスでは、入りきらないとき枠が縮んでカードが重なり、乗せたカードが手前に出る。スマホは枠が無いのと同じ） */}
           {mine.hand.map((c) => (
-            <HandCard
-              key={c.uid}
-              card={c}
-              def={view.cards[c.cardId]}
-              info={infos.get(c.uid)!}
-              energy={mine.energy}
-              playable={isPlayable(c)}
-              selected={sel?.kind === 'card' && sel.uid === c.uid}
-              dim={!myTurn}
-              fresh={freshHand.has(c.uid)}
-              dragging={drag.drag?.src.kind === 'card' && drag.drag.src.uid === c.uid ? drag.drag.plan.mode : null}
-              onClick={() => onHandTap(c)}
-              onDetail={() => {
-                // 長押しの判定中にドラッグが始まっていたら詳細は開かない
-                if (drag.isActive() || drag.consumeClick()) return;
-                setDetail({ kind: 'hand', uid: c.uid });
-              }}
-              onPointerDown={view.phase === 'main' ? (e) => drag.begin(e, 'hand', () => cardSource(c)) : undefined}
-              onHover={canHover ? (el) => setHover(el && view.cards[c.cardId] ? { el, def: view.cards[c.cardId]! } : null) : undefined}
-            />
+            <div key={c.uid} className="hand__slot" role="listitem">
+              <HandCard
+                card={c}
+                def={view.cards[c.cardId]}
+                info={infos.get(c.uid)!}
+                energy={mine.energy}
+                playable={isPlayable(c)}
+                selected={sel?.kind === 'card' && sel.uid === c.uid}
+                dim={!myTurn}
+                fresh={freshHand.has(c.uid)}
+                dragging={drag.drag?.src.kind === 'card' && drag.drag.src.uid === c.uid ? drag.drag.plan.mode : null}
+                onClick={() => onHandTap(c)}
+                onDetail={() => {
+                  // 長押しの判定中にドラッグが始まっていたら詳細は開かない
+                  if (drag.isActive() || drag.consumeClick()) return;
+                  setDetail({ kind: 'hand', uid: c.uid });
+                }}
+                onPointerDown={view.phase === 'main' ? (e) => drag.begin(e, 'hand', () => cardSource(c)) : undefined}
+                onHover={canHover ? (el) => setHover(el && view.cards[c.cardId] ? { el, def: view.cards[c.cardId]! } : null) : undefined}
+              />
+            </div>
           ))}
           {mine.hand.length === 0 && (
             <span className="board__empty hand__empty">
@@ -1712,14 +1716,19 @@ export function BattleBoard({
       </aside>
 
       <div className={cx('battle-bar', hintKey && 'has-key-hint')}>
-        <button type="button" className="battle-bar__ticker" onClick={() => setLogOpen(true)} aria-live="polite" aria-label="直近の出来事（タップでログ）">
-          <span className="battle-bar__tickicon" aria-hidden="true">
-            <UiIcon name="gi:scroll-unfurled" />
-          </span>
-          <span className="battle-bar__ticktext">
-            <ReplayTicker store={replay.overlay} fallback={lastLog?.text ?? ''} names={names} me={me} />
-          </span>
-        </button>
+        {/* 相手のターンのまとめ（決定事項 #126）：自分のターンの始めに、直近の出来事の行に数秒だけ出して畳む（場には重ねない）。畳んだあとは見出しの「まとめ」 */}
+        {recap && recapUi.mode === 'auto' && recapReady ? (
+          <RecapStrip recap={recap} className="battle-bar__ticker" onOpen={recapUi.open} onClose={recapUi.close} onShown={recapUi.shown} />
+        ) : (
+          <button type="button" className="battle-bar__ticker" onClick={() => setLogOpen(true)} aria-live="polite" aria-label="直近の出来事（タップでログ）">
+            <span className="battle-bar__tickicon" aria-hidden="true">
+              <UiIcon name="gi:scroll-unfurled" />
+            </span>
+            <span className="battle-bar__ticktext">
+              <ReplayTicker store={replay.overlay} fallback={lastLog?.text ?? ''} names={names} me={me} />
+            </span>
+          </button>
+        )}
         {candidates.length > 0 && (
           <div className="battle-bar__cands" role="group" aria-label="対象の候補">
             {candidates.map((t) => (
@@ -2049,22 +2058,8 @@ export function BattleBoard({
               <small>バグ・バランス（強すぎ・OTK など）・ご要望</small>
             </span>
           </button>
-          {/* 演出（決定事項 #126）：標準／控えめ。端末の「動きを減らす」なら控えめに固定 */}
-          <div className="fx-setting" role="group" aria-label="演出">
-            <span>
-              <UiIcon name="gi:sparkles" /> 演出
-            </span>
-            <span className="fx-setting__seg" role="radiogroup" aria-label="演出">
-              {(['full', 'calm'] as const).map((l) => (
-                <button key={l} type="button" role="radio" aria-checked={fx.chosen === l} className={cx('chip', fx.chosen === l && 'is-active')} disabled={fx.reduce} onClick={() => fx.setLevel(l)}>
-                  {FX_LEVEL_LABEL[l]}
-                </button>
-              ))}
-            </span>
-            <span className="fx-setting__note">{fx.reduce ? '端末の「視差効果を減らす／動きを減らす」がオンなので、控えめで表示しています' : '控えめ：飛ぶ演出や粒を出さず、その場で短く光るだけ'}</span>
-          </div>
-          {/* 効果音（決定事項 #127）：オン・オフと音量（既定はオフ） */}
-          <SoundSettings />
+          {/* 設定（文字の大きさ・演出・効果音と BGM）：上の帯の歯車と同じ中身 */}
+          <SettingsPanel />
           <button type="button" className="btn btn--danger" disabled={view.phase === 'ended'} onClick={() => void concede()}>
             <UiIcon name="gi:flying-flag" />
             降参する

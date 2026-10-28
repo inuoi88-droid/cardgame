@@ -1,10 +1,11 @@
 /**
  * 「相手のターンのまとめ」の表示（決定事項 #126）。
- * - 自分のターンが始まって相手の演出が終わったら、自分の場の上の端に1行の帯（形と短い文字）を出し、約4.5秒で畳む
+ * - 自分のターンが始まって相手の演出が終わったら、操作バーの「直近の出来事」の行に1行の帯（形と短い文字）を出し、約4.5秒で畳む
+ *   （以前は自分の場の上の端に重ねていて、場のモンスターが隠れた。帯は残り時間の細い線で畳むまでを見せる）
  * - 畳んだあとは見出しの「まとめ」（RecapButton）から開ける。ログからも開ける（RecapLogButton）
  * - 開いた一覧は1行1項目。カード名を押すと詳細。どこかを押すと閉じる
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { UiIcon } from '../../components/UiIcon.tsx';
 import { cx } from '../../util.ts';
 import { playCue } from './cues.ts';
@@ -13,7 +14,7 @@ import type { Recap } from './recap.ts';
 /** 帯を出しておく時間 */
 export const RECAP_AUTO_MS = 4500;
 
-export function RecapStrip({ recap, onOpen, onClose, onShown }: { recap: Recap; onOpen: () => void; onClose: () => void; onShown?: () => void }) {
+export function RecapStrip({ recap, onOpen, onClose, onShown, className }: { recap: Recap; onOpen: () => void; onClose: () => void; onShown?: () => void; className?: string }) {
   useEffect(() => {
     onShown?.();
     const t = setTimeout(onClose, RECAP_AUTO_MS);
@@ -21,7 +22,8 @@ export function RecapStrip({ recap, onOpen, onClose, onShown }: { recap: Recap; 
   }, [recap.turn, onClose]);
   return (
     <div
-      className="recap-strip"
+      className={cx('recap-strip', className)}
+      style={{ '--recap-ms': `${RECAP_AUTO_MS}ms` } as CSSProperties}
       role="button"
       tabIndex={0}
       aria-label={`相手のターンのまとめ：${recap.chips.map((i) => i.text).join('、')}（押すと一覧）`}

@@ -38,6 +38,7 @@ export function PlazaPage() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<PublicItemFull | null>(null);
   const [deckOpen, setDeckOpen] = useState<PublicItemFull | null>(null);
+  const [word, setWord] = useState('');
 
   const load = useCallback(
     async (more: PlazaCursor | null) => {
@@ -94,6 +95,9 @@ export function PlazaPage() {
     });
   };
 
+  const needle = word.trim().toLowerCase();
+  const shown = needle ? items.filter((it) => `${it.name} ${it.owner.name}`.toLowerCase().includes(needle)) : items;
+
   return (
     <div className="plaza">
       <div className="page-head">
@@ -114,6 +118,7 @@ export function PlazaPage() {
           </button>
         ))}
       </div>
+      <input type="search" className="input plaza__search" value={word} onChange={(e) => setWord(e.target.value)} placeholder="名前・公開した人で絞り込み" aria-label="名前・公開した人で絞り込み" maxLength={40} />
       {status === 'loading' && <p className="hint">読み込んでいます…</p>}
       {status === 'error' && (
         <div className="notice notice--ng">
@@ -123,10 +128,11 @@ export function PlazaPage() {
           </button>
         </div>
       )}
+      {status === 'ready' && items.length > 0 && shown.length === 0 && <p className="plaza__empty">「{word.trim()}」に合うものはありません。{next && '「もっと見る」で古いものも探せます。'}</p>}
       {status === 'ready' && items.length === 0 && <p className="plaza__empty">まだ何も公開されていません。</p>}
       {/* 開かなくても中身がわかる一覧：カードは小さいカードの面、デッキはデッキ箱（代表カード・コスト分布・主なカード） */}
       <ul className="plaza__list">
-        {items.map((it) => {
+        {shown.map((it) => {
           const removeButton = staff ? (
             <button type="button" className="btn btn--small btn--ghost plaza__remove" onClick={() => void remove(it)} aria-label={`「${it.name}」を取り下げる`}>
               取り下げ

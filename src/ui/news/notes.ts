@@ -13,6 +13,18 @@ import type { PatchNote } from './newsLogic.ts';
 
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    no: 22,
+    date: '2026-10-28',
+    title: 'みんなの広場に絞り込み',
+    items: [
+      {
+        kind: 'new',
+        text: 'みんなの広場に、名前や公開した人の名前で絞り込める欄を足しました。読み込み済みのものから探します（古いものは「もっと見る」で読み込んでから）。',
+        reports: [22],
+      },
+    ],
+  },
+  {
     no: 21,
     date: '2026-10-28',
     title: '数値の最低値・疾走と突進・封印など',

@@ -35,7 +35,7 @@ describe('○ バッチC1（実際の倍率）', () => {
     expect(A.escape).toMatchObject({ minCount: 2, maxCount: 5 });
     expect(A.cycling).toEqual({ flat: 40, cost: 1 });
     expect(A.affinity).toEqual({ perStep: 80, maxReduction: 3, minCost: 2, minPrintedCost: 2 });
-    expect(A.costCut).toEqual({ perStep: 200, maxReduction: 2, minCost: 0 });
+    expect(A.costCut).toEqual({ perStep: 260, maxReduction: 2, minCost: 0 });
     expect(BALANCE.timing.activatedMonster).toEqual([2.2, 1.6, 1.1]);
     expect(BALANCE.conditionByKicker).toEqual([0.6, 0.45]);
     expect(createAbility('activate')).toEqual({ id: 'activate', value: 1 });

@@ -29,7 +29,7 @@ import {
   tribeSetActive,
   turnLimits,
 } from './core.ts';
-import { enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
+import { allowMonsterRepeat, enqueueCardTiming, enqueueMonsters, enqueuePowers } from './triggers.ts';
 import { chargePowers } from './powers.ts';
 import { drawCards, unmask } from './zones.ts';
 import { TRIBE_SETS, TRIBE_TRAITS } from '../tribes.ts';
@@ -464,7 +464,11 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
   if (damagedTrigger && amount > 0 && !m.sealed && !monsterDormant(g, m) && !isDot(opts.kind) && findMonster(g, m.uid)) {
     const def = g.cards[m.card.cardId];
     const enemy = opts.source && targetExists(g, opts.source) ? opts.source : undefined;
-    if (def) enqueueCardTiming(g, sourceOfMonster(g, m), def, 'damaged', enemy ? { enemy } : {}, opts.depth + 1, {});
+    // 1体につき1ターン maxRepeatTriggersPerTurn 回まで（報告 #15）。効果もデメリットも無ければ数えない
+    const any = def && (def.effects.some((e) => e.timing === 'damaged') || def.drawbacks.some((d) => d.timing === 'damaged'));
+    if (def && any && allowMonsterRepeat(g, m, 'damaged', def.name, opts.depth + 1)) {
+      enqueueCardTiming(g, sourceOfMonster(g, m), def, 'damaged', enemy ? { enemy } : {}, opts.depth + 1, {});
+    }
   }
   return result;
 }

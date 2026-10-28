@@ -103,7 +103,7 @@ const POISON: OfficialEntry[] = [
     desc: '沼の底から舞い上がる胞子。吸えば肺から腐る',
   }),
   P('dokunuri-tanken', '毒塗りの短剣', 'gi:curvy-knife', 'common', 1, '毒を入れ、毒の回った相手にはダメージ。コモンの決め手', {
-    fx: [fx('poison', { value: 2 }), fx('damage', { value: 5, condition: 'enemyPoisoned' })],
+    fx: [fx('poison', { value: 2 }), fx('damage', { value: 1 }), fx('damage', { value: 2, condition: 'enemyPoisoned' })],
     desc: '刃が浅くても、毒は深く入る',
   }),
   P('kumo-no-ito', '蜘蛛の糸', 'gi:spider-web', 'common', 1, '攻撃力を奪い、毒を入れる', {
@@ -157,11 +157,11 @@ const POISON: OfficialEntry[] = [
     desc: '蛇神に仕える巫女。祈りの言葉はすべて毒の名前',
   }),
   P('yowarime', '弱り目の一刺し', 'gi:stiletto', 'rare', 1, '毒の回った相手への大ダメージか、毒を入れるかを選ぶ', {
-    fx: [fx('damage', { value: 10, condition: 'enemyPoisoned', mode: 1 }), fx('poison', { value: 3, mode: 2 })],
+    fx: [fx('damage', { value: 7, condition: 'enemyPoisoned', mode: 1 }), fx('poison', { value: 3, mode: 2 })],
     desc: '毒で弱った相手なら、細い針でも急所に届く',
   }),
   P('doku-myakudou', '毒の脈動', 'gi:heart-beats', 'rare', 1, '毒を入れ、毒の回った相手にはさらに毒を入れる', {
-    fx: [fx('poison', { value: 2 }), fx('poison', { value: 3, condition: 'enemyPoisoned' }), me('draw', { value: 1 })],
+    fx: [fx('poison', { value: 2 }), fx('poison', { value: 2, condition: 'enemyPoisoned' }), me('draw', { value: 1 })],
     desc: '体に回った毒が、心臓の鼓動に合わせて暴れ出す',
   }),
   P('numa-no-saidan', '毒沼の祭壇', 'gi:star-altar', 'rare', 2, '毎ターン相手に毒を足すパワー', {
@@ -183,7 +183,7 @@ const POISON: OfficialEntry[] = [
     desc: '腐った沼で千年眠った竜。吐く息は緑に濁っている',
   }),
   P('shidoku-senkoku', '死毒の宣告', 'gi:death-note', 'epic', 1, '毒の回った相手への決め手', {
-    fx: [fx('damage', { value: 13, condition: 'enemyPoisoned' }), me('draw', { value: 1 })],
+    fx: [fx('damage', { value: 10, condition: 'enemyPoisoned' }), me('draw', { value: 1 })],
     desc: '毒が回ったら、名前を呼ぶだけでいい',
   }),
   P('sendoku-hiyaku', '千毒の秘薬', 'gi:potion-of-madness', 'epic', 2, '毒を入れてから、相手の毒を倍にする', {

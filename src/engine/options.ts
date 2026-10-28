@@ -145,7 +145,7 @@ export const TIMINGS: Record<TimingId, TimingDef> = {
     powerTiming: false,
     chosen: 'damageSource',
     group: 'このモンスター',
-    description: 'ダメージを受けて生き残ったとき（毒・やけどでは発動しない）',
+    description: `ダメージを受けて生き残ったとき（毒・やけどでは発動しない。1体につき1ターン${BALANCE.battle.maxRepeatTriggersPerTurn}回まで）`,
   },
   attack: {
     id: 'attack',

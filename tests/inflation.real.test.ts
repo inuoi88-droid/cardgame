@@ -50,7 +50,7 @@ describe('倍率', () => {
     // 攻撃力20（60）＋体力40（60。#84 で体力1.5pt）＋攻撃するたび毒20（80×2.0＝160）− コスト200
     expect(nezumi.points.total).toBe(80);
 
-    // ダメージ400（1200pt）×0.45 − コスト400pt（#84）
+    // ダメージ300（900pt）×0.6 − コスト400pt（#84。#144 で 400×0.45 から）
     expect(analyzeCard(sample('todome')).points.total).toBe(140);
 
     const kyosenshi = analyzeCard(sample('kyosenshi'));

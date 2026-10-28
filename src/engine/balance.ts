@@ -66,6 +66,11 @@ export const BALANCE = {
     hpMax: x(50),
     defenseMin: 0,
     defenseMax: x(3),
+    /**
+     * キーワードの値段で数える攻撃力の最低（速攻・二回攻撃など攻撃力に比例するもの）。攻撃力0でも速攻・二回攻撃がタダにならない。
+     * 攻撃力0・コスト0の速攻・二回攻撃を並べて全体の一時強化を掛けると、後攻1ターン目に倒せた（報告 #19。ユーザー回答）
+     */
+    keywordMinAttack: x(1),
   },
 
   /** 発動タイミングの倍率（#73 でパワーの開始時・終了時を 4.0・4.5→6.0・6.5、#74 で 8.0・8.5、#84（パワーの上限3つの後）で 6.0・6.5 に戻す） */
@@ -186,12 +191,12 @@ export const BALANCE = {
   condition: {
     hasMonster: 0.9,
     smallHand: 0.8,
-    enemyPoisoned: 0.45,
+    enemyPoisoned: 0.6,
     nthCard: 0.7,
     manyMonsters: 0.6,
     enemyHpHigher: 0.6,
     lowHp: 0.5,
-    enemyPoisonBurn: 0.35,
+    enemyPoisonBurn: 0.45,
     /** MTG 要素の採用：バッチ1（決定事項ログ） */
     enemyDamagedThisTurn: 0.6,
     monsterDestroyedThisTurn: 0.6,
@@ -437,7 +442,8 @@ export const BALANCE = {
     /** 呪縛：相手のターン開始時に N ダメージ（減らない）。合計は battle.doomCap まで */
     doom: { perValue: 15, maxValue: x(2) },
     /** 一時強化：このターンだけ攻撃力+N */
-    pump: { perValue: 1.5, maxValue: x(10) },
+    /** 一時強化：上限は battle.tempAttackCap と同じ（それ以上は1体に乗らないので、ポイントの無駄にしない：報告 #19） */
+    pump: { perValue: 1.5, maxValue: x(5) },
 
     /**
      * MTG 要素 ○ バッチB（決定事項ログ）。価格は目安。
@@ -645,7 +651,7 @@ export const BALANCE = {
      */
     affinity: { perStep: x(4), maxReduction: 3, minCost: 2, minPrintedCost: 2 },
     /** 条件付き軽減：perStep×K×条件の倍率（K は印刷コストまで）。軽減してもコストは minCost まで */
-    costCut: { perStep: x(10), maxReduction: 2, minCost: 0 },
+    costCut: { perStep: x(13), maxReduction: 2, minCost: 0 },
     /** キッカー：追加エナジー1〜maxExtra（ポイントは条件「キッカーを払っていれば」の倍率） */
     kicker: { maxExtra: 2, flat: x(0) },
     /** MTG 要素 ○ バッチC2（決定事項ログ）。双呪：他のモードの合計×rate を足す。追加エナジー1〜maxExtra */
@@ -883,6 +889,11 @@ export const BALANCE = {
     maxNoiseReceivedPerTurn: 3,
     /** トークン（MTG 要素バッチ2）：場に出せるトークンは1人この数まで（数なので倍率は掛けない） */
     maxTokens: 5,
+    /**
+     * 一時強化（このターンだけの攻撃力）は1体につき合計この量まで。体数を並べて全体に掛けると後攻1ターン目に倒せた
+     * （報告 #19。キーワードの最低の攻撃力と合わせて、組み直した報告のデッキの後攻1ターン目の決着 16/20 → 2/20。ユーザー回答）
+     */
+    tempAttackCap: x(5),
     /** 居住で出せるトークンは1人1ターンこの数まで（攻撃のたびに複写→自壊を繰り返す無限のコピーを止める。報告 #14。数なので倍率は掛けない） */
     maxPopulatesPerTurn: 2,
     tokenName: '小鬼',

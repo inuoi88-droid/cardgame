@@ -343,32 +343,38 @@ interface MembershipProps {
   onTag?: (t: TagId) => void;
 }
 
+/** グループの札の列（押すと入れる・外す）。カードの詳細とカードの作成画面で共用 */
+export function GroupToggles({ groups, isOn, onToggle, onNewGroup, label }: { groups: readonly CardGroup[]; isOn: (g: CardGroup) => boolean; onToggle: (g: CardGroup, on: boolean) => void; onNewGroup: () => void; label?: string }) {
+  return (
+    <div className="cmem__row" role="group" aria-label="入れるグループ">
+      {label && <span className="cmem__label">{label}</span>}
+      {groups.map((g) => {
+        const on = isOn(g);
+        return (
+          <button key={g.id} type="button" className={cx('gtoggle', on && 'is-on')} style={gc(g.color)} aria-pressed={on} onClick={() => onToggle(g, on)}>
+            <span className="gdot" aria-hidden="true" />
+            {g.name}
+            {on && <UiIcon name="check-mark" className="gtoggle__on" />}
+          </button>
+        );
+      })}
+      <button type="button" className="gtoggle gtoggle--add" onClick={onNewGroup}>
+        ＋ 新しいグループ
+      </button>
+    </div>
+  );
+}
+
 export function CardMembership({ cardId, groups, tags, onNewGroup, onTag }: MembershipProps) {
   return (
     <div className="cmem">
-      <div className="cmem__row" role="group" aria-label="入れるグループ">
-        <span className="cmem__label">グループ</span>
-        {groups.map((g) => {
-          const on = g.cardIds.includes(cardId);
-          return (
-            <button
-              key={g.id}
-              type="button"
-              className={cx('gtoggle', on && 'is-on')}
-              style={gc(g.color)}
-              aria-pressed={on}
-              onClick={() => (on ? actions.removeFromGroup(g.id, [cardId]) : actions.addToGroup(g.id, [cardId]))}
-            >
-              <span className="gdot" aria-hidden="true" />
-              {g.name}
-              {on && <UiIcon name="check-mark" className="gtoggle__on" />}
-            </button>
-          );
-        })}
-        <button type="button" className="gtoggle gtoggle--add" onClick={onNewGroup}>
-          ＋ 新しいグループ
-        </button>
-      </div>
+      <GroupToggles
+        label="グループ"
+        groups={groups}
+        isOn={(g) => g.cardIds.includes(cardId)}
+        onToggle={(g, on) => (on ? actions.removeFromGroup(g.id, [cardId]) : actions.addToGroup(g.id, [cardId]))}
+        onNewGroup={onNewGroup}
+      />
       {tags.length > 0 && (
         <div className="cmem__row" role="group" aria-label="仕組みのタグ">
           <span className="cmem__label">仕組み</span>

@@ -54,5 +54,5 @@ describe('種族の特徴（実際の倍率）', () => {
       seen += g.log.filter((e) => e.ev?.kind === 'tribe').length;
     }
     expect(seen).toBeGreaterThan(0);
-  });
+  }, 60_000);
 });

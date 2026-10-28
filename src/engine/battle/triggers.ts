@@ -7,7 +7,7 @@ import { getAbility } from '../registry.ts';
 import { allyCandidates, chosenRulesOf, enemyCandidates } from './play.ts';
 import { cardModes, effectsForMode, resolveMode, type ModeSel } from './modes.ts';
 import { pick } from './rng.ts';
-import type { CardInst, Chosen, GameState, PlayerId, PowerInst, SourceRef } from './types.ts';
+import type { CardInst, Chosen, GameState, Monster, PlayerId, PowerInst, SourceRef } from './types.ts';
 
 interface FireOpts {
   /** アタック・パワーアタックの使用時（筋力・気合が乗る） */
@@ -92,7 +92,7 @@ function allowRepeat(
   read: () => { turnIndex: number; count: number } | undefined,
   write: (t: { turnIndex: number; count: number }) => void,
 ): boolean {
-  const capped = timing === 'cardPlayed' || REPEAT_CAPPED_TIMINGS.includes(timing);
+  const capped = timing === 'cardPlayed' || timing === 'damaged' || REPEAT_CAPPED_TIMINGS.includes(timing);
   if (!capped) return true;
   const max = timing === 'cardPlayed' ? BALANCE.battle.maxCardPlayedTriggersPerTurn : BALANCE.battle.maxRepeatTriggersPerTurn;
   const prev = read();
@@ -163,22 +163,29 @@ export function enqueueMonsters(g: GameState, p: PlayerId, timing: TimingId, dep
     const quiet = m.sealed || monsterDormant(g, m);
     const hasAny = (!quiet && def.effects.some((e) => e.timing === timing)) || def.drawbacks.some((d) => d.timing === timing);
     if (!hasAny) continue;
-    const key = `rt:${timing}`;
-    const ok = allowRepeat(
-      g,
-      timing,
-      def.name,
-      depth,
-      () => (m.counters[`${key}:turn`] === undefined ? undefined : { turnIndex: m.counters[`${key}:turn`]!, count: m.counters[`${key}:count`] ?? 0 }),
-      (t) => {
-        m.counters[`${key}:turn`] = t.turnIndex;
-        m.counters[`${key}:count`] = t.count;
-      },
-    );
-    if (!ok) continue;
+    if (!allowMonsterRepeat(g, m, timing, def.name, depth)) continue;
     const src: SourceRef = { kind: 'monster', uid: m.uid, cardId: m.card.cardId, name: def.name, controller: m.controller };
     enqueueCardTiming(g, src, def, timing, opts.chosen ?? {}, depth, { sealed: quiet });
   }
+}
+
+/**
+ * モンスター1体の繰り返し誘発の回数を数える（数は m.counters に通算ターンごと）。まだ発動できれば true。
+ * 「ダメージを受けたとき」もここを通す（自分も巻き込む「全員」へのダメージで無限に連鎖した：報告 #15）
+ */
+export function allowMonsterRepeat(g: GameState, m: Monster, timing: TimingId, name: string, depth: number): boolean {
+  const key = `rt:${timing}`;
+  return allowRepeat(
+    g,
+    timing,
+    name,
+    depth,
+    () => (m.counters[`${key}:turn`] === undefined ? undefined : { turnIndex: m.counters[`${key}:turn`]!, count: m.counters[`${key}:count`] ?? 0 }),
+    (t) => {
+      m.counters[`${key}:turn`] = t.turnIndex;
+      m.counters[`${key}:count`] = t.count;
+    },
+  );
 }
 
 /** 相手のモンスターが攻撃するたび（MTG 要素 △ バッチA）：攻撃された側 p のパワー → 場のモンスター（左から）。「攻撃してきたモンスター」は attackerUid */

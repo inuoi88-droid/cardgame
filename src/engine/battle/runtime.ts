@@ -257,8 +257,17 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
     },
     addDiscount(p, amount) {
       const ps = g.players[p];
-      ps.discount += amount;
-      log(g, depth, `${ps.name}が次に使うカードのコスト−${ps.discount}`, 'effect', undefined, { kind: 'status', target: playerRef(p), status: 'discount', amount });
+      // 軽減はエナジーを得るのと同じなので、1ターンに増やせるエナジーの上限に合わせて数える
+      // （一撃離脱・循環で出し直すたびに軽減を得ると、1ターンに何度でも無料で使えた：報告 #17・#18）
+      const limits = turnLimits(g, ps);
+      const gain = Math.max(0, Math.min(amount, B.maxEnergyGainPerTurn - limits.energyGained));
+      if (gain <= 0) {
+        log(g, depth, `${ps.name}はこのターンこれ以上軽減を得られない（エナジーの増加と合わせて1ターン+${B.maxEnergyGainPerTurn}まで）`, 'info');
+        return;
+      }
+      limits.energyGained += gain;
+      ps.discount += gain;
+      log(g, depth, `${ps.name}が次に使うカードのコスト−${ps.discount}`, 'effect', undefined, { kind: 'status', target: playerRef(p), status: 'discount', amount: gain });
     },
     addRetain(p, amount) {
       const ps = g.players[p];
@@ -363,8 +372,11 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       const m = monsterOf(target);
       if (!m) return;
       const before = effectiveAttack(g, m);
-      m.tempAttack = (m.tempAttack ?? 0) + amount;
-      log(g, depth, `${monsterLabel(g, m)}の攻撃力がこのターンだけ ${before}→${effectiveAttack(g, m)}`, 'effect', undefined, { kind: 'stat', target, status: 'temp', delta: { attack: effectiveAttack(g, m) - before } });
+      // 1体につき合計 tempAttackCap まで（報告 #19）
+      const capped = (m.tempAttack ?? 0) + amount > B.tempAttackCap;
+      m.tempAttack = Math.min(B.tempAttackCap, (m.tempAttack ?? 0) + amount);
+      const note = capped ? `（一時強化は1体+${B.tempAttackCap}まで）` : '';
+      log(g, depth, `${monsterLabel(g, m)}の攻撃力がこのターンだけ ${before}→${effectiveAttack(g, m)}${note}`, 'effect', undefined, { kind: 'stat', target, status: 'temp', delta: { attack: effectiveAttack(g, m) - before } });
     },
     grantKeyword(target, keywordId) {
       const m = monsterOf(target);

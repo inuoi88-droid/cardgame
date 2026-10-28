@@ -329,7 +329,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     name: '繰り返し誘発の上限',
     icon: '🔁',
     tone: 'info',
-    short: `「自分のモンスターが出るたび」「自分の他のモンスターが破壊されるたび」「パワー・スキルを使うたび」「自分のカードの対象になるたび」「コスト${BALANCE.timingParams.bigCardCost}以上のカードを使うたび」は、1つのカードにつき1ターン${B.maxRepeatTriggersPerTurn}回まで`,
+    short: `「自分のモンスターが出るたび」「自分の他のモンスターが破壊されるたび」「パワー・スキルを使うたび」「自分のカードの対象になるたび」「コスト${BALANCE.timingParams.bigCardCost}以上のカードを使うたび」「ダメージを受けたとき」は、1つのカードにつき1ターン${B.maxRepeatTriggersPerTurn}回まで`,
   },
   // ---- MTG 要素 ○ バッチA
   otherAllies: { name: '自分の他のモンスター全体', icon: '👬', tone: 'info', short: '効果を持つモンスター以外の、自分の場のモンスターすべて（モンスターのカードだけ）' },

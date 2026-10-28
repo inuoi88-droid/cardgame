@@ -9,7 +9,7 @@ export default defineEffect({
   name: '一時強化',
   group: 'buff',
   order: 49,
-  summary: '自分のモンスターの攻撃力をこのターンだけ+N（攻撃・反撃・格闘に乗る。ターン終了時に消える）',
+  summary: `自分のモンスターの攻撃力をこのターンだけ+N（攻撃・反撃・格闘に乗る。ターン終了時に消える。1体に乗るのは合計+${BALANCE.battle.tempAttackCap}まで）`,
   value: valueParam('上昇量', { default: 1, max: B.maxValue }),
   targetRule: 'allyMonsterOne',
   scalable: true,

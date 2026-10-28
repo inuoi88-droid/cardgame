@@ -63,7 +63,9 @@ import { abilityConditionOptions, abilityOptionOptions, tribeFromValue, tribeOpt
 import { TEMPLATES, type CardTemplate } from '../editor/templates.ts';
 import { effectRowViolations, effectSectionViolations, fieldId, findFieldElement, violationsAt, violationsExactly } from '../editor/validation.ts';
 import { navigate, setNavigationGuard } from '../router.ts';
-import { NEW_DRAFT, actions, cardDrafts, useStore } from '../store.ts';
+import { NEW_DRAFT, actions, cardDrafts, getState, useStore } from '../store.ts';
+import { GroupDialog, GroupToggles } from '../collection/GroupUI.tsx';
+import '../collection/collection.css';
 import { cx, uuid, stepOf } from '../util.ts';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { FeedbackButton, FeedbackSheet } from '../feedback/FeedbackSheet.tsx';
@@ -137,8 +139,14 @@ export function OfficialCardEditor({ card, mode }: { card: CardDef; mode: Offici
 }
 
 function Editor({ saved, official }: { saved: CardDef | null; official?: OfficialEditMode }) {
-  const { cards: myCards } = useStore();
+  const { cards: myCards, groups } = useStore();
   const cards = official ? official.others : myCards;
+  // 入れるグループ（要望 #9。保存したときにカード置き場のグループへ反映する。公式カードの書き換えでは使わない）
+  const savedGroupIds = useMemo(() => (saved && !official ? groups.filter((g) => g.cardIds.includes(saved.id)).map((g) => g.id) : []), [groups, saved, official]);
+  const [groupIds, setGroupIds] = useState<string[]>(savedGroupIds);
+  const [groupDialog, setGroupDialog] = useState(false);
+  const liveGroupIds = groupIds.filter((id) => groups.some((g) => g.id === id));
+  const groupsDirty = liveGroupIds.length !== savedGroupIds.length || liveGroupIds.some((id) => !savedGroupIds.includes(id));
   const toast = useToast();
   const confirm = useConfirm();
   const phone = useIsPhone(919);
@@ -199,7 +207,7 @@ function Editor({ saved, official }: { saved: CardDef | null; official?: Officia
   ];
   const allViolations = [...analysis.violations, ...extra];
   const canSave = allViolations.length === 0;
-  const dirty = !saved || !sameCard(card, saved);
+  const dirty = !saved || !sameCard(card, saved) || groupsDirty;
   const pristine = !saved && sameCard(card, newCard(card.id));
   const showProblems = attempted || !pristine;
   const shownViolations = showProblems ? allViolations : [];
@@ -315,6 +323,12 @@ function Editor({ saved, official }: { saved: CardDef | null; official?: Officia
     }
     setNavigationGuard(null);
     actions.saveCard(out);
+    for (const g of getState().groups) {
+      const want = liveGroupIds.includes(g.id);
+      const has = g.cardIds.includes(out.id);
+      if (want && !has) actions.addToGroup(g.id, [out.id]);
+      else if (!want && has) actions.removeFromGroup(g.id, [out.id]);
+    }
     cardDrafts.clear(draftKey);
     toast({ text: `「${name}」を保存しました`, kind: 'ok' });
     navigate('/cards');
@@ -518,6 +532,7 @@ function Editor({ saved, official }: { saved: CardDef | null; official?: Officia
           contextLabel="作っているカードの情報を添える"
         />
       )}
+      {groupDialog && <GroupDialog onClose={() => setGroupDialog(false)} onDone={(g) => setGroupIds((ids) => [...ids, g.id])} />}
       {draftNotice && (
         <div className="notice">
           保存していない編集内容（下書き）を復元しました。
@@ -587,6 +602,18 @@ function Editor({ saved, official }: { saved: CardDef | null; official?: Officia
               {descOver && <span className="field__error">説明は{CARD_DESCRIPTION_MAX}文字までです。{descLength - CARD_DESCRIPTION_MAX}文字減らしてください</span>}
               <small className="field__help">カードの下に小さく表示されます。ポイントやルールには影響しません</small>
             </label>
+            {!official && (
+              <div className="field ed-groups">
+                <span>グループ（任意）</span>
+                <GroupToggles
+                  groups={groups}
+                  isOn={(g) => liveGroupIds.includes(g.id)}
+                  onToggle={(g, on) => setGroupIds(on ? liveGroupIds.filter((id) => id !== g.id) : [...liveGroupIds, g.id])}
+                  onNewGroup={() => setGroupDialog(true)}
+                />
+                <small className="field__help">保存すると、カード置き場のグループに入ります。ポイントやルールには影響しません</small>
+              </div>
+            )}
             <div className="field" id={fieldId('rarity')}>
               <span>レアリティ（基本の予算が決まります）</span>
               <div className="seg ed-rar" role="radiogroup" aria-label="レアリティ">

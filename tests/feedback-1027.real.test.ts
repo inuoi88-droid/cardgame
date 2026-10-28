@@ -20,8 +20,9 @@ describe('報告 #11：鍛錬で攻撃力比例のキーワードの値段を逃
   it('条件付きの鍛錬や、ほかのモンスターだけに効く鍛錬は数えない', () => {
     const cond = { ...draculaLike, effects: [{ ...draculaLike.effects[0]!, condition: 'lowHp' }] } as CardDef;
     const others = { ...draculaLike, effects: [{ ...draculaLike.effects[0]!, target: 'otherAllies' }] } as CardDef;
-    expect(keywordStats(cond).attack).toBe(0);
-    expect(keywordStats(others).attack).toBe(0);
+    // 鍛錬の40は足さない（攻撃力0は、キーワードの値段で数える最低の攻撃力になる：報告 #19・決定事項 #144）
+    expect(keywordStats(cond).attack).toBe(BALANCE.stats.keywordMinAttack);
+    expect(keywordStats(others).attack).toBe(BALANCE.stats.keywordMinAttack);
   });
 });
 

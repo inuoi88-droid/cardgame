@@ -114,17 +114,17 @@ describe('効果のポイント', () => {
     expect(monster([{ id: 'haste' }, { id: 'doubleAttack' }]).formula).toBe('4 × 2.0×2+1.0（攻撃するたび・二回攻撃・速攻）');
   });
 
-  it('条件は条件ごとの倍率（場にモンスター 0.9 … 毒とやけど 0.35。#84 で相手が毒状態 0.45）', () => {
+  it('条件は条件ごとの倍率（場にモンスター 0.9 … 毒とやけど 0.45。#84 で相手が毒状態 0.45、#144 で 0.6・毒とやけど 0.45）', () => {
     const v = (condition: EffectInstance['condition']) => effectValue(fx({ id: 'damage', value: 5, condition }));
     expect(v('hasMonster')).toBe(14); // 13.5 → 14
     expect(v('smallHand')).toBe(12);
-    expect(v('enemyPoisoned')).toBe(7); // 6.75 → 7
+    expect(v('enemyPoisoned')).toBe(9);
     expect(v('nthCard')).toBe(11); // 10.5 → 11
     expect(v('manyMonsters')).toBe(9);
     expect(v('enemyHpHigher')).toBe(9);
     expect(v('lowHp')).toBe(8); // 7.5 → 8
-    expect(v('enemyPoisonBurn')).toBe(6); // 5.25 → 6
-    expect(Object.values(BALANCE.condition).slice(0, 8)).toEqual([0.9, 0.8, 0.45, 0.7, 0.6, 0.6, 0.5, 0.35]);
+    expect(v('enemyPoisonBurn')).toBe(7); // 6.75 → 7
+    expect(Object.values(BALANCE.condition).slice(0, 8)).toEqual([0.9, 0.8, 0.6, 0.7, 0.6, 0.6, 0.5, 0.45]);
   });
 
   it('条件「手札が3枚以下」はパワーのターン開始時・終了時では選べない（モンスターや使用時では選べる）', () => {

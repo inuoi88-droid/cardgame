@@ -7,7 +7,7 @@ export default defineKeyword({
   id: 'haste',
   name: '速攻',
   order: 1,
-  summary: '召喚したターンから攻撃できる',
+  summary: `召喚したターンから攻撃できる（ポイントは攻撃力に比例。攻撃力は最低${BALANCE.stats.keywordMinAttack}として数える）`,
   points: (_k, s) => B.perAttack * s.attack,
   formula: (_k, s) => `攻撃力${s.attack}×${B.perAttack}`,
   displayName: () => '速攻',

@@ -664,7 +664,8 @@ export function RulesPage() {
       <Section {...sec('limits')}>
         <ul>
           <li>1ターンに引けるのは合計{B.maxDrawPerTurn}枚まで（ターン開始の{B.drawPerTurn}枚を含む）。</li>
-          <li>1ターンに増やせるエナジーは合計+{B.maxEnergyGainPerTurn}まで（エナジー効果と貯金）。</li>
+          <li>1ターンに増やせるエナジーは合計+{B.maxEnergyGainPerTurn}まで（エナジー効果・貯金・軽減）。</li>
+          <li>一時強化（このターンだけ攻撃力+N）は、1体につき合計+{B.tempAttackCap}まで。</li>
           <li>「カードを使うたび」の効果は、パワー1つにつき1ターン{B.maxCardPlayedTriggersPerTurn}回まで。</li>
           <li>{mechanicGlossary.repeatCap!.short}（相手のターンも1ターンとして数えます）。</li>
           <li>場に残せるパワーは1人{B.maxPowers}つまで。{B.maxPowers + 1}つ目を使うと、いちばん古いパワーが消えます（消えるときに効果は発動しません）。</li>

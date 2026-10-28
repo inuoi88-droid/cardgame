@@ -231,7 +231,9 @@ export function keywordStats(card: Pick<CardDef, 'stats' | 'effects'>): NonNulla
   for (const e of card.effects) {
     if ((e.id === 'train' || e.id === 'attackUp') && e.timing === 'summon' && e.condition === null && (e.target === 'thisMonster' || e.target === 'chosen')) extra += e.value ?? 0;
   }
-  return extra > 0 ? { ...s, attack: s.attack + extra } : s;
+  // 攻撃力は最低 keywordMinAttack として数える（ほかのカードの強化で上がるので、攻撃力0でもタダにしない：報告 #19）
+  const attack = Math.max(s.attack + extra, BALANCE.stats.keywordMinAttack);
+  return attack !== s.attack ? { ...s, attack } : s;
 }
 
 /** ステータスとキーワードのポイントの合計（MTG 要素 ○ バッチC1：捨て札から使う能力・魂力の二者択一） */

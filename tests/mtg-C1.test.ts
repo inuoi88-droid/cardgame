@@ -93,11 +93,11 @@ describe('カードの能力（○ バッチC1）：ポイントとテキスト'
       '親和',
       'このターン使ったカード1枚につきコスト−1（最大−3、コストは2まで）',
     ],
-    ['costCut（怒濤）', SPELL([DMG5], { abilities: [AB('costCut', 1, { condition: 'notFirstCard' })] }), 8, '条件付き軽減1', 'このターン2枚目以降なら、コスト−1'],
+    ['costCut（怒濤）', SPELL([DMG5], { abilities: [AB('costCut', 1, { condition: 'notFirstCard' })] }), 11, '条件付き軽減1', 'このターン2枚目以降なら、コスト−1'],
     [
       'costCut（罠）',
       SPELL([DMG5], { abilities: [AB('costCut', 2, { condition: 'enemyPlayedMany' })] }),
-      12,
+      16,
       '条件付き軽減2',
       '前の相手のターンに相手がカードを3枚以上使っていれば、コスト−2',
     ],
@@ -165,9 +165,9 @@ describe('価格の確かめ（仕様の例・倍率1）', () => {
     expect(analyzeCard(c).cardType).toBe('power');
     expect(analyzeCard(c).violations).toEqual([]);
   });
-  it('親和（場のモンスター）コスト4＝8（下限2：決定事項 #133）、怒濤 K1＝8、キッカー1 の「払っていれば5ダメージ」＝9', () => {
+  it('親和（場のモンスター）コスト4＝8（下限2：決定事項 #133）、怒濤 K1＝11（1段13×0.8：#144）、キッカー1 の「払っていれば5ダメージ」＝9', () => {
     expect(abilityPts(SPELL([DMG5], { cost: 4, abilities: [AB('affinity')] }))).toBe(8);
-    expect(abilityPts(SPELL([DMG5], { abilities: [AB('costCut', 1, { condition: 'notFirstCard' })] }))).toBe(8);
+    expect(abilityPts(SPELL([DMG5], { abilities: [AB('costCut', 1, { condition: 'notFirstCard' })] }))).toBe(11);
     expect(effectPts(SPELL([fx({ id: 'damage', value: 5, condition: 'kicked' })], { abilities: [AB('kicker', 1)] }))).toBe(9);
   });
 });
@@ -635,7 +635,7 @@ describe('CPU（○ バッチC1）', () => {
     s('aff', '親和の嵐', [fx({ id: 'damage', value: 6 })], { cost: 4, rarity: 'epic', abilities: [AB('affinity')] }),
     s('affc', '連鎖の魔弾', [fx({ id: 'damage', value: 4 })], { cost: 3, abilities: [AB('affinity', undefined, { option: 'cardsPlayed' })] }),
     s('surge', '怒濤の一撃', [fx({ id: 'damage', value: 3 })], { abilities: [AB('costCut', 1, { condition: 'notFirstCard' })] }),
-    s('trap', '罠の網', [fx({ id: 'freeze', target: 'chosen' })], { abilities: [AB('costCut', 2, { condition: 'enemyPlayedMany' })] }),
+    s('trap', '罠の網', [fx({ id: 'freeze', target: 'chosen' })], { rarity: 'rare', abilities: [AB('costCut', 2, { condition: 'enemyPlayedMany' })] }),
     s('kick', 'キッカーの槍', [fx({ id: 'damage', value: 3 }), fx({ id: 'damage', value: 3, condition: 'kicked' })], { abilities: [AB('kicker', 1)] }),
     m('kickm', '新生の獣', 2, 2, { rarity: 'rare', abilities: [AB('kicker', 2)], effects: [fx({ id: 'offspring', timing: 'summon', target: 'self', condition: 'kicked' })] }),
   ];

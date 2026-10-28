@@ -11,14 +11,14 @@ const unit = (attack: number, hp: number, extra: Partial<Parameters<typeof card>
   card({ id: `U${++n}`, name: `モンスター${n}`, rarity: 'legend', cost: 1, stats: { attack, hp, defense: 0 }, ...extra });
 
 describe('作成例のカードを対戦で使う', () => {
-  it('とどめの一撃：相手が毒状態のときだけ20ダメージ', () => {
+  it('とどめの一撃：相手が毒状態のときだけ15ダメージ（#144 で 20 から）', () => {
     let g = rich(startGame());
     g = play(g, giveCard(g, 0, EXAMPLES.todome), { enemy: P(1) });
     expect(g.players[1].hp).toBe(120);
     expect(g.log.some((e) => e.text.includes('満たさないため発動しない'))).toBe(true);
     g.players[1].status.poison = 1;
     g = play(g, giveCard(g, 0, EXAMPLES.todome), { enemy: P(1) });
-    expect(g.players[1].hp).toBe(100);
+    expect(g.players[1].hp).toBe(105);
   });
 
   it('毒牙ネズミ：攻撃するたび、攻撃した相手に毒1', () => {

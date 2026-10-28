@@ -381,9 +381,9 @@ describe('対象（バッチ1）', () => {
     expect(fitEffect(fx({ id: 'attackUp', value: 1, timing: 'destroyed', target: 'thisMonster' }), 'monster').target).toBe('random');
   });
 
-  it('倍率とテキスト：このモンスター ×1.0、自分のモンスター全体 ×2.0', () => {
+  it('倍率とテキスト：このモンスター ×1.0、自分のモンスター全体 ×3.0（#146 で 2.0 から）', () => {
     expect(value(fx({ id: 'attackUp', value: 2, timing: 'summon', target: 'thisMonster' }), STATS)).toBe(6);
-    expect(value(fx({ id: 'attackUp', value: 2, timing: 'summon', target: 'allyMonsters' }), STATS)).toBe(12);
+    expect(value(fx({ id: 'attackUp', value: 2, timing: 'summon', target: 'allyMonsters' }), STATS)).toBe(18);
     expect(describeEffect(fx({ id: 'attackUp', value: 2, timing: 'summon', target: 'thisMonster' }))).toBe('召喚時、このモンスターの攻撃力を+2する。');
     expect(describeEffect(fx({ id: 'repair', value: 2, target: 'allyMonsters' }))).toBe('自分のモンスター全体の体力を2回復する。');
   });

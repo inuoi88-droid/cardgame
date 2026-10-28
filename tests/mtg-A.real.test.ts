@@ -69,7 +69,7 @@ describe('○ バッチA（実際の倍率）', () => {
     expect(cards[4]!.drawbacks[0]).toMatchObject({ value: 40 });
     expect(cards[5]!.drawbacks[0]).toMatchObject({ value: 5, option: 'count' });
     expect(describeEffect(cards[2]!.effects[0]!)).toBe('次の自分のターン開始時に、相手1体に120ダメージを与える。');
-    expect(analyzeCard(cards[0]!).points.lines.find((l) => l.kind === 'effect')!.value).toBe(108); // 1.5×20 × 2.0 × 1.8
+    expect(analyzeCard(cards[0]!).points.lines.find((l) => l.kind === 'effect')!.value).toBe(162); // 1.5×20 × 2.0 × 2.7（#146）
   });
 
   it('対戦：予約したダメージが次の自分のターンに倍率込みで入る。激突の条件の量も倍率込み', () => {

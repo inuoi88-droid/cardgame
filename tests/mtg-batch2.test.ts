@@ -191,7 +191,7 @@ describe('効果（バッチ2）：テキストとポイント', () => {
     ['train thisMonster', fx({ id: 'train', value: 1, timing: 'attack', target: 'thisMonster' }), '攻撃するたび、このモンスターの攻撃力と体力を+1する。', 9, STATS],
     ['wither', fx({ id: 'wither', value: 1 }), '相手モンスター1体の攻撃力と体力を−1する（体力が0になると破壊）。', 5],
     ['grantKeyword', fx({ id: 'grantKeyword', option: 'taunt', target: 'chosen' }), '自分のモンスター1体に挑発を与える。', 7],
-    ['grantKeyword deathtouch', fx({ id: 'grantKeyword', option: 'deathtouch', target: 'allyMonsters' }), '自分のモンスター全体に接死を与える。', 12],
+    ['grantKeyword deathtouch', fx({ id: 'grantKeyword', option: 'deathtouch', target: 'allyMonsters' }), '自分のモンスター全体に接死を与える。', 18],
     ['fight', fx({ id: 'fight' }), '自分のモンスター1体と相手モンスター1体を戦わせる（互いに攻撃力ぶんのダメージを与える）。', 9],
     ['fight random', fx({ id: 'fight', target: 'random' }), 'ランダムな自分のモンスター1体とランダムな相手モンスター1体を戦わせる（互いに攻撃力ぶんのダメージを与える）。', 6],
     ['ready', fx({ id: 'ready', target: 'chosen' }), '自分のモンスター1体をもう一度攻撃できるようにする（1体につき1ターン1回）。', 10],

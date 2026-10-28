@@ -151,7 +151,7 @@ describe('報告 #19：攻撃力0の疾走・二回攻撃と全体の一時強�
   it('キーワードの値段は攻撃力を最低 keywordMinAttack として数える。報告のコスト0の群れは作れない', () => {
     const kw = (id: string) => analyzeCard(pack).points.lines.find((l) => l.kind === 'keyword' && l.label === id)!.value;
     expect(BALANCE.stats.keywordMinAttack).toBe(20);
-    expect(kw('疾走')).toBe(BALANCE.keywords.haste.perAttack * 20);
+    expect(kw('疾走')).toBe(BALANCE.keywords.haste.flat + BALANCE.keywords.haste.perAttack * 20);
     expect(kw('二回攻撃')).toBe(BALANCE.keywords.doubleAttack.perAttack * 20);
     expect(analyzeCard(pack).violations.map((v) => v.code)).toContain('POINTS_OVER_CAP');
     // コスト1なら作れる（疾走・二回攻撃の群れそのものは残る）

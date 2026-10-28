@@ -203,10 +203,10 @@ const B = (...a: Parameters<typeof entry> extends [unknown, ...infer R] ? R : ne
 
 const BEAST: OfficialEntry[] = [
   // ---- コモン
-  B('noinu', '野犬の斥候', 'gi:hound', 'common', 1, '疾走と潜伏の斥候。仲間の獣がいれば、相手に通すたびにドロー', {
-    stats: [1, 2],
-    kw: [kw('haste'), kw('skulk')],
-    fx: [me('draw', { value: 1, timing: 'hitEnemyPlayer', condition: 'tribeAlly' })],
+  B('noinu', '野犬の斥候', 'gi:hound', 'common', 1, '疾走の斥候。相手に通すたびにドロー', {
+    stats: [1, 1],
+    kw: [kw('haste')],
+    fx: [me('draw', { value: 1, timing: 'hitEnemyPlayer' })],
     tribe: 'beast',
     desc: '群れの先を走り、獲物の匂いを仲間に知らせる',
   }),
@@ -231,8 +231,8 @@ const BEAST: OfficialEntry[] = [
     fx: [fx('damage', { value: 4 }), fx('attackUp', { value: 1 })],
     desc: '爪の一閃は、獣の誇りそのもの',
   }),
-  B('tooboe', '遠吠え', 'gi:wolf-howl', 'common', 1, 'このターン自分のモンスター全体の攻撃力を上げる一斉攻撃の決め手。傷も少し癒す', {
-    fx: [fx('pump', { value: 3, target: 'allyMonsters' }), fx('repair', { value: 1, target: 'allyMonsters' }), me('draw', { value: 1 })],
+  B('tooboe', '遠吠え', 'gi:wolf-howl', 'common', 1, 'このターン自分のモンスター全体の攻撃力を上げる一斉攻撃の決め手', {
+    fx: [fx('pump', { value: 3, target: 'allyMonsters' })],
     desc: '一匹が吠えれば、群れのすべてが応える',
   }),
   B('oozuno', '大角の雄鹿', 'gi:deer', 'common', 2, '貫通の雄鹿。仲間の獣がいれば攻撃で大きく一時強化', {
@@ -242,9 +242,9 @@ const BEAST: OfficialEntry[] = [
     tribe: 'beast',
     desc: '大きな角で、盾の列ごと押し倒す',
   }),
-  B('mureookami', '群れ狼', 'gi:direwolf', 'common', 2, '疾走と、仲間の小鬼を連れてくる序盤の数', {
-    stats: [3, 4],
-    kw: [kw('haste')],
+  B('mureookami', '群れ狼', 'gi:direwolf', 'common', 2, '突進と、仲間の小鬼を連れてくる序盤の数', {
+    stats: [3, 5],
+    kw: [kw('rush')],
     fx: [me('token', { value: 1, hits: 1, timing: 'summon' })],
     tribe: 'beast',
     desc: '群れで駆ければ、どんな獲物も逃げきれない',
@@ -282,7 +282,7 @@ const BEAST: OfficialEntry[] = [
     desc: '長の遠吠えが響く夜、群れは一匹残らず牙をむく',
   }),
   B('shippuu-hyou', '疾風の豹', 'gi:saber-toothed-cat-head', 'rare', 2, '疾走と先制攻撃。仲間の獣がいれば攻撃で一時強化', {
-    stats: [3, 5],
+    stats: [3, 4],
     kw: [kw('haste'), kw('firstStrike')],
     fx: [fx('pump', { value: 1, timing: 'attack', target: 'thisMonster', condition: 'tribeAlly' })],
     tribe: 'beast',
@@ -504,9 +504,9 @@ const GUARD: OfficialEntry[] = [
     desc: '門の前に立つことが、彼の誇りだ',
   }),
   G('iyashite', '村の癒し手', 'gi:healing', 'common', 2, '絆魂の癒し手。出たときに回復し、ターン終了時に仲間を修理', {
-    stats: [2, 3],
+    stats: [2, 2],
     kw: [kw('lifelink')],
-    fx: [me('heal', { value: 2, timing: 'summon' }), fx('repair', { value: 1, timing: 'turnEnd', target: 'allyMonsters' })],
+    fx: [me('heal', { value: 2, timing: 'summon' }), fx('repair', { value: 1, timing: 'turnEnd', target: 'otherAllies' })],
     tribe: 'human',
     desc: '村にひとりはいる、頼りになる薬師',
   }),
@@ -557,7 +557,7 @@ const GUARD: OfficialEntry[] = [
     desc: '女神の祝福を受けた盾は、最初の一撃を必ず防ぐ',
   }),
   G('iyashi-seidou', '癒しの聖堂', 'gi:church', 'rare', 2, '毎ターン味方のモンスター全体の傷を癒すパワー。置いたときに HP も回復', {
-    fx: [fx('repair', { value: 2, timing: 'turnStart', target: 'allyMonsters' }), me('heal', { value: 1 })],
+    fx: [fx('repair', { value: 1, timing: 'turnStart', target: 'allyMonsters' }), me('heal', { value: 2 })],
     desc: '鐘が鳴るたび、人々は少しだけ元気になる',
   }),
   G('shinpan-tettsui', '審判の鉄槌', 'gi:thor-hammer', 'rare', 3, '大きめのモンスターまで処刑し、シールド', {
@@ -582,7 +582,7 @@ const GUARD: OfficialEntry[] = [
     desc: '夜明けとともに現れ、闇が退くまで剣を振るう',
   }),
   G('megami-kago', '女神の加護', 'gi:angel-wings', 'epic', 2, '味方のモンスター全体に聖盾を与え、シールドと回復', {
-    fx: [fx('grantKeyword', { option: 'divineShield', target: 'allyMonsters' }), me('shield', { value: 4 }), me('heal', { value: 2 })],
+    fx: [fx('grantKeyword', { option: 'divineShield', target: 'allyMonsters' }), me('shield', { value: 4 }), me('heal', { value: 1 })],
     desc: '女神の翼が広がると、どんな刃も届かない',
   }),
   G('sabaki-seikou', '裁きの聖光', 'gi:sun', 'epic', 3, '毎ターン相手のだれか1体にダメージのパワー。置いたときも1体にダメージ', {
@@ -593,7 +593,7 @@ const GUARD: OfficialEntry[] = [
   G('hakugin-seijo', '白銀の聖女', 'gi:angel-outfit', 'legend', 4, '挑発の聖女。出たときに仲間全体へ聖盾、毎ターン仲間を修理', {
     stats: [4, 12, 1],
     kw: [kw('taunt')],
-    fx: [fx('grantKeyword', { timing: 'summon', target: 'allyMonsters', option: 'divineShield' }), fx('repair', { value: 2, timing: 'turnEnd', target: 'allyMonsters' })],
+    fx: [fx('grantKeyword', { timing: 'summon', target: 'allyMonsters', option: 'divineShield' }), fx('repair', { value: 1, timing: 'turnEnd', target: 'allyMonsters' })],
     tribe: 'human',
     desc: '彼女が祈れば、砦の兵はひとたびだけ死をはね返す',
   }),
@@ -794,7 +794,7 @@ const NEUTRAL: OfficialEntry[] = [
     desc: '北の果てから吹く風は、戦場の時間を止める',
   }),
   N('reijuu', '森の大精霊', 'gi:unicorn', 'common', 3, '飛行の精霊。ターン終了時に仲間を修理', {
-    stats: [4, 8],
+    stats: [2, 8],
     kw: [kw('flying')],
     fx: [fx('repair', { value: 2, timing: 'turnEnd', target: 'allyMonsters' })],
     tribe: 'spirit',

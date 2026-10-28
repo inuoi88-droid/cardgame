@@ -443,7 +443,7 @@ describe('タイミング（○ バッチA）', () => {
 describe('対象（○ バッチA）', () => {
   it.each([
     // [効果, ポイント, テキスト]
-    [fx({ id: 'pump', value: 1, timing: 'attack', target: 'otherAllies' }), 6, '攻撃するたび、自分の他のモンスター全体の攻撃力をこのターンだけ+1する。'],
+    [fx({ id: 'pump', value: 1, timing: 'attack', target: 'otherAllies' }), 9, '攻撃するたび、自分の他のモンスター全体の攻撃力をこのターンだけ+1する。'], // 1.5×2.0×2.7（#146）
     [fx({ id: 'train', value: 2, timing: 'summon', target: 'weakestAlly' }), 9, '召喚時、いちばん体力の低い自分のモンスターの攻撃力と体力を+2する。'],
     [fx({ id: 'draw', value: 2, target: 'bothPlayers' }), 4, 'お互い、カードを2枚引く。'],
     [fx({ id: 'cleanse', target: 'bothPlayers' }), 4, 'お互い、状態異常をすべて解除する。'],
@@ -708,7 +708,7 @@ describe('価格の確かめ（仕様の例・倍率1）', () => {
     // 喊声1：攻撃力2・体力3のコスト2コモン
     const warcry = card({ name: '喊声', cost: 2, stats: { attack: 2, hp: 3, defense: 0 }, effects: [fx({ id: 'pump', value: 1, timing: 'attack', target: 'otherAllies' })] });
     ok(warcry);
-    expect(pointsOf(warcry)).toBe(6);
+    expect(pointsOf(warcry)).toBe(9); // 1.5×2.0×2.7＝8.1→9（#146 で他の全体 1.8→2.7）
     // 鼓舞2
     expect(pointsOf(card({ rarity: 'legend', cost: 5, stats: { attack: 1, hp: 1, defense: 0 }, effects: [fx({ id: 'train', value: 2, timing: 'summon', target: 'weakestAlly' })] }))).toBe(9);
     // お互い、カードを2枚引く＝4：コスト0のコモン（上限3）では作れないので、レア（上限6）で確かめる

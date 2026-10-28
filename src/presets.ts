@@ -120,13 +120,13 @@ const beasts = preset('beasts', '獣の群れ', '速いモンスターと牙の�
   ],
   [
     c('kishuu', '狼の奇襲', 'gi:wolf-head', 'rare', 1, {
-      stats: stats(2, 3),
+      stats: stats(2, 2),
       keywords: [{ id: 'haste' }],
       effects: [fx({ id: 'damage', value: 1, timing: 'summon' })],
     }),
     3,
   ],
-  [c('hyou', '黒豹', 'gi:saber-toothed-cat-head', 'epic', 1, { stats: stats(3, 4), keywords: [{ id: 'haste' }] }), 1],
+  [c('hyou', '黒豹', 'gi:saber-toothed-cat-head', 'epic', 1, { stats: stats(3, 3), keywords: [{ id: 'haste' }] }), 1],
   [
     c('osa', '群れの長', 'gi:direwolf', 'epic', 2, {
       stats: stats(3, 8),
@@ -134,7 +134,7 @@ const beasts = preset('beasts', '獣の群れ', '速いモンスターと牙の�
     }),
     1,
   ],
-  [c('shishi', '獅子王', 'gi:lion', 'legend', 2, { stats: stats(5, 8), keywords: [{ id: 'haste' }] }), 1],
+  [c('shishi', '獅子王', 'gi:lion', 'legend', 2, { stats: stats(5, 7), keywords: [{ id: 'haste' }] }), 1],
   [
     c('ryu', '竜', 'gi:dragon-head', 'legend', 4, {
       stats: stats(9, 13, 1),

@@ -146,12 +146,12 @@ describe('効果のポイント', () => {
 });
 
 describe('キーワード・ステータス・デメリット', () => {
-  it('疾走は攻撃力×2、二回攻撃は攻撃力×4', () => {
+  it('疾走は2＋攻撃力×2（#146 で基本の2を足した）、二回攻撃は攻撃力×4', () => {
     const a = analyzeCard(
       card({ rarity: 'legend', cost: 3, stats: { attack: 3, hp: 1, defense: 1 }, keywords: [{ id: 'haste' }, { id: 'doubleAttack' }] }),
     );
     const v = Object.fromEntries(a.points.lines.map((l) => [l.label, l.value]));
-    expect(v).toMatchObject({ 攻撃力3: 9, 体力1: 1.5, 守備力1: 4, 疾走: 6, 二回攻撃: 12, コスト3: -32 });
+    expect(v).toMatchObject({ 攻撃力3: 9, 体力1: 1.5, 守備力1: 4, 疾走: 8, 二回攻撃: 12, コスト3: -32 });
   });
 
   it('貫通は max(2, 攻撃力×0.5)、隠密は 2+攻撃力、不屈は 3+攻撃力、挑発8（#84）、飛行3', () => {

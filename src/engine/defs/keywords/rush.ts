@@ -8,7 +8,7 @@ export default defineKeyword({
   id: 'rush',
   name: '突進',
   order: 1.5,
-  summary: `召喚したターンから、相手のモンスター（トークンを含む）だけを攻撃できる（そのターンは相手プレイヤーを攻撃できない。ポイントは攻撃力に比例。攻撃力は最低${BALANCE.stats.keywordMinAttack}として数える）`,
+  summary: `召喚したターンから、相手のモンスター（トークンを含む）だけを攻撃できる（そのターンは相手プレイヤーを攻撃できず、二回攻撃でも1回だけ。ポイントは攻撃力に比例。攻撃力は最低${BALANCE.stats.keywordMinAttack}として数える）`,
   points: (_k, s) => B.perAttack * s.attack,
   formula: (_k, s) => `攻撃力${s.attack}×${B.perAttack}`,
   displayName: () => '突進',

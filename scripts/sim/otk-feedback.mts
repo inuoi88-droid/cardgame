@@ -107,6 +107,17 @@ const werewolf2 = def({ id: 'werewolf2', name: '狼男・改', rarity: 'rare', c
   effects: [{ id: 'vulnerable', value: 1, target: 'chosen', timing: 'summon', condition: 'manyMonsters' }],
   keywords: [{ id: 'haste' }, { id: 'doubleAttack' }, { id: 'onslaught', value: 80 }] });
 
+// 決定事項 #146（量の最低値20・条件でトークンを数えない・分身と疾走の値上げ・自分全体 ×3.0）のあとに作れる形で組み直したもの
+const tok20 = (hits: number, condition: string | null) => ({ id: 'token', hits, value: 20, option: 'mobilize', target: 'self', timing: 'summon', condition });
+const wolfPack3 = def({ id: 'wolfPack3', name: '狼の群れ・新', rarity: 'common', cost: 1, tribe: 'beast', stats: { hp: 20, attack: 20, defense: 0 }, effects: [],
+  keywords: [{ id: 'doubleTeam' }, { id: 'haste' }, { id: 'doubleAttack' }] });
+const wolfRush3 = def({ id: 'wolfRush3', name: '狼の猛襲・新', rarity: 'common', cost: 1, tribe: 'beast', stats: { hp: 20, attack: 0, defense: 0 },
+  effects: [tok20(2, 'hasMonster')], keywords: [{ id: 'haste' }] });
+const howl3 = def({ id: 'howl3', name: '雄たけび・新', rarity: 'common', cost: 1, tribe: 'beast', stats: null,
+  effects: [{ id: 'pump', value: 100, target: 'allyMonsters', timing: 'play', condition: 'manyMonsters' }], keywords: [] });
+const whiteWolf3 = def({ id: 'whiteWolf3', name: '白狼・新', rarity: 'epic', cost: 1, tribe: 'beast', stats: { hp: 20, attack: 0, defense: 0 },
+  effects: [tok20(3, 'manyMonsters'), { id: 'pump', value: 40, target: 'allyMonsters', timing: 'summon', condition: 'manyMonsters' }], keywords: [{ id: 'haste' }, { id: 'doubleAttack' }] });
+
 const b0 = B0();
 const withB0 = (name: string, extra: [CardDef, number][]): DeckSpec => {
   const n = extra.reduce((s, [, c]) => s + c, 0);
@@ -126,6 +137,7 @@ const DECKS: Record<string, () => DeckSpec> = {
   loop1: () => withB0('1枚のループ', [[loopCard, 2]]),
   benkei: () => buildDeck('報告#17 弁慶', [[scout, 29], [benkei, 1]]),
   wolves: () => buildDeck('報告#19 狼', [[wolfPack, 9], [wolfRush, 7], [howl, 7], [whiteWolf, 2], [werewolf, 3], [sealAll, 2]]),
+  wolves3: () => buildDeck('報告#19 狼（#146 のあと）', [[wolfPack3, 13], [wolfRush3, 6], [howl3, 7], [whiteWolf3, 2], [sealAll, 2]]),
   wolves2: () => buildDeck('報告#19 狼（組み直し）', [[wolfPackC1, 6], [wolfPackC0, 4], [wolfRush2, 6], [howl2, 7], [whiteWolf2, 2], [werewolf2, 3], [sealAll, 2]]),
 };
 

@@ -126,3 +126,28 @@ describe('疾走（旧・速攻）と突進', () => {
     expect(battle.attackTargets(g, g.players[0].board.at(-1)!).some((t) => t.kind === 'player')).toBe(true);
   });
 });
+
+describe('疾走の基本の値段・疾走と二回攻撃・自分全体（ユーザー指示の続き）', () => {
+  it('疾走は 40＋攻撃力×2。自分のモンスター全体 ×3.0・他の全体 ×2.7', () => {
+    expect(BALANCE.keywords.haste).toEqual({ flat: 40, perAttack: 2 });
+    expect(getKeyword('haste')!.points({ id: 'haste' }, { attack: 60, hp: 20, defense: 0 })).toBe(160);
+    expect(BALANCE.target.allyMonsters).toBe(3.0);
+    expect(BALANCE.target.otherAllies).toBe(2.7);
+  });
+  it('疾走と二回攻撃：出たターンは1回だけ、次の自分のターンから2回', () => {
+    let g = startGame();
+    rich(g, 0);
+    const twin = def({ id: 'twin', name: 'ふたつ', rarity: 'legend', cost: 1, stats: { attack: 20, hp: 40, defense: 0 }, effects: [], keywords: [{ id: 'haste' }, { id: 'doubleAttack' }] });
+    g = act(g, { type: 'playCard', player: 0, cardUid: giveCard(g, 0, twin), chosen: {} });
+    const uid = g.players[0].board.at(-1)!.uid;
+    expect(battle.attacksPerTurn(g, g.players[0].board.at(-1)!)).toBe(1);
+    g = act(g, { type: 'attack', player: 0, attackerUid: uid, target: P(1) });
+    expect(battle.applyAction(g, { type: 'attack', player: 0, attackerUid: uid, target: P(1) }).ok).toBe(false);
+    g = act(g, { type: 'endTurn', player: 0 });
+    g = act(g, { type: 'endTurn', player: 1 });
+    expect(battle.attacksPerTurn(g, g.players[0].board.find((m) => m.uid === uid)!)).toBe(2);
+    g = act(g, { type: 'attack', player: 0, attackerUid: uid, target: P(1) });
+    g = act(g, { type: 'attack', player: 0, attackerUid: uid, target: P(1) });
+    expect(g.players[0].board.find((m) => m.uid === uid)!.attacksUsed).toBe(2);
+  });
+});

@@ -173,9 +173,9 @@ export const BALANCE = {
     /** このモンスター（効果を持つモンスター自身。MTG 要素バッチ1） */
     thisMonster: 1.0,
     /** 自分のモンスター全体（MTG 要素バッチ1） */
-    allyMonsters: 2.0,
+    allyMonsters: 3.0,
     /** MTG 要素 ○ バッチA：自分の他のモンスター全体（喊声）・いちばん体力の低い自分のモンスター（鼓舞）・お互い（対称効果。相手も得するぶん安い） */
-    otherAllies: 1.8,
+    otherAllies: 2.7,
     weakestAlly: 0.9,
     bothPlayers: 0.4,
     /** MTG 要素 ○ バッチC2：同じ種族の自分のモンスター全体（ロード）。#95 で 1.6→2.0（同じ種族だけのデッキでは自分のモンスター全体と同じになるため） */
@@ -528,7 +528,8 @@ export const BALANCE = {
 
   /** モンスター専用キーワードのポイント（A は攻撃力）。挑発は #83（カードの効果の対象も挑発に限る）のあと #84 で 6→8 */
   keywords: {
-    haste: { perAttack: 2 },
+    /** 疾走（旧・速攻）：flat＋攻撃力×perAttack（flat は決定事項 #146 で足した基本の値段） */
+    haste: { flat: x(2), perAttack: 2 },
     /** 突進（決定事項 #146。出たターンは相手のモンスターだけを攻撃できる）：攻撃力×perAttack（疾走の半分） */
     rush: { perAttack: 1 },
     taunt: { flat: x(8) },

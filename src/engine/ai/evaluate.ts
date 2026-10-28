@@ -11,7 +11,7 @@
  *   使える回数、反撃（状態）は相手の攻撃回数、毒・やけどは残り HP までしか効かない。
  */
 import { BALANCE } from '../balance.ts';
-import { attackBlockReason, attacksPerTurn, cannotAttack } from '../battle/combat.ts';
+import { attackBlockReason, attacksPerTurn, baseAttacksPerTurn, cannotAttack } from '../battle/combat.ts';
 import { auraAttack, effectiveAttack, effectiveDefense, other, tribeSetActive, tribeSetAttack } from '../battle/core.ts';
 import { combatBonus, keywordFlags, playerBonus, wardTax } from '../battle/damage.ts';
 import { effectiveCost, lifespanOf, waitingRule } from '../battle/play.ts';
@@ -270,7 +270,7 @@ export function nextTurnThreat(g: GameState, p: PlayerId): Threat {
     // 卵・次のターンに休眠するモンスターは攻撃しない（MTG 要素 △ バッチA）
     if (m.card.token?.egg && ps.turnsTaken + 1 < m.card.token.egg.hatchAt) continue;
     if (m.counters.dormantFrom !== undefined && (ps.turnsTaken + 1 - m.counters.dormantFrom) % 2 === 1) continue;
-    const n = attacksPerTurn(g, m);
+    const n = baseAttacksPerTurn(g, m);
     // 激励・猛襲（相手プレイヤーへの攻撃）も見込む
     // フィールド「火山」・「霧」（MTG 要素 △ バッチD）も見込む
     let atk = m.attack + auraAttack(g, m) + playerBonus(g, m) + fieldAttackBonus(g) + tribeSetAttack(g, m);
@@ -370,7 +370,7 @@ function monsterValue(g: GameState, m: Monster, ctx: RaceContext): number {
   // 腐乱：攻撃したターンの終わりに破壊される
   if (m.counters.attackedTurn === g.turnIndex && def?.drawbacks.some((d) => d.id === 'decay')) return 0;
   const k = keywordFlags(g, m);
-  const n = attacksPerTurn(g, m);
+  const n = baseAttacksPerTurn(g, m);
   const T = ctx.turnsLeft;
   // 卵（MTG 要素 △ バッチA）：体力と、孵化したときの攻撃力の半分
   if (m.card.token?.egg) return m.hp * W.monsterHp + m.card.token.egg.attack * W.monsterAttack * ctx.turnsLeft * W.eggFactor;

@@ -26,6 +26,13 @@ import { fogDamage, ruleHooks } from './rules.ts';
 import type { GameState, Monster, PlayerId, TargetRef } from './types.ts';
 
 export function attacksPerTurn(g: GameState, m: Monster): number {
+  // 疾走（突進・一時蘇生など）で出たターンに攻撃するときは1回だけ。二回攻撃は次のターンから（ユーザー指示。決定事項 #146）
+  if (m.enteredTurn === g.turnIndex && !ruleHooks(g, m.controller).noSummoningSickness) return 1;
+  return baseAttacksPerTurn(g, m);
+}
+
+/** キーワードで決まる1ターンの攻撃回数（出たターンの制限を見ない。CPU が次のターンを見込むとき） */
+export function baseAttacksPerTurn(g: GameState, m: Monster): number {
   return keywordFlags(g, m).attacksPerTurn ?? 1;
 }
 

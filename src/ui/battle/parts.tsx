@@ -1,6 +1,6 @@
 /** 対戦画面の部品：プレイヤー情報、モンスター、手札、ログ、状態異常の札（説明はポップオーバー） */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { BALANCE, battle, CARD_TYPE_LABEL, CONDITIONS, analyzeCard, describeEffect, getEffect, LEADERS, TIMINGS, toLeaderId, TRIBE_LABEL, TRIBE_SETS, type CardDef, type TribeId } from '../../engine/index.ts';
+import { BALANCE, battle, CARD_TYPE_LABEL, CONDITIONS, analyzeCard, describeEffect, getEffect, LEADERS, TIMINGS, toLeaderId, TRIBE_LABEL, TRIBE_SETS, TRIBE_TRAITS, type CardDef, type TribeId } from '../../engine/index.ts';
 import { CardArt, NOISE_ART } from '../components/CardArt.tsx';
 import { sceneStyle } from '../components/cardScene.ts';
 import { CostGem, Emblem, frameClasses, nameFit } from '../components/cardParts.tsx';
@@ -185,8 +185,25 @@ interface PlayerPanelProps {
   onPowers?: () => void;
   /** PC の銘板の肖像（game-icons の名前。CPU は強さで形が変わる。リーダーがいればリーダーの絵。UI2） */
   portrait?: string;
-  /** 揃えたときのボーナスが働いている種族（決定事項 #143。battle.tribeSetActive） */
-  tribeSets?: readonly TribeId[];
+  /** 自分の場の種族の数と揃いの進み具合（決定事項 #143。battle.tribeCount・tribeSetActive。働いているものが先） */
+  tribes?: readonly TribeProgress[];
+}
+
+/** 場の種族の数（特性の働いているモンスターだけ）と、揃いのボーナスが働いているか */
+export interface TribeProgress {
+  tribe: TribeId;
+  count: number;
+  active: boolean;
+}
+
+/** 種族の進み具合の札の文と説明：働いていれば「群れ（獣×3）」、まだなら「獣 2/3」 */
+export function tribeProgressText(t: TribeProgress): { text: string; title: string; description: string } {
+  const need = BALANCE.tribes.setSize;
+  const set = TRIBE_SETS[t.tribe];
+  const label = TRIBE_LABEL[t.tribe];
+  return t.active
+    ? { text: `${set.name}（${label}×${t.count}）`, title: `揃い「${set.name}」`, description: `${label}が場に${need}体以上いる間：${set.text}` }
+    : { text: `${label} ${t.count}/${need}`, title: `${label} ${t.count}/${need}：あと${need - t.count}体で揃い「${set.name}」`, description: `${label}が場に${need}体以上いる間：${set.text}（封印・休眠中のモンスターは数えない）` };
 }
 
 /** 起動の ⚡ ボタン（モンスター・パワー）。使えないときは灰色で、押すと理由を出す */
@@ -299,7 +316,7 @@ export function PlayerPanel({
   onOpen,
   onPowers,
   portrait,
-  tribeSets = [],
+  tribes = [],
 }: PlayerPanelProps) {
   const waiting = ps.waiting ?? [];
   // 手札から捨てられたカード（MTG 要素 △ バッチA：捨てられたとき。B：大混乱）が捨て札に入ったら、捨て札の山を少しの間光らせる
@@ -324,8 +341,12 @@ export function PlayerPanel({
       badges.push({ id: c.id, label: c.gi ? f.text : briefLabel(c.label), gi: f.gi, tone: c.tone, title: typeof c.card.title === 'string' ? c.card.title : c.label });
     }
     if ((ps.ice ?? 0) > 0) badges.push({ id: 'ice', label: `${M.ice!.icon}${ps.ice}`, tone: 'bad', title: `氷結${ps.ice}` });
-    // 種族の揃い（決定事項 #143）
-    for (const t of tribeSets) badges.push({ id: `tribe-${t}`, label: '', gi: TRIBE_FX[t].gi, tone: 'good', title: `揃い「${TRIBE_SETS[t].name}」：${TRIBE_SETS[t].text}` });
+    // 種族の揃い（決定事項 #143）：働いている揃いは形だけ、あと1体のものは「2/3」（それより遠いものは詳細だけ）
+    for (const t of tribes) {
+      if (!t.active && t.count < BALANCE.tribes.setSize - 1) continue;
+      const tx = tribeProgressText(t);
+      badges.push({ id: `tribe-${t.tribe}`, label: t.active ? '' : `${t.count}/${BALANCE.tribes.setSize}`, gi: TRIBE_FX[t.tribe].gi, tone: t.active ? 'good' : 'info', title: `${tx.title}：${tx.description}` });
+    }
     // リーダーはいちばん後ろ（空きがあれば出る）
     const leaderId = toLeaderId(ps.leader);
     if (leaderId !== 'none') badges.push({ id: 'leader', label: '', gi: LEADERS[leaderId].art.replace(/^gi:/, ''), tone: 'info', title: `リーダー：${LEADERS[leaderId].name}` });
@@ -536,15 +557,18 @@ export function PlayerPanel({
             {waitingUsable > 0 && <span className="pile__usable">使える{waitingUsable}</span>}
           </button>
         )}
-        {/* 種族の揃い（決定事項 #143）：働いている間だけ */}
-        {tribeSets.map((t) => (
-          <Popover key={t} content={{ title: `揃い「${TRIBE_SETS[t].name}」`, description: `${TRIBE_LABEL[t]}が場に${BALANCE.tribes.setSize}体以上いる間：${TRIBE_SETS[t].text}` }} placement="top">
-            <span className="pp__next pp__tribe" data-fx-zone={`tribe:${t}`}>
-              <UiIcon name={`gi:${TRIBE_FX[t].gi}`} />
-              {TRIBE_SETS[t].name}
-            </span>
-          </Popover>
-        ))}
+        {/* 種族の揃い（決定事項 #143）：場にいる種族の数（「獣 2/3」）。揃っている間は「群れ（獣×3）」で光る */}
+        {tribes.map((t) => {
+          const tx = tribeProgressText(t);
+          return (
+            <Popover key={t.tribe} content={{ title: tx.title, description: tx.description }} placement="top">
+              <span className={cx('pp__tribe', t.active ? 'is-active' : 'is-progress')} data-fx-zone={`tribe:${t.tribe}`}>
+                <UiIcon name={`gi:${TRIBE_FX[t.tribe].gi}`} />
+                {tx.text}
+              </span>
+            </Popover>
+          );
+        })}
         {/* 追加ターン（MTG 要素 △ バッチC）：このターンのあとにもう一度 */}
         {ps.extraTurnPending && (
           <Popover content={{ title: `${mechanicGlossary.extraTurn!.icon} 追加ターン`, description: mechanicGlossary.extraTurn!.short }} placement="top">
@@ -1209,8 +1233,13 @@ export function MonsterTile({
       </span>
       <span className={cx('mt__name', nameFit(label))}>{label}</span>
       {realName && !compact && <span className="mt__real">（{realName}）</span>}
-      {def?.tribe && !compact && (
-        <span className="mt__tribe" title={`種族：${TRIBE_LABEL[def.tribe]}`}>
+      {/* 種族の印（裏向きは種族なし）。封印・休眠中は特性が働かないので薄く */}
+      {def?.tribe && !m.faceDown && (
+        <span
+          className={cx('mt__tribe', `mt__tribe--${def.tribe}`, (m.sealed || dormant) && 'is-off')}
+          title={`種族：${TRIBE_LABEL[def.tribe]}（特性「${TRIBE_TRAITS[def.tribe].name}」${m.sealed || dormant ? '：封印・休眠中は働かない' : ''}）`}
+          aria-hidden="true"
+        >
           {TRIBE_LABEL[def.tribe]}
         </span>
       )}

@@ -14,6 +14,7 @@ import { afterOfficialChange, overriddenIds, plazaAct, useOfficialCards, useStaf
 import { CardDetail } from '../components/CardDetail.tsx';
 import { useMediaQuery } from '../components/dialogUtil.ts';
 import { Sheet } from '../components/Sheet.tsx';
+import { CardSourceTabs } from '../components/CardSourceTabs.tsx';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { CardCollection } from '../collection/CardCollection.tsx';
 import { FilterChipsRow, FilterSheet, SearchBox, SortSelect, ViewSeg } from '../collection/Controls.tsx';
@@ -104,6 +105,7 @@ export function OfficialCardsPage() {
           </button>
         </div>
       </div>
+      <CardSourceTabs current="official" />
       <p className="hint official__lead">
         「{OFFICIAL_SET.name}」（版{OFFICIAL_SET.version}）：{officialCards.length}種類（コモン{counts.common}・レア{counts.rare}・エピック{counts.epic}・レジェンド{counts.legend}）。
         オンラインのドラフト戦はこのカードだけを使います。伏せた山にはコモンが{BALANCE.draft.pileCopies.common}枚ずつ、レアとエピックが

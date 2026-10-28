@@ -1,0 +1,50 @@
+/* 設定（歯車）の中身：文字の大きさ・演出・効果音と BGM の段を細い線で分ける */
+.settings-panel {
+  display: grid;
+  gap: 14px;
+}
+.settings-panel > * + * {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+/* 1つの設定の段：名前と切り替え（狭いときは折り返す）、下に説明 */
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.set-row__seg {
+  display: inline-flex;
+  gap: 4px;
+}
+.set-row__seg .chip {
+  min-height: var(--tap);
+  min-width: 72px;
+  justify-content: center;
+}
+.set-row__note {
+  width: 100%;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+/* 文字の大きさの4つは、それぞれの大きさで見本を見せる（狭い画面では折り返す） */
+.settings-panel__sizes {
+  flex-wrap: wrap;
+}
+.set-row__seg.settings-panel__sizes .chip {
+  min-width: 56px;
+}
+.settings-panel__sizes .chip[data-size='sm'] {
+  font-size: 12px;
+}
+.settings-panel__sizes .chip[data-size='md'] {
+  font-size: 14px;
+}
+.settings-panel__sizes .chip[data-size='lg'] {
+  font-size: 16px;
+}
+.settings-panel__sizes .chip[data-size='xl'] {
+  font-size: 18px;
+}

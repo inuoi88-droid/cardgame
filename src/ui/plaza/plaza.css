@@ -20,8 +20,46 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  align-items: start;
+  gap: 14px 12px;
+}
+/* スマホは2列（公式カードの一覧と同じ） */
+@media (max-width: 600px) {
+  .plaza__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 8px;
+  }
+}
+/* カード：小さいカードの面の下に、公開した人と日付 */
+.plaza__item--card {
+  flex-direction: column;
+  gap: 4px;
+}
+.plaza__item--card > .tcg {
+  width: 100%;
+}
+.plaza__by {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+/* デッキ：デッキ箱（.dbox の規則は pages/pages.css）。公開した人と取り下げは箱の中の下 */
+.plaza__item--deck.dbox {
+  display: grid;
+  align-content: start;
+}
+.plaza__item--deck .plaza__remove {
+  position: relative;
+  z-index: 2;
+  justify-self: start;
+}
+.plaza__item--card .plaza__remove {
+  align-self: flex-start;
 }
 .plaza__item {
   position: relative;
@@ -125,4 +163,12 @@
 }
 .staff__form input {
   width: 100%;
+}
+/* 主なカードは2行まで */
+.plaza__item--deck .dbox__note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  line-height: 1.4;
 }

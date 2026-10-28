@@ -5242,3 +5242,84 @@ button.lt-card:focus-visible {
   border-color: var(--ng);
   color: var(--ng);
 }
+
+/* ------------------------------------------------------------ 手札の重ね（PC のマウス） */
+/* 1枚ずつの枠（BattleBoard の .hand__slot）：ふだん（スマホ・タッチ）は枠が無いのと同じ */
+.hand__slot {
+  display: contents;
+}
+/* PC のマウス：入りきらないときは枠が縮んでカードが重なる（右のカードが上。横のスクロールは出さない）。最後の1枚は縮めない。
+   乗せたカード・焦点のあるカードは持ち上がって手前に出る（全文は .hand-preview が上に出す） */
+@media (min-width: 920px) and (hover: hover) and (pointer: fine) {
+  .hand {
+    /* はみ出しを見せる（持ち上げたカードを切らない）代わりに、中身の幅で広がらないよう最小幅を0に */
+    min-width: 0;
+    overflow: visible;
+    -webkit-mask-image: none;
+    mask-image: none;
+    padding-right: 2px;
+  }
+  .hand__slot {
+    display: block;
+    position: relative;
+    flex: 0 1 136px;
+    min-width: 40px;
+  }
+  .hand__slot:last-child {
+    flex-shrink: 0;
+  }
+  .hand__slot:hover,
+  .hand__slot:focus-within {
+    z-index: 4;
+  }
+  .battle:not(.is-dragging) .hand__slot:hover > .hc:not(.is-selected):not(.is-drag-src) {
+    transform: translateY(-18px) scale(1.06);
+  }
+}
+
+/* ------------------------------------------------------------ 種族の進み具合（決定事項 #143） */
+/* 銘板の札：場にいる種族の数「獣 2/3」（薄い鉄）。揃っている間は「群れ（獣×3）」で緑に光る */
+.pp__tribe {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px;
+  min-height: 22px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(180deg, var(--u-plate-1), var(--u-plate-2));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pp__tribe > .gi {
+  font-size: 15px;
+}
+.pp__tribe.is-progress {
+  color: var(--muted);
+}
+.pp__tribe.is-active {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 55%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ok) 35%, transparent);
+}
+/* タイルの種族の印：カードの面の印（cardFrame.css の .tcg__tribe）と同じ色。封印・休眠中は特性が働かないので薄く */
+.mt .mt__tribe {
+  color: #fff;
+  background: var(--tribe, #4a5266);
+  border-color: rgba(255, 255, 255, 0.35);
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+.mt .mt__tribe.is-off {
+  opacity: 0.45;
+}
+/* スマホのタイル：左上の角に1文字の小さな印 */
+.mt--compact .mt__tribe {
+  top: 2px;
+  left: 2px;
+  padding: 0 3px;
+  font-size: 12px;
+  line-height: 1.2;
+  border-radius: 3px;
+}

@@ -1,4 +1,4 @@
-/* 効果音と BGM の設定（決定事項 #127・#128）：対戦のメニューとルールの画面。2つの行のあいだに細い線 */
+/* 効果音と BGM の設定（決定事項 #127・#128）：設定の歯車の中。2つの行のあいだに細い線 */
 .sound-settings {
   display: grid;
   gap: 12px;
@@ -120,20 +120,4 @@
   outline: 2px solid var(--u-sap-hi);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
-}
-
-/* ルールの画面の上（どの画面からも来られる設定の置き場）。広い画面は切り替えと音量を1行に */
-.rules__settings {
-  margin-bottom: 14px;
-}
-@media (min-width: 640px) {
-  .rules__settings .sound-setting {
-    grid-template-columns: minmax(200px, auto) minmax(0, 380px);
-    justify-content: start;
-    align-items: center;
-    column-gap: 40px;
-  }
-  .rules__settings .sound-setting__note {
-    grid-column: 1 / -1;
-  }
 }

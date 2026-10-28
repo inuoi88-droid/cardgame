@@ -650,22 +650,28 @@
     0 1px 3px rgba(0, 0, 0, 0.6);
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
 }
-.tcg__tribe--beast {
+.tcg__tribe--beast,
+.mt__tribe--beast {
   --tribe: #2f7a4f;
 }
-.tcg__tribe--dragon {
+.tcg__tribe--dragon,
+.mt__tribe--dragon {
   --tribe: #b8461f;
 }
-.tcg__tribe--undead {
+.tcg__tribe--undead,
+.mt__tribe--undead {
   --tribe: #6b4f9a;
 }
-.tcg__tribe--machine {
+.tcg__tribe--machine,
+.mt__tribe--machine {
   --tribe: #3f6c95;
 }
-.tcg__tribe--spirit {
+.tcg__tribe--spirit,
+.mt__tribe--spirit {
   --tribe: #2b9a8f;
 }
-.tcg__tribe--human {
+.tcg__tribe--human,
+.mt__tribe--human {
   --tribe: #9a7a32;
 }
 .tcg--sm .tcg__tribe {

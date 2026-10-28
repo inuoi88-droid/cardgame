@@ -21,6 +21,8 @@ import { CreditsPage } from './pages/CreditsPage.tsx';
 import { NewsBanner } from './news/NewsBanner.tsx';
 import { PatchNotesPage } from './news/PatchNotesPage.tsx';
 import { RulesPage } from './pages/RulesPage.tsx';
+import { SettingsButton } from './settings/SettingsPanel.tsx';
+import { WelcomeGuide } from './welcome/Welcome.tsx';
 import { UiKitPage } from './pages/UiKitPage.tsx';
 import { FriendLinkPage } from './social/FriendLinkPage.tsx';
 import { InviteBanner } from './social/InviteNotices.tsx';
@@ -52,11 +54,9 @@ export function App() {
   const { saveError } = useStore();
   // オンラインのタブの印：届いたフレンド申請と対戦の招待の数（決定事項 #123）
   const badge = badgeCount(useSocial().snap);
-  // 公式カードの一覧（#/official）は CPU 戦・オンラインのどちらからも開くので、どのタブも光らせない
-  const section: Section | null =
-    route.page === 'official' || route.page === 'officialEdit' || route.page === 'plaza'
-      ? null
-      : route.page === 'decks' || route.page === 'deckEdit'
+  // 公式カードの一覧（#/official）とみんなの広場は、カードの画面の上のタブ（自分のカード／公式カード／みんなの広場）でつながるので「カード」
+  const section: Section =
+    route.page === 'decks' || route.page === 'deckEdit'
       ? 'decks'
       : route.page === 'battle' || route.page === 'battleSetup' || route.page === 'draft'
         ? 'battle'
@@ -85,6 +85,8 @@ export function App() {
         <CardSymbols />
         <SocialRuntime />
         <PlazaRuntime />
+        {/* はじめての案内：初めての人に1回だけ（対戦・ドラフト・オンラインの途中には出さない） */}
+        <WelcomeGuide page={route.page} />
         <div className="app">
           <header className="topbar">
             <div className="topbar__title">
@@ -111,6 +113,8 @@ export function App() {
                 </button>
               ))}
             </nav>
+            {/* 設定（文字の大きさ・演出・効果音と BGM）：対戦のメニューと同じ中身 */}
+            <SettingsButton />
           </header>
           {saveError && (
             <div className="notice notice--ng" role="alert">

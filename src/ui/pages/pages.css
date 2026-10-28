@@ -785,3 +785,54 @@ input.u-name-input {
   position: absolute;
   inset: -4px -2px;
 }
+
+/* カードの画面の上のタブ（自分のカード・公式カード・みんなの広場）：画面の切り替えなので、中身のタブ（.tabs の井戸）と見分けるよう
+   上のメニューと同じ「下にサファイアの線と菱形」の形にする */
+.card-source-tabs.tabs {
+  gap: 0;
+  padding: 0;
+  margin: -4px 0 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+}
+.card-source-tabs .tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  /* 文字の大きさの設定で大きくしても、3つの名前が1行に収まる大きさまで */
+  font-size: min(var(--fs-sm), 15px);
+  line-height: 1.25;
+  word-break: keep-all;
+  border-radius: 0;
+}
+.card-source-tabs .tab > .gi {
+  flex: none;
+  font-size: 18px;
+}
+.card-source-tabs .tab.is-active {
+  background: radial-gradient(ellipse 70% 90% at 50% 100%, rgba(111, 160, 255, 0.16), transparent 75%);
+  border-color: transparent;
+  box-shadow: none;
+}
+.card-source-tabs .tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: -5px;
+  height: 8px;
+  background:
+    var(--u-diamond-sap) 50% 50% / 8px 8px no-repeat,
+    linear-gradient(90deg, transparent, var(--u-sap) 30%, var(--u-sap) 70%, transparent) 50% 50% / 100% 2px no-repeat;
+}
+/* 狭いスマホは形を省いて名前だけ（3つの名前が1行に収まる） */
+@media (max-width: 420px) {
+  .card-source-tabs .tab > .gi {
+    display: none;
+  }
+}

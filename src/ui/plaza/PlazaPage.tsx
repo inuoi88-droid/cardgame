@@ -6,15 +6,16 @@ import { useCallback, useEffect, useState } from 'react';
 import type { CardDef, Deck } from '../../engine/index.ts';
 import type { PlazaCursor, PublicKind } from '../../online/plaza/types.ts';
 import type { PublicItemFull, PublicItemView } from '../../online/plaza/protocol.ts';
-import { CardArtOf } from '../components/CardArt.tsx';
 import { CardDetail } from '../components/CardDetail.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
 import { useToast } from '../components/Toast.tsx';
+import { CardSourceTabs } from '../components/CardSourceTabs.tsx';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { DeckCopySheet } from '../copy/DeckCopySheet.tsx';
 import { openCollection, runCopy } from '../copy/applyCopy.ts';
 import { navigate } from '../router.ts';
 import { cx } from '../util.ts';
+import { PlazaCardItem, PlazaDeckItem, plazaDate } from './PlazaItems.tsx';
 import { callPlaza, plazaAct, useStaff } from './plazaStore.ts';
 import './plaza.css';
 
@@ -25,10 +26,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'deck', label: 'デッキ' },
 ];
 
-const dateText = (t: number) => {
-  const d = new Date(t);
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-};
 
 export function PlazaPage() {
   const staff = useStaff();
@@ -108,7 +105,8 @@ export function PlazaPage() {
           </span>
         )}
       </div>
-      <p className="hint">運営が公開したカードとデッキです。押すと中身が見られ、自分のカード・デッキにコピーできます。{staff && '公開はカード・デッキの詳細の「広場に公開」から。'}</p>
+      <CardSourceTabs current="plaza" />
+      <p className="hint">運営が公開したカードとデッキです。押すと全文や中身が見られ、自分のカード・デッキにコピーできます。{staff && '公開はカード・デッキの詳細の「広場に公開」から。'}</p>
       <div className="tabs plaza__tabs" role="tablist" aria-label="種類">
         {TABS.map((t) => (
           <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={cx('tab', tab === t.id && 'is-active')} onClick={() => setTab(t.id)}>
@@ -126,27 +124,33 @@ export function PlazaPage() {
         </div>
       )}
       {status === 'ready' && items.length === 0 && <p className="plaza__empty">まだ何も公開されていません。</p>}
+      {/* 開かなくても中身がわかる一覧：カードは小さいカードの面、デッキはデッキ箱（代表カード・コスト分布・主なカード） */}
       <ul className="plaza__list">
-        {items.map((it) => (
-          <li key={it.id} className="plaza__item">
-            <button type="button" className="plaza__tile" onClick={() => void show(it)}>
-              <span className="plaza__art" aria-hidden="true">
-                {it.cover ? <CardArtOf card={it.cover} size={64} /> : <UiIcon name="gi:chest" />}
-              </span>
-              <span className="plaza__main">
-                <b className="plaza__name u-name">{it.name}</b>
-                <span className="plaza__meta">
-                  {it.kind === 'deck' ? `デッキ・${it.count}枚` : 'カード'}・{it.owner.name}・{dateText(it.updatedAt)}
-                </span>
-              </span>
+        {items.map((it) => {
+          const removeButton = staff ? (
+            <button type="button" className="btn btn--small btn--ghost plaza__remove" onClick={() => void remove(it)} aria-label={`「${it.name}」を取り下げる`}>
+              取り下げ
             </button>
-            {staff && (
-              <button type="button" className="btn btn--small btn--ghost plaza__remove" onClick={() => void remove(it)} aria-label={`「${it.name}」を取り下げる`}>
-                取り下げ
+          ) : undefined;
+          if (it.kind === 'card' && it.cover) return <PlazaCardItem key={it.id} it={it} card={it.cover} onOpen={() => void show(it)} removeButton={removeButton} />;
+          if (it.kind === 'deck') return <PlazaDeckItem key={it.id} it={it} onOpen={(full) => (full ? setDeckOpen(full) : void show(it))} removeButton={removeButton} />;
+          return (
+            <li key={it.id} className="plaza__item">
+              <button type="button" className="plaza__tile" onClick={() => void show(it)}>
+                <span className="plaza__art" aria-hidden="true">
+                  <UiIcon name="gi:chest" />
+                </span>
+                <span className="plaza__main">
+                  <b className="plaza__name u-name">{it.name}</b>
+                  <span className="plaza__meta">
+                    {it.owner.name}・{plazaDate(it.updatedAt)}
+                  </span>
+                </span>
               </button>
-            )}
-          </li>
-        ))}
+              {removeButton}
+            </li>
+          );
+        })}
       </ul>
       {next && status === 'ready' && (
         <div className="btn-row plaza__more">
@@ -159,7 +163,7 @@ export function PlazaPage() {
         <CardDetail
           card={open.card}
           onClose={() => setOpen(null)}
-          status={<span>公開：{open.owner.name}（{dateText(open.updatedAt)}）</span>}
+          status={<span>公開：{open.owner.name}（{plazaDate(open.updatedAt)}）</span>}
           actions={
             <>
               <button type="button" className="btn btn--primary" onClick={() => copyCard(open, open.card!)}>

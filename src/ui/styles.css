@@ -67,6 +67,8 @@
   --fs-md: 16px;
   --fs-lg: 20px;
   --fs-xl: 24px;
+  /* 本文（何も指定の無い文字） */
+  --fs-body: 15px;
 
   /* 角：3px（札・入力）・5px（ボタン・行）・8px（パネル・場）・10px（シート）。丸い錠剤は使わない（--radius-pill は古い部品のため残す） */
   --radius-xs: 3px;
@@ -197,6 +199,31 @@
 }
 
 /* 地：html は単色、質感は body::before の固定の1枚の層（background-attachment: fixed はスクロールのたびに全面を描き直すので使わない） */
+/* 文字の大きさの設定（設定の歯車。settings/textSize.ts が <html data-text-size> を付ける）。12px より小さくはしない。
+   カードの部品は cardTokens.css で元の大きさに戻す */
+:root[data-text-size='sm'] {
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 18px;
+  --fs-xl: 22px;
+  --fs-body: 14px;
+}
+:root[data-text-size='lg'] {
+  --fs-xs: 14px;
+  --fs-sm: 16px;
+  --fs-md: 18px;
+  --fs-lg: 22px;
+  --fs-xl: 27px;
+  --fs-body: 17px;
+}
+:root[data-text-size='xl'] {
+  --fs-xs: 15px;
+  --fs-sm: 18px;
+  --fs-md: 20px;
+  --fs-lg: 25px;
+  --fs-xl: 30px;
+  --fs-body: 19px;
+}
 html {
   margin: 0;
   background: var(--bg);
@@ -206,7 +233,7 @@ body {
   background: transparent;
   color: var(--text);
   font-family: var(--u-font-body);
-  font-size: 15px;
+  font-size: var(--fs-body);
   line-height: 1.6;
   -webkit-text-size-adjust: 100%;
 }
@@ -927,6 +954,15 @@ input[type='checkbox'].u-toggle:checked::before {
 .topbar__nav {
   display: flex;
   gap: 2px;
+  margin-left: auto;
+}
+/* 設定の歯車：メニューの右に形だけ（名前は読み上げと title） */
+.topbar__gear.nav-btn {
+  flex: none;
+  padding: 6px 10px;
+}
+.topbar__gear .nav-btn__label {
+  display: none;
 }
 /* ナビ：錠剤をやめ、今の画面は下にサファイアの線と菱形 */
 .nav-btn {
@@ -937,7 +973,8 @@ input[type='checkbox'].u-toggle:checked::before {
   gap: 7px;
   white-space: nowrap;
   font: inherit;
-  font-size: var(--fs-sm);
+  /* 上の帯は文字の大きさの設定で変えない（狭いスマホでも5つと歯車が1段に収まるように） */
+  font-size: 14px;
   font-weight: 700;
   color: var(--placeholder);
   background: transparent;
@@ -2136,14 +2173,23 @@ input[type='checkbox'].u-toggle:checked::before {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 2px;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
+    margin-left: 0;
+  }
+  .topbar {
+    gap: 2px;
+  }
+  .topbar__gear.nav-btn {
+    width: 36px;
+    padding: 3px 0 5px;
   }
   .nav-btn {
     flex-direction: column;
     gap: 1px;
     padding: 3px 0 5px;
     min-height: 48px;
-    font-size: var(--fs-xs);
+    font-size: 12px;
     line-height: 1.2;
   }
   .nav-btn__icon {
@@ -2518,6 +2564,17 @@ body:has(.savebar) .toasts {
 }
 .rules__intro {
   margin-bottom: 12px;
+}
+/* 設定は歯車へ、の案内と「はじめての案内」を開き直すボタン */
+.rules__settings-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-bottom: 10px;
+}
+.rules__settings-note > .btn {
+  margin-left: auto;
 }
 .rules__toc {
   display: flex;

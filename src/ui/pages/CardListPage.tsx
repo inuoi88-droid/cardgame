@@ -27,6 +27,7 @@ import { NEW_DRAFT, actions, cardDrafts, getState, useStore } from '../store.ts'
 import '../collection/collection.css';
 import { SAMPLE_CARDS } from '../../samples.ts';
 import { cx, todayStamp, uuid } from '../util.ts';
+import { CardSourceTabs } from '../components/CardSourceTabs.tsx';
 import { UiIcon } from '../components/UiIcon.tsx';
 import { MoreDots } from '../components/TileMenu.tsx';
 
@@ -321,11 +322,6 @@ export function CardListPage() {
             <UiIcon name="quill-ink" />
             新しいカード
           </button>
-          {/* みんなの広場（決定事項 #141）：運営が公開したカード・デッキ */}
-          <button type="button" className="btn btn--ghost" onClick={() => navigate('/plaza')} aria-label="みんなの広場" title="みんなの広場">
-            <UiIcon name="village" />
-            {!phone && 'みんなの広場'}
-          </button>
           {phone ? (
             <button type="button" className="btn" onClick={() => setDialog('menu')} aria-label="サンプル・書き出し・取り込み" title="管理">
               <MoreDots />
@@ -345,6 +341,8 @@ export function CardListPage() {
           )}
         </div>
       </div>
+      {/* 自分のカード・公式カード・みんなの広場（決定事項 #141）の切り替え */}
+      <CardSourceTabs current="mine" />
 
       {hasNewDraft && (
         <div className="notice">

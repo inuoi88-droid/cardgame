@@ -8,7 +8,7 @@ import { TRIBE_IDS, TRIBE_LABEL, type TribeId } from './types.ts';
 
 const T = BALANCE.tribes;
 
-const STATUS_NAME: Record<string, string> = { burn: 'やけど', freeze: '凍結', poison: '毒', bleed: '出血' };
+const rateText = (r: number) => (r === 0.5 ? '半分' : `${Math.round(r * 100)}%`);
 
 export interface TribeFeature {
   name: string;
@@ -18,10 +18,10 @@ export interface TribeFeature {
 /** 常時の特性（その種族のモンスターがみな持つ。封印・休眠中は働かない） */
 export const TRIBE_TRAITS: Record<TribeId, TribeFeature> = {
   beast: { name: '狩猟本能', text: `攻撃で相手のモンスターを破壊するたび、攻撃力+${T.beast.trait.attackPerKill}（場にいる間に+${T.beast.trait.maxBonus}まで）` },
-  dragon: { name: '竜鱗', text: `${T.dragon.trait.immune.map((k) => STATUS_NAME[k]).join('・')}にならない` },
+  dragon: { name: '竜鱗', text: `自分のターン終了時、やけどの残りターンがさらに${T.dragon.trait.burnFade}減る` },
   undead: { name: '腐食', text: `攻撃・反撃でダメージを与えた相手のモンスターに毒${T.undead.trait.poisonOnHit}` },
-  machine: { name: '鋼の体', text: `${T.machine.trait.immune.map((k) => STATUS_NAME[k]).join('・')}にならない` },
-  spirit: { name: '霊体', text: '場に出てから次の自分のターンが始まるまで、相手のカードに選ばれない' },
+  machine: { name: '鋼の体', text: `自分のターン終了時、毒が${T.machine.trait.poisonShed}減る` },
+  spirit: { name: '霊体', text: `場に出てから次の自分のターンが始まるまで、相手のカードの効果で受けるダメージが${rateText(T.spirit.trait.damageRate)}` },
   human: { name: '研鑽', text: `攻撃力アップ・鍛錬・装備で上がる攻撃力が、さらに+${T.human.trait.growBonus}` },
 };
 

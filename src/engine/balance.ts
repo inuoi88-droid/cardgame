@@ -558,7 +558,7 @@ export const BALANCE = {
   /**
    * 種族の特徴（決定事項 #143。案は docs/TRIBE_PROPOSAL.md）。
    * - 得意・苦手：モンスターのカードだけ、そのキーワード・効果・ステータス（`stat:defense`）のポイントに favorRate・unfavorRate を掛ける
-   * - 特性（trait）：その種族のモンスターがみな持つ（ポイント0。封印・休眠中は働かない）
+   * - 特性（trait）：その種族のモンスターがみな持つ（ポイント0。封印・休眠中は働かない）。完全に無効にする特性は作らない（相性が極端になる：ユーザー回答）
    * - 揃い（set）：自分の場に、表向きで特性の働いているその種族のモンスターが setSize 体以上いる間
    */
   tribes: {
@@ -576,10 +576,10 @@ export const BALANCE = {
     dragon: {
       favored: ['flying', 'menace', 'hexproof'],
       unfavored: ['stealth', 'skulk'],
-      /** 竜鱗：やけど・凍結にならない */
-      trait: { immune: ['burn', 'freeze'] },
-      /** 竜の息：自分のターン開始時、相手プレイヤーに breath ダメージ */
-      set: { breath: x(2) },
+      /** 竜鱗：自分のターン終了時、やけどの残りターンがさらに burnFade 減る */
+      trait: { burnFade: 1 },
+      /** 竜の息：自分のターン開始時、相手プレイヤーに breath ダメージ（測定のあと 2→3） */
+      set: { breath: x(3) },
     },
     undead: {
       favored: ['undying', 'deathtouch', 'lifelink', 'revive'],
@@ -592,16 +592,16 @@ export const BALANCE = {
     machine: {
       favored: ['stat:defense', 'selfRepair', 'divineShield', 'reach', 'repair'],
       unfavored: ['haste', 'stealth'],
-      /** 鋼の体：毒・出血にならない */
-      trait: { immune: ['poison', 'bleed'] },
-      /** 連結：自分の機械の守備力+defense */
-      set: { defense: x(1) },
+      /** 鋼の体：自分のターン終了時、毒が poisonShed 減る */
+      trait: { poisonShed: x(1) },
+      /** 連結：自分の機械の守備力+defense（測定のあと 1→0.5） */
+      set: { defense: x(0.5) },
     },
     spirit: {
       favored: ['stealth', 'ward', 'skulk', 'scry'],
       unfavored: ['taunt', 'trample'],
-      /** 霊体：場に出てから次の自分のターンが始まるまで、相手のカードに選ばれない */
-      trait: {},
+      /** 霊体：場に出てから次の自分のターンが始まるまで、相手のカードの効果で受けるダメージ×damageRate（切り捨て） */
+      trait: { damageRate: 0.5 },
       /** 共鳴：自分のターン開始時に draw 枚多く引く（手札は毎ターン捨てるので、ターン終了時ではなく開始時） */
       set: { draw: 1 },
     },
@@ -610,8 +610,8 @@ export const BALANCE = {
       unfavored: [],
       /** 研鑽：攻撃力アップ・鍛錬・装備で上がる攻撃力がさらに+growBonus */
       trait: { growBonus: x(1) },
-      /** 隊列：自分のターン開始時、自分のプレイヤーが heal 回復 */
-      set: { heal: x(2) },
+      /** 隊列：自分のターン開始時、自分のプレイヤーが heal 回復（測定のあと 2→3） */
+      set: { heal: x(3) },
     },
   },
 

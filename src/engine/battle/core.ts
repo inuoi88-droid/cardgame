@@ -160,15 +160,7 @@ export function tribeCount(g: GameState, p: PlayerId, tribe: TribeId): number {
 /** 揃いのボーナスが働いているか */
 export const tribeSetActive = (g: GameState, p: PlayerId, tribe: TribeId): boolean => tribeCount(g, p, tribe) >= BALANCE.tribes.setSize;
 
-/** 種族の特性で、この状態にならないか（竜鱗・鋼の体）。ならないなら、その種族 */
-export function tribeImmune(g: GameState, m: Monster, key: string): TribeId | undefined {
-  const t = traitTribe(g, m);
-  if (!t) return undefined;
-  const trait = BALANCE.tribes[t].trait as { immune?: readonly string[] };
-  return trait.immune?.includes(key) ? t : undefined;
-}
-
-/** 精霊の特性「霊体」：場に出てから次の自分のターンが始まるまで、相手のカードに選ばれない */
+/** 精霊の特性「霊体」が働いている間か：場に出てから次の自分のターンが始まるまで（相手のカードの効果で受けるダメージが減る） */
 export function spiritVeiled(g: GameState, m: Monster): boolean {
   if (traitTribe(g, m) !== 'spirit') return false;
   if (g.turnIndex === m.enteredTurn) return true;

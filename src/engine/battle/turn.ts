@@ -9,7 +9,7 @@ import { randInt } from './rng.ts';
 import { makeRuntime } from './runtime.ts';
 import { enqueueDelayed, enqueueMonsters, enqueuePowers, powerSource } from './triggers.ts';
 import { advanceSagas, altWinOnTurnStart, chargePowers, checkAchievements } from './powers.ts';
-import { spiritExtraDraw, tribeTurnStart } from './tribes.ts';
+import { spiritExtraDraw, tribeTurnEnd, tribeTurnStart } from './tribes.ts';
 import { deckToDiscard, discardCard, drawCards, exileFromBoard, hatchEggs, returnBorrowed, vanish, warpAway } from './zones.ts';
 import { tickSuspend } from './waiting.ts';
 import { dayNightAtTurnEnd, planarTick } from './matchRules.ts';
@@ -301,6 +301,8 @@ export function turnEndEffects(g: GameState, p: PlayerId): void {
       if (isEnded(g)) return;
     }
   }
+  // 種族の特性（決定事項 #143）：竜鱗・鋼の体
+  tribeTurnEnd(g, p);
   // 出血が半分、脆弱の残りターン、凍結・混乱が切れる（脱力は使うまで減らない：決定事項 #138）
   tickEnd(ps.status);
   for (const m of ps.board) tickEnd(m.status);

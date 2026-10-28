@@ -26,7 +26,6 @@ import {
   other,
   spiritVeiled,
   traitTribe,
-  tribeImmune,
   tribeSetActive,
   turnLimits,
 } from './core.ts';
@@ -236,9 +235,9 @@ export function targetableTaunts(g: GameState, owner: PlayerId): Monster[] {
   return g.players[owner].board.filter((m) => !m.stealth && keywordFlags(g, m).taunt);
 }
 
-/** カードの「選んだ1体」で選べる相手のモンスターか（隠密・呪禁・守護の加護・精霊の霊体は選べない。MTG 要素バッチ2・△ バッチA・#143） */
+/** カードの「選んだ1体」で選べる相手のモンスターか（隠密・呪禁・守護の加護は選べない。MTG 要素バッチ2・△ バッチA） */
 export function cardTargetable(g: GameState, m: Monster): boolean {
-  return !m.stealth && !keywordFlags(g, m).hexproof && !guarded(m, 'protection') && !spiritVeiled(g, m);
+  return !m.stealth && !keywordFlags(g, m).hexproof && !guarded(m, 'protection');
 }
 
 /** 守護（MTG 要素 △ バッチA）が今かかっているか（kind を渡すとその種類だけ） */
@@ -252,6 +251,12 @@ export function cardTargetableTaunts(g: GameState, owner: PlayerId): Monster[] {
 }
 
 const KIND_LABEL: Partial<Record<DamageKind, string>> = { poison: '毒で', burn: 'やけどで', doom: '呪縛で', counter: '反撃で' };
+
+/** 出どころの持ち主（プレイヤーならそのプレイヤー、モンスターならその今の持ち主。分からなければ undefined） */
+function sourceOwner(g: GameState, source: TargetRef | null): PlayerId | undefined {
+  if (!source) return undefined;
+  return source.kind === 'player' ? source.player : findMonster(g, source.uid)?.controller;
+}
 
 /** 戦闘のダメージ（接死・絆魂が働く）か */
 const isCombat = (opts: DamageOpts) => opts.kind === 'attack' || opts.kind === 'retaliate' || opts.kind === 'trample' || opts.combat === true;
@@ -293,6 +298,11 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
   if (hit && status.vulnerable > 0) {
     amount = Math.floor(amount * (1 + B.vulnerableRate));
     steps.push(`脆弱で${amount}`);
+  }
+  // 精霊の特性「霊体」（決定事項 #143）：相手のカードの効果のダメージ（戦闘・格闘でない hit）を減らす
+  if (monster && opts.kind === 'hit' && !opts.combat && amount > 0 && spiritVeiled(g, monster) && sourceOwner(g, opts.source) === other(monster.controller)) {
+    amount = Math.floor(amount * BALANCE.tribes.spirit.trait.damageRate);
+    steps.push(`${TRIBE_TRAITS.spirit.name}で${amount}`);
   }
   // 守備力は種族の揃い「連結」を含む（決定事項 #143）
   const defense = monster ? effectiveDefense(g, monster) : 0;
@@ -591,12 +601,6 @@ export function addStatus(g: GameState, target: TargetRef, key: StatusKey, amoun
   if (target.kind === 'player' && key === 'confuse') return;
   const s = statusOf(g, target)!;
   const name = targetLabel(g, target);
-  // 種族の特性（竜鱗・鋼の体。決定事項 #143）：この状態にならない
-  const immune = target.kind === 'monster' ? tribeImmune(g, findMonster(g, target.uid)!, key) : undefined;
-  if (immune) {
-    log(g, depth, `${name}は${TRIBE_TRAITS[immune].name}で${STATUS_LABEL[key]}にならない`, 'effect', undefined, { kind: 'tribe', tribe: immune, status: 'trait', target });
-    return;
-  }
   const ev = (n: number) => ({ kind: 'status' as const, target, status: key, amount: n });
   switch (key) {
     case 'freeze':

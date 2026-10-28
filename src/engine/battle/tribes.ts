@@ -1,7 +1,8 @@
 /**
  * 種族の特性・揃いの出来事（決定事項 #143）。数値は BALANCE.tribes、名前と説明は engine/tribes.ts。
- * 揃いの攻撃力・守備力（群れ・連結）・耐性（竜鱗・鋼の体）・霊体は core.ts、怨嗟は damage.ts の destroyMonster、共鳴は turn.ts のドロー、
- * 研鑽は runtime.ts の growBonus にある。ここは攻撃のあと（狩猟本能・腐食）とターン開始時（竜の息・隊列）
+ * 揃いの攻撃力・守備力（群れ・連結）は core.ts、霊体は damage.ts の dealDamage、怨嗟は damage.ts の destroyMonster、共鳴は turn.ts のドロー、
+ * 研鑽は runtime.ts の growBonus にある。ここは攻撃のあと（狩猟本能・腐食）・ターン開始時（竜の息・隊列）・ターン終了時（竜鱗・鋼の体）。
+ * 状態異常を完全に無効にする特性は作らない（相性が極端になる：ユーザー回答）
  */
 import { BALANCE } from '../balance.ts';
 import { TRIBE_SETS, TRIBE_TRAITS } from '../tribes.ts';
@@ -74,6 +75,24 @@ export function tribeTurnStart(g: GameState, p: PlayerId): void {
   if (tribeSetActive(g, p, 'dragon')) {
     log(g, 1, `${TRIBE_SETS.dragon.name}：${ps.name}の${TRIBE_LABEL.dragon}が揃っている`, 'effect', undefined, { kind: 'tribe', tribe: 'dragon', status: 'set', player: p });
     dealDamage(g, playerRef(other(p)), T.dragon.set.breath, { kind: 'hit', source: playerRef(p), depth: 2 });
+  }
+}
+
+/** ターン終了時（やけどのあと）：竜鱗（やけどの残りターンがさらに減る）・鋼の体（毒が減る） */
+export function tribeTurnEnd(g: GameState, p: PlayerId): void {
+  for (const m of g.players[p].board) {
+    const t = traitTribe(g, m);
+    const target = { kind: 'monster' as const, uid: m.uid };
+    if (t === 'dragon' && m.status.burn > 0) {
+      const before = m.status.burn;
+      m.status.burn = Math.max(0, before - T.dragon.trait.burnFade);
+      log(g, 1, `${TRIBE_TRAITS.dragon.name}：${monsterLabel(g, m)}のやけど 残り${before}→${m.status.burn}ターン`, 'effect', undefined, { kind: 'tribe', tribe: 'dragon', status: 'trait', target });
+    }
+    if (t === 'machine' && m.status.poison > 0) {
+      const before = m.status.poison;
+      m.status.poison = Math.max(0, before - T.machine.trait.poisonShed);
+      log(g, 1, `${TRIBE_TRAITS.machine.name}：${monsterLabel(g, m)}の毒 ${before}→${m.status.poison}`, 'effect', undefined, { kind: 'tribe', tribe: 'machine', status: 'trait', target });
+    }
   }
 }
 

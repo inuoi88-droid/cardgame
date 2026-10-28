@@ -129,22 +129,30 @@ describe('揃えたときのボーナス', () => {
 });
 
 describe('常時の特性', () => {
-  it('竜「竜鱗」はやけど・凍結に、機械「鋼の体」は毒・出血にならない', () => {
+  it('竜「竜鱗」はやけどの残りが早く減り、機械「鋼の体」は毒が減る（どちらも状態にはなる。持ち主のターン終了時）', () => {
     let g = rich(startGame());
-    const d = putMonster(g, 1, mon('dragon'));
-    const m = putMonster(g, 1, mon('machine'));
-    const burn = card({ id: 'burn', name: '火', effects: [fx({ id: 'burn', value: 2 })] });
-    const poison = card({ id: 'poison', name: '毒', effects: [fx({ id: 'poison', value: 3 })] });
+    const d = putMonster(g, 1, mon('dragon', { stats: { attack: 2, hp: 30, defense: 0 } }));
+    const n = putMonster(g, 1, mon(undefined, { name: 'n', stats: { attack: 2, hp: 30, defense: 0 } }));
+    const m = putMonster(g, 1, mon('machine', { stats: { attack: 2, hp: 30, defense: 0 } }));
+    const burn = card({ id: 'burn', name: '火', effects: [fx({ id: 'burn', value: 3 })] });
+    const poison = card({ id: 'poison', name: '毒', effects: [fx({ id: 'poison', value: 5 })] });
     g = play(g, giveCard(g, 0, burn), { enemy: M(d) });
+    g = play(g, giveCard(g, 0, burn), { enemy: M(n) });
     g = play(g, giveCard(g, 0, poison), { enemy: M(m) });
-    expect(battle.findMonster(g, d)!.status.burn).toBe(0);
-    expect(battle.findMonster(g, m)!.status.poison).toBe(0);
-    expect(logText(g)).toContain('竜鱗でやけどにならない');
-    expect(logText(g)).toContain('鋼の体で毒にならない');
-    // 封印中は働かない
-    battle.findMonster(g, m)!.sealed = true;
-    g = play(g, giveCard(g, 0, poison), { enemy: M(m) });
-    expect(battle.findMonster(g, m)!.status.poison).toBe(3);
+    g = play(g, giveCard(g, 0, poison), { enemy: M(n) });
+    // 状態にはなる（完全に無効にはしない）
+    const burnNow = battle.findMonster(g, n)!.status.burn;
+    expect(burnNow).toBeGreaterThan(1);
+    expect(battle.findMonster(g, d)!.status.burn).toBe(burnNow);
+    expect(battle.findMonster(g, m)!.status.poison).toBe(5);
+    // 相手（持ち主）のターン：開始時に毒が半分、終了時にやけどが1減る。竜はさらに減り、機械は毒が減る
+    g = endTurn(endTurn(g));
+    expect(battle.findMonster(g, n)!.status.burn).toBe(burnNow - 1);
+    expect(battle.findMonster(g, d)!.status.burn).toBe(burnNow - 1 - T.dragon.trait.burnFade);
+    expect(battle.findMonster(g, n)!.status.poison).toBe(2);
+    expect(battle.findMonster(g, m)!.status.poison).toBe(Math.max(0, 2 - T.machine.trait.poisonShed));
+    expect(logText(g)).toContain('竜鱗：');
+    expect(logText(g)).toContain('鋼の体：');
   });
 
   it('不死「腐食」：攻撃・反撃でダメージを与えた相手のモンスターに毒', () => {
@@ -177,16 +185,23 @@ describe('常時の特性', () => {
     expect(battle.findMonster(g, b)!.attack).toBe(5 + T.beast.trait.maxBonus);
   });
 
-  it('精霊「霊体」：出たターンと相手の次のターンは相手のカードに選ばれず、自分の次のターンからは選ばれる', () => {
+  it('精霊「霊体」：出てから次の自分のターンまで、相手のカードの効果のダメージが減る（選ばれはする）', () => {
     let g = rich(startGame());
-    const s = giveCard(g, 0, mon('spirit', { cost: 1 }));
-    g = play(g, s);
-    const spirit = g.players[0].board[0]!;
-    expect(battle.cardTargetable(g, spirit)).toBe(false);
+    g = play(g, giveCard(g, 0, mon('spirit', { cost: 1, stats: { attack: 2, hp: 8, defense: 0 } })));
+    const uid = g.players[0].board[0]!.uid;
+    const bolt = card({ id: 'bolt2', name: '雷', effects: [fx({ id: 'damage', value: 4 })] });
     g = endTurn(g);
-    expect(battle.cardTargetable(g, battle.findMonster(g, spirit.uid)!)).toBe(false);
-    g = endTurn(g);
-    expect(battle.cardTargetable(g, battle.findMonster(g, spirit.uid)!)).toBe(true);
+    rich(g, 1);
+    expect(battle.cardTargetable(g, battle.findMonster(g, uid)!)).toBe(true);
+    g = play(g, giveCard(g, 1, bolt), { enemy: M(uid) });
+    expect(battle.findMonster(g, uid)!.hp).toBe(8 - Math.floor(4 * T.spirit.trait.damageRate));
+    expect(logText(g)).toContain('霊体で');
+    // 自分の次のターンが始まったら、もう減らない
+    g = endTurn(endTurn(g));
+    rich(g, 1);
+    const before = battle.findMonster(g, uid)!.hp;
+    g = play(g, giveCard(g, 1, card({ id: 'bolt3', name: '小雷', effects: [fx({ id: 'damage', value: 2 })] })), { enemy: M(uid) });
+    expect(battle.findMonster(g, uid)!.hp).toBe(before - 2);
   });
 
   it('人「研鑽」：攻撃力アップ・鍛錬・装備でさらに上がる（人でなければ上がらない）', () => {
@@ -213,9 +228,11 @@ describe('常時の特性', () => {
 describe('出来事', () => {
   it('特性・揃いの出来事は kind tribe（種族と trait / set）', () => {
     let g = rich(startGame());
-    const d = putMonster(g, 1, mon('dragon'));
-    g = play(g, giveCard(g, 0, card({ id: 'burn2', name: '火', effects: [fx({ id: 'burn', value: 1 })] })), { enemy: M(d) });
-    expect(tribeEvs(g)).toEqual([{ kind: 'tribe', tribe: 'dragon', status: 'trait', target: M(d) }]);
+    const d = putMonster(g, 1, mon('dragon', { stats: { attack: 2, hp: 30, defense: 0 } }));
+    g = play(g, giveCard(g, 0, card({ id: 'burn2', name: '火', effects: [fx({ id: 'burn', value: 3 })] })), { enemy: M(d) });
+    const from = g.log.length;
+    g = endTurn(endTurn(g));
+    expect(tribeEvs(g, from)).toEqual([{ kind: 'tribe', tribe: 'dragon', status: 'trait', target: M(d) }]);
     void act;
   });
 });

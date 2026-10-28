@@ -20,7 +20,8 @@ describe('種族の特徴（実際の倍率）', () => {
   it('量には倍率が掛かり、数（枚数）には掛からない', () => {
     expect(SCALE).toBe(20);
     expect(T.beast.set.attack).toBe(SCALE);
-    expect(T.dragon.set.breath).toBe(2 * SCALE);
+    expect(T.dragon.set.breath).toBe(3 * SCALE);
+    expect(T.machine.set.defense).toBe(SCALE / 2);
     expect(T.undead.trait.poisonOnHit).toBe(SCALE);
     expect(T.spirit.set.draw).toBe(1);
     expect(TRIBE_SETS.beast.text).toContain(`+${SCALE}`);

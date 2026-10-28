@@ -89,7 +89,7 @@ export const glossary: Record<StatusId, GlossaryEntry> = {
     short: `次の自分のターン、モンスターは攻撃できない。プレイヤーは最初に使うカードのコストが+${B.freezeCostIncrease}`,
   },
   confuse: { name: '混乱', icon: '💫', gi: 'knocked-out-stars', tone: 'bad', short: '次の自分のターン開始時、敵味方を問わずランダムな相手を自動で攻撃する' },
-  seal: { name: '封印', icon: '🔒', gi: 'padlock', tone: 'bad', short: '効果とキーワードをすべて失う（デメリットは残る）。反撃はする' },
+  seal: { name: '封印', icon: '🔒', gi: 'padlock', tone: 'bad', short: 'このターンだけ、効果とキーワードをすべて失う（デメリットは残る。ターン終了時に戻る）。反撃はする' },
   shield: {
     name: 'シールド',
     icon: '🛡',
@@ -129,6 +129,7 @@ export const STATUS_IDS = Object.keys(glossary) as StatusId[];
 
 const KEYWORD_ICON: Record<string, string> = {
   haste: '⚡',
+  rush: '🦏',
   taunt: '🛡',
   flying: '🕊',
   trample: '💥',
@@ -159,6 +160,7 @@ const KEYWORD_ICON: Record<string, string> = {
 /** キーワードの形（game-icons。画面の札で絵文字の代わりに描く。1つの形は1つの意味だけ：tests/battleIcons.test.ts） */
 export const KEYWORD_GI: Record<string, string> = {
   haste: 'sprint',
+  rush: 'rhinoceros-horn',
   taunt: 'checked-shield',
   flying: 'feathered-wing',
   trample: 'stomp',
@@ -405,7 +407,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     tone: 'info',
     short: '新生・複写召喚・居住で出るコピー。元のカードの効果・キーワード・デメリットを持ち、召喚時の効果も出る（新生・複写召喚はトークンからは出ない）。場を離れると消える',
   },
-  tempToken: { name: '応召', icon: '⌛', gi: 'hunting-horn', tone: 'info', short: '速攻つきで出て、持ち主のターン終了時に消える（破壊ではない）' },
+  tempToken: { name: '応召', icon: '⌛', gi: 'hunting-horn', tone: 'info', short: '疾走つきで出て、持ち主のターン終了時に消える（破壊ではない）' },
   freePlay: {
     name: '無料で使う（続唱）',
     icon: '🎲',
@@ -533,7 +535,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     name: '不壊',
     icon: '🛡', gi: 'diamond-hard',
     tone: 'good',
-    short: '次の持ち主のターン開始まで、体力が1未満にならず、破壊の効果（接死・処刑・全体破壊・腐乱など）も効かない。生け贄・衰弱で体力0・寿命・バウンスは効く',
+    short: '次の持ち主のターン開始まで、体力が1未満にならず、破壊の効果（接死・処刑・全体破壊・腐乱など）も効かない。生け贄・衰弱で体力0・寿命・バウンスは効く（守護の不壊は削除。前に作ったカードにだけ残る）',
   },
   protection: { name: '加護', icon: '✨', gi: 'angel-wings', tone: 'good', short: '次の持ち主のターン開始まで、すべてのダメージを受けず、相手のカードの「選んだ1体」に選ばれない（ランダム・全体の効果は当たるがダメージは0）' },
   egg: {
@@ -552,7 +554,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
     name: '氷結',
     icon: '🧊',
     tone: 'bad',
-    short: `次の自分のターン開始時（引いた後）に、手札（ノイズ以外）からランダムにこの枚数が凍り、そのターンは使えない（サイクリング・魂力も不可。合計${B.iceCap}まで。浄化で消える）`,
+    short: `次の自分のターン開始時（引いた後）に、手札（ノイズ以外）からランダムにこの枚数が凍り、そのターンは使えない（サイクリング・魂力も不可。1ターンに${B.iceCap}枚まで。浄化で消える）`,
   },
   perpetual: { name: '永久強化', icon: '♾', gi: 'infinity', tone: 'good', short: 'この試合のあいだ、このカードの攻撃力と体力が上がっている（山札・捨て札・除外を巡っても残る）' },
   // ---- MTG 要素 △ バッチB
@@ -565,7 +567,7 @@ export const mechanicGlossary: Record<string, GlossaryEntry> = {
   },
   prototype: { name: '試作版', icon: '🔧', gi: 'gear-hammer', tone: 'info', short: '能力「試作」で安く出したモンスター。攻撃力・体力が半分（キーワード・効果はそのまま）。場を離れたら元に戻る' },
   unleashed: { name: '解鎖', icon: '⛓', gi: 'unlocking', tone: 'info', short: '能力「解鎖」で攻撃力を上げて出したモンスター。攻撃されても反撃しない（自分から攻撃したときの相手の反撃は受ける）' },
-  unearthed: { name: '一時蘇生', icon: '🧟', gi: 'raise-zombie', tone: 'bad', short: '能力「一時蘇生」で捨て札から出したモンスター。速攻を持ち、持ち主のターン終了時に除外される（場を離れても除外）' },
+  unearthed: { name: '一時蘇生', icon: '🧟', gi: 'raise-zombie', tone: 'bad', short: '能力「一時蘇生」で捨て札から出したモンスター。疾走を持ち、持ち主のターン終了時に除外される（場を離れても除外）' },
   villain: {
     name: '最悪の二択',
     icon: '⚖',

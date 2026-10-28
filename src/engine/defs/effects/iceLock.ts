@@ -9,7 +9,7 @@ export default defineEffect({
   name: '氷結',
   group: 'disrupt',
   order: 74.3,
-  summary: `相手の次のターン、引いた後の手札からランダムにN枚が凍り、そのターンは使えない（サイクリング・魂力も不可。凍結は「最初のカードのコスト+1」、氷結は「カードが使えない」。合計${BALANCE.battle.iceCap}枚まで。浄化で消える）`,
+  summary: `相手の次のターン、引いた後の手札からランダムにN枚が凍り、そのターンは使えない（サイクリング・魂力も不可。凍結は「最初のカードのコスト+1」、氷結は「カードが使えない」。1ターンに${BALANCE.battle.iceCap}枚まで。浄化で消える）`,
   value: countParam('枚数', { default: 1, max: B.maxCount }),
   targetRule: 'enemyPlayer',
   basePoints: (e) => B.perCount * n(e),

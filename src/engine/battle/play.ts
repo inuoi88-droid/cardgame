@@ -935,7 +935,7 @@ function resolvePlay(
     bargained?: boolean;
     /** 計画したカード（MTG 要素 △ バッチC）：X は0 */
     freeX?: boolean;
-    /** 待機（MTG 要素 △ バッチC）で無料で使った（モンスターは速攻） */
+    /** 待機（MTG 要素 △ バッチC）で無料で使った（モンスターは疾走） */
     suspend?: boolean;
   },
 ): void {
@@ -1015,7 +1015,7 @@ function resolvePlay(
       ...(villain ? { villain: true } : {}),
       ...(opts.alt === 'warp' ? { warp: true } : {}),
     });
-    // 待機（MTG 要素 △ バッチC）で出たモンスターは速攻を持つ（兆候）
+    // 待機（MTG 要素 △ バッチC）で出たモンスターは疾走を持つ（兆候）
     if (m && opts.suspend) m.counters.hasteTurn = g.turnIndex;
     // 分隊：払った回数だけコピーのトークン（召喚時の効果も出る。場のトークンの上限まで）
     if (m && extra?.kind === 'squad' && opts.extra && opts.extra > 0 && opts.from !== 'free') {

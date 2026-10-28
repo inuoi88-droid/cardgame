@@ -39,19 +39,19 @@ describe('作成例', () => {
     expect(a.text.effects).toEqual(['攻撃するたび、攻撃した相手に毒1を与える。']);
   });
 
-  // 報告 #6 で条件「相手が毒状態」の倍率を 0.45→0.6 にしたとき、作れるよう 20→15 ダメージにした（ユーザー回答・決定事項 #144）
-  it('3. とどめの一撃：条件「相手が毒状態」で15ダメージ、45×0.6＝27pt。コスト2で−20pt。合計7pt、アタック', () => {
+  // 条件「相手が毒状態」の倍率を 0.45→0.6（#144）→0.8（#146）にしたとき、作れるよう 20→15→11 ダメージにした（ユーザー回答）
+  it('3. とどめの一撃：条件「相手が毒状態」で11ダメージ、33×0.8＝27pt。コスト2で−20pt。合計7pt、アタック', () => {
     const a = analyzeCard(EXAMPLES.todome);
     expect(lineValues(a)).toEqual([
-      ['ダメージ15', 27],
+      ['ダメージ11', 27],
       ['コスト2', -20],
     ]);
-    expect(a.points.lines[0]!.formula).toBe('45 × 0.6（相手プレイヤーが毒状態）');
+    expect(a.points.lines[0]!.formula).toBe('33 × 0.8（相手プレイヤーが毒状態） = 26.4 → 切り上げ');
     expect(a.points.total).toBe(7);
     expect(a.points.cap).toBe(8);
     expect(a.cardType).toBe('attack');
     expect(a.valid).toBe(true);
-    expect(a.text.effects).toEqual(['相手プレイヤーが毒状態なら、相手1体に15ダメージを与える。']);
+    expect(a.text.effects).toEqual(['相手プレイヤーが毒状態なら、相手1体に11ダメージを与える。']);
   });
 
   it('4. 狂戦士の契約：筋力+5で45pt、デメリット1.5×4×6.0＝36pt（差し引けるのは上限の18まで）、コスト1で−10pt。合計17pt、呪いのパワー', () => {

@@ -181,7 +181,7 @@ export function decayingTotal(n: number, keepRate: number): number {
   return total;
 }
 
-/** 速攻を持つモンスターカードか（召喚したターンに攻撃できる） */
+/** 疾走を持つモンスターカードか（召喚したターンに攻撃できる） */
 export function hasHaste(def: CardDef): boolean {
   return def.stats !== null && def.keywords.some((k) => getKeyword(k.id)?.battle.haste === true);
 }

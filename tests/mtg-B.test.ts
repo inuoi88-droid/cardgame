@@ -66,7 +66,7 @@ describe('キーワード（○ バッチB）：ポイントとテキスト', ()
     ['ward', 2, 6, '相手のカードの対象にするとコスト+2'],
     ['onslaught', 2, 4, '相手プレイヤーを攻撃するとき、攻撃力+2'],
     ['menace', undefined, 3, '攻撃したとき、反撃を受けない'],
-    ['doubleTeam', undefined, 5, '初めて攻撃したとき、分身を失ったこのカードのコピーを手札に加える'],
+    ['doubleTeam', undefined, 6, '初めて攻撃したとき、分身を失ったこのカードのコピーを手札に加える'], // 1（#146 の上乗せ）＋0.4×ステータス
   ];
   it.each(table)('%s（%s）：%ipt、テキスト、違反なし', (id, value, pts, text) => {
     const c = MON(2, 3, { keywords: [KW(id, value)] });
@@ -114,7 +114,7 @@ describe('効果（○ バッチB）：ポイントとテキスト', () => {
     ['boon', S({ id: 'boon', value: 2, hits: 2 }), 10, '次のアタック2回、ダメージ+2（それぞれ最初の1発）。'],
     ['ramp', S({ id: 'ramp' }), 30, '以後ずっと、ターン開始時のエナジー+1（1回まで）。'],
     ['cloneToken', SPELL([fx({ id: 'cloneToken' })]), 25, '相手モンスター1体のコピー（トークン）を自分の場に出す。'],
-    ['mobilize', S({ id: 'token', value: 1, hits: 2, option: 'mobilize' }), 7, '攻撃力1・体力1の速攻の小鬼を2体出す（ターン終了時に消える）。'],
+    ['mobilize', S({ id: 'token', value: 1, hits: 2, option: 'mobilize' }), 7, '攻撃力1・体力1の疾走の小鬼を2体出す（ターン終了時に消える）。'],
     ['tokenNormal', S({ id: 'token', value: 1, hits: 2, option: 'normal' }), 10, '攻撃力1・体力1の小鬼を2体出す。'],
   ];
   it.each(table)('%s：ポイントとテキスト', (_name, c, pts, text) => {
@@ -697,7 +697,7 @@ describe('効果（○ バッチB）：対戦', () => {
     expect(battle.keywordFlags(g, copy).flying).toBe(true);
   });
 
-  it('応召：速攻つきで出て、ターン終了時に消える（破壊ではない）', () => {
+  it('応召：疾走つきで出て、ターン終了時に消える（破壊ではない）', () => {
     let g = rich(startGame());
     putMonster(g, 0, MON(1, 9, { effects: [fx({ id: 'heal', value: 3, timing: 'allyDestroyed', target: 'self' })] }));
     g.players[0].hp = 100;

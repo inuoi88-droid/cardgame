@@ -42,7 +42,7 @@ const BASE_SAMPLES: CardDef[] = [
     cost: 2,
     stats: null,
     keywords: [],
-    effects: [{ id: 'damage', value: 15, timing: 'play', target: 'chosen', condition: 'enemyPoisoned' }],
+    effects: [{ id: 'damage', value: 11, timing: 'play', target: 'chosen', condition: 'enemyPoisoned' }],
     drawbacks: [],
   },
   {

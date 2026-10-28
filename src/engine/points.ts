@@ -68,16 +68,19 @@ function buildFormula(baseFormula: string, base: number, factors: Factor[], raw:
 export function attackProfile(keywords: readonly KeywordInstance[]): AttackProfile {
   let attacks = DEFAULT_ATTACK_PROFILE.attacks;
   let haste = DEFAULT_ATTACK_PROFILE.haste;
+  let rush = false;
   for (const k of keywords) {
     const b = getKeyword(k.id)?.battle;
     if (!b) continue;
     if (b.attacksPerTurn !== undefined) attacks = Math.max(attacks, b.attacksPerTurn);
     if (b.haste) haste = true;
+    if (b.rush) rush = true;
   }
-  return { attacks, haste };
+  // 突進（決定事項 #146）も出たターンに攻撃できる（モンスターだけ）ので、「攻撃するたび」の上乗せは疾走と同じ
+  return { attacks, haste: haste || rush, ...(rush && !haste ? { rush: true } : {}) };
 }
 
-/** タイミングの倍率の項（「攻撃するたび」は攻撃回数と速攻を式と理由に出す） */
+/** タイミングの倍率の項（「攻撃するたび」は攻撃回数と疾走を式と理由に出す） */
 function timingFactor(timing: keyof typeof TIMINGS, base: CardBase, card: PointCard): Factor {
   const t = TIMINGS[timing];
   if (timing === 'hitEnemyPlayer') {
@@ -113,7 +116,7 @@ function timingFactor(timing: keyof typeof TIMINGS, base: CardBase, card: PointC
   }
   if (profile.haste) {
     text += `+${formatMultiplier(T.attackHasteBonus)}`;
-    names.push(getKeyword('haste')?.name ?? '速攻');
+    names.push(getKeyword(profile.rush ? 'rush' : 'haste')?.name ?? '疾走');
   }
   return { label: names.join('・'), value, text: profile.attacks === 1 && !profile.haste ? undefined : text };
 }

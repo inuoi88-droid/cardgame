@@ -14,7 +14,7 @@ describe('テンプレート', () => {
       expect(a.valid).toBe(true);
     });
   }
-  it('呪いのアタックは呪いカード、速攻モンスターはモンスター', () => {
+  it('呪いのアタックは呪いカード、疾走モンスターはモンスター', () => {
     expect(analyzeCard(TEMPLATES.find((t) => t.id === 'curse')!.build('x')).isCurse).toBe(true);
     expect(analyzeCard(TEMPLATES.find((t) => t.id === 'aggro')!.build('y')).cardType).toBe('monster');
   });

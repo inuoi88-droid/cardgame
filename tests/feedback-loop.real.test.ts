@@ -84,7 +84,7 @@ describe('報告 #3：コスト0の循環＋同じコストのサーチのルー
   });
 });
 
-/** 報告 #4 から：コスト1・召喚時エナジー+1・一撃離脱・速攻（エピックなら攻撃力40まで作れる）。出す→殴る→手札に戻る がエナジー0で回る */
+/** 報告 #4 から：コスト1・召喚時エナジー+1・一撃離脱・疾走（エピックなら攻撃力40まで作れる）。出す→殴る→手札に戻る がエナジー0で回る */
 const shuttle: CardDef = card({
   id: 'shuttle',
   name: '往復の精',
@@ -144,7 +144,7 @@ describe('報告 #4・#5：親和でコスト1まで下がり、召喚時のエ�
     }
     g.players[0].hand.push({ uid: 'SP', cardId: 'p0:spark', owner: 0 });
     const sp = g.players[0].hand.find((c) => c.uid === 'SP')!;
-    // 報告のカード（攻撃力0の速攻・二回攻撃）は、キーワードの値段の最低の攻撃力（報告 #19・決定事項 #144）で予算を超えるようになった。
+    // 報告のカード（攻撃力0の疾走・二回攻撃）は、キーワードの値段の最低の攻撃力（報告 #19・決定事項 #144）で予算を超えるようになった。
     // 親和の下限はそれと別に、場に置いた状態で確かめる
     expect(analyzeCard(spark).violations.map((v) => v.code)).toContain('POINTS_OVER_CAP');
     expect(BALANCE.abilities.affinity.minCost).toBe(2);

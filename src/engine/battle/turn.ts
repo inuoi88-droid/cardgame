@@ -407,11 +407,16 @@ export function turnEndFinish(g: GameState, p: PlayerId, kept: string[]): void {
   }
   // このターンの記録を残す（条件「前の相手のターンに相手がカードを3枚以上使った」。MTG 要素 ○ バッチA）
   ps.lastTurn = { cardsPlayed: ps.turn.cardsPlayed };
-  // 一時強化と、賛助でこのターンだけ与えたキーワード（MTG 要素 △ バッチA）はターンの終わりに消える（両者のモンスター）
+  // 一時強化と、賛助でこのターンだけ与えたキーワード（MTG 要素 △ バッチA）はターンの終わりに消える（両者のモンスター）。
+  // 封印もこのターンだけ（決定事項 #146）
   for (const pl of g.players) {
     for (const m of pl.board) {
       if (m.tempAttack) delete m.tempAttack;
       if (m.tempGranted) delete m.tempGranted;
+      if (m.sealed) {
+        m.sealed = false;
+        log(g, 1, `${monsterLabel(g, m)}の封印が解けた`, 'info');
+      }
     }
   }
 

@@ -162,7 +162,7 @@ function afterDrawn(g: GameState, p: PlayerId, drawn: CardInst[], depth: number)
 
 /**
  * 場に出るときの指定（MTG 要素 △ バッチB）：試作版（攻撃力・体力が半分）・解鎖（攻撃力+unleash。反撃しない）・
- * 一時蘇生（速攻・ターン終了時に除外）・最悪の二択（召喚時のモードは相手が選ぶ）
+ * 一時蘇生（疾走・ターン終了時に除外）・最悪の二択（召喚時のモードは相手が選ぶ）
  */
 export interface EnterOpts {
   prototype?: boolean;
@@ -214,7 +214,7 @@ export function placeMonster(g: GameState, p: PlayerId, card: CardInst, depth: n
     counters: {},
     status: emptyStatuses(),
   };
-  // 応召の一時トークンは速攻を持つ（MTG 要素 ○ バッチB）
+  // 応召の一時トークンは疾走を持つ（MTG 要素 ○ バッチB）
   if (card.token?.temp) m.granted = ['haste'];
   // MTG 要素 △ バッチB：試作版・解鎖・一時蘇生（公開の印）
   if (enter.prototype) m.prototype = true;
@@ -461,7 +461,7 @@ export function borrow(g: GameState, uid: string, to: PlayerId, turns: number, d
   const label = monsterLabel(g, m);
   const from = m.controller;
   moveMonster(g, m, to);
-  // 速攻と同じ扱い：このターンに攻撃できる
+  // 疾走と同じ扱い：このターンに攻撃できる
   m.enteredTurn = g.turnIndex - 1;
   m.attacksUsed = 0;
   m.counters.borrowLeft = turns;

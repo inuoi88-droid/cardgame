@@ -28,7 +28,7 @@ describe('種族の特徴（実際の倍率）', () => {
     expect(TRIBE_TRAITS.human.text).toContain(`+${SCALE}`);
   });
 
-  it('公式カードの得意の割引は内訳の行に出る（群れ狼：速攻）', () => {
+  it('公式カードの得意の割引は内訳の行に出る（群れ狼：疾走）', () => {
     const c = officialCard('official-mureookami')!;
     const l = analyzeCard(c).points.lines.find((x) => x.label === '種族（獣）の得意');
     expect(l?.value).toBeLessThan(0);

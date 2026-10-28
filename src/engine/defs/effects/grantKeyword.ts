@@ -7,7 +7,7 @@ type GrantId = keyof typeof B;
 /** 与えられるキーワード（二回攻撃・隠密・数値つきは出さない） */
 const IDS = Object.keys(B) as GrantId[];
 const NAMES: Record<GrantId, string> = {
-  haste: '速攻',
+  haste: '疾走',
   taunt: '挑発',
   flying: '飛行',
   trample: '貫通',

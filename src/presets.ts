@@ -78,7 +78,7 @@ const poison = preset('poison', '毒沼の魔女', '毒をばらまいてじわ�
     }),
     2,
   ],
-  [c('todome', 'とどめの一撃', 'gi:diving-dagger', 'rare', 2, { effects: [fx({ id: 'damage', value: 15, condition: 'enemyPoisoned' })] }), 3],
+  [c('todome', 'とどめの一撃', 'gi:diving-dagger', 'rare', 2, { effects: [fx({ id: 'damage', value: 11, condition: 'enemyPoisoned' })] }), 3],
   [c('joou', '毒蛇の女王', 'gi:snake-totem', 'rare', 3, { stats: stats(3, 10), effects: [fx({ id: 'poison', value: 2, timing: 'attack' })] }), 3],
   [
     c('dokuyaiba', '毒の刃', 'gi:gooey-sword', 'epic', 2, {

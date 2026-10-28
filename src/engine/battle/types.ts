@@ -187,7 +187,7 @@ export interface Monster {
   prototype?: boolean;
   /** 解鎖して出た（攻撃力+N。攻撃されても反撃しない） */
   unleashed?: boolean;
-  /** 一時蘇生で出た（速攻。持ち主のターン終了時に除外される） */
+  /** 一時蘇生で出た（疾走。持ち主のターン終了時に除外される） */
   unearthed?: boolean;
   // ---- MTG 要素 △ バッチC（公開情報。faceDown.card だけは持ち主にだけ見える）
   /** 裏向き（変装・予示） */
@@ -438,7 +438,7 @@ export type Step =
       card: CardInst;
       depth: number;
       freeDepth: number;
-      /** 待機（MTG 要素 △ バッチC）で使われた：モンスターは速攻を持つ */
+      /** 待機（MTG 要素 △ バッチC）で使われた：モンスターは疾走を持つ */
       suspend?: boolean;
       chosen?: Chosen;
       /** モード選択のカード（MTG 要素 ○ バッチC2）は、対象より先にモードを選ぶ（stage 'mode'） */

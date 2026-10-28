@@ -220,7 +220,7 @@ describe('待機ゾーン（対戦）', () => {
     expect(g.log.some((e) => e.text.includes('X＝0'))).toBe(true);
   });
 
-  it('待機：K で置き、自分のターン開始時に1ずつ減って0で無料で使われる（モンスターは速攻）。上限5枚', () => {
+  it('待機：K で置き、自分のターン開始時に1ずつ減って0で無料で使われる（モンスターは疾走）。上限5枚', () => {
     let g = fresh();
     const c = giveCard(g, 0, MON(3, 3, { abilities: [AB('suspend', 2, { option: '1' })] }));
     g = act(g, { type: 'setAside', player: 0, cardUid: c, kind: 'suspend' });

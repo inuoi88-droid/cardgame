@@ -20,7 +20,7 @@ describe('攻撃の基本', () => {
     expect(g.players[1].hp).toBe(118);
   });
 
-  it('速攻は召喚したターンから攻撃できる', () => {
+  it('疾走は召喚したターンから攻撃できる', () => {
     let g = rich(startGame());
     const uid = giveCard(g, 0, unit(2, 2, 0, kw('haste')));
     g = play(g, uid);
@@ -242,7 +242,7 @@ describe('凍結・混乱・封印', () => {
     expect(actError(g, { type: 'attack', player: 1, attackerUid: enemy, target: P(0) })).toContain('混乱');
   });
 
-  it('封印：効果とキーワードを失うが、デメリットは残る', () => {
+  it('封印：このターンだけ効果とキーワードを失う（ターン終了時に戻る。決定事項 #146）', () => {
     let g = rich(startGame());
     const def = unit(2, 5, 0, { ...kw('taunt'), drawbacks: [{ id: 'upkeep', timing: null }], effects: [fx({ id: 'damage', value: 3, timing: 'attack' })] });
     const enemy = putMonster(g, 1, def);
@@ -250,9 +250,12 @@ describe('凍結・混乱・封印', () => {
     expect(monster(g, enemy)!.sealed).toBe(true);
     expect(battle.keywordFlags(g, monster(g, enemy)!).taunt).toBeUndefined();
     g = endTurn(g);
-    expect(g.players[1].hp).toBe(119); // 維持費は残る
+    expect(monster(g, enemy)!.sealed).toBe(false);
+    expect(battle.keywordFlags(g, monster(g, enemy)!).taunt).toBe(true);
+    expect(g.log.some((e) => e.text.includes('封印が解けた'))).toBe(true);
+    expect(g.players[1].hp).toBe(119); // 維持費
     g = attack(g, enemy, P(0));
-    expect(g.players[0].hp).toBe(118); // 攻撃するたびのダメージは出ない
+    expect(g.players[0].hp).toBe(115); // 封印が解けたので、攻撃するたびのダメージも出る
   });
 });
 

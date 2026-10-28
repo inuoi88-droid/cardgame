@@ -18,7 +18,7 @@ export const PRESET_GI: Record<string, string> = {
 /** プリセットのデッキの持ち味（デッキ箱の1行の注記。CLAUDE.md の「毒・モンスター・呪い・守り・コンボ」） */
 export const PRESET_THEME: Record<string, string> = {
   poison: '毒でじわじわ削る',
-  beasts: 'モンスターで速攻',
+  beasts: 'モンスターで疾走',
   curses: '呪いで押し込む',
   fortress: '挑発で守り切る',
   clockwork: '手数のコンボ',

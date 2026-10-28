@@ -59,10 +59,13 @@ export function attackBlockReason(g: GameState, m: Monster): string | null {
   // 砦（MTG 要素 △ バッチC）は攻撃しない
   if (m.siege) return '砦は攻撃しない';
   if (monsterDormant(g, m)) return '休眠中：このターンは攻撃できない';
-  // 一時蘇生（MTG 要素 △ バッチB）・待機（△ バッチC）で出たモンスターは速攻を持つ
+  // 一時蘇生（MTG 要素 △ バッチB）・待機（△ バッチC）で出たモンスターは疾走を持つ
   // フィールド「闘技場」（MTG 要素 △ バッチD）では出たターンから攻撃できる
-  if (m.enteredTurn === g.turnIndex && !keywordFlags(g, m).haste && !m.unearthed && m.counters.hasteTurn !== g.turnIndex && !ruleHooks(g, m.controller).noSummoningSickness)
-    return '場に出たターンは攻撃できません';
+  if (summoningSick(g, m)) {
+    // 突進（決定事項 #146）：出たターンは相手のモンスターだけを攻撃できる
+    if (!keywordFlags(g, m).rush) return '場に出たターンは攻撃できません';
+    if (attackTargets(g, m).length === 0) return '突進：場に出たターンは相手のモンスターしか攻撃できません';
+  }
   if (m.attacksUsed >= attacksPerTurn(g, m)) return 'このターンはもう攻撃しました';
   return null;
 }
@@ -72,6 +75,17 @@ export function attackBlockReason(g: GameState, m: Monster): string | null {
  * 対空しか攻撃できない。潜伏のモンスターは、挑発がすべて自分より攻撃力が高ければ挑発を無視できる
  */
 export function attackTargets(g: GameState, m: Monster): TargetRef[] {
+  const all = attackTargetsAll(g, m);
+  // 突進で出たターンは相手プレイヤーを攻撃できない（決定事項 #146）
+  return summoningSick(g, m) && keywordFlags(g, m).rush ? all.filter((t) => t.kind === 'monster') : all;
+}
+
+/** 場に出たターンで、疾走・一時蘇生・待機・闘技場などで攻撃できる状態でない（召喚酔い） */
+export function summoningSick(g: GameState, m: Monster): boolean {
+  return m.enteredTurn === g.turnIndex && !keywordFlags(g, m).haste && !m.unearthed && m.counters.hasteTurn !== g.turnIndex && !ruleHooks(g, m.controller).noSummoningSickness;
+}
+
+function attackTargetsAll(g: GameState, m: Monster): TargetRef[] {
   const opp = other(m.controller);
   const monsters = g.players[opp].board.filter((x) => !x.stealth);
   const flags = keywordFlags(g, m);

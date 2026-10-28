@@ -18,7 +18,7 @@ const make = (id: string, base: Base): CardDef => fromBaseScale({ ...newCard(id)
 export const TEMPLATES: readonly CardTemplate[] = [
   {
     id: 'aggro',
-    title: '速攻モンスター',
+    title: '疾走モンスター',
     description: '出したターンから殴る。序盤の押し込み役',
     build: (id) =>
       make(id, {
@@ -145,7 +145,7 @@ export const TEMPLATES: readonly CardTemplate[] = [
   {
     id: 'riot',
     title: '暴動モンスター',
-    description: '出すときに「速攻ですぐ殴る」か「鍛えて大きくなる」かを選ぶ（モード選択）',
+    description: '出すときに「疾走ですぐ殴る」か「鍛えて大きくなる」かを選ぶ（モード選択）',
     build: (id) =>
       make(id, {
         name: '暴れ猪',

@@ -98,7 +98,7 @@ describe('検索のならし', () => {
   it('効果の文・キーワード・種族・タグの名前でも当たる', () => {
     const c = card({ name: 'ネズミ', stats: { attack: 1, hp: 1, defense: 0 }, tribe: 'beast', keywords: [{ id: 'haste' }], effects: [{ id: 'poison', value: 1, timing: 'attack', target: 'chosen', condition: null }] });
     const e = buildEntry(c, analyzeCard(c), 0);
-    for (const q of ['毒', '速攻', '獣', '攻撃・速攻', 'もんすたー']) expect(matchQuery(e.text, parseQuery(q)), q).toBe(true);
+    for (const q of ['毒', '疾走', '獣', '攻撃・疾走', 'もんすたー']) expect(matchQuery(e.text, parseQuery(q)), q).toBe(true);
   });
 
   it('タグ・種族の読み（かな）でも当たる：「どく」で毒、「けもの」で獣', () => {

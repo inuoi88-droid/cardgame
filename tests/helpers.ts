@@ -45,7 +45,7 @@ export const EXAMPLES = {
     icon: '🗡️',
     rarity: 'rare',
     cost: 2,
-    effects: [{ id: 'damage', value: 15, timing: 'play', target: 'chosen', condition: 'enemyPoisoned' }],
+    effects: [{ id: 'damage', value: 11, timing: 'play', target: 'chosen', condition: 'enemyPoisoned' }],
   }),
   kyosenshi: card({
     id: 'ex-kyosenshi',

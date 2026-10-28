@@ -14,13 +14,13 @@ const saved = (a: { option?: string }, cost: number | undefined): number => Math
 /** 待つターン数による割引 */
 const delay = (a: { value?: number }): number => B.delayRate[Math.min(Math.max(n(a), 1), B.delayRate.length) - 1]!;
 
-// 待機：MTG #264・#384（待機・兆候）。エナジー K でこのカードを待機させ、N ターン後の自分のターン開始時に無料で使う（モンスターは速攻）
+// 待機：MTG #264・#384（待機・兆候）。エナジー K でこのカードを待機させ、N ターン後の自分のターン開始時に無料で使う（モンスターは疾走）
 export default defineAbility({
   id: 'suspend',
   name: '待機',
   order: 52,
   group: '待機ゾーン',
-  summary: `自分のターンにエナジーK（印刷コスト未満）を払って、このカードを表向きで待機ゾーンに置ける（残りN）。自分のターン開始時に残りが1ずつ減り、0になったら無料で使われる（対象・モードは選ぶ。モンスターは速攻を持つ＝兆候）。ポイントは${B.flat}＋(印刷コスト−K)×${B.perSaved}×（N＝1・2・3 で ${B.delayRate.join('・')}）`,
+  summary: `自分のターンにエナジーK（印刷コスト未満）を払って、このカードを表向きで待機ゾーンに置ける（残りN）。自分のターン開始時に残りが1ずつ減り、0になったら無料で使われる（対象・モードは選ぶ。モンスターは疾走を持つ＝兆候）。ポイントは${B.flat}＋(印刷コスト−K)×${B.perSaved}×（N＝1・2・3 で ${B.delayRate.join('・')}）`,
   value: countParam('ターン', { min: 1, max: B.maxTurns, default: 2 }),
   option: { label: '待機させるエナジー', choices: COSTS, default: '1' },
   belowPrintedCost: 'option',

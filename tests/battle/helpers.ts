@@ -1,6 +1,6 @@
 // 対戦テスト用の道具：状態を直接いじって場面を作り、行動を適用して結果を見る
 import { expect } from 'vitest';
-import { battle, type CardDef, type Deck, type EffectInstance } from '../../src/engine/index.ts';
+import { BALANCE, battle, type CardDef, type Deck, type EffectInstance } from '../../src/engine/index.ts';
 import { card } from '../helpers.ts';
 
 type GameState = battle.GameState;
@@ -8,11 +8,11 @@ type PlayerId = battle.PlayerId;
 type Action = battle.Action;
 type TargetRef = battle.TargetRef;
 
-/** 山札用の当たり障りのないカード（回復1、コスト1） */
+/** 山札用の当たり障りのないカード（回復1＝量の最小の単位、コスト1。実際の倍率では20：決定事項 #146） */
 export const FILLER = card({
   id: 'filler',
   name: '練習用の薬',
-  effects: [{ id: 'heal', value: 1, timing: 'play', target: 'self', condition: null }],
+  effects: [{ id: 'heal', value: BALANCE.stats.minAmount, timing: 'play', target: 'self', condition: null }],
 });
 
 export const fx = (e: Partial<EffectInstance> & { id: string }): EffectInstance => ({

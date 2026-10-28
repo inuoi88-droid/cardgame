@@ -63,7 +63,7 @@ describe('定義（△ バッチB）：ポイント・テキスト', () => {
   const table: [string, CardDef, number, number, string][] = [
     ['放題+1（高い28＋他16×0.5）', MODAL([AB('spree', 1)]), 36, 0, 'モードを好きな数だけ選べる（2つ目から1つにつきエナジー+1）。'],
     ['段階（上乗せ×10を引いて高い18＋他12×0.3）', MODAL([AB('tiered')]), 22, 0, 'モード B は+1、C は+2のエナジーを追加で払う。'],
-    ['切除+1（条件を外した差6×0.6）', SPELL([fx({ ...DMG5, condition: 'enemyPoisoned' })], { abilities: [AB('cleave', 1)] }), 13, 4, 'エナジーを追加で1払うと、条件を無視する。'],
+    ['切除+1（条件を外した差3×0.6）', SPELL([fx({ ...DMG5, condition: 'enemyPoisoned' })], { abilities: [AB('cleave', 1)] }), 14, 2, 'エナジーを追加で1払うと、条件を無視する。'],
     ['奮励+1（相手を選ぶ効果15×0.5）', SPELL([DMG5], { abilities: [AB('strive', 1)] }), 23, 8, 'エナジーを追加で1払うたび（2回まで）、相手モンスター1体を追加（ランダム）。'],
     ['分隊+2（本体12×0.45）', MON(2, 2, { effects: [fx({ id: 'damage', value: 1, timing: 'summon' })], abilities: [AB('squad', 2)] }), 9, 6, 'エナジーを追加で2払うたび（2回まで）、コピーを1体出す。'],
     // 試作：max(2×K, 下がるコストの価値 − 半分で失う攻撃力・体力の価値)＝max(4, (32−10) − (2×3+2×1.5))＝13（#144）
@@ -83,7 +83,7 @@ describe('定義（△ バッチB）：ポイント・テキスト', () => {
     ['回顧（効果・本体15×0.5）', SPELL([DMG5], { abilities: [AB('retrace')] }), 23, 8, '捨て札から、手札1枚を捨てて使える（1ターン1回）。'],
     ['調和（効果・本体15×0.5）', SPELL([DMG5], { abilities: [AB('harmonize', 0)] }), 23, 8, '捨て札から使える。モンスターを休ませると安くなる。使ったら除外。'],
     ['大混乱（効果・本体15×0.4）', SPELL([DMG5], { abilities: [AB('mayhem')] }), 21, 6, 'このターン捨てられていれば、捨て札から使える。'],
-    ['一時蘇生1（本体13.5×0.45）', MON(3, 3, { abilities: [AB('unearth', 1)] }), 7, 7, '捨て札からエナジー1で出せる（速攻。ターン終了時に除外）。'],
+    ['一時蘇生1（本体13.5×0.45）', MON(3, 3, { abilities: [AB('unearth', 1)] }), 7, 7, '捨て札からエナジー1で出せる（疾走。ターン終了時に除外）。'],
     ['相続（能力0・タイミング×0.9）', SPELL([DMG5, fx({ id: 'damage', value: 3, timing: 'renew' })], { abilities: [AB('renew', 1)] }), 24, 0, '捨て札からエナジー1でこのカードを除外して、「相続」の効果を使う。'],
     ['発掘2（固定2）', SPELL([DMG5], { abilities: [AB('dredge', 2)] }), 17, 2, '山札の上2枚を捨て札に置き、捨て札のこのカードを手札に戻す。'],
     ['不朽1（本体13.5×0.4）', MON(3, 3, { abilities: [AB('embalm', 1)] }), 6, 6, '捨て札からエナジー1で除外し、コピーを出す。'],
@@ -492,7 +492,7 @@ describe('捨て札・手札の能力・後援（対戦）', () => {
     expect(s.players[0].discard.find((c) => c.uid === uid)?.discardedTurn).toBeUndefined();
   });
 
-  it('一時蘇生：捨て札から K で出す。速攻で攻撃でき、ターン終了時に除外', () => {
+  it('一時蘇生：捨て札から K で出す。疾走で攻撃でき、ターン終了時に除外', () => {
     const g = fresh(1);
     const uid = toDiscard(g, 0, MON(3, 3, { cost: 4, abilities: [AB('unearth', 1)] }));
     let s = act(g, { type: 'playCard', player: 0, cardUid: uid, from: 'discard', chosen: {} });

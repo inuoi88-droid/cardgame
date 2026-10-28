@@ -79,6 +79,12 @@ function checkParam(
   if (!spec) return;
   if (!isIntInRange(v, spec.min, spec.max)) {
     out.push({ code, path, message: `${what}の${spec.label}は${spec.min}〜${spec.max}の整数にしてください` });
+    return;
+  }
+  // 量（倍率の掛かる入力欄）は 0 でなければ最小の単位以上（0 を選べる欄でも 1〜19 は不可：決定事項 #146）
+  const unit = BALANCE.stats.minAmount;
+  if (spec.scaled && v !== undefined && v !== 0 && v < unit) {
+    out.push({ code, path, message: `${what}の${spec.label}は0か${unit}以上にしてください` });
   }
 }
 
@@ -110,12 +116,16 @@ export function validateCard(card: CardDef, points: PointSummary): Violation[] {
     const { attack, hp, defense } = card.stats;
     if (!isIntInRange(attack, S.attackMin, S.attackMax)) {
       out.push({ code: 'STAT_ATTACK', path: 'stats.attack', message: `攻撃力は${S.attackMin}〜${S.attackMax}の整数にしてください` });
+    } else if (attack !== 0 && attack < S.minAmount) {
+      out.push({ code: 'STAT_ATTACK', path: 'stats.attack', message: `攻撃力は0か${S.minAmount}以上にしてください` });
     }
     if (!isIntInRange(hp, S.hpMin, S.hpMax)) {
       out.push({ code: 'STAT_HP', path: 'stats.hp', message: `体力は${S.hpMin}〜${S.hpMax}の整数にしてください` });
     }
     if (!isIntInRange(defense, S.defenseMin, S.defenseMax)) {
       out.push({ code: 'STAT_DEFENSE', path: 'stats.defense', message: `守備力は${S.defenseMin}〜${S.defenseMax}の整数にしてください（上限${S.defenseMax}）` });
+    } else if (defense !== 0 && defense < S.minAmount) {
+      out.push({ code: 'STAT_DEFENSE', path: 'stats.defense', message: `守備力は0か${S.minAmount}以上にしてください` });
     }
   }
 

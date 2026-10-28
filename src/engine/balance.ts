@@ -62,13 +62,18 @@ export const BALANCE = {
     defensePoints: 4,
     attackMin: 0,
     attackMax: x(30),
-    hpMin: 1,
+    hpMin: x(1),
     hpMax: x(50),
     defenseMin: 0,
     defenseMax: x(3),
     /**
-     * キーワードの値段で数える攻撃力の最低（速攻・二回攻撃など攻撃力に比例するもの）。攻撃力0でも速攻・二回攻撃がタダにならない。
-     * 攻撃力0・コスト0の速攻・二回攻撃を並べて全体の一時強化を掛けると、後攻1ターン目に倒せた（報告 #19。ユーザー回答）
+     * 量（攻撃力・体力・守備力と、量の入力欄）の最小の単位。0 でない値はこれ以上（倍率1では1）。
+     * 体力・攻撃力1の小鬼などを並べると安すぎた（ユーザー指示：20 が基本の単位のものは最低20に。決定事項 #146）
+     */
+    minAmount: x(1),
+    /**
+     * キーワードの値段で数える攻撃力の最低（疾走・二回攻撃など攻撃力に比例するもの）。攻撃力0でも疾走・二回攻撃がタダにならない。
+     * 攻撃力0・コスト0の疾走・二回攻撃を並べて全体の一時強化を掛けると、後攻1ターン目に倒せた（報告 #19。ユーザー回答）
      */
     keywordMinAttack: x(1),
   },
@@ -79,7 +84,7 @@ export const BALANCE = {
     summon: 1.0,
     destroyed: 0.7,
     damaged: 1.5,
-    /** 「攻撃するたび」は攻撃回数（二回攻撃なら2）を掛け、速攻があれば attackHasteBonus を足す（決定事項 #68） */
+    /** 「攻撃するたび」は攻撃回数（二回攻撃なら2）を掛け、疾走があれば attackHasteBonus を足す（決定事項 #68） */
     attack: 2.0,
     attackHasteBonus: 1.0,
     turnStartMonster: 2.0,
@@ -191,12 +196,12 @@ export const BALANCE = {
   condition: {
     hasMonster: 0.9,
     smallHand: 0.8,
-    enemyPoisoned: 0.6,
+    enemyPoisoned: 0.8,
     nthCard: 0.7,
     manyMonsters: 0.6,
     enemyHpHigher: 0.6,
     lowHp: 0.5,
-    enemyPoisonBurn: 0.45,
+    enemyPoisonBurn: 0.6,
     /** MTG 要素の採用：バッチ1（決定事項ログ） */
     enemyDamagedThisTurn: 0.6,
     monsterDestroyedThisTurn: 0.6,
@@ -338,7 +343,8 @@ export const BALANCE = {
 
   /** 効果の数値 N の入力範囲（効果ごとの上書きは effects 側の maxValue）。value は量、count は枚数・ターン数・エナジー */
   params: {
-    valueMin: 1,
+    /** 量の入力欄の最小（stats.minAmount と同じ。決定事項 #146） */
+    valueMin: x(1),
     valueMax: x(30),
     countMin: 1,
     countMax: 30,
@@ -373,7 +379,8 @@ export const BALANCE = {
     weak: { perValue: x(5), maxValue: 3 },
     vulnerable: { perValue: x(7), maxValue: 3 },
     bleed: { perValue: 6 },
-    seal: { flat: x(8) },
+    /** 封印：このターンだけ（決定事項 #146 で永続から。値段も 8→5：ユーザー回答） */
+    seal: { flat: x(5) },
     confuse: { flat: x(4) },
 
     strength: { perValue: 9 },
@@ -491,7 +498,8 @@ export const BALANCE = {
     finality: { flat: x(2) },
     rad: { perCount: x(1.2), maxCount: 3 },
     gainExp: { perCount: x(2), maxCount: 2 },
-    iceLock: { perCount: x(4), maxCount: 2 },
+    /** 氷結：1ターンに付けられるのは battle.iceCap（1）枚まで（決定事項 #146） */
+    iceLock: { perCount: x(4), maxCount: 1 },
     advanceSaga: { flat: x(3) },
     incubate: { perValue: 3, base: x(0.5), maxValue: x(5) },
     suspect: { flat: x(5), attack: x(1) },
@@ -521,6 +529,8 @@ export const BALANCE = {
   /** モンスター専用キーワードのポイント（A は攻撃力）。挑発は #83（カードの効果の対象も挑発に限る）のあと #84 で 6→8 */
   keywords: {
     haste: { perAttack: 2 },
+    /** 突進（決定事項 #146。出たターンは相手のモンスターだけを攻撃できる）：攻撃力×perAttack（疾走の半分） */
+    rush: { perAttack: 1 },
     taunt: { flat: x(8) },
     flying: { flat: x(3) },
     /** 貫通：max(min, 攻撃力×perAttack) */
@@ -553,7 +563,8 @@ export const BALANCE = {
     ward: { perValue: x(3), maxValue: 2 },
     onslaught: { perValue: 2, maxValue: x(5) },
     menace: { min: x(3), perAttack: 1 },
-    doubleTeam: { rate: 0.4 },
+    /** 分身：flat＋rate×ステータスのポイント（flat は決定事項 #146 で足した値上げ） */
+    doubleTeam: { flat: x(1), rate: 0.4 },
     /** MTG 要素 △ バッチA（決定事項ログ）。対空（飛行に効く挑発）・潜伏（自分より攻撃力の高い挑発を無視） */
     reach: { flat: x(2) },
     skulk: { flat: x(2) },
@@ -572,7 +583,7 @@ export const BALANCE = {
     unfavorRate: 1.25,
     setSize: 3,
     beast: {
-      favored: ['haste', 'trample', 'onslaught', 'doubleAttack'],
+      favored: ['haste', 'rush', 'trample', 'onslaught', 'doubleAttack'],
       unfavored: ['hexproof', 'ward'],
       /** 狩猟本能：攻撃で相手のモンスターを破壊するたび攻撃力+attackPerKill（場にいる間に maxBonus まで） */
       trait: { attackPerKill: x(1), maxBonus: x(3) },
@@ -597,7 +608,7 @@ export const BALANCE = {
     },
     machine: {
       favored: ['stat:defense', 'selfRepair', 'divineShield', 'reach', 'repair'],
-      unfavored: ['haste', 'stealth'],
+      unfavored: ['haste', 'rush', 'stealth'],
       /** 鋼の体：自分のターン終了時、毒が poisonShed 減る */
       trait: { poisonShed: x(1) },
       /** 連結：自分の機械の守備力+defense（測定のあと 1→0.5） */
@@ -796,7 +807,7 @@ export const BALANCE = {
      * MTG 要素 △ バッチA（決定事項ログ）。累加維持費 N：N×perValue（固定値。N は minValue〜maxValue。場にいるターン数は maxAge で止まる）。
      * 休眠：モンスターは max(min, 攻撃力×perAttack)、パワーはパワーの効果のポイント×powerRate（固定値）
      */
-    cumulativeUpkeep: { perValue: 4, minValue: x(0.5), maxValue: x(2), maxAge: 6 },
+    cumulativeUpkeep: { perValue: 4, minValue: x(1), maxValue: x(2), maxAge: 6 },
     dormant: { min: x(2), perAttack: 1.5, powerRate: 0.4 },
   },
 
@@ -884,7 +895,7 @@ export const BALANCE = {
     /** 相手の効果で減らされる、次のターンのエナジーの上限 */
     maxEnergyJamPerTurn: 1,
     /** 相手の効果で減らされる、次のターンに引く枚数の上限 */
-    maxDrawJamPerTurn: 2,
+    maxDrawJamPerTurn: 1,
     /** 相手の効果で自分の山札に入れられるノイズは、1ターンにこの枚数まで */
     maxNoiseReceivedPerTurn: 3,
     /** トークン（MTG 要素バッチ2）：場に出せるトークンは1人この数まで（数なので倍率は掛けない） */
@@ -917,7 +928,7 @@ export const BALANCE = {
     radCap: 10,
     radDamage: x(1),
     expCap: 10,
-    iceCap: 3,
+    iceCap: 1,
     eggHatchTurns: 2,
     eggName: '卵',
     eggIcon: '🥚',

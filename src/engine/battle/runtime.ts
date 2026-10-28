@@ -203,7 +203,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
       if (!m) return;
       m.sealed = true;
       m.stealth = false;
-      log(g, depth, `${monsterLabel(g, m)}を封印した（効果とキーワードを失う）`, 'effect', undefined, { kind: 'stat', target, status: 'seal' });
+      log(g, depth, `${monsterLabel(g, m)}をこのターンだけ封印した（効果とキーワードを失う）`, 'effect', undefined, { kind: 'stat', target, status: 'seal' });
     },
     gainShield(p, amount) {
       g.players[p].shield += amount;

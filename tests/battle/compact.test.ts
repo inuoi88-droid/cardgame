@@ -16,7 +16,7 @@ describe('overflowItems', () => {
 
 describe('briefLabel', () => {
   it('日本語の名前を落として、アイコンと数字を残す', () => {
-    expect(briefLabel('⚡速攻')).toBe('⚡');
+    expect(briefLabel('⚡疾走')).toBe('⚡');
     expect(briefLabel('⏳寿命2')).toBe('⏳2');
     expect(briefLabel('☠40')).toBe('☠40');
     expect(briefLabel('🔒封印')).toBe('🔒');

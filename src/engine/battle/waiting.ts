@@ -120,7 +120,7 @@ export function setAside(g: GameState, p: PlayerId, cardUid: string, kind: SetAs
 }
 
 /**
- * 持ち主のターン開始時（予約の後・英雄譚の前）：待機のカードの残りを1減らし、0になったものを無料で使う（Step freePlay。モンスターは速攻）。
+ * 持ち主のターン開始時（予約の後・英雄譚の前）：待機のカードの残りを1減らし、0になったものを無料で使う（Step freePlay。モンスターは疾走）。
  * 無料で使う連鎖の段は0から（続唱とは別）
  */
 export function tickSuspend(g: GameState, p: PlayerId): void {

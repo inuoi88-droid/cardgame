@@ -267,10 +267,10 @@ describe('タイミング（バッチ1）', () => {
     g = play(g, giveCard(g, 0, thief), { enemy: M(victim) });
     expect(monster(g, victim)!.controller).toBe(0);
     expect(monster(g, w)!.attack).toBe(2);
-    // 封印
+    // 封印（このターンだけなので、ターンを回してから封じる：決定事項 #146）
+    g = endTurn(g);
+    g = endTurn(g);
     monster(g, w)!.sealed = true;
-    g = endTurn(g);
-    g = endTurn(g);
     rich(g, 0);
     g = play(g, giveCard(g, 0, MON('仲間2')));
     expect(monster(g, w)!.attack).toBe(2);

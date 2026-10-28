@@ -80,6 +80,11 @@ const maxRepeat = BALANCE.battle.maxRepeatTriggersPerTurn;
  * 自分の他のモンスターが破壊されるたび）
  */
 export const TRAP_TIMINGS: readonly TimingId[] = ['enemyAttacked', 'allyDestroyed'];
+/**
+ * 相手のターンに出ることのあるタイミング。手札はターン終了時に捨てるので、相手のターンの手札はいつも0枚で、
+ * 手札の枚数の条件がタダの割引になった（ユーザー指示。決定事項 #146）。手札の条件はこれらに付けられない
+ */
+export const OPPONENT_TURN_TIMINGS: readonly TimingId[] = ['damaged', 'destroyed', 'allyDestroyed', 'enemyAttacked', 'discarded'];
 
 /** モード（MTG 要素 ○ バッチC2）を付けられるタイミング：使用時・召喚時・捨て札から使ったとき */
 export const MODE_TIMINGS: readonly TimingId[] = ['play', 'summon', 'fromDiscard'];
@@ -475,15 +480,17 @@ export const REPEAT_CAPPED_TIMINGS: readonly TimingId[] = ['allySummoned', 'ally
 export interface AttackProfile {
   /** 1ターンの攻撃回数（二回攻撃なら2） */
   attacks: number;
-  /** 速攻があるか */
+  /** 疾走があるか */
   haste: boolean;
+  /** 出たターンに攻撃できるのが突進だけ（表示用。決定事項 #146） */
+  rush?: boolean;
 }
 
 export const DEFAULT_ATTACK_PROFILE: AttackProfile = { attacks: 1, haste: false };
 
 /**
- * タイミングの倍率。「攻撃するたび」は攻撃回数を掛け、速攻なら足す（決定事項 #68）。
- * attack を省略すると攻撃1回・速攻なしとして計算する
+ * タイミングの倍率。「攻撃するたび」は攻撃回数を掛け、疾走なら足す（決定事項 #68）。
+ * attack を省略すると攻撃1回・疾走なしとして計算する
  */
 export function timingMultiplier(
   timing: TimingId,
@@ -965,10 +972,11 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     label: `手札が${cp.smallHandMax}枚以下`,
     textPrefix: `手札が${cp.smallHandMax}枚以下なら、`,
     timings: null,
-    // ターン開始時は引いた直後なので満たせず、終了時のパワーも実質満たせない
+    // ターン開始時は引いた直後なので満たせず、終了時のパワーも実質満たせない。相手のターンに出るタイミングでは手札がいつも0枚
     notForPower: true,
+    excludeTimings: OPPONENT_TURN_TIMINGS,
     group: '手札',
-    description: `効果が出る時点で手札が${cp.smallHandMax}枚以下なら発動（ターン開始時・終了時のパワーには付けられない）`,
+    description: `効果が出る時点で手札が${cp.smallHandMax}枚以下なら発動（ターン開始時・終了時のパワーと、相手のターンに出るタイミングには付けられない）`,
   },
   emptyHand: {
     id: 'emptyHand',
@@ -976,10 +984,10 @@ export const CONDITIONS: Record<ConditionId, ConditionDef> = {
     label: '手札が0枚',
     textPrefix: '手札がなければ、',
     timings: null,
-    // ターン開始時は引いた直後なので満たせない
-    excludeTimings: ['turnStart'],
+    // ターン開始時は引いた直後なので満たせない。相手のターンに出るタイミングでは手札がいつも0枚
+    excludeTimings: ['turnStart', ...OPPONENT_TURN_TIMINGS],
     group: '手札',
-    description: '効果が出る時点で手札が1枚もなければ発動（使ったカード自身は数えない）',
+    description: '効果が出る時点で手札が1枚もなければ発動（使ったカード自身は数えない。相手のターンに出るタイミングには付けられない）',
   },
   monsterInHand: {
     id: 'monsterInHand',

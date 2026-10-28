@@ -162,6 +162,7 @@ export const EFFECT_FX: Record<string, FxSpec> = {
 const kw = (id: string, arch: FxArch, el: FxElement): FxSpec => e(arch, el, KEYWORD_GI[id] ?? ARCH_GI[arch]);
 export const KEYWORD_FX: Record<string, FxSpec> = {
   haste: kw('haste', 'buff', 'physical'),
+  rush: kw('rush', 'buff', 'physical'),
   taunt: kw('taunt', 'ward', 'physical'),
   flying: kw('flying', 'buff', 'arcane'),
   trample: kw('trample', 'bolt', 'physical'),

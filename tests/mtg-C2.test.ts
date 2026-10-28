@@ -67,13 +67,13 @@ describe('定義（○ バッチC2）：ポイント・テキスト', () => {
       ['召喚時、次のうち1つを選ぶ：', 'A：このモンスターの攻撃力と体力を+1する。', 'B：攻撃力1・体力1の小鬼を1体出す。'],
     ],
     [
-      '暴動（速攻／鍛錬）',
+      '暴動（疾走／鍛錬）',
       MON(2, 2, {
         rarity: 'common',
         effects: [fx({ id: 'grantKeyword', option: 'haste', timing: 'summon', target: 'thisMonster', mode: 1 }), fx({ id: 'train', value: 1, timing: 'summon', target: 'thisMonster', mode: 2 })],
       }),
       7,
-      ['召喚時、次のうち1つを選ぶ：', 'A：このモンスターに速攻を与える。', 'B：このモンスターの攻撃力と体力を+1する。'],
+      ['召喚時、次のうち1つを選ぶ：', 'A：このモンスターに疾走を与える。', 'B：このモンスターの攻撃力と体力を+1する。'],
     ],
     ['双呪1', MODAL({ rarity: 'epic', abilities: [AB('entwine', 1)] }), 22, ['次のうち1つを選ぶ：', 'A：相手1体に5ダメージを与える。', 'B：カードを2枚引く。']],
     [

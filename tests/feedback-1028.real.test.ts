@@ -48,7 +48,7 @@ describe('報告 #16：ノイズ投入の枚数は1ターンに受け取れる�
   });
 });
 
-/** 報告 #18 の形：コスト1・速攻・一撃離脱・召喚時に軽減 */
+/** 報告 #18 の形：コスト1・疾走・一撃離脱・召喚時に軽減 */
 const loop = {
   v: 1, id: 'loop', cost: 1, icon: 'gi:small-fire', name: 'くりかえし', scale: 20, rarity: 'common',
   stats: { hp: 1, attack: 20, defense: 0 },
@@ -141,8 +141,8 @@ describe('報告 #17：試作・条件付き軽減の値段（ユーザー回答
   });
 });
 
-describe('報告 #19：攻撃力0の速攻・二回攻撃と全体の一時強化', () => {
-  /** 報告の形：コスト0・攻撃力0・体力20、分身・速攻・二回攻撃 */
+describe('報告 #19：攻撃力0の疾走・二回攻撃と全体の一時強化', () => {
+  /** 報告の形：コスト0・攻撃力0・体力20、分身・疾走・二回攻撃 */
   const pack = {
     v: 1, id: 'pack', cost: 0, icon: 'gi:wolf-head', name: 'むれ', scale: 20, rarity: 'common', tribe: 'beast',
     stats: { hp: 20, attack: 0, defense: 0 }, effects: [],
@@ -151,10 +151,10 @@ describe('報告 #19：攻撃力0の速攻・二回攻撃と全体の一時強�
   it('キーワードの値段は攻撃力を最低 keywordMinAttack として数える。報告のコスト0の群れは作れない', () => {
     const kw = (id: string) => analyzeCard(pack).points.lines.find((l) => l.kind === 'keyword' && l.label === id)!.value;
     expect(BALANCE.stats.keywordMinAttack).toBe(20);
-    expect(kw('速攻')).toBe(BALANCE.keywords.haste.perAttack * 20);
+    expect(kw('疾走')).toBe(BALANCE.keywords.haste.perAttack * 20);
     expect(kw('二回攻撃')).toBe(BALANCE.keywords.doubleAttack.perAttack * 20);
     expect(analyzeCard(pack).violations.map((v) => v.code)).toContain('POINTS_OVER_CAP');
-    // コスト1なら作れる（速攻・二回攻撃の群れそのものは残る）
+    // コスト1なら作れる（疾走・二回攻撃の群れそのものは残る）
     expect(analyzeCard({ ...pack, cost: 1 }).violations).toEqual([]);
   });
   it('一時強化は1体につき合計 tempAttackCap まで。効果の数値の上限も同じ', () => {
@@ -179,8 +179,8 @@ describe('報告 #19：攻撃力0の速攻・二回攻撃と全体の一時強�
 });
 
 describe('報告 #6：「相手が毒状態」の条件の割引を弱める（ユーザー回答）', () => {
-  it('相手が毒状態 0.45→0.6・毒とやけど 0.35→0.45。作成例「とどめの一撃」は15ダメージで作れる', () => {
-    expect(BALANCE.condition.enemyPoisoned).toBe(0.6);
-    expect(BALANCE.condition.enemyPoisonBurn).toBe(0.45);
+  it('相手が毒状態 0.45→0.6→0.8・毒とやけど 0.35→0.45→0.6（#144・#146）。作成例「とどめの一撃」は11ダメージで作れる', () => {
+    expect(BALANCE.condition.enemyPoisoned).toBe(0.8);
+    expect(BALANCE.condition.enemyPoisonBurn).toBe(0.6);
   });
 });

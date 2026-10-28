@@ -193,6 +193,8 @@ export interface KeywordDef {
   /** 対戦での働き（封印されたモンスターでは働かない） */
   battle: {
     haste?: boolean;
+    /** 突進：出たターンは相手のモンスターだけを攻撃できる（決定事項 #146） */
+    rush?: boolean;
     attacksPerTurn?: number;
     taunt?: boolean;
     flying?: boolean;
@@ -348,7 +350,7 @@ export interface FromDiscardRule {
   onlyIfDiscardedThisTurn?: boolean;
   /** コストは印刷コストではなくこの値（一時蘇生。護法などは足す） */
   fixedCost?(a: AbilityInstance): number;
-  /** 出たモンスターは速攻を持ち、持ち主のターン終了時に除外される（一時蘇生） */
+  /** 出たモンスターは疾走を持ち、持ち主のターン終了時に除外される（一時蘇生） */
   unearth?: boolean;
 }
 

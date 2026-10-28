@@ -170,7 +170,7 @@ describe('リーサル探索（A1）：このターンに勝てる手順を見�
     expect(end.result?.winner).toBe(0);
   });
 
-  it('速攻モンスターを召喚して攻撃', () => {
+  it('疾走モンスターを召喚して攻撃', () => {
     const g = startGame();
     g.players[1].hp = 3;
     giveCard(g, 0, card({ id: 'haste33', name: '狼', cost: 2, stats: { attack: 3, hp: 3, defense: 0 }, keywords: [{ id: 'haste' }] }));

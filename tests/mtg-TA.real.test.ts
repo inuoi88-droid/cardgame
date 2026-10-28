@@ -35,8 +35,8 @@ describe('△ バッチA（実際の倍率）', () => {
     expect(BALANCE.effects.incubate).toEqual({ perValue: 3, base: 10, maxValue: 100 });
     expect(BALANCE.effects.perpetual).toEqual({ perValue: 4, maxValue: 40, cardCap: 100 });
     expect(BALANCE.keywords.reach).toEqual({ flat: 40 });
-    expect(BALANCE.drawbacks.cumulativeUpkeep).toEqual({ perValue: 4, minValue: 10, maxValue: 40, maxAge: 6 });
-    expect(BALANCE.battle).toMatchObject({ radCap: 10, radDamage: 20, expCap: 10, iceCap: 3, eggHatchTurns: 2, indestructibleHp: 20 });
+    expect(BALANCE.drawbacks.cumulativeUpkeep).toEqual({ perValue: 4, minValue: 20, maxValue: 40, maxAge: 6 });
+    expect(BALANCE.battle).toMatchObject({ radCap: 10, radDamage: 20, expCap: 10, iceCap: 1, eggHatchTurns: 2, indestructibleHp: 20 });
     expect(BALANCE.modifierParams).toMatchObject({ expCountCap: 5, gambleRates: [0.5, 1, 1.5], gambleStep: 10 });
   });
 

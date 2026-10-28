@@ -27,7 +27,7 @@ export const MECHANIC_TAGS = [
   { id: 'buff', label: '強化', kana: 'きょうか', hint: '筋力・攻撃力アップ・装備・キーワード付与' },
   { id: 'token', label: 'トークン', kana: 'とーくん', hint: 'トークンを出す・増やす' },
   { id: 'swarm', label: '横並び', kana: 'よこならび', hint: 'モンスターをたくさん並べると得をする' },
-  { id: 'attack', label: '攻撃・速攻', kana: 'こうげき そっこう', hint: '速攻・飛行・攻撃するたび・相手に当てたとき' },
+  { id: 'attack', label: '攻撃・疾走', kana: 'こうげき そっこう', hint: '疾走・飛行・攻撃するたび・相手に当てたとき' },
   { id: 'draw', label: 'ドロー・手札', kana: 'どろー てふだ', hint: 'ドロー・サーチ・占術・手札を増やす' },
   { id: 'energy', label: 'エナジー', kana: 'えなじー', hint: 'エナジーを増やす・コストを下げる' },
   { id: 'heal', label: '回復・シールド', kana: 'かいふく しーるど', hint: '回復・シールド・再生・絆魂' },
@@ -154,6 +154,7 @@ export const EFFECT_TAGS: Record<string, readonly MechanicTagId[]> = {
 /** キーワード（defs/keywords） */
 export const KEYWORD_TAGS: Record<string, readonly MechanicTagId[]> = {
   haste: ['attack'],
+  rush: ['attack'],
   taunt: ['defense'],
   flying: ['attack'],
   trample: ['damage', 'attack'],

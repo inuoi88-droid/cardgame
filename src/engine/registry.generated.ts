@@ -121,6 +121,7 @@ import keywords_lifelink from './defs/keywords/lifelink.ts';
 import keywords_menace from './defs/keywords/menace.ts';
 import keywords_onslaught from './defs/keywords/onslaught.ts';
 import keywords_reach from './defs/keywords/reach.ts';
+import keywords_rush from './defs/keywords/rush.ts';
 import keywords_selfRepair from './defs/keywords/selfRepair.ts';
 import keywords_skulk from './defs/keywords/skulk.ts';
 import keywords_stealth from './defs/keywords/stealth.ts';
@@ -330,6 +331,7 @@ export const KEYWORD_DEFS: readonly KeywordDef[] = [
   keywords_menace,
   keywords_onslaught,
   keywords_reach,
+  keywords_rush,
   keywords_selfRepair,
   keywords_skulk,
   keywords_stealth,

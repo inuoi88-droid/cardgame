@@ -83,7 +83,7 @@ describe('定義（△ バッチA）：ポイント・テキスト', () => {
     ['培養3（3×3＋0.5）', SPELL([fx({ id: 'incubate', value: 3, target: 'self' })]), 10, ['攻撃力0・体力3の卵を出す（2ターン後に孵化して攻撃力3）。']],
     ['容疑', SPELL([fx({ id: 'suspect' })]), 5, ['相手モンスター1体に容疑をかける（攻撃力+1・挑発を失う・反撃しない）。']],
     ['容疑（このモンスター）', MON(1, 1, { effects: [fx({ id: 'suspect', timing: 'summon', target: 'thisMonster' })] }), 5, ['召喚時、このモンスターに容疑をかける（攻撃力+1・挑発を失う・反撃しない）。']],
-    ['守護（不壊）', SPELL([fx({ id: 'guard', option: 'indestructible' })]), 8, ['次の持ち主のターン開始まで、自分のモンスター1体に不壊を与える。']],
+    ['守護（加護）', SPELL([fx({ id: 'guard', option: 'protection' })]), 7, ['次の持ち主のターン開始まで、自分のモンスター1体に加護を与える。']],
     ['守護（加護）', SPELL([fx({ id: 'guard', option: 'protection' })]), 7, ['次の持ち主のターン開始まで、自分のモンスター1体に加護を与える。']],
     ['賛助1', MON(1, 1, { effects: [fx({ id: 'backup', value: 1, timing: 'summon' })] }), 7, ['召喚時、自分の他のモンスター1体の攻撃力と体力を+1し、このターンこのモンスターのキーワードを与える。']],
     ['消術2', SPELL([fx({ id: 'fateseal', value: 2, target: 'enemyPlayer' })]), 3, ['相手の山札の上2枚を見て、好きな枚数を山札の下に置く。']],
@@ -447,13 +447,14 @@ describe('効果・選択肢（対戦）', () => {
     expect(logText(g)).toContain('放射能3');
   });
 
-  it('氷結：相手の次のターンだけ、手札 N 枚が使えない（ノイズ以外）', () => {
+  it('氷結：相手の次のターンだけ、手札 N 枚が使えない（ノイズ以外。#146 で1ターンに1枚まで）', () => {
     let g = rich(startGame());
-    g = play(g, giveCard(g, 0, SPELL([fx({ id: 'iceLock', value: 2, target: 'enemyPlayer' })])));
-    expect(g.players[1].ice).toBe(2);
+    g = play(g, giveCard(g, 0, SPELL([fx({ id: 'iceLock', value: 1, target: 'enemyPlayer' })])));
+    g = play(g, giveCard(g, 0, SPELL([fx({ id: 'iceLock', value: 1, target: 'enemyPlayer' })])));
+    expect(g.players[1].ice).toBe(1);
     g = endTurn(g);
     const iced = g.players[1].hand.filter((c) => c.iced === g.turnIndex);
-    expect(iced.length).toBe(2);
+    expect(iced.length).toBe(1);
     expect(g.players[1].ice).toBe(0);
     g = rich(g, 1);
     expect(actError(g, { type: 'playCard', player: 1, cardUid: iced[0]!.uid, chosen: {} })).toBe('氷結：このターンは使えない');
@@ -649,7 +650,7 @@ describe('CPU（△ バッチA）', () => {
     s('rad', '汚染弾', [fx({ id: 'rad', value: 2, target: 'self' }), fx({ id: 'iceLock', value: 1, target: 'enemyPlayer' })], { rarity: 'rare' }),
     s('egg', '孵卵', [fx({ id: 'incubate', value: 2, target: 'self' })], { cost: 1 }),
     s('sus', '告発', [fx({ id: 'suspect' })], { cost: 1 }),
-    s('guard', '守りの祈り', [fx({ id: 'guard', option: 'indestructible' }), DRAW1], { cost: 1 }),
+    s('guard', '守りの祈り', [fx({ id: 'guard', option: 'protection' }), DRAW1], { cost: 1 }),
     m('backup', '援軍', 2, 2, { keywords: [{ id: 'haste' }], effects: [fx({ id: 'backup', value: 1, timing: 'summon' })] }),
     s('seal', '運命封じ', [fx({ id: 'fateseal', value: 2, target: 'enemyPlayer' }), fx({ id: 'exileMill', value: 1, target: 'enemyPlayer' })], { cost: 1 }),
     s('perm', '鍛冶', [fx({ id: 'perpetual', value: 1, target: 'self' }), DRAW1], { cost: 1 }),

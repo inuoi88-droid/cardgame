@@ -1,7 +1,7 @@
 /**
  * スマホの詰めた表示（対戦画面）の小道具。純粋関数（tests/battle/compact.test.ts）。
  * - overflowItems：札を max 個まで出し、残りの数を「+N」にする
- * - briefLabel：札の文字から日本語の名前を落として、アイコンと数字だけにする（「⚡速攻」→「⚡」、「⏳寿命2」→「⏳2」）
+ * - briefLabel：札の文字から日本語の名前を落として、アイコンと数字だけにする（「⚡疾走」→「⚡」、「⏳寿命2」→「⏳2」）
  */
 
 export function overflowItems<T>(items: readonly T[], max: number): { shown: T[]; more: number } {

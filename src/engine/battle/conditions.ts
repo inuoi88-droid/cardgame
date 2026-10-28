@@ -4,7 +4,7 @@ import { classifyCard, isCurseCard } from '../classify.ts';
 import type { ConditionId } from '../types.ts';
 import { cardName, effectiveAttack, findMonster, log, other } from './core.ts';
 import { randInt } from './rng.ts';
-import { NOISE_CARD_ID, type CardInst, type GameState, type PlayerId, type SourceRef } from './types.ts';
+import { ARMY_CARD_ID, NOISE_CARD_ID, type CardInst, type GameState, type Monster, type PlayerId, type SourceRef } from './types.ts';
 
 const C = BALANCE.conditionParams;
 
@@ -55,6 +55,11 @@ function sourceMonster(g: GameState, src: SourceRef) {
   return findMonster(g, src.uid);
 }
 
+/** 条件で数える場のモンスター：トークン（小鬼・複写・卵など）は数えない。軍団は数える（ユーザー指示。決定事項 #146） */
+export function conditionBoard(board: readonly Monster[]): Monster[] {
+  return board.filter((m) => !m.card.token || m.card.cardId === ARMY_CARD_ID);
+}
+
 export function checkCondition(g: GameState, me: PlayerId, condition: ConditionId, opts: ConditionOpts = {}): boolean {
   const mine = g.players[me];
   const theirs = g.players[other(me)];
@@ -66,7 +71,7 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
   const myTurn = g.active === me && g.phase === 'main';
   switch (condition) {
     case 'hasMonster':
-      return mine.board.length > 0;
+      return conditionBoard(mine.board).length > 0;
     case 'enemyHpHigher':
       return theirs.hp > mine.hp;
     case 'enemyPoisoned':
@@ -80,7 +85,7 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
     case 'nthCard':
       return played >= C.nthCardOrLater;
     case 'manyMonsters':
-      return mine.board.length >= C.manyMonstersMin;
+      return conditionBoard(mine.board).length >= C.manyMonstersMin;
     case 'enemyDamagedThisTurn':
       return myTurn && mine.turn.enemyDamaged === true;
     case 'monsterDestroyedThisTurn':
@@ -89,7 +94,7 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
     case 'allyAttackedThisTurn':
       return myTurn && (mine.turn.allyAttacks ?? 0) >= 1;
     case 'loneMonster':
-      return mine.board.length === 1;
+      return conditionBoard(mine.board).length === 1;
     case 'twoPowers':
       return mine.powers.length >= C.powersMin;
     case 'coinFlip': {
@@ -108,7 +113,7 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
     case 'emptyHand':
       return hand.length === 0;
     case 'bigMonster':
-      return mine.board.some((m) => effectiveAttack(g, m) >= C.bigMonsterAttack);
+      return conditionBoard(mine.board).some((m) => effectiveAttack(g, m) >= C.bigMonsterAttack);
     case 'bigDiscard':
       return mine.discard.length >= C.discardMin;
     case 'monsterInHand':
@@ -129,14 +134,14 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
       const m = sourceMonster(g, opts.src);
       if (!m) return false;
       const atk = effectiveAttack(g, m);
-      return g.players[m.controller].board.some((o) => o.uid !== m.uid && effectiveAttack(g, o) > atk);
+      return conditionBoard(g.players[m.controller].board).some((o) => o.uid !== m.uid && effectiveAttack(g, o) > atk);
     }
     case 'totalAttack':
-      return mine.board.reduce((s, m) => s + effectiveAttack(g, m), 0) >= C.totalAttackMin;
+      return conditionBoard(mine.board).reduce((s, m) => s + effectiveAttack(g, m), 0) >= C.totalAttackMin;
     case 'twoAllyAttacks':
       return myTurn && (mine.turn.allyAttacks ?? 0) >= C.allyAttacksMin;
     case 'coven':
-      return new Set(mine.board.map((m) => effectiveAttack(g, m))).size >= C.covenMin;
+      return new Set(conditionBoard(mine.board).map((m) => effectiveAttack(g, m))).size >= C.covenMin;
     case 'delirium':
       return discardTypeCount(g, mine.discard) >= C.deliriumMin;
     case 'criticalHp':
@@ -177,7 +182,7 @@ export function checkCondition(g: GameState, me: PlayerId, condition: ConditionI
       const tribe = g.cards[cardId]?.tribe;
       if (!tribe) return false;
       const self = opts.src?.kind === 'monster' ? opts.src.uid : undefined;
-      return mine.board.some((m) => m.uid !== self && g.cards[m.card.cardId]?.tribe === tribe);
+      return conditionBoard(mine.board).some((m) => m.uid !== self && g.cards[m.card.cardId]?.tribe === tribe);
     }
     case 'maxSpeed':
       return (mine.speed ?? 0) >= BALANCE.speed.max;

@@ -48,7 +48,7 @@ describe('効果のポイント', () => {
     expect(effectValue(fx({ id: 'execute', value: 10, target: 'everyone' }))).toBe(35);
     expect(effectLine(fx({ id: 'execute', value: 10, target: 'everyone' })).formula).toBe('25 × 1.4（敵味方すべて）');
     expect(effectValue(fx({ id: 'execute', value: 3, target: 'everyone' }))).toBe(11); // 7.5 × 1.4 = 10.5 → 11 (#84 で処刑 2.5pt)
-    expect(effectValue(fx({ id: 'seal', target: 'everyone' }))).toBe(12); // 8 × 1.4 = 11.2 → 12
+    expect(effectValue(fx({ id: 'seal', target: 'everyone' }))).toBe(7); // 5 × 1.4 = 7（#146 で封印は 8→5）
   });
 
   it('やけどは12pt、延長1ターンごとに+4pt（延長は5ターンまで。#139）', () => {
@@ -98,7 +98,7 @@ describe('効果のポイント', () => {
     expect(effectValue(fx({ id: 'damage', value: 3, timing: 'damaged', target: 'chosen' }), true)).toBe(14); // 13.5→14
   });
 
-  it('「攻撃するたび」は攻撃回数を掛け、速攻なら+1.0（二回攻撃＋速攻で ×5.0）', () => {
+  it('「攻撃するたび」は攻撃回数を掛け、疾走なら+1.0（二回攻撃＋疾走で ×5.0）', () => {
     const monster = (keywords: CardDef['keywords']) =>
       effectLine(fx({ id: 'poison', value: 1, timing: 'attack', target: 'chosen' }), {
         stats: { attack: 1, hp: 1, defense: 0 },
@@ -109,22 +109,22 @@ describe('効果のポイント', () => {
     expect(monster([{ id: 'doubleAttack' }]).value).toBe(16);
     expect(monster([{ id: 'doubleAttack' }]).formula).toBe('4 × 2.0×2（攻撃するたび・二回攻撃）');
     expect(monster([{ id: 'haste' }]).value).toBe(12);
-    expect(monster([{ id: 'haste' }]).formula).toBe('4 × 2.0+1.0（攻撃するたび・速攻）');
+    expect(monster([{ id: 'haste' }]).formula).toBe('4 × 2.0+1.0（攻撃するたび・疾走）');
     expect(monster([{ id: 'haste' }, { id: 'doubleAttack' }]).value).toBe(20);
-    expect(monster([{ id: 'haste' }, { id: 'doubleAttack' }]).formula).toBe('4 × 2.0×2+1.0（攻撃するたび・二回攻撃・速攻）');
+    expect(monster([{ id: 'haste' }, { id: 'doubleAttack' }]).formula).toBe('4 × 2.0×2+1.0（攻撃するたび・二回攻撃・疾走）');
   });
 
-  it('条件は条件ごとの倍率（場にモンスター 0.9 … 毒とやけど 0.45。#84 で相手が毒状態 0.45、#144 で 0.6・毒とやけど 0.45）', () => {
+  it('条件は条件ごとの倍率（場にモンスター 0.9 … 毒とやけど 0.6。#84 で相手が毒状態 0.45、#144 で 0.6・0.45、#146 で 0.8・0.6）', () => {
     const v = (condition: EffectInstance['condition']) => effectValue(fx({ id: 'damage', value: 5, condition }));
     expect(v('hasMonster')).toBe(14); // 13.5 → 14
     expect(v('smallHand')).toBe(12);
-    expect(v('enemyPoisoned')).toBe(9);
+    expect(v('enemyPoisoned')).toBe(12);
     expect(v('nthCard')).toBe(11); // 10.5 → 11
     expect(v('manyMonsters')).toBe(9);
     expect(v('enemyHpHigher')).toBe(9);
     expect(v('lowHp')).toBe(8); // 7.5 → 8
-    expect(v('enemyPoisonBurn')).toBe(7); // 6.75 → 7
-    expect(Object.values(BALANCE.condition).slice(0, 8)).toEqual([0.9, 0.8, 0.6, 0.7, 0.6, 0.6, 0.5, 0.45]);
+    expect(v('enemyPoisonBurn')).toBe(9);
+    expect(Object.values(BALANCE.condition).slice(0, 8)).toEqual([0.9, 0.8, 0.8, 0.7, 0.6, 0.6, 0.5, 0.6]);
   });
 
   it('条件「手札が3枚以下」はパワーのターン開始時・終了時では選べない（モンスターや使用時では選べる）', () => {
@@ -146,12 +146,12 @@ describe('効果のポイント', () => {
 });
 
 describe('キーワード・ステータス・デメリット', () => {
-  it('速攻は攻撃力×2、二回攻撃は攻撃力×4', () => {
+  it('疾走は攻撃力×2、二回攻撃は攻撃力×4', () => {
     const a = analyzeCard(
       card({ rarity: 'legend', cost: 3, stats: { attack: 3, hp: 1, defense: 1 }, keywords: [{ id: 'haste' }, { id: 'doubleAttack' }] }),
     );
     const v = Object.fromEntries(a.points.lines.map((l) => [l.label, l.value]));
-    expect(v).toMatchObject({ 攻撃力3: 9, 体力1: 1.5, 守備力1: 4, 速攻: 6, 二回攻撃: 12, コスト3: -32 });
+    expect(v).toMatchObject({ 攻撃力3: 9, 体力1: 1.5, 守備力1: 4, 疾走: 6, 二回攻撃: 12, コスト3: -32 });
   });
 
   it('貫通は max(2, 攻撃力×0.5)、隠密は 2+攻撃力、不屈は 3+攻撃力、挑発8（#84）、飛行3', () => {

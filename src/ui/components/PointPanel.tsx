@@ -184,7 +184,7 @@ export function payNotes(card: CardDef): string[] {
         out.push(`実コストの見込み（調和）：捨て札からコスト${c + v}、休ませたモンスターの攻撃力${A.harmonize.attackPerEnergy}ごとに−1（最大−${A.harmonize.maxCut}）`);
         break;
       case 'unearth':
-        out.push(`実コストの見込み（一時蘇生）：捨て札からコスト${v}で速攻つき（ターン終わりに除外）`);
+        out.push(`実コストの見込み（一時蘇生）：捨て札からコスト${v}で疾走つき（ターン終わりに除外）`);
         break;
       case 'foretell':
         out.push(`実コストの見込み（予顕）：いまエナジー${A.foretell.setCost}で伏せ、後のターンにコスト${at(c - v)}`);

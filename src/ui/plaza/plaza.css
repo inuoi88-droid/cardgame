@@ -172,3 +172,5 @@
   white-space: normal;
   line-height: 1.4;
 }
+
+.plaza__search { width: 100%; max-width: 360px; margin: 8px 0; }

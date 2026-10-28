@@ -1,0 +1,60 @@
+/* はじめての案内：行き先を板のボタンで縦に並べる（最初の1つだけ金） */
+.welcome__lead {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.welcome__lead > .gi {
+  flex: none;
+  margin-top: 0.2em;
+  color: var(--u-iron-hi);
+}
+.welcome__list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.welcome__choice.btn {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 14px;
+  text-align: left;
+  white-space: normal;
+}
+.welcome__icon {
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+}
+.welcome__text {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+}
+.welcome__text > small {
+  font-family: var(--u-font-body);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--u-ink-3);
+  text-shadow: none;
+}
+.welcome__choice.btn--primary .welcome__text > small {
+  color: var(--u-gold-ink);
+}
+.welcome__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 14px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}

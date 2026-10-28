@@ -36,7 +36,7 @@ import { ABILITY_GI, DRAWBACK_GI, effectGi } from '../editor/effectIcons.ts';
 import { cx } from '../util.ts';
 import { RarityGem } from '../components/cardParts.tsx';
 import { UiIcon, type UiIconProps } from '../components/UiIcon.tsx';
-import { SoundSettings } from '../sound/SoundSettings.tsx';
+import { reopenWelcome } from '../welcome/Welcome.tsx';
 
 const B = BALANCE.battle;
 const D = BALANCE.draft;
@@ -118,10 +118,16 @@ export function RulesPage() {
       <div className="page-head">
         <h1>ルール</h1>
       </div>
-      {/* 効果音の設定（決定事項 #127）：対戦の外から来られる置き場。対戦中はメニュー（歯車）にも同じものがある */}
-      <section className="panel rules__settings" aria-label="設定">
-        <SoundSettings />
-      </section>
+      {/* 設定（効果音・BGM・演出・文字の大きさ）は上の帯の歯車にまとめた。ここでは場所だけ案内する */}
+      <p className="hint rules__settings-note">
+        <span>
+          <UiIcon name="cog" /> 効果音・BGM・演出・文字の大きさは、画面右上の歯車（設定）から変えられます。対戦中は対戦のメニューにも同じものがあります。
+        </span>
+        <button type="button" className="btn btn--small btn--ghost" onClick={reopenWelcome}>
+          <UiIcon name="direction-signs" />
+          はじめての案内
+        </button>
+      </p>
       <p className="hint rules__intro">
         自作のカードでデッキを組み、1対1で戦うカードゲームです。数字はすべて今のバランス設定から表示しています。節をタップすると開きます。
         カードの絵は game-icons.net のアイコン（CC BY 3.0）です。作者とライセンスは<a href="#/credits">クレジット</a>へ。ゲームの変更は<a href="#/news">更新情報</a>でお知らせしています。

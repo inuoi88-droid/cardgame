@@ -111,6 +111,16 @@ export function PlazaPage() {
       </div>
       <CardSourceTabs current="plaza" />
       <p className="hint">運営が公開したカードとデッキです。押すと全文や中身が見られ、自分のカード・デッキにコピーできます。{staff && '公開はカード・デッキの詳細の「広場に公開」から。'}</p>
+      {staff && (
+        <div className="plaza__staff-tools">
+          <button type="button" className="btn" onClick={() => navigate('/presets')}>
+            プリセットデッキを書き換える
+          </button>
+          <button type="button" className="btn" onClick={() => navigate('/official')}>
+            公式カードを書き換える
+          </button>
+        </div>
+      )}
       <div className="tabs plaza__tabs" role="tablist" aria-label="種類">
         {TABS.map((t) => (
           <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={cx('tab', tab === t.id && 'is-active')} onClick={() => setTab(t.id)}>

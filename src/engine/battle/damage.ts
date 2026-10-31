@@ -306,18 +306,13 @@ export function dealDamage(g: GameState, target: TargetRef, base: number, opts: 
   }
   // 守備力は種族の揃い「連結」を含む（決定事項 #143）
   const defense = monster ? effectiveDefense(g, monster) : 0;
+  // 守備力以下のダメージは0（最低ダメージは無い：決定事項 #148）
   if (monster && !opts.pierce && mitigated && defense > 0) {
-    amount -= defense;
+    amount = Math.max(0, amount - defense);
     steps.push(`守備力−${defense}で${amount}`);
   }
-  // 最低ダメージは元のダメージを超えない（倍率の大きさ x(1) に引き上げると、ダメージ1の連撃が1発20になった：決定事項 #135）
-  const minHit = Math.min(B.minMonsterDamage, base);
-  if (mitigated && base > 0 && amount < minHit) {
-    amount = minHit;
-    steps.push(`最低${amount}`);
-  }
-  // 出血：1枚のカード（1回の攻撃）につき1回だけ（決定事項 #70 R4）
-  if (hit && status.bleed > 0 && onceFor(g, opts.playKey, 'bleedHit', target)) {
+  // 出血：1枚のカード（1回の攻撃）につき1回だけ（決定事項 #70 R4）。守備力で0になった攻撃には乗らない（#148）
+  if (hit && amount > 0 && status.bleed > 0 && onceFor(g, opts.playKey, 'bleedHit', target)) {
     amount += status.bleed;
     steps.push(`出血+${status.bleed}で${amount}`);
   }

@@ -6,7 +6,8 @@ import { act, giveCard, rich, startGame, P } from './battle/helpers.ts';
 /** 報告 #15 の形：ダメージを受けたときに「全員」へ連撃・自分を回復。召喚時にも全員へ連撃 */
 const echo = {
   v: 1, id: 'echo', cost: 3, icon: 'gi:small-fire', name: 'こだま', scale: 20, rarity: 'legend',
-  stats: { hp: 20, attack: 0, defense: 20 },
+  // 守備力0（守備力があると1ダメージの連撃は0になり、連鎖が起きない：決定事項 #148）
+  stats: { hp: 20, attack: 0, defense: 0 },
   effects: [
     { id: 'train', value: 200, target: 'random', timing: 'damaged', condition: 'loneMonster' },
     { id: 'heal', value: 20, target: 'self', timing: 'damaged', condition: 'loneMonster' },
@@ -29,7 +30,7 @@ describe('報告 #15：ダメージを受けたときの効果で自分を傷つ
     expect(g.log.some((e) => e.text.includes('処理が多すぎる'))).toBe(false);
     const fired = g.log.filter((e) => e.text.includes('ダメージを受けたとき') && e.text.includes('もう発動しない')).length;
     expect(fired).toBe(1);
-    // 召喚時の5発＋連鎖2回ぶんの5発ずつ（最低ダメージ1）。相手の HP はほとんど減らない
+    // 召喚時の5発＋連鎖2回ぶんの5発ずつ（1発1ダメージ）。相手の HP はほとんど減らない
     expect(hp - g.players[1].hp).toBeLessThanOrEqual(15);
   });
 });

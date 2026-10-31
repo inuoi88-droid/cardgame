@@ -52,11 +52,15 @@ describe('ダメージの基本', () => {
     expect(g.players[0].status.weak).toBe(0);
   });
 
-  it('守備力で減っても最低1', () => {
+  it('守備力以下のダメージは0（最低ダメージは無い：決定事項 #148）', () => {
     let g = rich(startGame());
     const m = putMonster(g, 1, unit(1, 10, 3));
     g = play(g, giveCard(g, 0, dmg(1)), { enemy: M(m) });
-    expect(monster(g, m)!.hp).toBe(9);
+    expect(monster(g, m)!.hp).toBe(10);
+    g = play(g, giveCard(g, 0, dmg(3)), { enemy: M(m) });
+    expect(monster(g, m)!.hp).toBe(10);
+    g = play(g, giveCard(g, 0, dmg(5)), { enemy: M(m) });
+    expect(monster(g, m)!.hp).toBe(8);
   });
 
   it('防御無視は守備力とシールドを無視する', () => {

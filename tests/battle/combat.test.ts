@@ -38,12 +38,15 @@ describe('攻撃の基本', () => {
     expect(g.players[1].hp).toBe(117);
   });
 
-  it('攻撃力 − 守備力、最低1', () => {
+  it('攻撃力 − 守備力。守備力以下なら0（最低ダメージは無い：決定事項 #148）', () => {
     let g = startGame();
     const a = putMonster(g, 0, unit(2, 5, 9));
     const d = putMonster(g, 1, unit(1, 10, 3));
     g = attack(g, a, M(d));
-    expect(monster(g, d)!.hp).toBe(9);
+    expect(monster(g, d)!.hp).toBe(10);
+    const b = putMonster(g, 0, unit(5, 5, 9));
+    g = attack(g, b, M(d));
+    expect(monster(g, d)!.hp).toBe(8);
   });
 
   it('倒したモンスターは元の持ち主の捨て札へ', () => {
@@ -63,19 +66,19 @@ describe('攻撃の基本', () => {
 });
 
 describe('モンスターの反撃（#69）', () => {
-  it('モンスターを攻撃すると、守備側の攻撃力ぶんが攻撃したモンスターに返る（守備力で減る・最低1）', () => {
+  it('モンスターを攻撃すると、守備側の攻撃力ぶんが攻撃したモンスターに返る（守備力で減る・守備力以下なら0：決定事項 #148）', () => {
     let g = startGame();
     const a = putMonster(g, 0, unit(2, 10, 2));
     const d = putMonster(g, 1, unit(5, 10, 3));
     g = attack(g, a, M(d));
-    expect(monster(g, d)!.hp).toBe(9);
+    expect(monster(g, d)!.hp).toBe(10); // 2 − 守備力3 → 0
     expect(monster(g, a)!.hp).toBe(7); // 5 − 守備力2
     expect(logText(g)).toContain('P1の「モンスター');
     expect(g.log.some((e) => e.text.includes('の反撃：') && e.ev?.kind === 'retaliate' && e.ev.amount === 3)).toBe(true);
-    // 攻撃力が守備力以下でも最低1
+    // 反撃も守備力以下なら0
     const b = putMonster(g, 0, unit(1, 10, 9));
     g = attack(g, b, M(d));
-    expect(monster(g, b)!.hp).toBe(9);
+    expect(monster(g, b)!.hp).toBe(10);
   });
 
   it('プレイヤーを攻撃しても反撃はない', () => {

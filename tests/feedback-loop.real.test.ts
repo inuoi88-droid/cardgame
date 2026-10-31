@@ -212,7 +212,7 @@ describe('数値1が倍率の大きさ（20・10）に引き上げられない�
     expect(g.players[1].hp).toBe(hp - 5);
   });
 
-  it('守備力のあるモンスターへの最低ダメージは、元のダメージを超えない（20 以上の攻撃は今までどおり最低20）', () => {
+  it('守備力以下のダメージは0（最低ダメージは無い：決定事項 #148）', () => {
     let g = started();
     // 相手の番に守備力40の壁を出してもらう
     g = act(g, { type: 'endTurn', player: 0 });
@@ -224,9 +224,9 @@ describe('数値1が倍率の大きさ（20・10）に引き上げられない�
     g.cards['p0:bolt'] = spell('bolt', [{ id: 'damage', value: 20, target: 'chosen', timing: 'play', condition: null }]);
     g.players[0].hand.push({ uid: 'P', cardId: 'p0:poke', owner: 0 }, { uid: 'B', cardId: 'p0:bolt', owner: 0 });
     g = act(g, { type: 'playCard', player: 0, cardUid: 'P', chosen: { enemy: { kind: 'monster', uid: 'W' } } });
-    expect(g.players[1].board.find((m) => m.uid === 'W')!.hp).toBe(199);
+    expect(g.players[1].board.find((m) => m.uid === 'W')!.hp).toBe(200);
     g = act(g, { type: 'playCard', player: 0, cardUid: 'B', chosen: { enemy: { kind: 'monster', uid: 'W' } } });
-    expect(g.players[1].board.find((m) => m.uid === 'W')!.hp).toBe(199 - BALANCE.battle.minMonsterDamage);
+    expect(g.players[1].board.find((m) => m.uid === 'W')!.hp).toBe(200);
   });
 
   it('ばらつきの付いた数値1は、どの倍率でも1（以前は最低の刻み10に上がった）', () => {

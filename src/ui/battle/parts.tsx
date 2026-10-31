@@ -1163,7 +1163,7 @@ export function MonsterTile({
   // スマホ：挑発を先頭に、守備力（0でなければ）はステータスの行から札へ移す（狭いタイルで数字がくっつかないように）
   const defNow = defenseNow ?? m.defense;
   const briefChips = compact
-    ? tileChipOrder(chips, defNow !== 0 ? { id: 'def', label: `🛡${defNow}`, gi: 'shield', text: String(defNow), tone: 'info', card: { title: `守備力 ${defNow}`, description: '受けるダメージをこの数だけ減らす（最低ダメージあり）' } } : undefined)
+    ? tileChipOrder(chips, defNow !== 0 ? { id: 'def', label: `🛡${defNow}`, gi: 'shield', text: String(defNow), tone: 'info', card: { title: `守備力 ${defNow}`, description: '受けるダメージをこの数だけ減らす（守備力以下のダメージは0）' } } : undefined)
     : [];
   // 挑発：城壁の狭間（上の縁の石の凸凹）と石の縁（カードデザイン案A）
   const taunt = chips.some((c) => isTauntChip(c.id));

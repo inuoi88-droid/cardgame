@@ -849,7 +849,6 @@ export const BALANCE = {
     secondPlayerFirstTurnBonusEnergy: 1,
     secondPlayerFirstTurnExtraDraw: 0,
     maxTurns: 30,
-    minMonsterDamage: x(1),
     burnTurns: 3,
     burnDamage: x(2),
     /** やけど：与えるダメージの倍率（モンスターは攻撃・反撃・格闘、プレイヤーはダメージの効果。決定事項 #138。半減から 2/3 へ：#139） */

@@ -13,6 +13,18 @@ import type { PatchNote } from './newsLogic.ts';
 
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    no: 24,
+    date: '2026-10-31',
+    title: '運営：広場から公式デッキ・カードの編集へ',
+    items: [
+      {
+        kind: 'change',
+        text: '運営でログインしているとき、みんなの広場の上に「プリセットデッキを書き換える」「公式カードを書き換える」のボタンが出るようになりました。',
+        reports: [26],
+      },
+    ],
+  },
+  {
     no: 23,
     date: '2026-10-31',
     title: '最低ダメージをなくしました',

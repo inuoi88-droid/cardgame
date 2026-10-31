@@ -1,5 +1,5 @@
 {
-  "//": "ルールエンジンとサーバー処理（と両方が読む公式カード）が DOM やブラウザ API に依存していないことを型チェックで保証する",
+  "//": "ルールエンジンとサーバー処理（と両方が読む公式カード・プリセットデッキ）が DOM やブラウザ API に依存していないことを型チェックで保証する",
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
@@ -16,5 +16,5 @@
     "noEmit": true,
     "types": []
   },
-  "include": ["src/engine", "src/online", "src/official"]
+  "include": ["src/engine", "src/online", "src/official", "src/presets.ts"]
 }

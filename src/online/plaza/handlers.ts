@@ -2,13 +2,18 @@
  * みんなの広場・運営・公式カードの上書き（決定事項 #141）の受付。純粋な処理（DB・時刻・ハッシュ・乱数は外から渡す）。
  * - 運営：パスワード（DB に塩つきの繰り返しハッシュだけ）で入る。間違いは回数を数えて止める
  * - 公開できるのは運営だけ。見るのは誰でも（鍵なし）。取り下げは持ち主か運営
- * - 公式カードの書き換えは運営だけ。保存した時点で全員に効き、履歴が残る（元に戻すも1行）
+ * - 公式カードの書き換えは運営だけ。保存した時点で全員に効き、履歴が残る（元に戻すも1行）。レアリティも変えられる（#148。
+ *   ドラフトの山が組めなくなる書き換えは断る）
+ * - プリセットデッキ（CPU 戦の相手・対戦の準備で選べるデッキ）の書き換えも運営だけ（#148）。中身（枚数・入れるカード）とカードを
+ *   まとめて送る。公式カードと同じ表・同じ版で全員に配る
  */
 import { analyzeCard } from '../../engine/analyze.ts';
 import { parseCard } from '../../engine/io.ts';
 import type { CardDef } from '../../engine/types.ts';
-import { isOfficialCardId, officialEditProblem } from '../../official/index.ts';
+import { isOfficialCardId, officialEditProblem, officialPoolProblem, withOfficialOverrides } from '../../official/index.ts';
+import { isPresetDeckId, presetByDeckId, presetEditProblem, type PresetOverride } from '../../presets.ts';
 import { cleanText } from '../codes.ts';
+import { ONLINE_DRAFT_CARDS } from '../draftCards.ts';
 import { checkDeck } from '../room.ts';
 import { RATE_WINDOW, type PlayerRecord, type SocialStore } from '../social/types.ts';
 import type { PlazaErrorReason, PlazaOk, PlazaOp, PlazaReplies, PlazaRequest, PlazaResponse, PublicItemFull, PublicItemView } from './protocol.ts';
@@ -16,6 +21,7 @@ import {
   MAX_PUBLIC_ITEMS,
   OFFICIAL_HISTORY_LIMIT,
   PLAZA_PAGE,
+  PRESET_MAX_CHARS,
   PUBLIC_ITEM_MAX_CHARS,
   PUBLIC_NAME_MAX,
   PUBLIC_TOTAL_MAX_CHARS,
@@ -130,6 +136,26 @@ function checkedCard(raw: unknown): CardDef {
   return { ...c.value, name: cleanText(c.value.name, PUBLIC_NAME_MAX) || c.value.name };
 }
 
+/**
+ * 送られてきたプリセットデッキの書き換えを検証する（決定事項 #148）。デッキの名前と ID は元のまま、
+ * デッキのルール・カードのルールは対戦の部屋と同じ checkDeck、カードの ID は presetEditProblem で見る
+ */
+function checkedPreset(raw: unknown): PresetOverride {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) fail('プリセットデッキの形式が正しくありません', 'invalid');
+  const x = raw as Record<string, unknown>;
+  if (JSON.stringify(raw).length > PRESET_MAX_CHARS) fail('データが大きすぎます', 'limit');
+  const base = typeof x.id === 'string' ? presetByDeckId(x.id) : undefined;
+  if (!base) fail('プリセットデッキではありません', 'invalid');
+  const rawDeck = typeof x.deck === 'object' && x.deck !== null && !Array.isArray(x.deck) ? { ...(x.deck as Record<string, unknown>), id: base.deck.id, name: base.deck.name } : x.deck;
+  const checked = checkDeck(rawDeck, x.cards);
+  if (!checked.ok) fail(checked.error, 'invalid');
+  const cards = checked.value.cards.map((c) => ({ ...c, name: cleanText(c.name, PUBLIC_NAME_MAX) || c.name }));
+  const preset: PresetOverride = { id: base.deck.id, deck: { ...checked.value.deck, id: base.deck.id, name: base.deck.name }, cards };
+  const problem = presetEditProblem(preset);
+  if (problem) fail(problem, 'invalid');
+  return preset;
+}
+
 async function dispatch(req: PlazaRequest, deps: PlazaDeps): Promise<PlazaResponse> {
   const { plaza, social, now } = deps;
   switch (req.op) {
@@ -218,13 +244,21 @@ async function dispatch(req: PlazaRequest, deps: PlazaDeps): Promise<PlazaRespon
     }
     case 'officialList': {
       const o = await plaza.officialOverrides();
-      return reply('officialList', req.since === o.version ? { version: o.version } : { version: o.version, cards: o.cards });
+      if (req.since === o.version) return reply('officialList', { version: o.version });
+      // 公式カードとプリセットデッキ（#148）は同じ表。古い画面は presets を読まない
+      const cards = o.items.filter((x) => isOfficialCardId(x.id)) as CardDef[];
+      const presets = o.items.filter((x) => isPresetDeckId(x.id)) as PresetOverride[];
+      return reply('officialList', { version: o.version, cards, presets });
     }
     case 'officialSave': {
       const p = await staff(req.secret, deps);
       const card = checkedCard(req.card);
       const problem = officialEditProblem(card);
       if (problem) fail(problem, 'invalid');
+      // レアリティを変えると山の枚数が変わる（#148）：ドラフトの山が組めなくなる書き換えは断る
+      const others = (await plaza.officialOverrides()).items.filter((x) => x.id !== card.id);
+      const poolIssue = officialPoolProblem(withOfficialOverrides(ONLINE_DRAFT_CARDS, [...others, card]));
+      if (poolIssue) fail(`この書き換えではドラフトの山が組めません：${poolIssue}`, 'invalid');
       const version = await plaza.saveOfficial(card.id, card, p.id, now);
       return reply('officialSave', { version, card });
     }
@@ -237,7 +271,24 @@ async function dispatch(req: PlazaRequest, deps: PlazaDeps): Promise<PlazaRespon
       await staff(req.secret, deps);
       const rows = await plaza.officialHistory(req.cardId, OFFICIAL_HISTORY_LIMIT);
       const names = new Map((await social.playersByIds([...new Set(rows.map((r) => r.by))])).map((x) => [x.id, x.name]));
-      return reply('officialHistory', { history: rows.map((r) => ({ version: r.version, card: r.card, by: names.get(r.by) ?? '（退会したプレイヤー）', at: r.at })) });
+      return reply('officialHistory', { history: rows.map((r) => ({ version: r.version, card: r.card as CardDef | null, by: names.get(r.by) ?? '（退会したプレイヤー）', at: r.at })) });
+    }
+    case 'presetSave': {
+      const p = await staff(req.secret, deps);
+      const preset = checkedPreset(req.preset);
+      const version = await plaza.saveOfficial(preset.id, preset, p.id, now);
+      return reply('presetSave', { version, preset });
+    }
+    case 'presetReset': {
+      const p = await staff(req.secret, deps);
+      if (!isPresetDeckId(req.presetId)) fail('プリセットデッキではありません', 'invalid');
+      return reply('presetReset', { version: await plaza.saveOfficial(req.presetId, null, p.id, now) });
+    }
+    case 'presetHistory': {
+      await staff(req.secret, deps);
+      const rows = await plaza.officialHistory(req.presetId, OFFICIAL_HISTORY_LIMIT);
+      const names = new Map((await social.playersByIds([...new Set(rows.map((r) => r.by))])).map((x) => [x.id, x.name]));
+      return reply('presetHistory', { history: rows.map((r) => ({ version: r.version, preset: r.card as PresetOverride | null, by: names.get(r.by) ?? '（退会したプレイヤー）', at: r.at })) });
     }
   }
 }

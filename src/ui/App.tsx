@@ -12,6 +12,7 @@ import { BattleSetupPage } from './pages/BattleSetupPage.tsx';
 import { DraftPage } from './pages/DraftPage.tsx';
 import { OfficialCardsPage } from './pages/OfficialCardsPage.tsx';
 import { OfficialEditPage } from './plaza/OfficialEditPage.tsx';
+import { PresetCardEditPage, PresetEditPage, PresetsPage } from './plaza/PresetPages.tsx';
 import { PlazaPage } from './plaza/PlazaPage.tsx';
 import { PlazaRuntime } from './plaza/PlazaRuntime.tsx';
 import { BuildStamp } from './plaza/StaffEntry.tsx';
@@ -58,7 +59,7 @@ export function App() {
   const section: Section =
     route.page === 'decks' || route.page === 'deckEdit'
       ? 'decks'
-      : route.page === 'battle' || route.page === 'battleSetup' || route.page === 'draft'
+      : route.page === 'battle' || route.page === 'battleSetup' || route.page === 'draft' || route.page === 'presets' || route.page === 'presetEdit' || route.page === 'presetCard'
         ? 'battle'
         : route.page === 'online' || route.page === 'onlineBattle' || route.page === 'friendLink'
           ? 'online'
@@ -136,6 +137,9 @@ export function App() {
             {route.page === 'official' && <OfficialCardsPage />}
             {route.page === 'officialEdit' && <OfficialEditPage id={route.id} />}
             {route.page === 'plaza' && <PlazaPage />}
+            {route.page === 'presets' && <PresetsPage />}
+            {route.page === 'presetEdit' && <PresetEditPage id={route.id} />}
+            {route.page === 'presetCard' && <PresetCardEditPage id={route.id} cardId={route.cardId} />}
             {route.page === 'online' && <OnlineLobbyPage code={route.code} tab={route.tab === 'friends' ? 'friends' : 'battle'} />}
             {route.page === 'friendLink' && <FriendLinkPage parts={route.parts} />}
             {route.page === 'onlineBattle' && <OnlineBattlePage />}

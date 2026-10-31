@@ -1,7 +1,7 @@
-/** 対戦に使えるデッキの候補（自分のデッキ＋プリセット）。CPU 戦とオンライン対戦で共用する */
+/** 対戦に使えるデッキの候補（自分のデッキ＋プリセット。プリセットは運営の書き換えを重ねたもの：決定事項 #148）。CPU 戦とオンライン対戦で共用する */
 import { useMemo } from 'react';
 import { analyzeDeck, type CardDef, type Deck } from '../../engine/index.ts';
-import { PRESET_DECKS } from '../../presets.ts';
+import { usePresetDecks } from '../plaza/plazaStore.ts';
 import { useStore } from '../store.ts';
 
 export interface DeckChoice {
@@ -17,6 +17,7 @@ export interface DeckChoice {
 
 export function useDeckChoices(): DeckChoice[] {
   const { cards, decks } = useStore();
+  const presets = usePresetDecks();
   return useMemo(() => {
     const cardsById = new Map(cards.map((c) => [c.id, c]));
     return [
@@ -32,7 +33,7 @@ export function useDeckChoices(): DeckChoice[] {
           cards: d.entries.map((e) => cardsById.get(e.cardId)).filter((c) => c !== undefined),
         };
       }),
-      ...PRESET_DECKS.map(
+      ...presets.map(
         (p): DeckChoice => ({
           key: `preset:${p.id}`,
           label: `${p.name}（プリセット）`,
@@ -44,7 +45,7 @@ export function useDeckChoices(): DeckChoice[] {
         }),
       ),
     ];
-  }, [cards, decks]);
+  }, [cards, decks, presets]);
 }
 
 /** 選ばれている候補（未選択・使えないものを選んでいたら、最初の使えるもの） */

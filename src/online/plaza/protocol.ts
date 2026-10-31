@@ -1,9 +1,10 @@
 /**
  * みんなの広場・運営・公式カードの上書き（決定事項 #141）の送受信の形と、届いたデータの検証。
  * 部屋・フレンド機能・報告と同じ1つの受付に送り、op で見分ける。secret はフレンド機能のプレイヤーの鍵（16進64文字）。
- * 見るだけ（plazaList・plazaGet・officialList）は鍵が要らない。公開・取り下げ・公式カードの編集は運営だけ。
+ * 見るだけ（plazaList・plazaGet・officialList）は鍵が要らない。公開・取り下げ・公式カードとプリセットデッキ（#148）の編集は運営だけ。
  */
 import type { CardDef, Deck } from '../../engine/types.ts';
+import { PRESET_DECK_ID_RE, type PresetOverride } from '../../presets.ts';
 import { isSecret } from '../social/protocol.ts';
 import type { PlazaCursor, PublicKind } from './types.ts';
 
@@ -30,7 +31,13 @@ export type PlazaRequest =
   /** 公式カードを元に戻す（運営だけ） */
   | { op: 'officialReset'; secret: string; cardId: string }
   /** 公式カードの書き換えの履歴（運営だけ） */
-  | { op: 'officialHistory'; secret: string; cardId: string };
+  | { op: 'officialHistory'; secret: string; cardId: string }
+  /** プリセットデッキを書き換える（運営だけ。中身とカード。保存した時点で全員に効く：決定事項 #148） */
+  | { op: 'presetSave'; secret: string; preset: unknown }
+  /** プリセットデッキを元に戻す（運営だけ） */
+  | { op: 'presetReset'; secret: string; presetId: string }
+  /** プリセットデッキの書き換えの履歴（運営だけ） */
+  | { op: 'presetHistory'; secret: string; presetId: string };
 
 export type PlazaOp = PlazaRequest['op'];
 export const PLAZA_OPS: readonly PlazaOp[] = [
@@ -45,6 +52,9 @@ export const PLAZA_OPS: readonly PlazaOp[] = [
   'officialSave',
   'officialReset',
   'officialHistory',
+  'presetSave',
+  'presetReset',
+  'presetHistory',
 ];
 
 export function isPlazaOp(op: unknown): op is PlazaOp {
@@ -88,6 +98,15 @@ export interface OfficialHistoryView {
   at: number;
 }
 
+export interface PresetHistoryView {
+  version: number;
+  /** null なら元に戻した */
+  preset: PresetOverride | null;
+  /** 書き換えた運営の名前 */
+  by: string;
+  at: number;
+}
+
 export interface PlazaReplies {
   staffLogin: { staff: true };
   staffLogout: { staff: false };
@@ -96,10 +115,14 @@ export interface PlazaReplies {
   plazaGet: { item: PublicItemFull };
   plazaPublish: { item: PublicItemView };
   plazaRemove: { removed: string };
-  officialList: { version: number; cards?: CardDef[] };
+  /** cards は公式カード、presets はプリセットデッキの上書き（#148。古い画面は presets を読まない） */
+  officialList: { version: number; cards?: CardDef[]; presets?: PresetOverride[] };
   officialSave: { version: number; card: CardDef };
   officialReset: { version: number };
   officialHistory: { history: OfficialHistoryView[] };
+  presetSave: { version: number; preset: PresetOverride };
+  presetReset: { version: number };
+  presetHistory: { history: PresetHistoryView[] };
 }
 
 export type PlazaOk<K extends PlazaOp> = { ok: true; op: K } & PlazaReplies[K];
@@ -161,6 +184,12 @@ export function parsePlazaRequest(x: unknown): Parsed<PlazaRequest> {
     case 'officialHistory':
       if (typeof x.cardId !== 'string' || !OFFICIAL_ID_RE.test(x.cardId)) return bad('公式カードの ID が正しくありません');
       return { ok: true, value: { op, secret, cardId: x.cardId } };
+    case 'presetSave':
+      return { ok: true, value: { op, secret, preset: x.preset } };
+    case 'presetReset':
+    case 'presetHistory':
+      if (typeof x.presetId !== 'string' || !PRESET_DECK_ID_RE.test(x.presetId)) return bad('プリセットデッキの ID が正しくありません');
+      return { ok: true, value: { op, secret, presetId: x.presetId } };
   }
   return bad('送信の形式が正しくありません');
 }

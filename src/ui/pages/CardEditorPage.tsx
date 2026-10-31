@@ -132,6 +132,11 @@ export interface OfficialEditMode {
   onSave(card: CardDef): Promise<boolean>;
   /** 戻る先 */
   backTo: string;
+  /** 見出し・保存のボタン・保存したときの知らせ・保存できない理由（プリセットデッキのカード：決定事項 #148。省けば公式カード） */
+  title?: string;
+  saveLabel?: string;
+  savedText?: (name: string) => string;
+  problem?: (card: CardDef) => string | null;
 }
 
 export function OfficialCardEditor({ card, mode }: { card: CardDef; mode: OfficialEditMode }) {
@@ -203,7 +208,7 @@ function Editor({ saved, official }: { saved: CardDef | null; official?: Officia
   const extra: Violation[] = [
     ...(nameTaken ? [{ code: 'NAME_TAKEN', path: 'name', message: `「${card.name.trim()}」という名前のカードはすでにあります` }] : []),
     ...(descOver ? [{ code: 'DESCRIPTION_TOO_LONG', path: 'description', message: `説明は${CARD_DESCRIPTION_MAX}文字までです（いま${descLength}文字）` }] : []),
-    ...(official && officialEditProblem(card) ? [{ code: 'OFFICIAL_EDIT', path: 'rarity', message: officialEditProblem(card)! }] : []),
+    ...(official && (official.problem ?? officialEditProblem)(card) ? [{ code: 'OFFICIAL_EDIT', path: 'name', message: (official.problem ?? officialEditProblem)(card)! }] : []),
   ];
   const allViolations = [...analysis.violations, ...extra];
   const canSave = allViolations.length === 0;
@@ -317,7 +322,7 @@ function Editor({ saved, official }: { saved: CardDef | null; official?: Officia
       if (!ok) return;
       setNavigationGuard(null);
       cardDrafts.clear(draftKey);
-      toast({ text: `公式カード「${name}」を書き換えました（全員に反映されます）`, kind: 'ok' });
+      toast({ text: official.savedText?.(name) ?? `公式カード「${name}」を書き換えました（全員に反映されます）`, kind: 'ok' });
       navigate(official.backTo);
       return;
     }
@@ -512,7 +517,7 @@ function Editor({ saved, official }: { saved: CardDef | null; official?: Officia
   return (
     <div className="ed">
       <div className="page-head">
-        <h1>{official ? '公式カードを書き換える' : saved ? 'カードを編集' : '新しいカード'}</h1>
+        <h1>{official ? (official.title ?? '公式カードを書き換える') : saved ? 'カードを編集' : '新しいカード'}</h1>
         {!saved && (
           <button type="button" className="btn btn--secondary" onClick={() => setSheet('templates')}>
             <UiIcon name="spell-book" />
@@ -1085,7 +1090,7 @@ function Editor({ saved, official }: { saved: CardDef | null; official?: Officia
           一覧へ
         </button>
         <button type="button" className="btn btn--primary" disabled={!dirty || saving} onClick={() => void save()}>
-          {official ? (saving ? '保存中…' : '全員に反映') : '保存'}
+          {official ? (saving ? '保存中…' : (official.saveLabel ?? '全員に反映')) : '保存'}
         </button>
       </div>
 

@@ -2,8 +2,8 @@
 // 公式カードの書き換えは保存した時点でオンラインのドラフトの山にも効く（倍率1）
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { analyzeCard, type CardDef } from '../src/engine/index.ts';
-import { OFFICIAL_CARDS, officialCard, withOfficialOverrides } from '../src/official/index.ts';
+import { analyzeCard, analyzeDeck, type CardDef } from '../src/engine/index.ts';
+import { OFFICIAL_CARDS, officialCard, officialPoolProblem, withOfficialOverrides } from '../src/official/index.ts';
 import {
   MemoryStore,
   STAFF_FAIL_PER_PLAYER_HOUR,
@@ -13,7 +13,7 @@ import {
   type HttpDeps,
   type HttpResult,
 } from '../src/online/index.ts';
-import { PRESET_DECKS } from '../src/presets.ts';
+import { PRESET_DECKS, presetEditProblem, withPresetOverrides, type PresetOverride } from '../src/presets.ts';
 
 const hash = async (t: string) => createHash('sha256').update(t).digest('hex');
 const PASSWORD = 'test-password-1234';
@@ -190,13 +190,35 @@ describe('公式カードの書き換え', () => {
     expect(withOfficialOverrides(OFFICIAL_CARDS, list.cards).find((c) => c.id === base.id)!.name).toBe(`${base.name}改`);
   });
 
-  it('レアリティの変更・公式でない ID・ルール違反は受け付けない', async () => {
+  it('レアリティも変えられる（#148）。公式でない ID・ルール違反は受け付けない', async () => {
     const s = await setup();
     const admin = await s.staff('運営さん');
-    expect(await s.call({ op: 'officialSave', secret: admin.secret, card: { ...base, rarity: 'rare' } })).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(await s.call({ op: 'officialSave', secret: admin.secret, card: { ...base, rarity: 'rare' } })).toMatchObject({ ok: true });
+    const list = await s.call({ op: 'officialList' });
+    expect(withOfficialOverrides(OFFICIAL_CARDS, list.cards).find((c) => c.id === base.id)!.rarity).toBe('rare');
     expect(await s.call({ op: 'officialSave', secret: admin.secret, card: { ...base, id: 'official-no-such-card' } })).toMatchObject({ ok: false, reason: 'invalid' });
     const over = { ...base, effects: [{ id: 'damage', value: 30, timing: 'play', target: 'chosen', condition: null }] };
     expect(await s.call({ op: 'officialSave', secret: admin.secret, card: over })).toMatchObject({ ok: false, reason: 'invalid' });
+  });
+
+  it('レアリティを変えてドラフトの山が組めなくなる書き換えは断る（#148）', async () => {
+    const s = await setup();
+    const admin = await s.staff('運営さん');
+    const commons = OFFICIAL_CARDS.filter((c) => c.rarity === 'common');
+    // 山が組めるぎりぎりまでコモンをレアにしておく（あと1枚で組めなくなる）
+    const changed: CardDef[] = [];
+    for (const c of commons) {
+      const next = [...changed, { ...c, rarity: 'rare' as const }];
+      if (officialPoolProblem(withOfficialOverrides(OFFICIAL_CARDS, next))) break;
+      changed.push(next.at(-1)!);
+      await s.plaza.saveOfficial(c.id, next.at(-1)!, 'x', 0);
+    }
+    expect(changed.length).toBeGreaterThan(0);
+    const last = commons[changed.length]!;
+    const r = await s.call({ op: 'officialSave', secret: admin.secret, card: { ...last, rarity: 'rare' } });
+    expect(r).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(r.error).toContain('ドラフトの山が組めません');
+    expect(await s.call({ op: 'officialSave', secret: admin.secret, card: { ...last, name: `${last.name}改` } })).toMatchObject({ ok: true });
   });
 
   it('元に戻すと上書きが消え、履歴には書き換えた人と中身が残る', async () => {
@@ -223,5 +245,66 @@ describe('公式カードの書き換え', () => {
     const cards = (room.meta as { draft: { cards: Record<string, CardDef> } }).draft.cards;
     expect(cards[base.id]?.name).toBe('ドラフト用の改');
     expect(officialCard(base.id)!.name).toBe(base.name);
+  });
+});
+
+describe('プリセットデッキの書き換え（決定事項 #148）', () => {
+  const preset = PRESET_DECKS[0]!;
+  /** 1枚目の名前を変え、1つ目の枚数を1枚減らして2つ目を1枚増やす */
+  const edited = (): PresetOverride => {
+    const entries = preset.deck.entries.map((e) => ({ ...e }));
+    entries[0]!.count -= 1;
+    entries[1]!.count += 1;
+    const cards = preset.cards.map((c, i) => (i === 0 ? { ...c, name: `${c.name}改` } : c));
+    return { id: preset.deck.id, deck: { ...preset.deck, entries }, cards };
+  };
+
+  it('運営だけが書き換えられ、全員に配られる（公式カードと同じ版）', async () => {
+    const s = await setup();
+    const o = edited();
+    expect(analyzeDeck(o.deck, new Map(o.cards.map((c) => [c.id, c]))).valid).toBe(true);
+    const guest = await s.player('ゲスト');
+    expect(await s.call({ op: 'presetSave', secret: guest.secret, preset: o })).toMatchObject({ ok: false, reason: 'staff' });
+    const admin = await s.staff('運営さん');
+    expect(await s.call({ op: 'presetSave', secret: admin.secret, preset: o })).toMatchObject({ ok: true, version: 1 });
+    const list = await s.call({ op: 'officialList' });
+    expect(list.cards).toEqual([]);
+    expect(list.presets).toHaveLength(1);
+    const applied = withPresetOverrides(PRESET_DECKS, list.presets).find((p) => p.id === preset.id)!;
+    expect(applied.name).toBe(preset.name);
+    expect(applied.deck.entries[0]!.count).toBe(preset.deck.entries[0]!.count - 1);
+    expect(applied.cards[0]!.name).toBe(`${preset.cards[0]!.name}改`);
+    expect(await s.call({ op: 'officialList', since: 1 })).toEqual({ ok: true, op: 'officialList', version: 1 });
+  });
+
+  it('デッキのルール違反・知らないデッキ・preset- で始まらないカードの ID は受け付けない', async () => {
+    const s = await setup();
+    const admin = await s.staff('運営さん');
+    const short = edited();
+    short.deck = { ...short.deck, entries: short.deck.entries.map((e, i) => (i === 0 ? { ...e, count: e.count - 1 } : e)) };
+    expect(await s.call({ op: 'presetSave', secret: admin.secret, preset: short })).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(await s.call({ op: 'presetSave', secret: admin.secret, preset: { ...edited(), id: 'preset-deck-nothing' } })).toMatchObject({ ok: false, reason: 'invalid' });
+    const o = edited();
+    const id = o.cards[0]!.id;
+    const renamed = { ...o, cards: o.cards.map((c) => (c.id === id ? { ...c, id: 'my-card' } : c)), deck: { ...o.deck, entries: o.deck.entries.map((e) => (e.cardId === id ? { ...e, cardId: 'my-card' } : e)) } };
+    expect(await s.call({ op: 'presetSave', secret: admin.secret, preset: renamed })).toMatchObject({ ok: false, reason: 'invalid' });
+  });
+
+  it('元に戻すと上書きが消え、履歴に残る。デッキの名前と ID は元のまま', async () => {
+    const s = await setup();
+    const admin = await s.staff('運営さん');
+    const saved = await s.call({ op: 'presetSave', secret: admin.secret, preset: { ...edited(), deck: { ...edited().deck, name: 'ちがう名前' } } });
+    expect(saved.preset.deck.name).toBe(preset.deck.name);
+    expect(await s.call({ op: 'presetReset', secret: admin.secret, presetId: preset.deck.id })).toMatchObject({ ok: true, version: 2 });
+    expect((await s.call({ op: 'officialList' })).presets).toEqual([]);
+    const h = await s.call({ op: 'presetHistory', secret: admin.secret, presetId: preset.deck.id });
+    expect(h.history.map((x: { version: number; preset: PresetOverride | null; by: string }) => [x.version, x.preset === null, x.by])).toEqual([
+      [2, true, '運営さん'],
+      [1, false, '運営さん'],
+    ]);
+  });
+
+  it('プリセットのカードの ID はどれも preset- で始まる', () => {
+    for (const p of PRESET_DECKS) expect(presetEditProblem({ id: p.deck.id, cards: p.cards }), p.name).toBeNull();
   });
 });

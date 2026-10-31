@@ -3,6 +3,7 @@
  * 純粋なデータと関数だけ（DOM・乱数・時刻を使わない）。UI・CPU・サーバー（Edge Function）から同じものを読む。
  */
 import { BALANCE } from '../engine/balance.ts';
+import { draftPool, poolProblem } from '../engine/draft/pool.ts';
 import type { CardDef, Deck, Rarity } from '../engine/types.ts';
 import { OFFICIAL_ARCHETYPES, OFFICIAL_ENTRIES, type OfficialArchetype, type OfficialEntry } from './cards.ts';
 
@@ -78,25 +79,25 @@ export function officialCommonDeck(archetype: OfficialArchetype): Deck {
 }
 
 /**
- * 運営が書き換えた公式カード（決定事項 #141）を重ねた一覧。並びと枚数は元のまま、同じ ID の上書きがあればそれに替える
- * （知らない ID・レアリティが変わった上書きは使わない）。サーバーのドラフトの山・CPU 戦のドラフト・公式カードの一覧が同じものを使う
+ * 運営が書き換えた公式カード（決定事項 #141）を重ねた一覧。並びは元のまま、同じ ID の上書きがあればそれに替える
+ * （知らない ID の上書きは使わない。レアリティも変えられる：#148）。サーバーのドラフトの山・CPU 戦のドラフト・公式カードの一覧が同じものを使う
  */
-export function withOfficialOverrides(base: readonly CardDef[], overrides: readonly CardDef[]): CardDef[] {
+export function withOfficialOverrides(base: readonly CardDef[], overrides: readonly { id: string }[]): CardDef[] {
   if (overrides.length === 0) return [...base];
-  const byId = new Map(overrides.map((c) => [c.id, c]));
-  return base.map((c) => {
-    const o = byId.get(c.id);
-    return o && o.rarity === c.rarity ? o : c;
-  });
+  const byId = new Map(overrides.filter((o): o is CardDef => isOfficialCardId(o.id)).map((c) => [c.id, c]));
+  return base.map((c) => byId.get(c.id) ?? c);
 }
 
 /**
  * 公式カードの書き換えとして受け付けられないときの理由（受け付けられれば null）。カードのルール違反は別に analyzeCard で見る。
- * ID は元の公式カードのもの、レアリティは変えない（ドラフトの山の枚数とレジェンドの数が変わらないように）
+ * ID は元の公式カードのもの。レアリティは変えてよい（#148。ドラフトの山の枚数はレアリティで決まるので、山が組めるかは
+ * `officialPoolProblem` で見る）
  */
-export function officialEditProblem(card: Pick<CardDef, 'id' | 'rarity'>): string | null {
-  const base = officialCard(card.id);
-  if (!base) return '公式カードではありません';
-  if (base.rarity !== card.rarity) return 'レアリティは変えられません（ドラフトの山の枚数が変わるため）';
-  return null;
+export function officialEditProblem(card: Pick<CardDef, 'id'>): string | null {
+  return officialCard(card.id) ? null : '公式カードではありません';
+}
+
+/** 書き換えを重ねた公式カードでドラフトの山が組めないときの理由（組めれば null。レアリティを変えたとき：決定事項 #148） */
+export function officialPoolProblem(cards: readonly CardDef[]): string | null {
+  return poolProblem(draftPool(cards, { legends: true }));
 }

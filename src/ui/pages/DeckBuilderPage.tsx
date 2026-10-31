@@ -418,7 +418,7 @@ function Builder({ saved }: { saved: Deck | null }) {
   );
 }
 
-function CardRowInfo({ card, a, onPreview, extra }: { card: CardDef; a: CardAnalysis; onPreview: () => void; extra?: ReactNode }) {
+export function CardRowInfo({ card, a, onPreview, extra }: { card: CardDef; a: CardAnalysis; onPreview: () => void; extra?: ReactNode }) {
   const name = card.name || '（名前なし）';
   return (
     <button type="button" className="card-row__info" onClick={onPreview} title="詳細を見る" aria-label={`${name}（コスト${card.cost}・${CARD_TYPE_LABEL[a.cardType]}・${RARITY_LABEL[card.rarity]}${a.isCurse ? '・呪い' : ''}）の詳細を見る`}>
@@ -447,7 +447,7 @@ function CardRowInfo({ card, a, onPreview, extra }: { card: CardDef; a: CardAnal
   );
 }
 
-function CountControl({ count, onChange, disabled }: { count: number; onChange: (n: number) => void; disabled?: boolean }) {
+export function CountControl({ count, onChange, disabled }: { count: number; onChange: (n: number) => void; disabled?: boolean }) {
   if (count === 0) {
     return (
       <button type="button" className="btn btn--small btn--primary" disabled={disabled} onClick={() => onChange(1)}>

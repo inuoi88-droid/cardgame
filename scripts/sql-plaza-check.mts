@@ -105,6 +105,13 @@ await both('official list same', () => ({ op: 'officialList', since: 2 }));
 await both('official reset', (s) => ({ op: 'officialReset', secret: sec('運営')(s), cardId: base.id }));
 await both('official history', (s) => ({ op: 'officialHistory', secret: sec('運営')(s), cardId: base.id }));
 await both('official list after reset', () => ({ op: 'officialList' }));
+// プリセットデッキの書き換え（決定事項 #148。同じ表・同じ版）
+const PR = PRESET_DECKS[1]!;
+const prEdited = { id: PR.deck.id, deck: PR.deck, cards: PR.cards.map((c, i) => (i === 0 ? { ...c, name: `${c.name}改` } : c)) };
+await both('preset save', (s) => ({ op: 'presetSave', secret: sec('友人')(s), preset: prEdited }));
+await both('official list with preset', () => ({ op: 'officialList' }));
+await both('preset reset', (s) => ({ op: 'presetReset', secret: sec('運営')(s), presetId: PR.deck.id }));
+await both('preset history', (s) => ({ op: 'presetHistory', secret: sec('運営')(s), presetId: PR.deck.id }));
 await both('staffLogout', (s) => ({ op: 'staffLogout', secret: sec('運営')(s) }));
 await both('plazaMe logout', (s) => ({ op: 'plazaMe', secret: sec('運営')(s) }));
 console.log(`diffs ${diffs}`);

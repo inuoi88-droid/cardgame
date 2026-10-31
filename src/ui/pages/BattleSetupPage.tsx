@@ -1,7 +1,6 @@
 /** 対戦の準備：自分のデッキと CPU のデッキを選んで開始。選んだデッキの中身（種類・コストの内訳とカード）を見せ、前回の選択を覚える */
 import { useMemo, useState } from 'react';
 import { ai, type CardDef, type PlanarMode } from '../../engine/index.ts';
-import { PRESET_DECKS } from '../../presets.ts';
 import { CardView } from '../components/CardView.tsx';
 import { CardArtOf } from '../components/CardArt.tsx';
 import { useConfirm } from '../components/ConfirmDialog.tsx';
@@ -10,6 +9,7 @@ import { DeckPicker } from '../battle/DeckPicker.tsx';
 import { MedalGroup } from '../battle/Medal.tsx';
 import { CPU_PIPS, CPU_PORTRAIT, presetGi, RANDOM_GI } from '../battle/portraits.ts';
 import { pickChoice, useDeckChoices } from '../battle/deckChoices.ts';
+import { usePresetDecks } from '../plaza/plazaStore.ts';
 import { clearSession, loadSession, loadSetupPrefs, saveSetupPrefs, sessionLevel, startSession } from '../battle/session.ts';
 import { breakdownDeck } from '../battle/summary.ts';
 import { LeaderField, RulesFields } from '../battle/MatchOptionsForm.tsx';
@@ -61,11 +61,13 @@ function DeckContents({ deck, cards, onCard }: { deck: Deck; cards: CardDef[]; o
 
 export function BattleSetupPage() {
   const myChoices = useDeckChoices();
+  // CPU のデッキは運営の書き換えを重ねたプリセット（決定事項 #148）
+  const presets = usePresetDecks();
   const confirm = useConfirm();
   const [existing, setExisting] = useState(() => loadSession());
   const prefs = useMemo(() => loadSetupPrefs(), []);
   const [mine, setMine] = useState<string>(prefs?.mine ?? '');
-  const [cpu, setCpu] = useState<string>(prefs && (prefs.cpu === 'random' || PRESET_DECKS.some((p) => p.id === prefs.cpu)) ? prefs.cpu : 'random');
+  const [cpu, setCpu] = useState<string>(prefs && (prefs.cpu === 'random' || presets.some((p) => p.id === prefs.cpu)) ? prefs.cpu : 'random');
   const [level, setLevel] = useState<ai.CpuLevel>(prefs?.level ?? 'normal');
   // MTG 要素 △ バッチD：リーダー・次元・昼と夜
   const [myLeader, setMyLeader] = useState<LeaderChoice>(prefs?.myLeader ?? 'none');
@@ -76,7 +78,7 @@ export function BattleSetupPage() {
   const [zoom, setZoom] = useState<CardDef | null>(null);
 
   const selected = pickChoice(myChoices, mine);
-  const cpuPreset = PRESET_DECKS.find((p) => p.id === cpu);
+  const cpuPreset = presets.find((p) => p.id === cpu);
   const ongoing = existing && existing.state.phase !== 'ended' ? existing : null;
 
   const start = async () => {
@@ -90,7 +92,7 @@ export function BattleSetupPage() {
       });
       if (!ok) return;
     }
-    const preset = cpu === 'random' ? PRESET_DECKS[Math.floor(Math.random() * PRESET_DECKS.length)]! : PRESET_DECKS.find((p) => p.id === cpu)!;
+    const preset = cpu === 'random' ? presets[Math.floor(Math.random() * presets.length)]! : presets.find((p) => p.id === cpu)!;
     saveSetupPrefs({ mine: selected.key, cpu, level, myLeader, cpuLeader, field, dayNight });
     const rules = toRules(field, dayNight);
     const r = startSession({
@@ -182,9 +184,9 @@ export function BattleSetupPage() {
             name="cpu"
             value={cpu}
             onChange={setCpu}
-            options={[{ id: 'random', label: 'ランダム', gi: RANDOM_GI }, ...PRESET_DECKS.map((p) => ({ id: p.id, label: p.name, gi: presetGi(p.id), isName: true }))]}
+            options={[{ id: 'random', label: 'ランダム', gi: RANDOM_GI }, ...presets.map((p) => ({ id: p.id, label: p.name, gi: presetGi(p.id), isName: true }))]}
           />
-          <p className="setup__hint">{cpuPreset ? cpuPreset.description : `${PRESET_DECKS.length}つのプリセットからランダムに選ぶ`}</p>
+          <p className="setup__hint">{cpuPreset ? cpuPreset.description : `${presets.length}つのプリセットからランダムに選ぶ`}</p>
           {cpuPreset && (
             <details className="setup__fold">
               <summary>CPU のデッキの中身を見る</summary>

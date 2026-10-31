@@ -395,3 +395,60 @@ const clockwork = preset('clockwork', '歯車仕掛け', 'ドローとエナジ�
 ]);
 
 export const PRESET_DECKS: readonly PresetDeck[] = [poison, beasts, curses, fortress, clockwork];
+
+// ---------------------------------------------------------------- 運営の書き換え（決定事項 #148）
+
+/**
+ * プリセットデッキの上書き（運営の書き換え。決定事項 #148）。id は元のデッキの ID（`preset-deck-<id>`）。
+ * デッキの名前と ID は元のまま、中身（枚数・入れるカード）とカードの定義を差し替える。サーバーは cardgame.official_cards に
+ * 公式カードの上書きと同じ表で置き、officialList で全員に配る
+ */
+export interface PresetOverride {
+  id: string;
+  deck: Deck;
+  cards: CardDef[];
+}
+
+/** プリセットデッキの ID（デッキの ID：preset-deck-<id>） */
+export const PRESET_DECK_ID_RE = /^preset-deck-[a-z0-9-]{1,40}$/;
+/** プリセットデッキのカードの ID（preset-<…>。公式カード・自分のカードの ID と重ならない） */
+export const PRESET_CARD_ID_RE = /^preset-[a-z0-9-]{1,80}$/;
+
+/** デッキの ID からプリセットデッキ（書き換える前） */
+export function presetByDeckId(id: string): PresetDeck | undefined {
+  return PRESET_DECKS.find((p) => p.deck.id === id);
+}
+
+export function isPresetDeckId(id: string): boolean {
+  return presetByDeckId(id) !== undefined;
+}
+
+/**
+ * 運営の書き換えを重ねたプリセットデッキ。並び・名前・説明は元のまま、同じ ID の上書きがあればデッキの中身とカードを替える
+ * （知らない ID の上書きは使わない）。CPU 戦の相手・対戦の準備のデッキ・ドラフトの山（あなたのカード＋プリセット）が同じものを使う
+ */
+export function withPresetOverrides(base: readonly PresetDeck[], overrides: readonly PresetOverride[]): PresetDeck[] {
+  if (overrides.length === 0) return [...base];
+  const byId = new Map(overrides.map((o) => [o.id, o]));
+  return base.map((p) => {
+    const o = byId.get(p.deck.id);
+    if (!o) return p;
+    const used = new Set(o.deck.entries.map((e) => e.cardId));
+    return { ...p, cards: o.cards.filter((c) => used.has(c.id)), deck: { ...p.deck, entries: o.deck.entries.map((e) => ({ ...e })) } };
+  });
+}
+
+/**
+ * プリセットデッキの書き換えとして受け付けられないときの理由（受け付けられれば null）。デッキのルール・カードのルールは別に
+ * analyzeDeck（サーバーは checkDeck）で見る。ID は元のデッキのもの、カードの ID は preset- で始まり重ならない
+ */
+export function presetEditProblem(o: Pick<PresetOverride, 'id' | 'cards'>): string | null {
+  if (!presetByDeckId(o.id)) return 'プリセットデッキではありません';
+  const ids = new Set<string>();
+  for (const c of o.cards) {
+    if (!PRESET_CARD_ID_RE.test(c.id)) return `カードの ID が正しくありません（${c.name}）`;
+    if (ids.has(c.id)) return `同じ ID のカードが2枚あります（${c.name}）`;
+    ids.add(c.id);
+  }
+  return null;
+}

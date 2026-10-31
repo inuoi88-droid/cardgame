@@ -76,7 +76,9 @@ export function StaffSheet({ onClose }: { onClose: () => void }) {
               <UiIcon name="gi:podium" />
               「{social.identity?.name ?? '（名前なし）'}」（フレンドコード {social.identity?.friendCode}）は運営です。
             </p>
-            <p className="hint">みんなの広場にカード・デッキを公開できます（カード・デッキの詳細から）。公式カードの一覧から公式カードを書き換えられます。書き換えは保存した時点で全員に効きます。</p>
+            <p className="hint">
+              みんなの広場にカード・デッキを公開できます（カード・デッキの詳細から）。公式カードの一覧から公式カードを、プリセットデッキの一覧から CPU 戦の相手などのデッキを書き換えられます。書き換えは保存（反映）した時点で全員に効きます。
+            </p>
             <div className="btn-row">
               <button
                 type="button"
@@ -98,6 +100,16 @@ export function StaffSheet({ onClose }: { onClose: () => void }) {
                 }}
               >
                 公式カードを書き換える
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  onClose();
+                  navigate('/presets');
+                }}
+              >
+                プリセットデッキを書き換える
               </button>
               <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => void logout()}>
                 運営をやめる

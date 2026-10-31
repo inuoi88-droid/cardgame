@@ -5,6 +5,7 @@
  * 公開できるのは運営だけ（最初は限られた人だけ。見るのは誰でも）。公式カードの上書きは保存した時点で全員に効く（オンラインのドラフトの山にも）。
  */
 import type { CardDef, Deck } from '../../engine/types.ts';
+import type { PresetOverride } from '../../presets.ts';
 
 /** 1人（運営）が公開できる数 */
 export const MAX_PUBLIC_ITEMS = 200;
@@ -68,11 +69,20 @@ export interface PublicItemSummaryRecord {
   cover: CardDef | null;
 }
 
-/** 公式カードの上書きの履歴の1行（card が null なら元に戻した） */
+/**
+ * 運営の上書き1つ（決定事項 #141・#148）。公式カードは CardDef（id は official-<slug>）、
+ * プリセットデッキは PresetOverride（id は preset-deck-<id>）。どちらも同じ表（cardgame.official_cards）に置き、版も共通
+ */
+export type OverrideData = CardDef | PresetOverride;
+
+/** プリセットデッキの上書き1つの大きさの上限（JSON の文字数） */
+export const PRESET_MAX_CHARS = 60_000;
+
+/** 上書きの履歴の1行（card が null なら元に戻した。cardId は公式カードかプリセットデッキの ID） */
 export interface OfficialHistoryRecord {
   version: number;
   cardId: string;
-  card: CardDef | null;
+  card: OverrideData | null;
   by: string;
   at: number;
 }
@@ -97,9 +107,9 @@ export interface PlazaStore {
   listItems(opts: { kind?: PublicKind; before?: PlazaCursor; limit: number }): Promise<PublicItemSummaryRecord[]>;
   itemsByOwner(ownerId: string): Promise<PublicItemSummaryRecord[]>;
 
-  /** 公式カードの上書きと版（版は履歴の最後の番号。上書きが1つも無ければ 0） */
-  officialOverrides(): Promise<{ version: number; cards: CardDef[] }>;
+  /** 公式カード・プリセットデッキの上書きと版（版は履歴の最後の番号。上書きが1つも無ければ 0） */
+  officialOverrides(): Promise<{ version: number; items: OverrideData[] }>;
   /** 上書きを保存する（card が null なら上書きを消して元に戻す）。履歴に1行足し、新しい版を返す */
-  saveOfficial(cardId: string, card: CardDef | null, by: string, at: number): Promise<number>;
+  saveOfficial(cardId: string, card: OverrideData | null, by: string, at: number): Promise<number>;
   officialHistory(cardId: string, limit: number): Promise<OfficialHistoryRecord[]>;
 }

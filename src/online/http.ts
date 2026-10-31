@@ -123,7 +123,7 @@ export async function handleBody(text: string, deps: HttpDeps, ctx: RequestConte
     let draftPool = deps.draftPool;
     if (req.op === 'join' && !draftPool && deps.plaza) {
       try {
-        draftPool = withOfficialOverrides(ONLINE_DRAFT_CARDS, (await deps.plaza.officialOverrides()).cards);
+        draftPool = withOfficialOverrides(ONLINE_DRAFT_CARDS, (await deps.plaza.officialOverrides()).items);
       } catch (e) {
         deps.log?.(`official overrides failed: ${String(e)}`);
       }

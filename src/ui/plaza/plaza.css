@@ -174,3 +174,45 @@
 }
 
 .plaza__search { width: 100%; max-width: 360px; margin: 8px 0; }
+
+/* プリセットデッキの一覧・書き換え（決定事項 #148） */
+.presets {
+  display: grid;
+  gap: 12px;
+}
+.presets--edit {
+  padding-bottom: 72px;
+}
+.presets__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.presets__item {
+  display: grid;
+  gap: 6px;
+}
+.presets__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.presets__head h2 {
+  margin: 0;
+}
+.presets__cards {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.presets__add {
+  display: grid;
+  gap: 10px;
+}
+.presets__tip {
+  margin: 0;
+}

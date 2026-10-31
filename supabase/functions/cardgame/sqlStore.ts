@@ -562,11 +562,12 @@ export function makePlazaStore(sql: Sql) {
       const rows = await q(`select ${ITEM_COLS} from cardgame.public_items where owner_id = $1`, [ownerId]);
       return rows.map(fromItemRow);
     },
-    async officialOverrides(): Promise<{ version: number; cards: Json[] }> {
+    // 公式カードとプリセットデッキの上書き（決定事項 #148。同じ表に ID で分けて置く）
+    async officialOverrides(): Promise<{ version: number; items: Json[] }> {
       const rows = await sql`select card from cardgame.official_cards`;
       const v = await sql`select coalesce(max(id), 0)::bigint as v from cardgame.official_card_history`;
       // deno-lint-ignore no-explicit-any
-      return { version: Number(v[0]?.v ?? 0), cards: rows.map((r: any) => r.card) };
+      return { version: Number(v[0]?.v ?? 0), items: rows.map((r: any) => r.card) };
     },
     async saveOfficial(cardId: string, card: Json | null, by: string, at: number): Promise<number> {
       return (await sql.begin(async (tx: Sql) => {

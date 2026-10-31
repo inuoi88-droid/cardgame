@@ -2,13 +2,15 @@
  * みんなの広場・運営・公式カードの上書き（決定事項 #141）の画面側の状態と送信。
  * - 本人確認はフレンド機能のプレイヤー（socialStore の identity。無ければ作る）。運営かどうかはサーバーが決め、端末には表示用の控えだけ置く
  *   （`cardgame.v1.staff`＝{ friendCode, staff }。控えが運営でもサーバーは毎回確かめる）
- * - 公式カードの上書きは端末に控える（`cardgame.v1.official`＝{ version, cards }）。起動時と運営が保存したときに取り直し、
- *   CPU 戦のドラフト・公式カードの一覧は `useOfficialCards()`（元の公式カードに上書きを重ねたもの）を使う
+ * - 公式カードとプリセットデッキ（#148）の上書きは端末に控える（`cardgame.v1.official`＝{ version, cards, presets }）。起動時と運営が
+ *   保存したときに取り直し、CPU 戦のドラフト・公式カードの一覧は `useOfficialCards()`、CPU 戦の相手・対戦の準備のデッキ・ドラフトの
+ *   「あなたのカード＋プリセット」は `usePresetDecks()`（元のものに上書きを重ねたもの）を使う
  */
 import { useSyncExternalStore } from 'react';
 import type { CardDef, Deck } from '../../engine/index.ts';
 import type { PlazaError, PlazaOk, PlazaRequest } from '../../online/plaza/protocol.ts';
 import { OFFICIAL_CARDS, withOfficialOverrides } from '../../official/index.ts';
+import { PRESET_DECKS, withPresetOverrides, type PresetDeck, type PresetOverride } from '../../presets.ts';
 import { callServer } from '../online/client.ts';
 import { ensurePlayer, getSocial } from '../social/socialStore.ts';
 
@@ -109,25 +111,32 @@ const OFFICIAL_KEY = 'cardgame.v1.official';
 interface OfficialCache {
   version: number;
   cards: CardDef[];
+  /** プリセットデッキの上書き（決定事項 #148） */
+  presets: PresetOverride[];
 }
 
 function readOfficial(): OfficialCache {
   try {
     const raw = JSON.parse(localStorage.getItem(OFFICIAL_KEY) ?? 'null') as Partial<OfficialCache> | null;
-    if (raw && typeof raw.version === 'number' && Array.isArray(raw.cards)) return { version: raw.version, cards: raw.cards };
+    if (raw && typeof raw.version === 'number' && Array.isArray(raw.cards)) {
+      // プリセットの無い古い控え（#148 より前）は、同じ版でも中身を取り直す（版 -1 で since を付けない）
+      return Array.isArray(raw.presets) ? { version: raw.version, cards: raw.cards, presets: raw.presets } : { version: -1, cards: raw.cards, presets: [] };
+    }
   } catch {
     // 読めなければ上書きなし
   }
-  return { version: 0, cards: [] };
+  return { version: 0, cards: [], presets: [] };
 }
 
 let official = readOfficial();
 let officialCards: readonly CardDef[] = withOfficialOverrides(OFFICIAL_CARDS, official.cards);
+let presetDecks: readonly PresetDeck[] = withPresetOverrides(PRESET_DECKS, official.presets);
 const officialListeners = new Set<() => void>();
 
 function setOfficial(next: OfficialCache): void {
   official = next;
   officialCards = withOfficialOverrides(OFFICIAL_CARDS, next.cards);
+  presetDecks = withPresetOverrides(PRESET_DECKS, next.presets);
   try {
     localStorage.setItem(OFFICIAL_KEY, JSON.stringify(next));
   } catch {
@@ -157,6 +166,27 @@ export function overriddenIds(): ReadonlySet<string> {
   return new Set(official.cards.map((c) => c.id));
 }
 
+/** プリセットデッキ（運営の書き換えを重ねたもの。決定事項 #148） */
+export function getPresetDecks(): readonly PresetDeck[] {
+  return presetDecks;
+}
+
+export function usePresetDecks(): readonly PresetDeck[] {
+  return useSyncExternalStore(
+    (cb) => {
+      officialListeners.add(cb);
+      return () => officialListeners.delete(cb);
+    },
+    getPresetDecks,
+    () => PRESET_DECKS,
+  );
+}
+
+/** 書き換えられているプリセットデッキの ID（デッキの ID：preset-deck-<id>） */
+export function overriddenPresetIds(): ReadonlySet<string> {
+  return new Set(official.presets.map((p) => p.id));
+}
+
 let officialInFlight: Promise<void> | null = null;
 
 /** 上書きを取り直す（版が同じなら中身は送られてこない）。通信できなければ控えのまま */
@@ -164,7 +194,7 @@ export function refreshOfficial(): Promise<void> {
   officialInFlight ??= (async () => {
     const res = await callPlaza(official.version >= 0 ? { op: 'officialList', since: official.version } : { op: 'officialList' });
     officialInFlight = null;
-    if (res.ok && res.cards) setOfficial({ version: res.version, cards: res.cards });
+    if (res.ok && res.cards) setOfficial({ version: res.version, cards: res.cards, presets: res.presets ?? [] });
   })();
   return officialInFlight;
 }

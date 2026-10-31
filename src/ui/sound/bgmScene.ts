@@ -19,6 +19,9 @@ export function sceneForPage(page: string): BgmScene | null {
     case 'official':
     case 'officialEdit':
     case 'plaza':
+    case 'presets':
+    case 'presetEdit':
+    case 'presetCard':
       return 'deck';
     case 'draft':
       return 'draft';

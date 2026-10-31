@@ -2,8 +2,7 @@
  * みんなの広場・運営・公式カードの上書き（決定事項 #141）のメモリの保存場所（手元のサーバー・テスト）。
  * 約束は types.ts の PlazaStore。SQL 版は supabase/functions/cardgame/sqlStore.ts の makePlazaStore
  */
-import type { CardDef } from '../../engine/types.ts';
-import type { OfficialHistoryRecord, PlazaCursor, PlazaStore, PublicItemRecord, PublicItemSummaryRecord, PublicKind } from './types.ts';
+import type { OfficialHistoryRecord, OverrideData, PlazaCursor, PlazaStore, PublicItemRecord, PublicItemSummaryRecord, PublicKind } from './types.ts';
 
 const clone = <T>(x: T): T => structuredClone(x);
 
@@ -11,7 +10,7 @@ export function createMemoryPlazaStore(opts: { staffPassword?: string | null } =
   let password: string | null = opts.staffPassword ?? null;
   const staff = new Map<string, number>();
   const items = new Map<string, PublicItemRecord>();
-  const overrides = new Map<string, CardDef>();
+  const overrides = new Map<string, OverrideData>();
   const history: OfficialHistoryRecord[] = [];
   const summary = (r: PublicItemRecord): PublicItemSummaryRecord => {
     const { card: _c, deck: _d, cards: _cs, ...rest } = clone(r);
@@ -58,7 +57,7 @@ export function createMemoryPlazaStore(opts: { staffPassword?: string | null } =
       return [...items.values()].filter((r) => r.ownerId === ownerId).map(summary);
     },
     async officialOverrides() {
-      return { version: history.length > 0 ? history[history.length - 1]!.version : 0, cards: [...overrides.values()].map(clone) };
+      return { version: history.length > 0 ? history[history.length - 1]!.version : 0, items: [...overrides.values()].map(clone) };
     },
     async saveOfficial(cardId, card, by, at) {
       if (card) overrides.set(cardId, clone(card));

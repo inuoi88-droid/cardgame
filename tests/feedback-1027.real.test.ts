@@ -141,7 +141,7 @@ describe('報告 #7：新生のコピーにも出る召喚時の効果の分を�
 });
 
 describe('報告 #12：血の支払いは1エナジーあたりのHPが重い', () => {
-  it('エナジー1あたり HP x(3)（倍率1で3）', () => {
-    expect(BALANCE.abilities.lifePay.hpPerEnergy).toBe(60);
+  it('エナジー1あたり HP x(6)（倍率1で6。報告 #23 で x(3) から：決定事項 #150）', () => {
+    expect(BALANCE.abilities.lifePay.hpPerEnergy).toBe(120);
   });
 });

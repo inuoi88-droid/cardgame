@@ -88,7 +88,8 @@ describe('定義（△ バッチA）：ポイント・テキスト', () => {
     ['賛助1', MON(1, 1, { effects: [fx({ id: 'backup', value: 1, timing: 'summon' })] }), 7, ['召喚時、自分の他のモンスター1体の攻撃力と体力を+1し、このターンこのモンスターのキーワードを与える。']],
     ['消術2', SPELL([fx({ id: 'fateseal', value: 2, target: 'enemyPlayer' })]), 3, ['相手の山札の上2枚を見て、好きな枚数を山札の下に置く。']],
     ['永久強化1', SPELL([fx({ id: 'perpetual', value: 1, target: 'self' })]), 4, ['手札のモンスターカード1枚の攻撃力と体力を、この試合のあいだ+1する。']],
-    ['山札消滅2', SPELL([fx({ id: 'exileMill', value: 2, target: 'enemyPlayer' })]), 3, ['相手の山札の上2枚を除外する。']],
+    // 1枚につき 6（決定事項 #150。以前は 1.2）
+    ['山札消滅2', SPELL([fx({ id: 'exileMill', value: 2, target: 'enemyPlayer' })]), 12, ['相手の山札の上2枚を除外する。']],
     ['トークン生成「落とし子」', SPELL([fx({ id: 'token', value: 1, hits: 1, option: 'spawn', target: 'self' })]), 7, ['攻撃力1・体力1の小鬼（落とし子：破壊されるとエナジー+1）を1体出す。']],
     ['倍化「3倍」（12＋20）', SPELL([fx({ id: 'double', option: 'poison3', target: 'self' })]), 32, ['相手の毒を3倍にする（増えるのは最大10）。']],
     [

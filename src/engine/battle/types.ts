@@ -250,6 +250,8 @@ export interface TurnLimits {
   noiseIn: number;
   /** 居住で出したトークンの数（1ターン battle.maxPopulatesPerTurn 体まで） */
   populated?: number;
+  /** 蘇生で場に戻した数（1ターン battle.maxRevivesPerTurn 体まで。報告 #25） */
+  revived?: number;
 }
 
 export interface PlayerState {
@@ -818,6 +820,8 @@ export interface EffectRuntime {
   takeFromDiscard(player: PlayerId, cardUid: string): void;
   copyFromHand(player: PlayerId, cardUid: string, keep: boolean): void;
   reviveFromDiscard(player: PlayerId, cardUid: string): void;
+  /** このターンにあと何体蘇生できるか（battle.maxRevivesPerTurn から、もう戻した数を引いたもの） */
+  revivesLeft(player: PlayerId): number;
   dispelOptions(player: PlayerId): ChoiceOption[];
   dispel(player: PlayerId, key: string): void;
   log(text: string): void;

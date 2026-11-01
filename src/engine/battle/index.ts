@@ -64,7 +64,7 @@ export { previewAction, type ActionPreview, type PreviewHit } from './preview.ts
 export { attackBlockReason, attackTargets, attacksPerTurn, cannotAttack, enlistOptions } from './combat.ts';
 export { keywordFlags, targetableTaunts, cardTargetableTaunts, cardTargetable, combatBonus, guarded } from './damage.ts';
 export { lifespanOf } from './play.ts';
-export { tokenCount, fatigueDamage, nextFatigueDamage } from './zones.ts';
+export { tokenCount, fatigueDamage, nextFatigueDamage, revivesLeft } from './zones.ts';
 export { nextFullMulliganSize } from './mulligan.ts';
 export {
   other,

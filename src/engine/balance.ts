@@ -713,8 +713,12 @@ export const BALANCE = {
     devour: { perValue: 4.5, base: x(1), max: 3, minValue: x(1), maxValue: x(2) },
     /** 召集：固定。休ませる1体につきコスト−1（max まで）。印刷コスト minCost 以上 */
     convoke: { flat: x(3), max: 3, minCost: 2 },
-    /** 探査：固定。除外する捨て札1枚につきコスト−1（max まで）。印刷コスト minCost 以上 */
-    delve: { flat: x(3), max: 3, minCost: 2 },
+    /**
+     * 探査：perStep×下げられる量（min(max, 印刷コスト)）。除外する捨て札1枚につきコスト−1（max まで）。印刷コスト minCost 以上。
+     * 固定 x(3) では、毎ターン手札を捨てて捨て札がすぐたまるので、コスト5の大型が2ターン目から2で出て B0 に 92.5%（報告 #24・決定事項 #149）。
+     * 同じ「1つにつきコスト−1（最大−3）」の親和と同じ値段にした
+     */
+    delve: { perStep: x(4), max: 3, minCost: 2 },
     /** 血の支払い：K×perEnergy。エナジー1を HP hpPerEnergy で払う（K は max まで） */
     lifePay: { perEnergy: x(2), hpPerEnergy: x(3), max: 2 },
     /** 代替コスト：固定（1ターン battle.maxPitchPerTurn 回） */
@@ -907,6 +911,11 @@ export const BALANCE = {
     tempAttackCap: x(5),
     /** 居住で出せるトークンは1人1ターンこの数まで（攻撃のたびに複写→自壊を繰り返す無限のコピーを止める。報告 #14。数なので倍率は掛けない） */
     maxPopulatesPerTurn: 2,
+    /**
+     * 蘇生（捨て札からモンスターを場に戻す）は1人1ターンこの体数まで。蘇生を持つモンスターを何体も並べると、1体が倒されるたびに
+     * 全員の「味方が破壊されたとき」の蘇生が出て何体も戻った（報告 #25。数なので倍率は掛けない）
+     */
+    maxRevivesPerTurn: 3,
     tokenName: '小鬼',
     tokenIcon: '👺',
     /** トークンのカードの絵（game-icons。文字の中では tokenIcon の絵文字を使う。決定事項 #105） */

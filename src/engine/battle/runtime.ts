@@ -26,6 +26,7 @@ import {
   drawSpecific,
   exileCard,
   reviveFromDiscard,
+  revivesLeft,
   scryMove,
   seekFromDeck,
   steal,
@@ -341,6 +342,7 @@ export function makeRuntime(g: GameState, src: SourceRef, targets: TargetRef[], 
     reviveFromDiscard(p, uid) {
       reviveFromDiscard(g, p, uid, depth);
     },
+    revivesLeft: (p) => revivesLeft(g, p),
     dispelOptions: (p) => dispelOptions(g, p),
     dispel(p, key) {
       dispel(g, p, key, depth);

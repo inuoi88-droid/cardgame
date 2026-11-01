@@ -512,11 +512,22 @@ export function copyFromHand(g: GameState, p: PlayerId, cardUid: string, keep: b
   log(g, depth, `コピーしたカード：${cardName(g, original.cardId)}`, 'info', p);
 }
 
-/** 蘇生：捨て札のモンスターを召喚扱いで場に出す（「選んだ1体」は選ぶ場面がないので不発） */
+/** このターンにあと何体蘇生できるか（1人1ターン battle.maxRevivesPerTurn 体まで。報告 #25） */
+export function revivesLeft(g: GameState, p: PlayerId): number {
+  return Math.max(0, BALANCE.battle.maxRevivesPerTurn - (turnLimits(g, g.players[p]).revived ?? 0));
+}
+
+/** 蘇生：捨て札のモンスターを召喚扱いで場に出す（「選んだ1体」は選ぶ場面がないので不発）。1人1ターンの上限を数える */
 export function reviveFromDiscard(g: GameState, p: PlayerId, cardUid: string, depth: number): void {
   const ps = g.players[p];
   const i = ps.discard.findIndex((c) => c.uid === cardUid);
   if (i < 0) return;
+  if (revivesLeft(g, p) <= 0) {
+    log(g, depth, `蘇生は1ターンに${BALANCE.battle.maxRevivesPerTurn}体までなので、${ps.name}はもう蘇生できない`);
+    return;
+  }
+  const limits = turnLimits(g, ps);
+  limits.revived = (limits.revived ?? 0) + 1;
   const [card] = ps.discard.splice(i, 1);
   log(g, depth, `${ps.name}は捨て札から「${cardName(g, card!.cardId)}」を蘇生した`);
   summon(g, p, card!, {}, depth);

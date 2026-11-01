@@ -78,7 +78,8 @@ describe('定義（△ バッチB）：ポイント・テキスト', () => {
     ['召集（固定3）', SPELL([DMG5], { abilities: [AB('convoke')] }), 18, 3, 'まだ攻撃できる自分のモンスターを休ませると、1体につきコスト−1（最大−3）。'],
     // 探査：下げられる量（min(3, 印刷コスト3)）×4（親和と同じ。報告 #24・決定事項 #149。以前は固定3）
     ['探査（4×3）', SPELL([DMG5], { abilities: [AB('delve')] }), 27, 12, '捨て札を除外すると、1枚につきコスト−1（最大−3）。'],
-    ['血の支払い1（2×1）', SPELL([DMG5], { abilities: [AB('lifePay', 1)] }), 17, 2, 'エナジー1つまでを、1つにつきHP3で払える。'],
+    // 血の支払い：エナジー1つにつき 6・HP6（決定事項 #150。以前は 2・HP3）
+    ['血の支払い1（6×1）', SPELL([DMG5], { abilities: [AB('lifePay', 1)] }), 21, 6, 'エナジー1つまでを、1つにつきHP6で払える。'],
     ['代替コスト（固定6）', SPELL([DMG5], { abilities: [AB('pitch')] }), 21, 6, '同じ種類の手札1枚を除外すれば、エナジーなしで使える。'],
     ['最悪の二択（低い16＋高い18×0.2）', VILLAIN(), 20, 0, '相手が A か B を選ぶ。'],
     ['回顧（効果・本体15×0.5）', SPELL([DMG5], { abilities: [AB('retrace')] }), 23, 8, '捨て札から、手札1枚を捨てて使える（1ターン1回）。'],
@@ -405,7 +406,7 @@ describe('追加の支払い・モード（対戦）', () => {
     const g = fresh(2);
     const uid = giveCard(g, 0, SPELL([fx({ ...DMG5, target: 'enemyPlayer' })], { abilities: [AB('lifePay', 1)] }));
     const s = play(g, uid, { lifePay: 1 });
-    expect([s.players[0].energy, s.players[0].hp]).toEqual([0, g.players[0].hp - 3]);
+    expect([s.players[0].energy, s.players[0].hp]).toEqual([0, g.players[0].hp - 6]);
     expect(s.log.some((l) => l.ev?.status === 'lifePay')).toBe(true);
     const low = fresh(2);
     low.players[0].hp = 2;

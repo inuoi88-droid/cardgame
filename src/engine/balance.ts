@@ -507,7 +507,11 @@ export const BALANCE = {
     backup: { perValue: 4.5, base: x(2), maxValue: x(3) },
     fateseal: { perCount: x(1.5), maxCount: 3 },
     perpetual: { perValue: 4, maxValue: x(2), cardCap: x(5) },
-    exileMill: { perCount: x(1.2), maxCount: 3 },
+    /**
+     * 山札消滅：1枚につき perCount。x(1.2) では攻撃するたび・破壊されたときに重ねて相手の山札を削り切る組み合わせが安すぎた
+     * （報告 #20・ユーザー回答：1枚につき 120pt。決定事項 #150）
+     */
+    exileMill: { perCount: x(6), maxCount: 3 },
     /** トークン生成の「落とし子」（破壊されると持ち主のエナジー+1）：1体につき足す */
     tokenSpawn: { perToken: x(1.5) },
     /** 倍化の「3倍」（レジェンドだけ）：固定ポイントに足す */
@@ -719,8 +723,11 @@ export const BALANCE = {
      * 同じ「1つにつきコスト−1（最大−3）」の親和と同じ値段にした
      */
     delve: { perStep: x(4), max: 3, minCost: 2 },
-    /** 血の支払い：K×perEnergy。エナジー1を HP hpPerEnergy で払う（K は max まで） */
-    lifePay: { perEnergy: x(2), hpPerEnergy: x(3), max: 2 },
+    /**
+     * 血の支払い：K×perEnergy。エナジー1を HP hpPerEnergy で払う（K は max まで）。x(2)・HP x(3) では、パワー・レジェンドを
+     * 早いターンに出す代わりが軽すぎた（報告 #23・ユーザー回答：エナジー1つにつき 120pt・HP120。決定事項 #150）
+     */
+    lifePay: { perEnergy: x(6), hpPerEnergy: x(6), max: 2 },
     /** 代替コスト：固定（1ターン battle.maxPitchPerTurn 回） */
     pitch: { flat: x(6) },
     /** 最悪の二択：低いモード＋高いモード×highRate */

@@ -82,3 +82,34 @@ describe('報告 #24：探査は下げられるコスト1つにつき親和と�
     expect(analyzeCard(mon(5, [{ id: 'delve' }])).violations.map((v) => v.code)).toContain('POINTS_OVER_CAP');
   });
 });
+
+describe('報告 #20・#23（ユーザー回答。決定事項 #150）：山札消滅と血の支払いの値上げ', () => {
+  it('山札消滅は1枚につき 120pt（3枚で 360pt）', () => {
+    expect(BALANCE.effects.exileMill.perCount).toBe(120);
+    const c = def({ id: 'em', name: 'けずり', rarity: 'common', cost: 1, stats: null, effects: [{ id: 'exileMill', value: 3, target: 'enemyPlayer', timing: 'play', condition: null }] });
+    expect(analyzeCard(c).points.lines.find((l) => l.kind === 'effect')!.value).toBe(360);
+  });
+  it('報告 #20 の形（攻撃するたび・破壊されたとき2つの山札消滅3、疾走・二回攻撃）はどのレアリティでも作れない', () => {
+    for (const rarity of ['common', 'rare', 'epic', 'legend']) {
+      const c = def({
+        id: 'chihuahua', name: 'どくいぬ', rarity, cost: 2, stats: { attack: 0, hp: 20, defense: 0 }, keywords: [{ id: 'doubleAttack' }, { id: 'haste' }],
+        effects: [
+          { id: 'exileMill', value: 3, target: 'enemyPlayer', timing: 'attack', condition: null },
+          { id: 'exileMill', value: 3, target: 'enemyPlayer', timing: 'destroyed', condition: null },
+          { id: 'exileMill', value: 3, target: 'enemyPlayer', timing: 'destroyed', condition: null },
+        ],
+      });
+      expect(analyzeCard(c).violations.map((v) => v.code), rarity).toContain('POINTS_OVER_CAP');
+    }
+  });
+  it('血の支払いはエナジー1つにつき 120pt・HP120', () => {
+    expect(BALANCE.abilities.lifePay).toMatchObject({ perEnergy: 120, hpPerEnergy: 120 });
+    let g = startGame();
+    g.players[0].energy = 0;
+    const spell = def({ id: 'lp', name: 'ちのけいやく', rarity: 'legend', cost: 2, stats: null, effects: [{ id: 'damage', value: 20, target: 'enemyPlayer', timing: 'play', condition: null }], abilities: [{ id: 'lifePay', value: 2 }] });
+    expect(analyzeCard(spell).points.lines.find((l) => l.kind === 'ability')!.value).toBe(240);
+    const hp = g.players[0].hp;
+    g = act(g, { type: 'playCard', player: 0, cardUid: giveCard(g, 0, spell), chosen: {}, lifePay: 2 });
+    expect(g.players[0].hp).toBe(hp - 240);
+  });
+});
